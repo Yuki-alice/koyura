@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nav_screen_library_title">书架</string>
+    <string name="nav_screen_updates_title">更新</string>
+    <string name="nav_screen_history_title">历史</string>
+    <string name="nav_screen_browse_title">浏览</string>
+    <string name="nav_screen_more_title">更多</string>
+
+    <string name="nav_screen_library_body">书架内容将在这里显示。</string>
+    <string name="nav_screen_updates_body">新章节将在这里显示。</string>
+    <string name="nav_screen_history_body">阅读历史将在这里显示。</string>
+    <string name="nav_screen_browse_body">来源与扩展将在这里显示。</string>
+    <string name="nav_screen_more_body">设置与更多内容将在这里显示。</string>
+
+    <string name="nav_screen_detail_title">详情</string>
+    <string name="nav_screen_detail_body">从「%1$s」打开的详情页。</string>
+    <string name="nav_screen_open_detail">打开详情页</string>
+    <string name="nav_screen_back">返回</string>
+</resources>

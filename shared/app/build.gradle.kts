@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.android.kmp.library)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.compose.multiplatform)
 }
 
@@ -38,8 +39,27 @@ kotlin {
             implementation(libs.compose.resources)
             implementation(libs.compose.runtime)
             implementation(libs.compose.ui)
+            implementation(libs.compose.ui.backhandler)
+            implementation(libs.kotlinx.serialization.core)
+            implementation(libs.navigation3.runtime)
+            implementation(libs.navigation3.ui)
+        }
+        commonTest.dependencies {
+            implementation(libs.kotlin.test)
+        }
+        jvmMain.dependencies {
+            implementation(libs.kotlinx.coroutines.swing)
+        }
+        jvmTest.dependencies {
+            implementation(libs.compose.ui.test)
+            implementation(libs.compose.ui.test.junit4)
         }
     }
+}
+
+tasks.withType<Test>().configureEach {
+    // Screenshot tests write PNGs into a caller-chosen directory.
+    systemProperty("reader.screenshotDir", providers.gradleProperty("readerScreenshotDir").getOrElse("build/screenshots"))
 }
 
 compose.resources {

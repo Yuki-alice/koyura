@@ -1,4 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Reader</string>
+
+    <string name="nav_screen_library_title">Library</string>
+    <string name="nav_screen_updates_title">Updates</string>
+    <string name="nav_screen_history_title">History</string>
+    <string name="nav_screen_browse_title">Browse</string>
+    <string name="nav_screen_more_title">More</string>
+
+    <string name="nav_screen_library_body">Your library will live here.</string>
+    <string name="nav_screen_updates_body">New chapters will appear here.</string>
+    <string name="nav_screen_history_body">Reading history will appear here.</string>
+    <string name="nav_screen_browse_body">Sources and extensions will appear here.</string>
+    <string name="nav_screen_more_body">Settings and more will appear here.</string>
+
+    <string name="nav_screen_detail_title">Detail</string>
+    <string name="nav_screen_detail_body">Detail page pushed from %1$s.</string>
+    <string name="nav_screen_open_detail">Open detail page</string>
+    <string name="nav_screen_back">Back</string>
 </resources>
