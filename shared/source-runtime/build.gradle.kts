@@ -28,10 +28,13 @@ kotlin {
             api(libs.serialization.json)
             implementation(libs.coroutines.core)
             implementation(libs.quickjs)
+            api(project(":shared:network"))
+            implementation(libs.ktor.client.core)
         }
         commonTest.dependencies {
             implementation(kotlin("test"))
             implementation(libs.coroutines.test)
+            implementation(libs.ktor.client.mock)
         }
     }
 }

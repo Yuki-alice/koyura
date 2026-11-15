@@ -1,5 +1,13 @@
 package dev.reader.source.runtime
 
+import dev.reader.network.applyReaderDefaults
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.respond
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpMethod
+import io.ktor.http.HttpStatusCode
+import io.ktor.http.headersOf
 import java.io.File
 import java.security.MessageDigest
 import kotlinx.coroutines.delay
@@ -36,15 +44,31 @@ class VeneraExampleCompatibilityTest {
             "/comics/demo/chapters/2" to """{"images":["$image"]}""",
         )
         val requests = mutableListOf<String>()
-        val runtime = VeneraSourceRuntime.create(VeneraEnvironment("1.16.0", "zh_CN", "macos")) { request ->
+        // Full chain: QuickJS -> VeneraHttpTransport -> Ktor MockEngine (no public network).
+        val mock = MockEngine { httpRequest ->
             delay(5)
+            assertEquals(HttpMethod.Get, httpRequest.method)
+            assertEquals("application/json", httpRequest.headers["Accept"])
+            assertTrue(httpRequest.url.toString().startsWith(api))
+            val path = httpRequest.url.encodedPathAndQuery.removePrefix("/api")
+            requests += path
+            respond(
+                routes.getValue(path),
+                HttpStatusCode.OK,
+                headersOf(HttpHeaders.ContentType, "application/json"),
+            )
+        }
+        val client = HttpClient(mock) {
+            applyReaderDefaults()
+        }
+        // Transport owns the MockEngine client; VeneraSourceRuntime never closes it.
+        val ktor = KtorVeneraHttpTransport(client, ownsClient = true)
+        val runtime = VeneraSourceRuntime.create(VeneraEnvironment("1.16.0", "zh_CN", "macos")) { request ->
             assertEquals("example_source", request.sourceKey)
             assertEquals("GET", request.method)
             assertEquals(mapOf("Accept" to "application/json"), request.headers)
             assertTrue(request.url.startsWith(api))
-            val path = request.url.removePrefix(api)
-            requests += path
-            VeneraHttpResponse(200, routes.getValue(path))
+            ktor.execute(request)
         }
         try {
             val source = runtime.register(script.decodeToString(), file.name, expectedKey = "example_source")
@@ -90,9 +114,10 @@ class VeneraExampleCompatibilityTest {
             assertEquals(routes.keys.toList(), requests)
 
             println("Venera fixture SHA-256: $actualHash")
-            println("${source.key}: ${source.callbacks.joinToString { it.path }} passed")
+            println("${source.key}: ${source.callbacks.joinToString { it.path }} passed (MockEngine)")
         } finally {
             runtime.close()
+            ktor.close()
         }
     }
 
