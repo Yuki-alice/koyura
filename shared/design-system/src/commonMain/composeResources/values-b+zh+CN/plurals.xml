@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <plurals name="nav_updates_badge_description">
+        <item quantity="other">%1$d 个新章节</item>
+    </plurals>
+    <plurals name="nav_browse_badge_description">
+        <item quantity="other">%1$d 个插件可更新</item>
+    </plurals>
+</resources>

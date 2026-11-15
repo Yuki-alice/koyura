@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nav_library">书架</string>
+    <string name="nav_updates">更新</string>
+    <string name="nav_history">历史</string>
+    <string name="nav_browse">浏览</string>
+    <string name="nav_more">更多</string>
+</resources>
