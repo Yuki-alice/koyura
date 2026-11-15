@@ -18,4 +18,75 @@
     <string name="nav_screen_detail_body">Detail page pushed from %1$s.</string>
     <string name="nav_screen_open_detail">Open detail page</string>
     <string name="nav_screen_back">Back</string>
+
+    <!-- Browse -->
+    <string name="browse_title">Browse</string>
+    <string name="browse_tab_sources">Sources</string>
+    <string name="browse_tab_extensions">Extensions</string>
+    <string name="browse_search_sources">Search sources</string>
+    <string name="browse_search_extensions">Search extensions</string>
+    <string name="browse_clear_search">Clear search</string>
+    <string name="browse_manage_stores">Extension stores</string>
+    <string name="browse_update_all">Update all</string>
+    <string name="browse_retry">Retry</string>
+    <string name="browse_unavailable_title">Browse is not connected</string>
+    <string name="browse_unavailable_body">No source or extension runtime has been wired into this build yet. The rest of the app stays usable.</string>
+    <string name="browse_empty_sources">No sources yet. Install an extension to add sources.</string>
+    <string name="browse_empty_extensions">No extensions match this search.</string>
+    <string name="browse_empty_stores">No extension stores yet. Add one to discover extensions.</string>
+    <string name="browse_error_prefix">Something went wrong: %1$s</string>
+    <string name="browse_latest">Latest</string>
+    <string name="browse_language">Language: %1$s</string>
+    <string name="browse_group_updates">Updates pending</string>
+    <string name="browse_group_installed">Installed</string>
+    <string name="browse_group_available">Available</string>
+    <string name="browse_action_install">Install</string>
+    <string name="browse_action_update">Update</string>
+    <string name="browse_action_uninstall">Uninstall</string>
+    <string name="browse_action_open">Details</string>
+    <string name="browse_action_cancel">Cancel</string>
+    <string name="browse_operation_running">Working…</string>
+    <string name="browse_operation_succeeded">Done</string>
+    <string name="browse_operation_failed">Failed: %1$s</string>
+    <string name="browse_badge_description">%1$d extension updates</string>
+
+    <!-- Extension details -->
+    <string name="extension_details_title">Extension info</string>
+    <string name="extension_details_missing">This extension is no longer available.</string>
+    <string name="extension_details_package">Package: %1$s</string>
+    <string name="extension_details_version">Version: %1$s</string>
+    <string name="extension_details_store">Store: %1$s</string>
+    <string name="extension_details_sources">Sources</string>
+    <string name="extension_details_no_sources">This extension exposes no sources right now.</string>
+    <string name="extension_details_uninstall">Uninstall extension</string>
+    <string name="extension_details_uninstall_confirm_title">Uninstall %1$s?</string>
+    <string name="extension_details_uninstall_confirm_body">Its sources will be removed from Browse. Installed data stays untouched.</string>
+    <string name="extension_details_update">Update to %1$s</string>
+
+    <!-- Stores -->
+    <string name="stores_title">Extension stores</string>
+    <string name="stores_add">Add store</string>
+    <string name="stores_refresh">Refresh stores</string>
+    <string name="stores_name_field">Name</string>
+    <string name="stores_url_field">Index URL</string>
+    <string name="stores_enabled">Enabled</string>
+    <string name="stores_disabled">Disabled</string>
+    <string name="stores_edit">Edit</string>
+    <string name="stores_remove">Remove</string>
+    <string name="stores_preview">Preview</string>
+    <string name="stores_preview_title">Catalog preview</string>
+    <string name="stores_preview_empty">This store lists no extensions.</string>
+    <string name="stores_preview_count">%1$d extensions</string>
+    <string name="stores_close_preview">Close</string>
+    <string name="stores_add_title">Add extension store</string>
+    <string name="stores_edit_title">Edit extension store</string>
+    <string name="stores_remove_title">Remove %1$s?</string>
+    <string name="stores_remove_body">The store is removed from this device. Installed extensions stay installed.</string>
+    <string name="stores_url_empty">Enter an index URL.</string>
+    <string name="stores_url_invalid">The URL must start with http:// or https://.</string>
+    <string name="stores_url_duplicate">That store is already added.</string>
+    <string name="stores_count">%1$d extensions</string>
+    <string name="stores_save">Save</string>
+    <string name="stores_cancel">Cancel</string>
+    <string name="stores_remove_confirm">Remove</string>
 </resources>

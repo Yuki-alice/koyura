@@ -11,6 +11,7 @@ import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.v2.runComposeUiTest
+import dev.reader.app.browse.BrowseRootTestTag
 import dev.reader.app.navigation.DetailRoute
 import dev.reader.app.navigation.TabRootRoute
 import dev.reader.app.navigation.createAppNavigationState
@@ -92,7 +93,12 @@ class AppShellUiTest {
 
         NavTab.entries.forEach { tab ->
             navigation.select(tab)
-            onNodeWithTag("tab-title-${tab.name}").assertIsDisplayed()
+            if (tab == NavTab.Browse) {
+                // Browse now renders its own surface instead of the placeholder root page.
+                onNodeWithTag(BrowseRootTestTag).assertIsDisplayed()
+            } else {
+                onNodeWithTag("tab-title-${tab.name}").assertIsDisplayed()
+            }
         }
     }
 

@@ -19,6 +19,14 @@ data class TabRootRoute(val tab: NavTab) : AppRoute
 @Serializable
 data class DetailRoute(val tab: NavTab, val id: Int) : AppRoute
 
+/** Installed extension details, pushed onto the Browse tab stack. */
+@Serializable
+data class ExtensionDetailsRoute(val extensionKey: String) : AppRoute
+
+/** Extension store management, pushed onto the Browse tab stack. */
+@Serializable
+data class ExtensionStoresRoute(val focusStoreId: String? = null) : AppRoute
+
 /**
  * Saved-state configuration registering every [AppRoute] subtype for open polymorphism.
  *
@@ -29,6 +37,8 @@ val ReaderSavedStateConfiguration: SavedStateConfiguration = SavedStateConfigura
         polymorphic(NavKey::class) {
             subclass(TabRootRoute::class, TabRootRoute.serializer())
             subclass(DetailRoute::class, DetailRoute.serializer())
+            subclass(ExtensionDetailsRoute::class, ExtensionDetailsRoute.serializer())
+            subclass(ExtensionStoresRoute::class, ExtensionStoresRoute.serializer())
         }
     }
 }

@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.movableContentOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.SaveableStateHolder
@@ -23,11 +24,22 @@ import androidx.compose.ui.platform.testTag
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.ui.NavDisplay
+import dev.reader.app.browse.BrowseScreen
+import dev.reader.app.browse.BrowseService
+import dev.reader.app.browse.LocalBrowseService
+import dev.reader.app.browse.BrowseSession
+import dev.reader.app.browse.ExtensionDetailsScreen
+import dev.reader.app.browse.ExtensionStoresScreen
+import dev.reader.app.browse.LocalBrowseSession
+import dev.reader.app.browse.rememberBrowseSession
 import dev.reader.app.navigation.AppNavigationState
 import dev.reader.app.navigation.DetailRoute
+import dev.reader.app.navigation.ExtensionDetailsRoute
+import dev.reader.app.navigation.ExtensionStoresRoute
 import dev.reader.app.navigation.TabRootRoute
 import dev.reader.app.ui.DetailScreen
 import dev.reader.app.ui.TabRootScreen
+import dev.reader.designsystem.navigation.NavTab
 import dev.reader.designsystem.navigation.ReaderNavigationBar
 import dev.reader.designsystem.navigation.ReaderNavigationRail
 
@@ -46,16 +58,19 @@ internal const val NavigationRailTestTag = "app-navigation-rail"
 internal fun AppScaffold(
     navigation: AppNavigationState,
     useRail: Boolean,
+    browseService: BrowseService? = LocalBrowseService.current,
 ) {
     BackToLibraryHandler(navigation)
+
+    val browseSession = rememberBrowseSession(browseService)
 
     // The bar and rail branches have different layout shapes, so recomposing one into the other
     // would dispose the content subtree and rebuild it from saved state. Moving the subtree with
     // movable content keeps its remember state, including scroll position, across the switch.
     val saveableStateHolder = rememberSaveableStateHolder()
     val appContent = remember {
-        movableContentOf<AppNavigationState, SaveableStateHolder> { state, holder ->
-            AppNavigationContent(state, holder)
+        movableContentOf<AppNavigationState, SaveableStateHolder, BrowseSession> { state, holder, browse ->
+            AppNavigationContent(state, holder, browse)
         }
     }
 
@@ -68,6 +83,7 @@ internal fun AppScaffold(
                 selectedTab = navigation.selectedTab,
                 onTabClick = navigation::select,
                 modifier = Modifier.fillMaxHeight().testTag(NavigationRailTestTag),
+                browseBadgeCount = browseSession.state.updateCount,
             )
             Box(
                 modifier = Modifier
@@ -75,7 +91,7 @@ internal fun AppScaffold(
                     .fillMaxHeight()
                     .windowInsetsPadding(contentInsets),
             ) {
-                appContent(navigation, saveableStateHolder)
+                appContent(navigation, saveableStateHolder, browseSession)
             }
         }
     } else {
@@ -89,12 +105,13 @@ internal fun AppScaffold(
                     .fillMaxWidth()
                     .windowInsetsPadding(contentInsets),
             ) {
-                appContent(navigation, saveableStateHolder)
+                appContent(navigation, saveableStateHolder, browseSession)
             }
             ReaderNavigationBar(
                 selectedTab = navigation.selectedTab,
                 onTabClick = navigation::select,
                 modifier = Modifier.testTag(NavigationBarTestTag),
+                browseBadgeCount = browseSession.state.updateCount,
             )
         }
     }
@@ -126,19 +143,48 @@ private fun BackToLibraryHandler(navigation: AppNavigationState) {
 private fun AppNavigationContent(
     navigation: AppNavigationState,
     saveableStateHolder: SaveableStateHolder,
+    browseSession: BrowseSession,
 ) {
-    val entryProvider = remember(navigation) {
+    val entryProvider = remember(navigation, browseSession) {
         entryProvider<NavKey> {
             entry<TabRootRoute> { route ->
-                TabRootScreen(
-                    tab = route.tab,
-                    onOpenDetail = {
-                        navigation.push(DetailRoute(tab = route.tab, id = navigation.currentStack.size))
-                    },
-                )
+                if (route.tab == NavTab.Browse) {
+                    CompositionLocalProvider(LocalBrowseSession provides browseSession) {
+                        BrowseScreen(
+                            session = browseSession,
+                            onOpenExtension = { key -> navigation.push(ExtensionDetailsRoute(key)) },
+                            onManageStores = { storeId -> navigation.push(ExtensionStoresRoute(storeId)) },
+                        )
+                    }
+                } else {
+                    TabRootScreen(
+                        tab = route.tab,
+                        onOpenDetail = {
+                            navigation.push(DetailRoute(tab = route.tab, id = navigation.currentStack.size))
+                        },
+                    )
+                }
             }
             entry<DetailRoute> { route ->
                 DetailScreen(origin = route.tab, id = route.id)
+            }
+            entry<ExtensionDetailsRoute> { route ->
+                CompositionLocalProvider(LocalBrowseSession provides browseSession) {
+                    ExtensionDetailsScreen(
+                        session = browseSession,
+                        extensionKey = route.extensionKey,
+                        onBack = { navigation.popCurrentChild() },
+                    )
+                }
+            }
+            entry<ExtensionStoresRoute> { route ->
+                CompositionLocalProvider(LocalBrowseSession provides browseSession) {
+                    ExtensionStoresScreen(
+                        session = browseSession,
+                        initialStoreId = route.focusStoreId,
+                        onBack = { navigation.popCurrentChild() },
+                    )
+                }
             }
         }
     }
