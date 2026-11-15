@@ -12,7 +12,9 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.movableContentOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.SaveableStateHolder
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -47,6 +49,16 @@ internal fun AppScaffold(
 ) {
     BackToLibraryHandler(navigation)
 
+    // The bar and rail branches have different layout shapes, so recomposing one into the other
+    // would dispose the content subtree and rebuild it from saved state. Moving the subtree with
+    // movable content keeps its remember state, including scroll position, across the switch.
+    val saveableStateHolder = rememberSaveableStateHolder()
+    val appContent = remember {
+        movableContentOf<AppNavigationState, SaveableStateHolder> { state, holder ->
+            AppNavigationContent(state, holder)
+        }
+    }
+
     if (useRail) {
         val contentInsets = WindowInsets.safeDrawing.only(
             WindowInsetsSides.Top + WindowInsetsSides.End + WindowInsetsSides.Bottom,
@@ -63,7 +75,7 @@ internal fun AppScaffold(
                     .fillMaxHeight()
                     .windowInsetsPadding(contentInsets),
             ) {
-                AppNavigationContent(navigation)
+                appContent(navigation, saveableStateHolder)
             }
         }
     } else {
@@ -77,7 +89,7 @@ internal fun AppScaffold(
                     .fillMaxWidth()
                     .windowInsetsPadding(contentInsets),
             ) {
-                AppNavigationContent(navigation)
+                appContent(navigation, saveableStateHolder)
             }
             ReaderNavigationBar(
                 selectedTab = navigation.selectedTab,
@@ -106,12 +118,15 @@ private fun BackToLibraryHandler(navigation: AppNavigationState) {
 /**
  * Renders the selected tab's Navigation 3 stack.
  *
- * Each tab owns its stack, so switching tabs only swaps which stack NavDisplay reads. The saveable
- * state holder keeps screen-level state alive across those swaps.
+ * Each tab owns its stack, so switching tabs only swaps which stack NavDisplay reads. The shared
+ * [saveableStateHolder] outlives both layouts and keys by tab, keeping screen-level state across tab
+ * switches and across bottom bar / navigation rail changes.
  */
 @Composable
-private fun AppNavigationContent(navigation: AppNavigationState) {
-    val saveableStateHolder = rememberSaveableStateHolder()
+private fun AppNavigationContent(
+    navigation: AppNavigationState,
+    saveableStateHolder: SaveableStateHolder,
+) {
     val entryProvider = remember(navigation) {
         entryProvider<NavKey> {
             entry<TabRootRoute> { route ->

@@ -16,7 +16,11 @@ Android、桌面 JVM 和 iOS 都通过 `dev.reader.app.App()` 进入同一套五
 
 内容可用宽度低于 720 dp 用底栏，达到 720 dp 用导航轨。720 dp 取自 Komikku `DisplayExtensions.kt` 的 `TABLET_UI_REQUIRED_SCREEN_WIDTH_DP`。本轮采用实时窗口宽度（`BoxWithConstraints.maxWidth`），不读取设备最小宽度，因此桌面拖拽缩放和移动端分屏都会即时切换。判定收敛在纯函数 `usesNavigationRail(width)`，719 / 720 dp 边界可直接测试。
 
-宽度变化只切换布局，不重建导航状态：五条栈与选中标签由 `rememberNavBackStack` 和 `rememberSaveable` 持有，切换时保留。
+宽度变化只切换布局，不重建页面状态：
+
+- 五条栈与选中标签由 `rememberNavBackStack` 和 `rememberSaveable` 持有。
+- 内容子树用 `movableContentOf` 构建，在底栏与导航轨两个布局分支之间真正移动，而不是销毁后重建。仅共享 `SaveableStateHolder` 不够：新分支会先组合、旧分支随后才被销毁，同 key 的状态会在这次交叠里被清掉。
+- `SaveableStateHolder` 按标签名作 key，因此各标签的页面状态（例如滚动位置）互相独立，切换标签再切回来仍然保留。
 
 ## 返回规则
 
@@ -47,13 +51,15 @@ Android、桌面 JVM 和 iOS 都通过 `dev.reader.app.App()` 进入同一套五
 
 ## 测试
 
-`:shared:app:jvmTest` 共 24 个用例：
+`:shared:app:jvmTest` 共 27 个用例：
 
 | 测试类 | 覆盖 |
 | --- | --- |
 | `AppNavigationStateTest` | 默认书架、五栏各有根页、切换不破坏他栏、重选只发一次事件、子页优先弹出、其他栏根页返回书架、书架根页不处理 |
 | `ShellWidthTest` | 719 / 720 / 0 / 360 / 721 / 1280 dp 的布局判定 |
 | `AppShellUiTest` | 底栏与导航轨渲染、根页标题、子页压栈与返回、重选点击、布局切换后保留标签与栈、导航选中态 |
+| `AppShellStateRetentionTest` | 719 ↔ 720 dp 往返仍保留滚动位置、各标签滚动位置互相独立、缩放后切回各自标签仍保留 |
+| `ReviewScrollRetentionTest` | 外部复现用例：719 dp 滚动后扩到 720 dp，滚动偏移保持 |
 | `AppShellWidthUiTest` | 真实 719 dp 底栏、720 dp 导航轨、跨边界缩放后标签与栈保留 |
 | `ScreenshotCaptureTest` | 输出 `docs/screenshots/` 下的三张 PNG |
 
