@@ -102,7 +102,7 @@ SQLite 管理 `works`、`chapters`、`library_entries`、`categories`、`chapter
 | 契约 | 设计 |
 | --- | --- |
 | 浏览 | 保留 `search`、`explore`、`category`、`categoryComics` 的回调、选项、跳转目标和分页形态。`search.load` 返回 `maxPage`，`search.loadNext` 返回 `next`。宿主再映射到 Komikku 风格的浏览、Feed 和保存搜索 |
-| 漫画内容 | 保留 `Comic`、`ComicDetails`、分组目录、无章节作品、`comic.loadInfo` 与 `comic.loadEp`。`onThumbnailLoad` 保持同步，`onImageLoad` 可异步，支持 `onResponse`、`modifyImage` 和失败重取 |
+| 漫画内容 | 保留 `Comic`、`ComicDetails`、分组目录、无章节作品、`comic.loadInfo` 与 `comic.loadEp`。按 Venera-Next 实现，`onThumbnailLoad` 和 `onImageLoad` 都可返回配置或 Promise。图片处理还需支持 `onResponse`、`modifyImage` 和失败重取。 [缩略图 Promise 回归用例](https://github.com/CyrilPeng/Venera-Next/blob/c0c45979d453c2a8740c45f08e95997c90717629/test/features/comic_source/source_image_config_test.dart#L133) |
 | 配置与站点交互 | 保留 `settings`、翻译、源数据读写、`account`、在线收藏、评论、评分与归档能力。原有 `UI` 回调由 CMP 页面承接，保留同步与 Promise 的返回约定 |
 | 宿主 API | 兼容 `Network` / `fetch`、Cookie、`HtmlDocument`、`APP`、`Convert`、日志、计时器、剪贴板、对话框和 `compute`。兼容检查包含同步/异步差异、异常及 `ArrayBuffer` 的传递 |
 | 执行与所有权 | 沿用主引擎注册表和 `compute` / 图片处理独立引擎。按源实例绑定宿主回调和数据写入，避免卸载、替换或关闭后的旧回调继续写入新实例 |

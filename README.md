@@ -32,5 +32,19 @@ Android 构建从 `ANDROID_HOME` 或 `local.properties` 解析 SDK 路径。iOS 
 | `:apps:desktop` | Compose Desktop JVM 入口和安装包配置 |
 | `:shared:app` | 共享 Compose 入口和应用资源 |
 | `:shared:design-system` | 共享 Material 3 主题 |
+| `:shared:source-runtime` | QuickJS 宿主、Venera 源注册和回调桥接 |
 
 三个入口共用一个启动页。`docs/architecture.md` 描述后续功能模块。`reference/` 放本地参考仓库，供查阅与对照。
+
+## Venera 脚本验证
+
+运行以下命令，用本机 Venera-Next 参考仓库提供原始 `doc/examples/minimal_source.js`。默认读取 `reference/Venera-Next`，在独立工作树中可用 `-PveneraReferenceDir` 指定路径。测试核对脚本 SHA-256，通过注入的 HTTP 响应运行搜索、详情、章节、正文图片、缩略图和标签回调。
+
+```bash
+./gradlew :shared:source-runtime:jvmTest \
+  -PveneraReferenceDir="/path/to/Venera-Next"
+
+./gradlew :shared:source-runtime:iosSimulatorArm64Test \
+  :shared:source-runtime:compileKotlinIosArm64 \
+  :shared:source-runtime:assembleAndroidMain
+```
