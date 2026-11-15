@@ -439,7 +439,10 @@ private fun StoreCatalogDialog(
                         text = stringResource(Res.string.browse_operation_failed, catalogState.message),
                         color = MaterialTheme.colorScheme.error,
                     )
-                    Button(onClick = onRetry) {
+                    Button(
+                        onClick = onRetry,
+                        modifier = Modifier.testTag("catalog-retry"),
+                    ) {
                         Text(stringResource(Res.string.stores_refresh))
                     }
                 }

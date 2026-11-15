@@ -22,8 +22,10 @@ class FakeBrowseService(
     /** When set, the next call of that operation throws before mutating anything. */
     val failures = mutableMapOf<String, String>()
 
-    /** When set, calls do not complete until released; used for in-flight assertions. */
+    /** When set, calls whose key starts with [gateKey] wait for [gate] before returning. */
     var gate: Gate? = null
+    var gateKey: String? = null
+    var currentGateConsumed = false
 
     var loadFailure: String? = null
     var previewFailure: String? = null
@@ -42,7 +44,11 @@ class FakeBrowseService(
 
     private suspend fun enter(key: String) {
         calls[key] = (calls[key] ?: 0) + 1
-        gate?.await()
+        val currentGate = gate
+        if (!currentGateConsumed && gateKey != null && key.startsWith(gateKey!!)) {
+            currentGateConsumed = true
+            currentGate?.await()
+        }
         failures[key]?.let { message ->
             failures.remove(key)
             throw BrowseServiceException(message)
