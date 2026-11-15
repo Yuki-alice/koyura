@@ -95,5 +95,62 @@ class ExtensionLifecycleFixtureTest {
         }
     }
 
+    @Test
+    fun unlinkedUpdateFallsBackToScriptUrl() = runTest {
+        val scriptUrl = "https://example.invalid/sources/example.js"
+        var served = """
+        class ExampleSource extends ComicSource {
+            name = "Example"; key = "example_source"; version = "1.0.0";
+            minAppVersion = "1.16.0"; url = "$scriptUrl";
+            comic = {
+                loadInfo(id) { return { title: "v1:" + id }; },
+                onClickTag() { return null; },
+            };
+        }
+        """.trimIndent()
+        val mock = MockEngine {
+            respond(served, HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/javascript"))
+        }
+        val client = HttpClient(mock) { applyReaderDefaults() }
+        val scriptsDir = FileSystem.SYSTEM_TEMPORARY_DIRECTORY / "reader-ext-${Uuid.random()}"
+        val service = ExtensionService(
+            driver = createTestDriver(),
+            fileSystem = FileSystem.SYSTEM,
+            scriptsDir = scriptsDir,
+            httpClient = client,
+            environment = VeneraEnvironment("1.16.0", "zh_CN", "macos"),
+        )
+        try {
+            service.open()
+            service.restore()
+            // No repository linked: update must use the script's own url (upstream rule).
+            val installed = service.installFromUrl(scriptUrl, expectedKey = "example_source")
+            assertEquals("1.0.0", installed.version)
+            served = """
+            class ExampleSource extends ComicSource {
+                name = "Example"; key = "example_source"; version = "2.0.0";
+                minAppVersion = "1.16.0"; url = "$scriptUrl";
+                comic = {
+                    loadInfo(id) { return { title: "v2:" + id }; },
+                    onClickTag() { return null; },
+                };
+            }
+            """.trimIndent()
+            val updated = service.update("example_source")
+            assertEquals("2.0.0", updated.version)
+            assertEquals(
+                JsonPrimitive("v2:x"),
+                service.runtime!!.call(
+                    "example_source", VeneraCallback.LoadInfo, JsonArray(listOf(JsonPrimitive("x"))),
+                ).jsonObject["title"],
+            )
+            println("example_source: unlinked fallback update 1.0.0 -> 2.0.0 passed (service)")
+        } finally {
+            service.close()
+            client.close()
+            FileSystem.SYSTEM.deleteRecursively(scriptsDir)
+        }
+    }
+
     private fun ByteArray.toHexString(): String = joinToString("") { "%02x".format(it) }
 }
