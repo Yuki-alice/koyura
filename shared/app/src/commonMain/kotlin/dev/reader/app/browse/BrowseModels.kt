@@ -171,10 +171,11 @@ fun List<SourceInfo>.groupedSources(query: String): List<SourceSection> {
                 it.language.contains(needle, ignoreCase = true)
         }
     }
-    return filtered
-        .groupBy { it.language }
-        .toSortedMap()
-        .map { (language, items) -> SourceSection(language, items.sortedBy { it.name.lowercase() }) }
+    val byLanguage = filtered.groupBy { it.language }
+    return byLanguage.keys.sorted().map { language ->
+        val items = byLanguage.getValue(language)
+        SourceSection(language, items.sortedBy { it.name.lowercase() })
+    }
 }
 
 /** Validation result for a store index URL, kept pure so both the dialog and tests can use it. */

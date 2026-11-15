@@ -59,10 +59,11 @@ internal fun AppScaffold(
     navigation: AppNavigationState,
     useRail: Boolean,
     browseService: BrowseService? = LocalBrowseService.current,
+    browseSession: BrowseSession? = null,
 ) {
     BackToLibraryHandler(navigation)
 
-    val browseSession = rememberBrowseSession(browseService)
+    val activeBrowseSession = browseSession ?: rememberBrowseSession(browseService)
 
     // The bar and rail branches have different layout shapes, so recomposing one into the other
     // would dispose the content subtree and rebuild it from saved state. Moving the subtree with
@@ -83,7 +84,7 @@ internal fun AppScaffold(
                 selectedTab = navigation.selectedTab,
                 onTabClick = navigation::select,
                 modifier = Modifier.fillMaxHeight().testTag(NavigationRailTestTag),
-                browseBadgeCount = browseSession.state.updateCount,
+                browseBadgeCount = activeBrowseSession.state.updateCount,
             )
             Box(
                 modifier = Modifier
@@ -91,7 +92,7 @@ internal fun AppScaffold(
                     .fillMaxHeight()
                     .windowInsetsPadding(contentInsets),
             ) {
-                appContent(navigation, saveableStateHolder, browseSession)
+                appContent(navigation, saveableStateHolder, activeBrowseSession)
             }
         }
     } else {
@@ -105,13 +106,13 @@ internal fun AppScaffold(
                     .fillMaxWidth()
                     .windowInsetsPadding(contentInsets),
             ) {
-                appContent(navigation, saveableStateHolder, browseSession)
+                appContent(navigation, saveableStateHolder, activeBrowseSession)
             }
             ReaderNavigationBar(
                 selectedTab = navigation.selectedTab,
                 onTabClick = navigation::select,
                 modifier = Modifier.testTag(NavigationBarTestTag),
-                browseBadgeCount = browseSession.state.updateCount,
+                browseBadgeCount = activeBrowseSession.state.updateCount,
             )
         }
     }

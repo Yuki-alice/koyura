@@ -485,7 +485,7 @@ private fun StoreCatalogDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(onClick = onDismiss, modifier = Modifier.testTag("catalog-close")) {
                 Text(stringResource(Res.string.stores_close_preview))
             }
         },
