@@ -1,6 +1,7 @@
 package dev.reader.source.runtime
 
 import io.ktor.client.HttpClient
+import io.ktor.client.plugins.ResponseException
 import io.ktor.client.request.header
 import io.ktor.client.request.headers
 import io.ktor.client.request.request
@@ -24,8 +25,14 @@ import kotlinx.serialization.json.JsonPrimitive
  *   `JSON.stringify` before `Network.post`) is sent as its raw text, not
  *   re-encoded with extra quotes. JSON numbers/booleans use their literal text;
  *   objects/arrays use their JSON encoding; null/absent means no body.
+ * - When the script omits `User-Agent` (any casing), sends the upstream default
+ *   browser UA from `reference/Venera-Next/lib/foundation/consts.dart` (`webUA`),
+ *   mirroring `lib/foundation/js_engine.dart` `_performHttp`. An explicit script
+ *   UA in any casing is forwarded as-is and never duplicated.
  * - HTTP 4xx/5xx are returned as [VeneraHttpResponse] for the script to check
- *   via `status`. Only transport failures (connect/timeout/DNS/closed engine)
+ *   via `status`, even when the injected [HttpClient] uses `expectSuccess = true`:
+ *   the request catches Ktor's [ResponseException] and maps it back to a
+ *   response. Only transport failures (connect/timeout/DNS/closed engine)
  *   throw, which [VeneraSourceRuntime] converts into a script-visible request
  *   error. [CancellationException] always propagates.
  * - Multi-value response headers are joined with `,` like upstream
@@ -35,7 +42,8 @@ import kotlinx.serialization.json.JsonPrimitive
  * the site): `cache-time`, `prevent-parallel`, `http_client`.
  *
  * Options implemented this round:
- * - Implemented: method/URL/headers/text-body forwarding, 4xx/5xx passthrough,
+ * - Implemented: method/URL/headers/text-body forwarding, default browser UA,
+ *   4xx/5xx passthrough (request-level [ResponseException] mapping),
  *   transport-error throw, cancellation propagation, `,` header join.
  * - Not implemented (stripped/ignored): short-term `cache-time` caching,
  *   `prevent-parallel` serialization, `http_client == "dart:io"` alternate
@@ -56,6 +64,7 @@ class KtorVeneraHttpTransport(
             val contentTypeHeader = request.headers.entries
                 .firstOrNull { it.key.equals(HttpHeaders.ContentType, ignoreCase = true) }
                 ?.value
+            val hasUserAgent = request.headers.keys.any { it.equals(HttpHeaders.UserAgent, ignoreCase = true) }
             val response = client.request {
                 method = HttpMethod.parse(request.method.uppercase())
                 url(request.url)
@@ -66,6 +75,9 @@ class KtorVeneraHttpTransport(
                         // without a body it is a plain header.
                         if (text != null && name.equals(HttpHeaders.ContentType, ignoreCase = true)) continue
                         append(name, value)
+                    }
+                    if (!hasUserAgent) {
+                        append(HttpHeaders.UserAgent, DEFAULT_BROWSER_USER_AGENT)
                     }
                 }
                 if (text != null) {
@@ -91,6 +103,17 @@ class KtorVeneraHttpTransport(
             )
         } catch (cancelled: CancellationException) {
             throw cancelled
+        } catch (failure: ResponseException) {
+            // Request-level guarantee: an injected client with expectSuccess = true
+            // must still surface 4xx/5xx to the script instead of throwing.
+            val failed = failure.response
+            val headers = failed.headers.entries()
+                .associate { (name, values) -> name to values.joinToString(",") }
+            return VeneraHttpResponse(
+                status = failed.status.value,
+                body = failed.bodyAsText(),
+                headers = headers,
+            )
         }
     }
 
@@ -103,6 +126,15 @@ class KtorVeneraHttpTransport(
     }
 
     companion object {
+        /**
+         * Upstream default browser UA (`webUA` in
+         * `reference/Venera-Next/lib/foundation/consts.dart`), applied when the
+         * script omits `User-Agent`, mirroring `_performHttp` in
+         * `reference/Venera-Next/lib/foundation/js_engine.dart`.
+         */
+        const val DEFAULT_BROWSER_USER_AGENT =
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
+
         private val hostControlHeaders = setOf("cache-time", "prevent-parallel", "http_client")
 
         internal fun isHostControlHeader(name: String): Boolean =

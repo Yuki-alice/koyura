@@ -96,6 +96,91 @@ class VeneraKtorTransportTest {
     }
 
     @Test
+    fun sendsUpstreamBrowserUserAgentWhenOmitted() = runTest {
+        var capturedAgent: String? = null
+        var capturedCount = 0
+        val mock = MockEngine { request ->
+            capturedAgent = request.headers[HttpHeaders.UserAgent]
+            capturedCount = request.headers.getAll(HttpHeaders.UserAgent)?.size ?: 0
+            respond("ok", HttpStatusCode.OK)
+        }
+        val client = HttpClient(mock) { applyReaderDefaults() }
+        val transport = KtorVeneraHttpTransport(client)
+        try {
+            transport.execute(
+                VeneraHttpRequest(sourceKey = null, method = "GET", url = "https://example.invalid/ua"),
+            )
+            assertEquals(KtorVeneraHttpTransport.DEFAULT_BROWSER_USER_AGENT, capturedAgent)
+            assertEquals(1, capturedCount)
+            assertEquals(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+                capturedAgent,
+            )
+        } finally {
+            client.close()
+        }
+    }
+
+    @Test
+    fun respectsExplicitUserAgentInAnyCasing() = runTest {
+        val variants = listOf("user-agent", "User-Agent", "USER-AGENT", "uSeR-aGeNt")
+        for (headerName in variants) {
+            var capturedAgent: String? = null
+            var capturedCount = 0
+            val mock = MockEngine { request ->
+                capturedAgent = request.headers[HttpHeaders.UserAgent]
+                capturedCount = request.headers.getAll(HttpHeaders.UserAgent)?.size ?: 0
+                respond("ok", HttpStatusCode.OK)
+            }
+            val client = HttpClient(mock) { applyReaderDefaults() }
+            val transport = KtorVeneraHttpTransport(client)
+            try {
+                transport.execute(
+                    VeneraHttpRequest(
+                        sourceKey = null,
+                        method = "GET",
+                        url = "https://example.invalid/ua",
+                        headers = mapOf(headerName to "Custom/$headerName"),
+                    ),
+                )
+                assertEquals("Custom/$headerName", capturedAgent, "header casing: $headerName")
+                assertEquals(1, capturedCount, "server must see a single UA for $headerName")
+            } finally {
+                client.close()
+            }
+        }
+    }
+
+    @Test
+    fun injectedExpectSuccessTrueStillReturns404And500() = runTest {
+        val mock = MockEngine { request ->
+            when (request.url.encodedPath) {
+                "/missing" -> respond("not here", HttpStatusCode.NotFound)
+                "/broken" -> respond("boom", HttpStatusCode.InternalServerError)
+                else -> respond("ok", HttpStatusCode.OK)
+            }
+        }
+        // Even with expectSuccess = true, Venera must see status + body.
+        val client = HttpClient(mock) { expectSuccess = true }
+        val transport = KtorVeneraHttpTransport(client)
+        try {
+            val notFound = transport.execute(
+                VeneraHttpRequest(sourceKey = null, method = "GET", url = "https://example.invalid/missing"),
+            )
+            assertEquals(404, notFound.status)
+            assertEquals("not here", notFound.body)
+
+            val broken = transport.execute(
+                VeneraHttpRequest(sourceKey = null, method = "GET", url = "https://example.invalid/broken"),
+            )
+            assertEquals(500, broken.status)
+            assertEquals("boom", broken.body)
+        } finally {
+            client.close()
+        }
+    }
+
+    @Test
     fun joinsDuplicateResponseHeadersWithComma() = runTest {
         val mock = MockEngine {
             respond(
