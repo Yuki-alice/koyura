@@ -30,6 +30,7 @@ class VeneraSourceRuntime private constructor(
     private val supportedVersion: VeneraVersion,
 ) {
     private val mutex = Mutex()
+    private var nextImageConfigId = 0L
     private val sources = linkedMapOf<String, VeneraSource>()
     private val displacedSources = mutableMapOf<String, VeneraSource?>()
 
@@ -186,21 +187,16 @@ class VeneraSourceRuntime private constructor(
         callback: VeneraCallback,
         arguments: JsonArray = JsonArray(emptyList()),
         capturable: List<String> = listOf("onResponse", "onLoadFailed"),
-    ): ParsedImageConfig = withContext(Dispatchers.Default) {
-        mutex.withLock {
-            checkOpen()
+    ): ParsedImageConfig = checkNotNull(
+        receiveImageConfig("$key:${callback.path}:image") { configId ->
             val source = requireNotNull(sources[key]) { "Source '$key' is not registered" }
             require(callback in source.callbacks) { "Source '$key' does not provide ${callback.path}" }
             val encodedArguments = JsonPrimitive(arguments.toString())
             val encodedCapturable = JsonPrimitive(Json.encodeToString(capturable))
-            val script = "await __readerVenera.invokeImage(${JsonPrimitive(key)}, " +
+            "await __readerVenera.invokeImage($configId, ${JsonPrimitive(key)}, " +
                 "${JsonPrimitive(callback.path)}, JSON.parse($encodedArguments), JSON.parse($encodedCapturable))"
-            val raw = withTimeout(CALLBACK_TIMEOUT_MILLIS) {
-                evaluate<String>(script, "$key:${callback.path}:image")
-            }
-            ParsedImageConfig.decode(Json.parseToJsonElement(raw))
-        }
-    }
+        },
+    )
 
     /**
      * Invokes a tracked `onResponse` handle with [bytes] and returns the
@@ -226,16 +222,51 @@ class VeneraSourceRuntime private constructor(
     suspend fun invokeImageOnLoadFailed(
         handle: Int,
         capturable: List<String> = listOf("onResponse", "onLoadFailed"),
-    ): ParsedImageConfig? = withContext(Dispatchers.Default) {
-        mutex.withLock {
-            checkOpen()
-            val encodedCapturable = JsonPrimitive(Json.encodeToString(capturable))
-            val raw = withTimeout(CALLBACK_TIMEOUT_MILLIS) {
-                evaluate<String>("await __readerImage.callOnLoadFailed($handle, JSON.parse($encodedCapturable))", "image:onLoadFailed")
+    ): ParsedImageConfig? = receiveImageConfig("image:onLoadFailed", allowMissing = true) { configId ->
+        val encodedCapturable = JsonPrimitive(Json.encodeToString(capturable))
+        "await __readerImage.callOnLoadFailed($configId, $handle, JSON.parse($encodedCapturable))"
+    }
+
+    /**
+     * QuickJS owns the handles until the decoded config reaches the caller. The catch must
+     * surround the dispatcher switch because cancellation can discard its successful result.
+     */
+    private suspend fun receiveImageConfig(
+        fileName: String,
+        allowMissing: Boolean = false,
+        script: (Long) -> String,
+    ): ParsedImageConfig? {
+        var configId: Long? = null
+        try {
+            return withContext(Dispatchers.Default) {
+                mutex.withLock {
+                    checkOpen()
+                    val id = ++nextImageConfigId
+                    configId = id
+                    val raw = withTimeout(CALLBACK_TIMEOUT_MILLIS) {
+                        evaluate<String>(script(id), fileName)
+                    }
+                    val element = Json.parseToJsonElement(raw)
+                    if (allowMissing && element is JsonNull) null else ParsedImageConfig.decode(element)
+                }
             }
-            val element = Json.parseToJsonElement(raw)
-            if (element is JsonNull) return@withLock null
-            ParsedImageConfig.decode(element)
+        } catch (failure: Throwable) {
+            configId?.let { discardImageConfig(it, failure) }
+            throw failure
+        }
+    }
+
+    private suspend fun discardImageConfig(configId: Long, failure: Throwable) {
+        withContext(Dispatchers.Default + NonCancellable) {
+            mutex.withLock {
+                if (!engine.isClosed) {
+                    try {
+                        evaluate<Any?>("__readerImage.discardConfig($configId)", "image:discard")
+                    } catch (cleanup: Throwable) {
+                        failure.addSuppressed(cleanup)
+                    }
+                }
+            }
         }
     }
 

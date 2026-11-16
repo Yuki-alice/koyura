@@ -186,13 +186,12 @@ internal val veneraBootstrap = """
                 }
                 return Promise.resolve(result).then(serializeResult);
             },
-            async invokeImage(key, path, args, capturable) {
+            invokeImage(configId, key, path, args, capturable) {
                 const source = sources[key];
                 if (source === undefined) throw new Error("Source is not registered: " + key);
                 const [owner, invoke] = callback(source, path);
                 if (typeof invoke !== "function") throw new TypeError("Source callback is unavailable: " + path);
-                const result = await Reflect.apply(invoke, owner, args);
-                return __readerImage.prepare(result, capturable ?? []);
+                return __readerImage.capture(configId, capturable, () => Reflect.apply(invoke, owner, args));
             },
         });
     })();
@@ -204,15 +203,26 @@ internal val veneraBootstrap = """
             // can never free another config's callbacks.
             let nextHandle = 1;
             const byId = new Map();
-            function track(fn) {
+            const byConfig = new Map();
+
+            function track(configId, fn) {
                 const id = nextHandle++;
-                byId.set(id, fn);
+                byId.set(id, { configId, fn });
+                byConfig.get(configId).add(id);
                 return id;
             }
+
             function get(id) {
-                const fn = byId.get(id);
-                if (fn === undefined) throw new Error("Image callback was released: " + id);
-                return fn;
+                const handle = byId.get(id);
+                if (handle === undefined) throw new Error("Image callback was released: " + id);
+                return handle.fn;
+            }
+
+            function discardConfig(configId) {
+                const ids = byConfig.get(configId);
+                if (ids === undefined) return;
+                byConfig.delete(configId);
+                for (const id of ids) byId.delete(id);
             }
             function serializePlain(result) {
                 return JSON.stringify(result ?? null, (_, value) => {
@@ -239,7 +249,22 @@ internal val veneraBootstrap = """
                 throw new TypeError("Image bytes must be a Uint8Array or ArrayBuffer, got " + (out === null ? "null" : typeof out));
             }
             return Object.freeze({
-                prepare(result, capturable) {
+                async capture(configId, capturable, invoke, allowMissing = false) {
+                    const ids = new Set();
+                    byConfig.set(configId, ids);
+                    try {
+                        const result = await invoke();
+                        if (!byConfig.has(configId)) throw new Error("Image config was discarded");
+                        if (allowMissing && result == null) return "null";
+                        return this.prepare(configId, result, capturable);
+                    } catch (failure) {
+                        discardConfig(configId);
+                        throw failure;
+                    } finally {
+                        if (ids.size === 0) byConfig.delete(configId);
+                    }
+                },
+                prepare(configId, result, capturable) {
                     if (result === null || typeof result !== "object" || Array.isArray(result)) {
                         throw new TypeError("Image config must be an object");
                     }
@@ -263,47 +288,40 @@ internal val veneraBootstrap = """
                         }
                     }
                     const handles = {};
-                    const tracked = [];
                     const plain = {};
-                    try {
-                        for (const name of Object.keys(result)) {
-                            const value = result[name];
-                            if (capturable.includes(name)) {
-                                if (typeof value === "function") {
-                                    const id = track(value);
-                                    tracked.push(id);
-                                    handles[name] = id;
-                                    continue;
-                                }
-                                if (value !== undefined && value !== null) {
-                                    throw new TypeError("Image config field is not a function: " + name);
-                                }
+                    for (const name of Object.keys(result)) {
+                        const value = result[name];
+                        if (capturable.includes(name)) {
+                            if (typeof value === "function") {
+                                handles[name] = track(configId, value);
                                 continue;
                             }
-                            plain[name] = value;
+                            if (value !== undefined && value !== null) {
+                                throw new TypeError("Image config field is not a function: " + name);
+                            }
+                            continue;
                         }
-                        // serializePlain rejects any leftover function or binary
-                        // value, so nested callbacks and binary fields surface as
-                        // invalid configs instead of silently dropping data.
-                        return serializePlain({ data: plain, handles });
-                    } catch (e) {
-                        for (const id of tracked) byId.delete(id);
-                        throw e;
+                        plain[name] = value;
                     }
+                    return serializePlain({ data: plain, handles });
                 },
+                discardConfig,
                 async callOnResponse(id, bytes) {
                     const fn = get(id);
                     const out = await fn(new Uint8Array(bytes));
                     return normalizeBytesOut(out);
                 },
-                async callOnLoadFailed(id, capturable) {
-                    const fn = get(id);
-                    const out = await fn();
-                    if (out === null || out === undefined) return "null";
-                    return this.prepare(out, capturable ?? []);
+                callOnLoadFailed(configId, id, capturable) {
+                    return this.capture(configId, capturable, () => get(id)(), true);
                 },
                 release(id) {
-                    return byId.delete(id);
+                    const handle = byId.get(id);
+                    if (handle === undefined) return false;
+                    byId.delete(id);
+                    const ids = byConfig.get(handle.configId);
+                    ids.delete(id);
+                    if (ids.size === 0) byConfig.delete(handle.configId);
+                    return true;
                 },
                 liveCount() {
                     return byId.size;

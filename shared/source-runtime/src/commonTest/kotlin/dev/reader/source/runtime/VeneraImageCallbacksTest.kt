@@ -5,7 +5,14 @@ import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpStatusCode
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Runnable
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.test.runTest
+import kotlin.coroutines.CoroutineContext
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonPrimitive
@@ -170,6 +177,72 @@ class VeneraImageCallbacksTest {
             assertFailsWith<VeneraScriptException> {
                 runtime.parseImageConfig("image_source", VeneraCallback.LoadImage, imageCallbackArgs("u", "w"))
             }
+            assertEquals(0, runtime.imageCallbackCount())
+        }
+    }
+
+    @Test
+    fun decodeFailureAfterSerializationReleasesOnlyTheRejectedConfig() = runTest {
+        val script = imageScript(
+            """
+            (key) => {
+                const malformed = () => {
+                    const headers = { "X-Example": "seven" };
+                    Object.defineProperty(headers, "toJSON", { value: () => ({ "X-Example": 7 }) });
+                    return { url: key, headers, onResponse: (bytes) => bytes };
+                };
+                if (key === "retry") return { url: key, onLoadFailed: malformed };
+                return malformed();
+            }
+            """.trimIndent(),
+        )
+        withImageRuntime(script) { runtime ->
+            assertFailsWith<VeneraScriptException> {
+                runtime.parseImageConfig("image_source", VeneraCallback.LoadImage, imageCallbackArgs("initial"))
+            }
+            assertEquals(0, runtime.imageCallbackCount())
+
+            val first = runtime.parseImageConfig(
+                "image_source", VeneraCallback.LoadImage, imageCallbackArgs("retry"),
+            )
+            try {
+                assertFailsWith<VeneraScriptException> {
+                    runtime.invokeImageOnLoadFailed(checkNotNull(first.onLoadFailed))
+                }
+                assertEquals(1, runtime.imageCallbackCount(), "only the caller-owned callback remains")
+            } finally {
+                runtime.releaseImageCallbacks(first.liveHandles)
+            }
+        }
+    }
+
+    @Test
+    fun cancellationBeforeDispatcherDeliversConfigReleasesItsHandle() = runTest {
+        withImageRuntime(imageScript("(key) => ({ url: key, onResponse: (bytes) => bytes })")) { runtime ->
+            val continuations = Channel<Runnable>(Channel.UNLIMITED)
+            val dispatcher = object : CoroutineDispatcher() {
+                override fun dispatch(context: CoroutineContext, block: Runnable) {
+                    check(continuations.trySend(block).isSuccess)
+                }
+            }
+            val load = launch(dispatcher, start = CoroutineStart.UNDISPATCHED) {
+                runtime.parseImageConfig("image_source", VeneraCallback.LoadImage, imageCallbackArgs("u"))
+                error("The cancelled caller must not receive the configuration")
+            }
+
+            // Let the engine finish registering the handle, then cancel before running the
+            // continuation that would deliver ownership to the caller.
+            val deliver = continuations.receive()
+            val handlesBeforeCancellation = runtime.imageCallbackCount()
+            load.cancel()
+            deliver.run()
+            while (!load.isCompleted) {
+                select<Unit> {
+                    load.onJoin {}
+                    continuations.onReceive { it.run() }
+                }
+            }
+            assertEquals(1, handlesBeforeCancellation)
             assertEquals(0, runtime.imageCallbackCount())
         }
     }
