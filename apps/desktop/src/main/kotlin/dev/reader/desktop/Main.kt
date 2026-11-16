@@ -5,7 +5,7 @@ import androidx.compose.ui.window.application
 import dev.reader.app.App
 
 fun main() = application {
-    Window(onCloseRequest = ::exitApplication, title = "Reader") {
+    Window(onCloseRequest = ::exitApplication, title = "Koyura") {
         App()
     }
 }

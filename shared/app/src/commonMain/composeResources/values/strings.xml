@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Reader</string>
+    <string name="app_name">Koyura</string>
     <string name="extension_startup_loading">Loading extensions…</string>
     <string name="extension_startup_failed">Could not open extension storage.</string>
     <string name="extension_startup_retry">Retry</string>

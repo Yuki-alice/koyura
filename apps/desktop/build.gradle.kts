@@ -21,7 +21,7 @@ compose.desktop {
 
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
-            packageName = "Reader"
+            packageName = "Koyura"
             packageVersion = libs.versions.app.get()
 
             macOS {
@@ -29,7 +29,7 @@ compose.desktop {
             }
 
             linux {
-                packageName = "reader"
+                packageName = "koyura"
             }
         }
     }

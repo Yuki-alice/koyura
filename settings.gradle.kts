@@ -14,7 +14,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "reader"
+rootProject.name = "koyura"
 
 include(":apps:android")
 include(":apps:desktop")

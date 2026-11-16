@@ -1,4 +1,4 @@
-# Reader
+# Koyura
 
 使用 Kotlin Multiplatform 与 Compose Multiplatform 构建的漫画与小说阅读器。Komikku 是界面和功能验收基线，JS 源以 Venera-Next 兼容为目标。[技术栈选型](docs/technology-stack.md) · [项目架构与目录](docs/architecture.md)
 
