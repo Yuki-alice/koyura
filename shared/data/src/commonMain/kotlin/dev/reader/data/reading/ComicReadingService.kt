@@ -139,6 +139,7 @@ class ComicReadingService(
         return loadWithConfig(
             live = live,
             sourceKey = sourceKey,
+            imageKey = imageKey,
             callback = VeneraCallback.LoadImage,
             arguments = args,
             capturable = listOf("onResponse", "onLoadFailed"),
@@ -147,7 +148,7 @@ class ComicReadingService(
     }
 
     /**
-     * Downloads one thumbnail through `comic.onThumbnailLoad`. Thumbnails honor
+     * Downloads one thumbnail through `comic.onThumbnailLoad`. Thumbnails use
      * the same URL/method/headers/body mapping plus `onResponse` transforms,
      * but (like upstream) have no `onLoadFailed` retry: a failed load throws.
      */
@@ -161,6 +162,7 @@ class ComicReadingService(
         return loadWithConfig(
             live = live,
             sourceKey = sourceKey,
+            imageKey = imageKey,
             callback = VeneraCallback.LoadThumbnail,
             // onLoadFailed is tracked for ownership like upstream, but the
             // thumbnail path performs a single attempt and never retries.
@@ -190,6 +192,7 @@ class ComicReadingService(
     private suspend fun loadWithConfig(
         live: VeneraSourceRuntime,
         sourceKey: String,
+        imageKey: String,
         callback: VeneraCallback,
         arguments: JsonArray,
         capturable: List<String>,
@@ -216,7 +219,7 @@ class ComicReadingService(
         }
         try {
             while (true) {
-                val request = imageHttpRequest(sourceKey, config)
+                val request = imageHttpRequest(sourceKey, imageKey, config)
                 val bytes = try {
                     downloadImageBytes(request)
                 } catch (e: CancellationException) {
@@ -250,9 +253,11 @@ class ComicReadingService(
         }
     }
 
-    private fun imageHttpRequest(sourceKey: String, config: ParsedImageConfig): VeneraHttpRequest {
+    private fun imageHttpRequest(sourceKey: String, imageKey: String, config: ParsedImageConfig): VeneraHttpRequest {
+        // Upstream falls back to the original image key when the config omits
+        // its URL (lib/network/images.dart: `configs['url'] ?? imageKey`).
         val url = try {
-            normalizeVeneraUrl(requireNotNull(config.url) { "image config is missing its url" })
+            normalizeVeneraUrl(config.url ?: imageKey)
         } catch (e: ReadingFailure) {
             throw e
         } catch (e: Exception) {

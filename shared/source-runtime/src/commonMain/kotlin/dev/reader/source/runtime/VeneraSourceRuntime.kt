@@ -239,10 +239,11 @@ class VeneraSourceRuntime private constructor(
         }
     }
 
-    /** Best-effort release of tracked image-callback handles. */
+    /** Best-effort release of tracked image-callback handles. Runs even when the
+     * caller was cancelled so a cancelled load never leaks live handles. */
     suspend fun releaseImageCallbacks(handles: Collection<Int>) {
         if (handles.isEmpty()) return
-        withContext(Dispatchers.Default) {
+        withContext(Dispatchers.Default + NonCancellable) {
             mutex.withLock {
                 if (engine.isClosed) return@withLock
                 for (handle in handles) {

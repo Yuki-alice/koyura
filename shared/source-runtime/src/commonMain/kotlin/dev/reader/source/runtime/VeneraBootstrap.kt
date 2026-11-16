@@ -246,6 +246,12 @@ internal val veneraBootstrap = """
                     if (result.modifyImage != null) {
                         throw new Error("Unsupported image capability: modifyImage");
                     }
+                    if (result.url !== undefined && result.url !== null && typeof result.url !== "string") {
+                        throw new TypeError("Image config field is not a string: url");
+                    }
+                    if (result.method !== undefined && result.method !== null && typeof result.method !== "string") {
+                        throw new TypeError("Image config field is not a string: method");
+                    }
                     const handles = {};
                     const tracked = [];
                     const plain = {};

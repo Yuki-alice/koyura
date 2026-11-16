@@ -4,6 +4,7 @@ import dev.reader.data.extension.ExtensionService
 import dev.reader.data.extension.createTestDriver
 import dev.reader.domain.extension.ReadingFailure
 import dev.reader.network.applyReaderDefaults
+import dev.reader.source.runtime.VeneraCallback
 import dev.reader.source.runtime.VeneraEnvironment
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
@@ -14,10 +15,13 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import io.ktor.http.content.TextContent
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonNull
 import okio.FileSystem
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -297,6 +301,30 @@ class ComicImageCallbacksTest {
             assertFailsWith<ReadingFailure.ConfigInvalid> {
                 reading.loadImageBytes(IMG_KEY, "w", "ep1", "relative.jpg")
             }
+        }
+    }
+
+    @Test
+    fun otherCallbacksProceedWhileImageDownloads() = runTest {
+        val arrived = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val mock = MockEngine {
+            arrived.complete(Unit)
+            release.await()
+            respond(byteArrayOf(9, 9), HttpStatusCode.OK)
+        }
+        val client = HttpClient(mock) { applyReaderDefaults() }
+        withReading(client, imageScript("(key) => ({ url: key })")) { service, reading ->
+            val load = async {
+                reading.loadImageBytes(IMG_KEY, "w", "ep1", "https://example.invalid/u.jpg")
+            }
+            arrived.await()
+            // The image download holds no runtime lock: a plain source callback
+            // must complete while the download is still in flight.
+            val tag = service.runtime!!.call(IMG_KEY, VeneraCallback.ClickTag, JsonArray(emptyList()))
+            assertTrue(tag is JsonNull)
+            release.complete(Unit)
+            assertTrue(load.await().contentEquals(byteArrayOf(9, 9)))
         }
     }
 }
