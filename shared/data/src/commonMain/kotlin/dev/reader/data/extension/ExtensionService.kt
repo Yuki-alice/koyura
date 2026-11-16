@@ -511,18 +511,20 @@ class ExtensionService(
         val peeked = live.peekMetadata(script, row.file_name, expectedKey = key)
         val fileName = revisionFileName(key, peeked.version, script)
         val target = scriptsDir / fileName
-        val temp = scriptsDir / "$fileName.new"
-        try {
-            fileSystem.write(temp) { writeUtf8(script) }
-            fileSystem.atomicMove(temp, target)
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            runCatching { fileSystem.delete(temp, mustExist = false) }
-            throw ExtensionFailure.StorageFailure(e)
+        val oldFileName = row.file_name
+        if (fileName != oldFileName) {
+            val temp = scriptsDir / "$fileName.new"
+            try {
+                fileSystem.write(temp) { writeUtf8(script) }
+                fileSystem.atomicMove(temp, target)
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                runCatching { fileSystem.delete(temp, mustExist = false) }
+                throw ExtensionFailure.StorageFailure(e)
+            }
         }
         currentCoroutineContext().ensureActive()
         val newOriginUrl = originUrl ?: row.origin_url
-        val oldFileName = row.file_name
         try {
             db.transaction {
                 queries().upsertExtension(key, peeked.name, peeked.version, fileName, row.origin_kind, row.origin_repository_id, row.origin_repository_name, newOriginUrl)
@@ -531,34 +533,50 @@ class ExtensionService(
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             // Pointer untouched conceptually (transaction rolled back); drop the orphan revision.
-            runCatching { fileSystem.delete(target, mustExist = false) }
+            if (fileName != oldFileName) runCatching { fileSystem.delete(target, mustExist = false) }
             throw ExtensionFailure.StorageFailure(e)
         }
         currentCoroutineContext().ensureActive()
+        // The pre-replace JS instance identity: a failed candidate must leave
+        // exactly this instance registered.
+        val oldSeq = runCatching { live.liveInstanceSeq(key) }.getOrNull()
         try {
             live.replace(key, script, fileName, expectedKey = key)
         } catch (e: Exception) {
-            // Roll the commit pointer back first so file, rows and live keep
-            // describing exactly one complete revision however we got here.
+            // Roll the commit pointer — extension row and origin row together —
+            // back first so file, rows and live keep describing exactly one
+            // complete revision however we got here.
             try {
                 db.transaction {
                     queries().upsertExtension(
                         row.source_key, row.name, row.version, row.file_name,
                         row.origin_kind, row.origin_repository_id, row.origin_repository_name, row.origin_url,
                     )
+                    queries().upsertOrigin(
+                        row.source_key, row.origin_kind, row.origin_repository_id,
+                        row.origin_repository_name, row.origin_url,
+                    )
                 }
             } catch (_: Exception) {
             }
-            runCatching { fileSystem.delete(target, mustExist = false) }
+            if (fileName != oldFileName) runCatching { fileSystem.delete(target, mustExist = false) }
             val cancelled = e is CancellationException || currentCoroutineContext()[Job]?.isActive == false
-            if (cancelled) {
-                // Cancellation may strand the candidate in the JS registry when
-                // its init never settles. Re-register the untouched old revision
-                // file so live, rows and files agree again.
-                val oldBytes = runCatching { fileSystem.read(scriptsDir / oldFileName) { readUtf8() } }.getOrNull()
-                if (oldBytes != null) {
+            if (cancelled && oldSeq != null) {
+                // A stranded candidate (whose init never settles) leaves the JS
+                // registry dirty. Put the exact displaced instance back first:
+                // it keeps its memory state and needs no init rerun. Only when
+                // there is nothing to displace back do we fall back to the
+                // untouched old revision file.
+                val stranded = runCatching { live.liveInstanceSeq(key) }.getOrNull()
+                if (stranded != oldSeq) {
                     withContext(NonCancellable) {
-                        runCatching { live.replace(key, oldBytes, oldFileName, expectedKey = key) }
+                        val repaired = runCatching { live.repairDisplaced(key) }.getOrDefault(false)
+                        if (!repaired) {
+                            val oldBytes = runCatching { fileSystem.read(scriptsDir / oldFileName) { readUtf8() } }.getOrNull()
+                            if (oldBytes != null) {
+                                runCatching { live.replace(key, oldBytes, oldFileName, expectedKey = key) }
+                            }
+                        }
                     }
                 }
                 if (e is CancellationException) throw e

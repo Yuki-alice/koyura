@@ -94,6 +94,30 @@ class VeneraSourceRuntime private constructor(
         sources.values.toList()
     }
 
+    /**
+     * Opaque identity of the JS instance currently registered for [key], or
+     * null when absent. Used to tell a bootstrap-restored original apart from
+     * a stranded candidate after a cancelled replacement.
+     */
+    suspend fun liveInstanceSeq(key: String): Long? = withContext(Dispatchers.Default) {
+        mutex.withLock {
+            checkOpen()
+            evaluate("(__readerVenera.instanceSeq(${JsonPrimitive(key)}))", "venera-seq:$key")
+        }
+    }
+
+    /**
+     * Puts back the instance displaced by the latest replace attempt for [key],
+     * if any. Returns false when there is nothing to repair (the registry
+     * already holds the pre-replace instance or nothing at all).
+     */
+    suspend fun repairDisplaced(key: String): Boolean = withContext(Dispatchers.Default) {
+        mutex.withLock {
+            checkOpen()
+            evaluate("__readerVenera.repairDisplaced(${JsonPrimitive(key)})", "venera-repair:$key")
+        }
+    }
+
     suspend fun unregister(key: String): Boolean = withContext(Dispatchers.Default) {
         mutex.withLock {
             checkOpen()
