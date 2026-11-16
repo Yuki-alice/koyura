@@ -23,6 +23,8 @@ import app.koyura.app.browse.venera.VeneraFixtures
 import app.koyura.data.extension.ExtensionDb
 import app.koyura.data.session.ExtensionSession
 import app.koyura.data.session.openExtensionSession
+import app.koyura.features.reader.comic.ReaderPageIndicatorTag
+import app.koyura.features.reader.comic.ReaderTapNextTag
 import app.koyura.network.applyReaderDefaults
 import app.koyura.source.runtime.VeneraEnvironment
 import io.ktor.client.HttpClient

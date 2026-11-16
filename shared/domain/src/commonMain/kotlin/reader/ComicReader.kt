@@ -1,6 +1,4 @@
-package app.koyura.app.reader
-
-import androidx.compose.runtime.staticCompositionLocalOf
+package app.koyura.domain.reader
 
 /**
  * Boundary between the comic reader UI and the reading runtime.
@@ -8,6 +6,9 @@ import androidx.compose.runtime.staticCompositionLocalOf
  * The UI owns no business rules beyond presentation: opening a chapter yields an ordered page key
  * list plus a 0-based start index, pages are single-load with per-page retry, and every save goes
  * through [saveProgress] with the displayed page key and index.
+ *
+ * Platform- or framework-specific injection (e.g. Compose `CompositionLocal` providers) lives in
+ * the app assembly, not here: this module stays pure Kotlin.
  */
 interface ReaderService {
     /** Returns the last saved position for this work, or null when it was never opened. */
@@ -59,6 +60,3 @@ data class ChapterContent(
 )
 
 class ReaderServiceException(message: String) : Exception(message)
-
-/** Provides the injected runtime to reader screens; unset until a service is wired. */
-val LocalReaderService = staticCompositionLocalOf<ReaderService?> { null }

@@ -1,4 +1,4 @@
-package app.koyura.app.reader
+package app.koyura.features.reader.comic
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -8,6 +8,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateMap
+import app.koyura.domain.reader.ChapterContent
+import app.koyura.domain.reader.ReaderService
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -39,7 +41,7 @@ sealed interface ReaderPageState {
  * - the pager reports displayed positions, and opening at an already saved position
  *   does not overwrite it.
  */
-class ReaderSession internal constructor(
+class ReaderSession(
     private val service: ReaderService?,
 ) {
     var content: ReaderContentState by mutableStateOf(ReaderContentState.Loading)
@@ -210,9 +212,12 @@ class ReaderSession internal constructor(
 /**
  * Creates the session once per reader entry and keeps it across recompositions and the bar/rail
  * width switch.
+ *
+ * The service is always passed explicitly by the app assembly (which owns the `LocalReaderService`
+ * injection); features never reads ambient services itself.
  */
 @Composable
-fun rememberReaderSession(service: ReaderService? = LocalReaderService.current): ReaderSession =
+fun rememberReaderSession(service: ReaderService?): ReaderSession =
     remember(service) { ReaderSession(service) }
 
 /** Convenience for launching session work from UI callbacks. */

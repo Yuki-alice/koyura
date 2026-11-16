@@ -21,10 +21,10 @@ import app.koyura.app.browse.SourceSearchQueryTag
 import app.koyura.app.browse.SourceSearchSubmitTag
 import app.koyura.app.browse.sourceResultTag
 import app.koyura.app.browse.venera.VeneraFixtures
-import app.koyura.app.reader.ReaderBackTag
-import app.koyura.app.reader.ReaderPageIndicatorTag
-import app.koyura.app.reader.ReaderTapNextTag
 import app.koyura.app.reader.pngBytes
+import app.koyura.features.reader.comic.ReaderBackTag
+import app.koyura.features.reader.comic.ReaderPageIndicatorTag
+import app.koyura.features.reader.comic.ReaderTapNextTag
 import app.koyura.data.extension.ExtensionDb
 import app.koyura.data.session.ExtensionSession
 import app.koyura.data.session.openExtensionSession

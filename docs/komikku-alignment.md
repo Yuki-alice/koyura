@@ -5,7 +5,7 @@
 ## 现状
 
 - 应用外壳已有五个一级标签和底栏、导航轨。浏览、扩展仓库、搜索、作品详情和历史已接生产服务。书架、作品更新、更多目前是占位入口。
-- 漫画阅读器已有横向从左到右单页、按需加载、重试、切章、桌面键盘和磁盘续读。现有测试验证了启动后从历史恢复同一章同一页。 [导航实现与截图](../shared/app/docs/app-shell.md) · [浏览实现与截图](../shared/app/docs/browse-extensions.md) · [漫画阅读器](../shared/app/docs/reader.md)
+- 漫画阅读器已有横向从左到右单页、按需加载、重试、切章、桌面键盘和磁盘续读（已迁入 `:shared:features`，`ReaderService` 契约在 `:shared:domain`，生产装配与端到端测试留在 `:shared:app`）。现有测试验证了启动后从历史恢复同一章同一页。 [导航实现与截图](../shared/app/docs/app-shell.md) · [浏览实现与截图](../shared/app/docs/browse-extensions.md) · [漫画阅读器](../shared/app/docs/reader.md)
 - TXT 和 EPUB 解析与阅读位置保存在独立的 `shared/media` 模块。 [小说模块](../shared/media/docs/usage.md)
 
 ## 第一轮 · 在线漫画主流程与阅读器

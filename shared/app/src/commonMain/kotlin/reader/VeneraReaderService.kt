@@ -2,6 +2,9 @@ package app.koyura.app.reader
 
 import app.koyura.data.history.HistoryStore
 import app.koyura.data.reading.ComicReadingService
+import app.koyura.domain.reader.ChapterContent
+import app.koyura.domain.reader.ReaderProgress
+import app.koyura.domain.reader.ReaderService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlin.time.Clock

@@ -1,5 +1,6 @@
-package app.koyura.app.reader
+package app.koyura.features.reader.comic
 
+import app.koyura.domain.reader.ReaderProgress
 import kotlinx.coroutines.async
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.yield

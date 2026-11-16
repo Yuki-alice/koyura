@@ -12,8 +12,7 @@ import app.koyura.app.browse.BrowseService
 import app.koyura.app.browse.LocalBrowseService
 import app.koyura.app.history.HistoryService
 import app.koyura.app.history.LocalHistoryService
-import app.koyura.app.reader.LocalReaderService
-import app.koyura.app.reader.ReaderService
+import app.koyura.domain.reader.ReaderService
 import app.koyura.app.navigation.rememberAppNavigationState
 import app.koyura.designsystem.ReaderTheme
 import app.koyura.designsystem.navigation.NavTab

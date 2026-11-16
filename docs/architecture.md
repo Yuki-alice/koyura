@@ -19,14 +19,14 @@
 ├── shared/
 │   │   ├── app/                     # 已接入：App()、导航、装配、启动与任务接线
 │   │   ├── design-system/           # 已接入：Material 3 主题、组件、字体、图标和字符串
-│   │   ├── features/                # 规划中：共享页面、事件、预览与 UI 测试
-│   │   │   └── src/commonMain/kotlin/…/   # 首批只落 comic 阅读器，其余页面后续再迁
+│   │   ├── features/                # 部分接入：共享页面、事件、预览与 UI 测试
+│   │   │   └── src/commonMain/kotlin/…/   # reader/comic 已接入，其余页面后续再迁
 │   │   │       ├── library/         # 规划：书架、分类、排序、搜索和批量操作
 │   │   │       ├── updates/         # 规划：已更新、待更新、更新错误和任务状态
 │   │   │       ├── history/         # 规划：阅读历史与继续阅读
 │   │   │       ├── browse/          # 规划：源、扩展、Feed、全局搜索、保存搜索
 │   │   │       ├── details/         # 规划：作品详情、目录、相关推荐、换源与合并入口
-│   │   │       ├── reader/          # 规划：comic/、novel/、阅读菜单与设置
+│   │   │       ├── reader/          # comic/ 已接入；novel/、阅读菜单与设置规划中
 │   │   │       ├── downloads/       # 规划：下载队列、离线查看与失败恢复交互
 │   │   │       └── settings/        # 规划：更多、追踪、备份、同步与偏好
 │   │   ├── domain/                  # 已接入：作品、章节、源能力、用例和仓储/平台接口

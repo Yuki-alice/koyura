@@ -1,15 +1,18 @@
 # 漫画阅读器（一级导航 → 详情 → 阅读器）
 
-`shared/app` 新增 Komikku 风格的横向漫画阅读器：详情页目录可点、开始/继续阅读、返回回到详情、全屏阅读、按需加载、单页重试、跨章拒收旧结果。
+漫画阅读器已迁入 `:shared:features`（包 `app.koyura.features.reader.comic`），Komikku 风格横向阅读：详情页目录可点、开始/继续阅读、返回回到详情、全屏阅读、按需加载、单页重试、跨章拒收旧结果。`shared/app` 只保留生产装配（`VeneraReaderService`、导航路由、外壳）与生产链路测试。
 
 ## 结构
 
 | 文件 | 职责 |
 | --- | --- |
-| `reader/ReaderService.kt` | 可注入的 UI 接口：`readProgress`、`openChapter`、`loadPageBytes`、`saveProgress`，以及 `LocalReaderService` |
-| `reader/ReaderSession.kt` | 打开章节、加载和重试单页、保存翻页停稳后或返回详情前的阅读位置 |
-| `reader/VeneraReaderService.kt` | 将阅读界面接入生产会话中的 `ComicReadingService` |
-| `reader/ReaderScreen.kt` | 全屏横向阅读器：`HorizontalPager`、点击分区、桌面键盘、页码、上一章/下一章、单页重试 |
+| `:shared:domain` 的 `reader/ComicReader.kt` | 可注入的 UI 接口：`readProgress`、`openChapter`、`loadPageBytes`、`saveProgress`，以及纯 Kotlin 模型（无 Compose 依赖） |
+| `:shared:features` 的 `reader/comic/ReaderSession.kt` | 打开章节、加载和重试单页、保存翻页停稳后或返回详情前的阅读位置；服务由调用方显式传入 |
+| `:shared:features` 的 `reader/comic/ReaderScreen.kt` | 全屏横向阅读器：`HorizontalPager`、点击分区、桌面键盘、页码、上一章/下一章、单页重试 |
+| `:shared:features` 的 `reader/comic/PlatformImage.kt`（+ 各平台 actual） | 图片字节解码为 `ImageBitmap` 的 expect/actual |
+| `:shared:features` 的 `reader/comic/FakeReaderService.kt` | 共享内存测试替身：feature 单元测试与 app 生产链路测试共用 |
+| `shared/app` 的 `reader/VeneraReaderService.kt` | 将阅读界面接入生产会话中的 `ComicReadingService` |
+| `shared/app` 的 `ReaderInjection.kt` | `LocalReaderService` CompositionLocal（注入留在 app） |
 | `navigation/AppRoute.kt` | 新增 `ComicReaderRoute(sourceKey, workId, chapterId?, title, chapterIds, chapterTitles)` |
 | `browse/SourceScreens.kt` | 目录行可点击；有服务时显示「开始阅读」/「继续阅读·第 N 页」 |
 | `App.kt` / `AppScaffold.kt` | `App(browseService, readerService)` 双注入；阅读器打开时隐藏底栏/导航轨，全屏显示 |
@@ -32,7 +35,7 @@ Android、桌面和 iOS 通过 `ExtensionApp` 打开持久化会话，再将 `Ve
 ## 验收
 
 ```bash
-./gradlew --max-workers=1 :shared:app:jvmTest \
+./gradlew --max-workers=1 :shared:features:jvmTest :shared:app:jvmTest \
   :apps:android:assembleDebug \
   :apps:desktop:classes \
   :shared:app:linkDebugFrameworkIosSimulatorArm64 \
@@ -45,7 +48,7 @@ Android、桌面和 iOS 通过 `ExtensionApp` 打开持久化会话，再将 `Ve
 ./gradlew :shared:app:jvmTest --rerun --tests 'app.koyura.app.reader.VeneraReaderRestartTest'
 ```
 
-`ReaderSessionTest` 和 `ReaderFlowTest` 覆盖以下场景。
+`ReaderSessionTest`（`:shared:features:jvmTest`）和 `ReaderFlowTest`（`:shared:app:jvmTest`）覆盖以下场景。
 
 | 用例 | 覆盖 |
 | --- | --- |

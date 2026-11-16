@@ -1,4 +1,4 @@
-package app.koyura.app.reader
+package app.koyura.features.reader.comic
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -41,31 +41,33 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
-import app.koyura.app.resources.Res
-import app.koyura.app.resources.nav_screen_back
-import app.koyura.app.resources.reader_empty_pages
-import app.koyura.app.resources.reader_load_failed
-import app.koyura.app.resources.reader_next_chapter
-import app.koyura.app.resources.reader_page_failed
-import app.koyura.app.resources.reader_page_indicator
-import app.koyura.app.resources.reader_prev_chapter
-import app.koyura.app.resources.reader_retry
-import app.koyura.app.resources.reader_title
+import app.koyura.domain.reader.ChapterContent
+import app.koyura.features.resources.Res
+import app.koyura.features.resources.reader_empty_pages
+import app.koyura.features.resources.reader_load_failed
+import app.koyura.features.resources.reader_next_chapter
+import app.koyura.features.resources.reader_page_failed
+import app.koyura.features.resources.reader_page_indicator
+import app.koyura.features.resources.reader_prev_chapter
+import app.koyura.features.resources.reader_retry
+import app.koyura.features.resources.reader_title
+import app.koyura.features.resources.reader_back
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 
-internal const val ReaderRootTestTag = "reader-root"
-internal const val ReaderBackTag = "reader-back"
-internal const val ReaderPageIndicatorTag = "reader-page-indicator"
-internal const val ReaderPrevChapterTag = "reader-prev-chapter"
-internal const val ReaderNextChapterTag = "reader-next-chapter"
-internal const val ReaderTapPrevTag = "reader-tap-prev"
-internal const val ReaderTapNextTag = "reader-tap-next"
-internal const val ReaderTapMenuTag = "reader-tap-menu"
+/** Stable UI test hooks, shared with the app production-chain tests. */
+const val ReaderRootTestTag = "reader-root"
+const val ReaderBackTag = "reader-back"
+const val ReaderPageIndicatorTag = "reader-page-indicator"
+const val ReaderPrevChapterTag = "reader-prev-chapter"
+const val ReaderNextChapterTag = "reader-next-chapter"
+const val ReaderTapPrevTag = "reader-tap-prev"
+const val ReaderTapNextTag = "reader-tap-next"
+const val ReaderTapMenuTag = "reader-tap-menu"
 
-internal fun readerPageTag(index: Int) = "reader-page-$index"
-internal fun readerPageRetryTag(pageKey: String) = "reader-page-retry-$pageKey"
+fun readerPageTag(index: Int) = "reader-page-$index"
+fun readerPageRetryTag(pageKey: String) = "reader-page-retry-$pageKey"
 
 /**
  * Fullscreen horizontal comic reader.
@@ -360,7 +362,7 @@ private fun ReaderChrome(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             TextButton(onClick = onBack, modifier = Modifier.testTag(ReaderBackTag)) {
-                Text(stringResource(Res.string.nav_screen_back))
+                Text(stringResource(Res.string.reader_back))
             }
             Column(Modifier.weight(1f)) {
                 Text(

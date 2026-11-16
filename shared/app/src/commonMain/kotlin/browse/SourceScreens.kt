@@ -47,8 +47,8 @@ import app.koyura.app.resources.source_search_no_results
 import app.koyura.app.resources.source_search_results
 import app.koyura.app.resources.source_search_title
 import kotlinx.coroutines.launch
-import app.koyura.app.reader.LocalReaderService
-import app.koyura.app.reader.ReaderService
+import app.koyura.app.LocalReaderService
+import app.koyura.domain.reader.ReaderService
 import org.jetbrains.compose.resources.stringResource
 
 internal const val SourceSearchTestTag = "source-search"
@@ -235,7 +235,7 @@ fun SourceDetailScreen(
     var detail by remember(sourceKey, workId) { mutableStateOf<WorkDetail?>(null) }
     var loading by remember(sourceKey, workId) { mutableStateOf(true) }
     var error by remember(sourceKey, workId) { mutableStateOf<String?>(null) }
-    var progress by remember(sourceKey, workId) { mutableStateOf<app.koyura.app.reader.ReaderProgress?>(null) }
+    var progress by remember(sourceKey, workId) { mutableStateOf<app.koyura.domain.reader.ReaderProgress?>(null) }
 
     LaunchedEffect(sourceKey, workId) {
         loading = true
@@ -350,7 +350,7 @@ fun SourceDetailScreen(
  */
 @Composable
 private fun ReadingButtons(
-    progress: app.koyura.app.reader.ReaderProgress?,
+    progress: app.koyura.domain.reader.ReaderProgress?,
     chapterIds: List<String>,
     chapterTitles: List<String>,
     onStart: (chapterIds: List<String>, chapterTitles: List<String>) -> Unit,

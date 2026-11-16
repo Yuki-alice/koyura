@@ -16,6 +16,9 @@ import app.koyura.app.navigation.ComicReaderRoute
 import app.koyura.app.navigation.createAppNavigationState
 import app.koyura.designsystem.ReaderTheme
 import app.koyura.designsystem.navigation.NavTab
+import app.koyura.domain.reader.ChapterContent
+import app.koyura.features.reader.comic.FakeReaderService
+import app.koyura.features.reader.comic.ReaderSession
 import java.io.File
 import javax.swing.SwingUtilities
 import kotlin.test.Test

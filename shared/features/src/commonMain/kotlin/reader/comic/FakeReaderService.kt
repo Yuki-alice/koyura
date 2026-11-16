@@ -1,9 +1,17 @@
-package app.koyura.app.reader
+package app.koyura.features.reader.comic
 
+import app.koyura.domain.reader.ChapterContent
+import app.koyura.domain.reader.ReaderProgress
+import app.koyura.domain.reader.ReaderService
+import app.koyura.domain.reader.ReaderServiceException
 import kotlinx.coroutines.CancellationException
 
 /**
  * In-memory [ReaderService] used by tests.
+ *
+ * Shared test double: feature unit tests use it directly, and the app production-chain tests
+ * reuse it through the `:shared:features` dependency so save discipline is asserted the same way
+ * everywhere.
  *
  * Chapters are keyed by `(sourceKey, workId, chapterId)`; a [null] chapterId addresses works
  * without chapters. Page bytes are opaque payloads supplied by the test. Failures can be injected

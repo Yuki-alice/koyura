@@ -34,6 +34,8 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             implementation(project(":shared:design-system"))
+            implementation(project(":shared:features"))
+            implementation(project(":shared:domain"))
             // BCP-47/date grouping for the history tab. 0.7.1 is the newest release whose
             // JVM/Android/iOS artifacts are all available to the offline acceptance build.
             implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.7.1")

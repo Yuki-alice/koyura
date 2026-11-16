@@ -36,7 +36,7 @@ Android 构建从 `ANDROID_HOME` 或 `local.properties` 解析 SDK 路径。iOS 
 | `:shared:data` | Venera 仓库、扩展持久化和三端会话 | 已接入 |
 | `:shared:network` | Ktor 传输、HTTP 策略和按源会话 | 已接入 |
 | `:shared:source-runtime` | QuickJS 宿主、Venera 源注册和回调桥接 | 已接入 |
-| `:shared:features` | 共享页面与 UI 测试（首批只落漫画阅读器） | 规划中 |
+| `:shared:features` | 漫画阅读器页面与共享测试替身（其余页面规划中） | 部分接入 |
 | `:shared:media` | 本地小说解析与阅读位置 | 独立构建，暂未接入 |
 
 Android、桌面和 iOS 从同一共享入口打开扩展会话并恢复已安装源。在「浏览 → 扩展仓库」添加 Venera 仓库索引，预览并安装条目，再从「来源」进入搜索、作品详情和章节阅读。应用重启后可从「历史」续读。`reference/` 放本地参考仓库，开发任务与验收按[当前对齐计划](docs/komikku-alignment.md)执行。

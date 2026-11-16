@@ -38,10 +38,10 @@ import app.koyura.app.history.HistoryService
 import app.koyura.app.history.HistorySession
 import app.koyura.app.history.LocalHistoryService
 import app.koyura.app.history.rememberHistorySession
-import app.koyura.app.reader.ComicReaderScreen
-import app.koyura.app.reader.rememberReaderSession
-import app.koyura.app.reader.LocalReaderService
-import app.koyura.app.reader.ReaderService
+import app.koyura.domain.reader.ReaderService
+import app.koyura.features.reader.comic.ComicReaderScreen
+import app.koyura.features.reader.comic.ReaderSession
+import app.koyura.features.reader.comic.rememberReaderSession
 import app.koyura.app.browse.rememberBrowseSession
 import app.koyura.app.navigation.AppNavigationState
 import app.koyura.app.navigation.DetailRoute
@@ -75,7 +75,7 @@ internal fun AppScaffold(
     browseService: BrowseService? = LocalBrowseService.current,
     browseSession: BrowseSession? = null,
     readerService: ReaderService? = LocalReaderService.current,
-    readerSession: app.koyura.app.reader.ReaderSession? = null,
+    readerSession: ReaderSession? = null,
     historyService: HistoryService? = LocalHistoryService.current,
     historySession: HistorySession? = null,
 ) {
@@ -174,7 +174,7 @@ private fun AppNavigationContent(
     navigation: AppNavigationState,
     saveableStateHolder: SaveableStateHolder,
     browseSession: BrowseSession,
-    readerSession: app.koyura.app.reader.ReaderSession,
+    readerSession: ReaderSession,
     historySession: app.koyura.app.history.HistorySession,
 ) {
     val entryProvider = remember(navigation, browseSession, readerSession, historySession) {

@@ -1,4 +1,4 @@
-package app.koyura.app.reader
+package app.koyura.features.reader.comic
 
 import android.graphics.BitmapFactory
 import androidx.compose.ui.graphics.ImageBitmap

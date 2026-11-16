@@ -26,6 +26,17 @@ import app.koyura.app.navigation.SourceDetailRoute
 import app.koyura.app.navigation.createAppNavigationState
 import app.koyura.designsystem.ReaderTheme
 import app.koyura.designsystem.navigation.NavTab
+import app.koyura.domain.reader.ChapterContent
+import app.koyura.features.reader.comic.FakeReaderService
+import app.koyura.features.reader.comic.ReaderBackTag
+import app.koyura.features.reader.comic.ReaderNextChapterTag
+import app.koyura.features.reader.comic.ReaderPageIndicatorTag
+import app.koyura.features.reader.comic.ReaderPageState
+import app.koyura.features.reader.comic.ReaderPrevChapterTag
+import app.koyura.features.reader.comic.ReaderRootTestTag
+import app.koyura.features.reader.comic.ReaderSession
+import app.koyura.features.reader.comic.ReaderTapNextTag
+import app.koyura.features.reader.comic.readerPageTag
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -259,7 +270,7 @@ class ReaderFlowTest {
         val leftover = onAllNodesWithTag("reader-page-retry-p0").fetchSemanticsNodes()
         val images = onAllNodesWithTag("reader-page-image-0").fetchSemanticsNodes()
         assertTrue(
-            readerSession.pages["p0"] is app.koyura.app.reader.ReaderPageState.Ready,
+            readerSession.pages["p0"] is ReaderPageState.Ready,
             "pages=" + readerSession.pages,
         )
         assertTrue(
