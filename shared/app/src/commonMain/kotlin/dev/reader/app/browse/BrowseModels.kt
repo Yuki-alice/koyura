@@ -273,3 +273,40 @@ fun validateStoreUrl(
     val duplicate = stores.any { it.id != editingStoreId && it.indexUrl.equals(trimmed, ignoreCase = true) }
     return if (duplicate) StoreUrlError.Duplicate else null
 }
+
+/**
+ * A work returned by a source search (`search.load`).
+ */
+@kotlinx.serialization.Serializable
+data class WorkSummary(
+    val id: String,
+    val title: String,
+    val subtitle: String = "",
+    val cover: String = "",
+    val tags: List<String> = emptyList(),
+)
+
+data class WorkSearchPage(
+    val works: List<WorkSummary>,
+    val maxPage: Int,
+)
+
+data class WorkChapter(
+    val id: String,
+    val title: String,
+)
+
+/**
+ * Work detail returned by `comic.loadInfo`.
+ */
+data class WorkDetail(
+    val id: String,
+    val title: String,
+    val subtitle: String = "",
+    val cover: String = "",
+    val description: String = "",
+    val tags: Map<String, List<String>> = emptyMap(),
+    val chapters: List<WorkChapter> = emptyList(),
+    val updateTime: String = "",
+    val url: String = "",
+)

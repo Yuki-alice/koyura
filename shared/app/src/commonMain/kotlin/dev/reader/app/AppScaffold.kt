@@ -31,10 +31,14 @@ import dev.reader.app.browse.BrowseSession
 import dev.reader.app.browse.ExtensionDetailsScreen
 import dev.reader.app.browse.ExtensionStoresScreen
 import dev.reader.app.browse.LocalBrowseSession
+import dev.reader.app.browse.SourceDetailScreen
+import dev.reader.app.browse.SourceSearchScreen
 import dev.reader.app.browse.rememberBrowseSession
 import dev.reader.app.navigation.AppNavigationState
 import dev.reader.app.navigation.DetailRoute
 import dev.reader.app.navigation.ExtensionDetailsRoute
+import dev.reader.app.navigation.SourceDetailRoute
+import dev.reader.app.navigation.SourceSearchRoute
 import dev.reader.app.navigation.ExtensionStoresRoute
 import dev.reader.app.navigation.TabRootRoute
 import dev.reader.app.ui.DetailScreen
@@ -155,6 +159,9 @@ private fun AppNavigationContent(
                             session = browseSession,
                             onOpenExtension = { key -> navigation.push(ExtensionDetailsRoute(key)) },
                             onManageStores = { storeId -> navigation.push(ExtensionStoresRoute(storeId)) },
+                            onOpenSource = { sourceKey, sourceName ->
+                                navigation.push(SourceSearchRoute(sourceKey))
+                            },
                         )
                     }
                 } else {
@@ -174,6 +181,32 @@ private fun AppNavigationContent(
                     ExtensionDetailsScreen(
                         session = browseSession,
                         extensionKey = route.extensionKey,
+                        onBack = { navigation.popCurrentChild() },
+                    )
+                }
+            }
+            entry<SourceSearchRoute> { route ->
+                CompositionLocalProvider(LocalBrowseSession provides browseSession) {
+                    val sourceName = browseSession.state.sources
+                        .firstOrNull { it.id == route.sourceKey }?.name
+                        ?: route.sourceKey
+                    SourceSearchScreen(
+                        session = browseSession,
+                        sourceKey = route.sourceKey,
+                        sourceName = sourceName,
+                        onOpenWork = { workId, title ->
+                            navigation.push(SourceDetailRoute(route.sourceKey, workId, title))
+                        },
+                    )
+                }
+            }
+            entry<SourceDetailRoute> { route ->
+                CompositionLocalProvider(LocalBrowseSession provides browseSession) {
+                    SourceDetailScreen(
+                        session = browseSession,
+                        sourceKey = route.sourceKey,
+                        workId = route.workId,
+                        fallbackTitle = route.title,
                         onBack = { navigation.popCurrentChild() },
                     )
                 }

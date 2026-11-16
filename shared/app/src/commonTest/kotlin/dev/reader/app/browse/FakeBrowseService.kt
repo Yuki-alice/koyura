@@ -143,6 +143,22 @@ class FakeBrowseService(
         return snapshot
     }
 
+    override suspend fun searchWorks(sourceKey: String, query: String, page: Int): WorkSearchPage {
+        enter("search:$sourceKey:$query:$page")
+        return searchPages[query] ?: WorkSearchPage(emptyList(), 1)
+    }
+
+    override suspend fun loadWorkDetail(sourceKey: String, workId: String): WorkDetail {
+        enter("detail:$sourceKey:$workId")
+        return workDetails[workId] ?: throw BrowseServiceException("Unknown work: $workId")
+    }
+
+    /** Canned search pages keyed by query, so UI tests can drive search without a runtime. */
+    var searchPages: Map<String, WorkSearchPage> = emptyMap()
+
+    /** Canned work details keyed by work id. */
+    var workDetails: Map<String, WorkDetail> = emptyMap()
+
     override suspend fun installExtension(extensionKey: String): BrowseSnapshot {
         enter("install:$extensionKey")
         snapshot = snapshot.copy(

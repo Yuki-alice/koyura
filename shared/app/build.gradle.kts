@@ -34,6 +34,7 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             implementation(project(":shared:design-system"))
+            implementation(project(":shared:data"))
             implementation(libs.compose.foundation)
             implementation(libs.compose.material3)
             implementation(libs.compose.resources)
@@ -54,13 +55,25 @@ kotlin {
         jvmTest.dependencies {
             implementation(libs.compose.ui.test)
             implementation(libs.compose.ui.test.junit4)
+            implementation(libs.sqldelight.sqlite.driver)
+            implementation(libs.ktor.client.mock)
+            implementation(libs.okio)
         }
     }
 }
 
+val veneraReferenceDir = providers.gradleProperty("veneraReferenceDir")
+
 tasks.withType<Test>().configureEach {
     // Screenshot tests write PNGs into a caller-chosen directory.
     systemProperty("reader.screenshotDir", providers.gradleProperty("readerScreenshotDir").getOrElse("build/screenshots"))
+    // Upstream Venera fixture for the real-service flow tests.
+    val fixture = veneraReferenceDir
+        .map { dir -> rootProject.file(dir).resolve("doc/examples/minimal_source.js") }
+        .orElse(rootProject.layout.projectDirectory.file("reference/Venera-Next/doc/examples/minimal_source.js").asFile)
+    inputs.files(fixture)
+    systemProperty("reader.venera.example", fixture.get().absolutePath)
+    systemProperty("reader.venera.required", veneraReferenceDir.isPresent.toString())
 }
 
 compose.resources {

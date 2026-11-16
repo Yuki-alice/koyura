@@ -27,6 +27,18 @@ data class ExtensionDetailsRoute(val extensionKey: String) : AppRoute
 @Serializable
 data class ExtensionStoresRoute(val focusStoreId: String? = null) : AppRoute
 
+/** Installed source search page, pushed from the Sources pane. */
+@Serializable
+data class SourceSearchRoute(val sourceKey: String) : AppRoute
+
+/** Work detail page opened from a search result. */
+@Serializable
+data class SourceDetailRoute(
+    val sourceKey: String,
+    val workId: String,
+    val title: String = "",
+) : AppRoute
+
 /**
  * Saved-state configuration registering every [AppRoute] subtype for open polymorphism.
  *
@@ -39,6 +51,8 @@ val ReaderSavedStateConfiguration: SavedStateConfiguration = SavedStateConfigura
             subclass(DetailRoute::class, DetailRoute.serializer())
             subclass(ExtensionDetailsRoute::class, ExtensionDetailsRoute.serializer())
             subclass(ExtensionStoresRoute::class, ExtensionStoresRoute.serializer())
+            subclass(SourceSearchRoute::class, SourceSearchRoute.serializer())
+            subclass(SourceDetailRoute::class, SourceDetailRoute.serializer())
         }
     }
 }

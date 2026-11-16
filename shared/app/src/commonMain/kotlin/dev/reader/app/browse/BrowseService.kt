@@ -33,6 +33,20 @@ interface BrowseService {
     suspend fun updateExtension(extensionKey: String): BrowseSnapshot
     suspend fun uninstallExtension(extensionKey: String): BrowseSnapshot
     suspend fun updateAllExtensions(): BrowseSnapshot
+
+    /**
+     * Runs the installed source's `search.load` callback.
+     *
+     * Throws [BrowseServiceException] when the source is missing or its response is malformed.
+     */
+    suspend fun searchWorks(sourceKey: String, query: String, page: Int = 1): WorkSearchPage
+
+    /**
+     * Runs the installed source's `comic.loadInfo` callback for one work.
+     *
+     * Throws [BrowseServiceException] when the source is missing or its response is malformed.
+     */
+    suspend fun loadWorkDetail(sourceKey: String, workId: String): WorkDetail
 }
 
 class BrowseServiceException(message: String) : Exception(message)
