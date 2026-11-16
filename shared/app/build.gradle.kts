@@ -41,6 +41,7 @@ kotlin {
             implementation(libs.compose.runtime)
             implementation(libs.compose.ui)
             implementation(libs.compose.ui.backhandler)
+            implementation(libs.coroutines.core)
             implementation(libs.kotlinx.serialization.core)
             implementation(libs.navigation3.runtime)
             implementation(libs.navigation3.ui)
@@ -51,6 +52,7 @@ kotlin {
         }
         jvmMain.dependencies {
             implementation(libs.kotlinx.coroutines.swing)
+            implementation(libs.okio)
         }
         jvmTest.dependencies {
             implementation(libs.compose.ui.test)

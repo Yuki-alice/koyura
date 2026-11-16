@@ -26,16 +26,15 @@ internal val RailWidthThreshold = 720.dp
  */
 @Composable
 fun App() {
-    App(browseService = null)
+    val injectedService = LocalBrowseService.current
+    if (injectedService == null) {
+        PlatformExtensionApp()
+    } else {
+        App(injectedService)
+    }
 }
 
-/**
- * Entry point with an injectable Browse runtime.
- *
- * Production callers pass `null` until the real source/extension runtime is wired; the Browse tab
- * then renders a clear empty state while the rest of the shell keeps working. Tests and future
- * assembly code pass a [BrowseService] implementation.
- */
+/** The shared shell with a Browse service supplied by startup, a preview, or a test. */
 @Composable
 fun App(browseService: BrowseService?) {
     ReaderTheme {

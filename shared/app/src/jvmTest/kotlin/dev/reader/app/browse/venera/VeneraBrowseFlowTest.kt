@@ -72,6 +72,39 @@ import okio.Path.Companion.toOkioPath
  */
 class VeneraBrowseFlowTest {
     @Test
+    fun detailAcceptsUngroupedWorksAndGroupedChapters() = runBlocking {
+        val harness = VeneraHarness(
+            """
+            class ChapterSource extends ComicSource {
+                name = "Chapters";
+                key = "chapter_source";
+                version = "1.0.0";
+                minAppVersion = "1.16.0";
+                comic = {
+                    loadInfo(id) {
+                        return {title: id, chapters: id === "single" ? null : {
+                            Main: {ep_2: "Chapter Two", ep_1: "Chapter One"},
+                            Extras: {ep_extra: "Extra"}
+                        }};
+                    }
+                };
+            }
+            """.trimIndent().encodeToByteArray(),
+        )
+        try {
+            harness.service.open()
+            harness.service.restore()
+            harness.service.installFromContent("Chapters", harness.script.decodeToString())
+            val browse = harness.browse()
+            assertTrue(browse.loadWorkDetail("chapter_source", "single").chapters.isEmpty())
+            val grouped = browse.loadWorkDetail("chapter_source", "grouped")
+            assertEquals(listOf("ep_2", "ep_1", "ep_extra"), grouped.chapters.map { it.id })
+        } finally {
+            harness.close()
+        }
+    }
+
+    @Test
     fun installUpstreamScriptVerifiesShaAndRegistersSource() {
         val harness = realHarness()
         try {

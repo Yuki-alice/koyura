@@ -70,7 +70,7 @@ App(browseService = realService)            // 推荐：显式传入
 CompositionLocalProvider(LocalBrowseService provides realService) { App() }
 ```
 
-`App()` 无参重载传入 `null`，这是当前生产入口的状态。
+`App()` 的生产入口使用平台工厂打开持久扩展会话，恢复已安装源后注入真实浏览服务。预览和测试可以显式传入服务。
 
 ## 事件与状态
 
@@ -162,41 +162,16 @@ CompositionLocalProvider(LocalBrowseService provides realService) { App() }
 | 作品详情 | 已安装源的 `comic.loadInfo(workId)` → `WorkDetail`（标题/作者/简介/章节/更新时间） |
 | 同 key 多变体 | 预览保留 `(repositoryId, sourceKey, scriptUrl)`；安装走 `installCatalogVariant`，服务按该三元组取脚本并用预览时索引地址做 `StaleCatalog` 核验 |
 
-### 主 agent 装配签名
+### 三端启动
 
 ```kotlin
-// 1. 每个进程构造一次（Application / 单例作用域）
-val driver: SqlDriver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY) // 生产用平台 driver + Schema.create
-val scriptsDir: Path = appFilesDir / "extensions"                    // Okio Path，持久目录
-val http: HttpClient = HttpClient(platformEngine()) { applyReaderDefaults() }
-val extensions = ExtensionService(
-    driver = driver,
-    fileSystem = FileSystem.SYSTEM,
-    scriptsDir = scriptsDir,
-    httpClient = http,
-    environment = VeneraEnvironment(
-        compatibleAppVersion = APP_VENERA_VERSION, // 对外报告的宿主版本，如 "1.16.0"
-        locale = "zh_CN",
-        platform = "android" | "ios" | "desktop",
-    ),
-)
-extensions.open()
-extensions.restore() // 崩溃恢复：清 *.new、跳过缺失文件、漂移行按脚本元数据修正
-
-// 2. 会话与入口（二选一，推荐第一种）
-App(browseService = VeneraBrowseService(extensions))
-
-// 需要在外层持有会话（例如跨入口复用同一 BrowseSession）时：
-val session = BrowseSession(VeneraBrowseService(extensions))
-CompositionLocalProvider(LocalBrowseService provides VeneraBrowseService(extensions)) { App() }
-// 或直接：
-AppScaffold(navigation, useRail, browseService = VeneraBrowseService(extensions))
-// AppScaffold 也接受 browseSession = session，便于测试与预置状态。
+App() // 平台工厂打开会话，共享入口负责重试和关闭
+App(browseService = VeneraBrowseService(session.service)) // 调用方持有会话时
 ```
 
 说明：
 
-- `App(browseService: BrowseService?)` 已存在；`null` 时浏览页显示「尚未连接」空态，外壳其余部分照常用。这是当前生产入口的默认状态。
+- `PlatformExtensionApp` 提供平台、区域和应用数据目录。`ExtensionApp` 持有会话，注入 `VeneraBrowseService`，并在退出组合时关闭会话。
 - `VeneraBrowseService.loadSnapshot()` 每次重读已安装表与更新检查，因此安装/更新/卸载后页面、角标自动收敛到已提交结果。
 - `BrowseSession.searchWorks/loadWorkDetail` 是纯透传（结果不进快照收敛逻辑）；取消按取消处理、不写失败。
 - JSON 形状以 Venera 回调返回为准：搜索 `{comics: [{id,title,subtitle?,cover?,tags?}], maxPage}`详情为 `ComicDetails` 字段子集缺字段抛 `BrowseServiceException`，界面显示可读错误并可重试。

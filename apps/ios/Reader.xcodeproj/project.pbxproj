@@ -161,6 +161,7 @@
 					"$(inherited)",
 					"-framework",
 					ReaderShared,
+					"-lsqlite3",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = dev.reader.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -189,6 +190,7 @@
 					"$(inherited)",
 					"-framework",
 					ReaderShared,
+					"-lsqlite3",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = dev.reader.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";

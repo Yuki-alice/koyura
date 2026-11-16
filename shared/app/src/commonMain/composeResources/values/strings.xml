@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Reader</string>
+    <string name="extension_startup_loading">Loading extensions…</string>
+    <string name="extension_startup_failed">Could not open extension storage.</string>
+    <string name="extension_startup_retry">Retry</string>
 
     <string name="nav_screen_library_title">Library</string>
     <string name="nav_screen_updates_title">Updates</string>

@@ -207,7 +207,9 @@ class BrowseSession internal constructor(
             if (isCurrentPreview(storeId, token, validity)) {
                 state = state.copy(
                     catalogStates = state.catalogStates +
-                        (storeId to CatalogState.Ready(catalog.copy(repositoryIndexUrl = indexUrl))),
+                        (storeId to CatalogState.Ready(
+                            catalog.copy(repositoryIndexUrl = catalog.repositoryIndexUrl.ifBlank { indexUrl }),
+                        )),
                 )
             }
         } catch (cancelled: CancellationException) {

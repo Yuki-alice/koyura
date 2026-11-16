@@ -26,14 +26,10 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
-
+import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * Production [BrowseService] backed by the persistent Venera extension lifecycle.
@@ -124,9 +120,10 @@ class VeneraBrowseService(
         }
 
     override suspend fun previewStore(storeId: String): StoreCatalog = runService {
-        val (_, catalog) = extensions.previewCatalog(storeId)
+        val (indexUrl, catalog) = extensions.previewCatalog(storeId)
         StoreCatalog(
             storeId = storeId,
+            repositoryIndexUrl = indexUrl,
             entries = catalog.entries.map { entry ->
                 StoreCatalogEntry(
                     packageName = entry.key,
@@ -242,7 +239,6 @@ class VeneraBrowseService(
         val detail = extensions
             .call(sourceKey, VeneraCallback.LoadInfo, JsonArray(listOf(JsonPrimitive(workId))))
             .jsonObject
-        val chapters = detail["chapters"]?.jsonObject
         WorkDetail(
             id = workId,
             title = detail.string("title"),
@@ -252,8 +248,14 @@ class VeneraBrowseService(
             tags = detail["tags"]?.jsonObject?.mapValues { (_, value) ->
                 value.jsonArray.mapNotNull { textOrNull(it) }
             }.orEmpty(),
-            chapters = chapters?.entries?.map { (id, value) ->
-                WorkChapter(id = id, title = value.jsonPrimitive.content)
+            chapters = (detail["chapters"] as? JsonObject)?.entries?.flatMap { (id, value) ->
+                if (value is JsonObject) {
+                    value.entries.mapNotNull { (chapterId, title) ->
+                        textOrNull(title)?.let { WorkChapter(chapterId, it) }
+                    }
+                } else {
+                    listOfNotNull(textOrNull(value)?.let { WorkChapter(id, it) })
+                }
             }.orEmpty(),
             updateTime = detail.optionalString("updateTime"),
             url = detail.optionalString("url"),

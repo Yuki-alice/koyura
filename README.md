@@ -32,9 +32,10 @@ Android 构建从 `ANDROID_HOME` 或 `local.properties` 解析 SDK 路径。iOS 
 | `:apps:desktop` | Compose Desktop JVM 入口和安装包配置 |
 | `:shared:app` | 共享 Compose 入口和应用资源 |
 | `:shared:design-system` | 共享 Material 3 主题 |
+| `:shared:data` | Venera 仓库、扩展持久化和三端会话 |
 | `:shared:source-runtime` | QuickJS 宿主、Venera 源注册和回调桥接 |
 
-三个入口共用一个启动页。`docs/architecture.md` 描述后续功能模块。`reference/` 放本地参考仓库，供查阅与对照。
+Android、桌面和 iOS 从同一共享入口打开扩展会话并恢复已安装源。在「浏览 → 扩展仓库」添加 Venera 仓库索引，预览并安装条目，再从「来源」进入搜索和作品详情。`docs/architecture.md` 描述后续功能模块。`reference/` 放本地参考仓库，供查阅与对照。
 
 ## Venera 脚本验证
 

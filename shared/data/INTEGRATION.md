@@ -1,6 +1,6 @@
 # Extension platform handoff (`:shared:data`)
 
-## What main agent gets
+## Session API
 
 - `ExtensionSession` (`dev.reader.data.session`): an opened stack exposing
   `service: ExtensionService` (already restored) and `report: RestoreReport`.
@@ -28,12 +28,15 @@
 - Reopening means creating a new session on the same directories (file-backed
   drivers only; in-memory drivers do not survive). Double `close()` is safe.
 
-## Minimal wiring (main agent pastes into app startup)
+## Platform wiring
+
+The default `App()` already owns its session and uses these factories. Code
+that owns a session itself can use the same API.
 
 ```kotlin
 // Android (e.g. Application.onCreate, IO dispatcher + SupervisorJob scope)
 val session = applicationContext.openExtensionSession(
-    VeneraEnvironment(BuildConfig.VERSION_NAME, localeTag, "android"),
+    VeneraEnvironment("1.16.0", localeTag, "android"),
 )
 // Desktop
 val session = openExtensionSession(appDataDir, env)
