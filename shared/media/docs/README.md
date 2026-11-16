@@ -105,6 +105,11 @@ novel.close()
 偏移收敛到段末）→ `NEXT_PARAGRAPH` → `NEIGHBOR_CHAPTER`（整章被删，按 `chapterIndex` 取相邻章节）→
 `CHAPTER_START`。
 
+`resolvePosition` 本身按需读取：先用目录定位锚点章节，只有规则确实需要时才读取并解析该章正文。
+因此 `EXACT` 与同章内的 `REANCHORED_BLOCK` 只解析锚点那一章——后续章节即使超出 `maxChapterBytes`、
+已损坏或不可读，也不影响这次精确续读。需要跨章回退时才按上述顺序逐章尝试候选章；候选章加载失败
+会原样抛出（`LimitExceeded`、`CorruptedArchive` 等），不会被静默跳过。
+
 码点工具在 `CodePoints`：`length` 计码点，`toStringIndex`/`toCodePointOffset` 在码点与 UTF-16 下标间转换，
 `clamp` 把越界偏移收敛到段落范围，永不落在代理对中间。同一文件重复打开得到相同的 ID、版本与位置。
 

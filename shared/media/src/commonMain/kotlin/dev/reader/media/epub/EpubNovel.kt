@@ -6,7 +6,6 @@ import dev.reader.media.novel.NovelChapter
 import dev.reader.media.novel.NovelClosedException
 import dev.reader.media.novel.NovelImport
 import dev.reader.media.novel.NovelImportException
-import dev.reader.media.novel.ChapterViewOf
 import dev.reader.media.novel.NovelMetadata
 import dev.reader.media.novel.NovelResource
 import dev.reader.media.novel.NovelFingerprints
@@ -186,12 +185,23 @@ internal class EpubNovel private constructor(
         )
     }
 
+    /**
+     * Re-locates a stored position without reading the whole book.
+     *
+     * Only the table of contents is consulted up front; a chapter body is read through [readChapter]
+     * (and its cache) when a resolver rule actually needs it. An exact resume therefore touches just
+     * the anchored chapter, so an oversized or broken later chapter cannot fail it.
+     */
     override fun resolvePosition(stored: ReadingPosition): PositionResolution {
         checkOpen()
-        val views = chapters.map { entry ->
-            ChapterViewOf(entry.id, readChapter(entry.id).blocks)
-        }
-        return ReadingPositionResolver.resolve(views, contentVersion, stored)
+        return ReadingPositionResolver.resolve(
+            chapterIds = chapters.map { it.id },
+            contentVersion = contentVersion,
+            stored = stored,
+            loader = ReadingPositionResolver.ChapterLoader { chapterId ->
+                readChapter(chapterId).blocks
+            },
+        )
     }
 
     override fun readResource(path: String): ByteArray {

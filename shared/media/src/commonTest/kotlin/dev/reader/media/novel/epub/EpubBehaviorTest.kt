@@ -190,6 +190,87 @@ class EpubLazyOpenContractTest {
             novel.close()
         }
     }
+
+    /**
+     * The exact bug this suite guards: a resume used to read every chapter body, so a later chapter
+     * over the size cap broke an otherwise exact resume.
+     */
+    @Test
+    fun exactResumeReadsOnlyTheAnchoredChapterDocument() {
+        val zip = FileSystem.SYSTEM.openZip(EpubFixtures.path("spine-order.epub"))
+        val recorder = EntryRecordingFileSystem(zip)
+        val novel = dev.reader.media.epub.EpubNovel.openArchiveFileSystem(
+            displayPath = EpubFixtures.path("spine-order.epub").toString(),
+            archiveFileSystem = recorder,
+            limits = LocalNovelLimits.DEFAULT,
+            zipIndex = centralDirectoryFor("spine-order.epub"),
+        )
+        try {
+            val entry = novel.tableOfContents.first { it.level == 1 }
+            val paragraphIndex = novel.readChapter(entry.id).blocks
+                .indexOfFirst { it is NovelBlock.Paragraph }
+            val stored = novel.positionOf(entry.id, paragraphIndex, codePointOffset = 3)
+
+            val before = recorder.readEntries.size
+            val resolution = novel.resolvePosition(stored)
+            assertEquals(
+                dev.reader.media.novel.PositionResolution.ResolutionKind.EXACT,
+                resolution.resolution,
+            )
+            val resumeReads = recorder.readEntries.drop(before)
+                .map { it.removePrefix("/") }
+                .filter { it.endsWith(".xhtml") }
+            // The anchored chapter was already parsed by positionOf, so resolution serves it from the
+            // cache: zero document reads. Reading any other chapter here would show up as an extra
+            // entry and fail the assertion.
+            assertTrue(
+                resumeReads.isEmpty(),
+                "an exact resume must not read any chapter document, got $resumeReads",
+            )
+        } finally {
+            novel.close()
+        }
+    }
+
+    /** A cross-chapter fallback reads candidate documents one at a time and stops at the first match. */
+    @Test
+    fun neighbourChapterFallbackReadsOnlyUntilItFindsAParagraph() {
+        val zip = FileSystem.SYSTEM.openZip(EpubFixtures.path("no-nav.epub"))
+        val recorder = EntryRecordingFileSystem(zip)
+        val novel = dev.reader.media.epub.EpubNovel.openArchiveFileSystem(
+            displayPath = EpubFixtures.path("no-nav.epub").toString(),
+            archiveFileSystem = recorder,
+            limits = LocalNovelLimits.DEFAULT,
+            zipIndex = centralDirectoryFor("no-nav.epub"),
+        )
+        try {
+            // A position whose chapter id does not exist in this book forces the neighbour-chapter rule.
+            val stored = dev.reader.media.novel.ReadingPosition(
+                chapterId = "epub-does-not-exist",
+                contentVersion = novel.contentVersion,
+                blockIndex = 0,
+                blockFingerprint = dev.reader.media.novel.NovelFingerprints.block("x"),
+                codePointOffset = 0,
+                chapterIndex = 0,
+            )
+            val before = recorder.readEntries.size
+            val resolution = novel.resolvePosition(stored)
+            assertEquals(
+                dev.reader.media.novel.PositionResolution.ResolutionKind.NEIGHBOR_CHAPTER,
+                resolution.resolution,
+            )
+            val fallbackReads = recorder.readEntries.drop(before)
+                .map { it.removePrefix("/") }
+                .filter { it.endsWith(".xhtml") }
+            assertEquals(
+                listOf("OEBPS/text/c1.xhtml"),
+                fallbackReads,
+                "fallback must stop at the first readable chapter, got $fallbackReads",
+            )
+        } finally {
+            novel.close()
+        }
+    }
 }
 
 class EpubContentSafetyTest {

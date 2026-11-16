@@ -101,9 +101,3 @@ internal interface ContentVersionSection {
     /** Text hashed into the version; for TXT this is the section body. */
     val text: String
 }
-
-/** A [ReadingPositionResolver.ChapterView] backed by a chapter id and its blocks. */
-internal class ChapterViewOf(
-    override val id: String,
-    override val blocks: List<NovelBlock>,
-) : ReadingPositionResolver.ChapterView

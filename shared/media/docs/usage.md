@@ -120,6 +120,11 @@ openEpubNovel(FileSystem.SYSTEM, "/books/novel.epub".toPath()).useImport { novel
 代理对中间。重复段落用「块下标 + 指纹」共同区分：下标精确命中优先，否则在等距的相同指纹中取**较后**
 的实例（插入段落后锚点右移更常见）。
 
+读取范围：`resolvePosition` 先按目录定位锚点章节，只在规则需要时读取并解析该章正文。`EXACT` 与同章
+`REANCHORED_BLOCK` 因此只解析锚点那一章——后续章节超出 `maxChapterBytes`、损坏或不可读都不影响它。
+只有需要跨章回退时才按上述顺序逐个尝试候选章；候选章自身的错误（超限、归档损坏等）会原样抛出，
+不会被跳过。
+
 保存位置的调用约定：
 
 - `blockIndex` 指向 `blocks` 列表整体（含 `Heading`/`Separator`/`Image`）。若指向非段落块，会前移到

@@ -16,50 +16,82 @@ package dev.reader.media.novel
  *    position (or the last one) is used, anchored at its first paragraph.
  * 6. **Chapter start** — the last resort when nothing else resolves.
  *
+ * Resolution is **lazy by chapter**. Only the chapter ids in the table of contents are known up front;
+ * a chapter's blocks are requested through [ChapterLoader] when a rule actually needs them. When the
+ * stored chapter still exists and resolves exactly (or re-anchors inside the same chapter), that one
+ * chapter is the only body read — an unreadable, oversized or corrupt later chapter cannot break a
+ * resume that never needs it. Only when a rule has to move to another chapter are candidates loaded,
+ * one at a time, in the documented preference order.
+ *
+ * A candidate that fails to load propagates its error ([NovelImportException.LimitExceeded],
+ * [NovelImportException.CorruptedArchive], …) instead of being silently skipped: masking an archive or
+ * size-limit failure would hand the caller a position in a book that cannot be rendered.
+ *
  * Every returned position is valid for the target book, and [PositionResolution.resolution] explains
  * which rule produced it.
  */
 object ReadingPositionResolver {
 
     /**
-     * Resolves [stored] against a book described by [chapters] and [contentVersion].
+     * Supplies a chapter's blocks on demand.
      *
-     * @param chapters the target book's chapters in reading order; each supplies its id and blocks.
+     * Implementations are expected to be cheap to call repeatedly for the same id (both importers
+     * cache parsed chapters), so a caller may load the same chapter more than once without paying for
+     * a second parse.
+     */
+    fun interface ChapterLoader {
+        /** Returns the blocks of [chapterId] in reading order. */
+        fun blocksOf(chapterId: String): List<NovelBlock>
+    }
+
+    /**
+     * Resolves [stored] against a book described by [chapterIds] and [contentVersion].
+     *
+     * @param chapterIds the target book's chapter ids in table-of-contents order. This is the cheap
+     *   metadata only; no chapter body is touched until a rule needs it.
      * @param contentVersion the target book's content version, stamped onto the result.
      * @param stored the position saved from an earlier import or an earlier version of the file.
+     * @param loader reads a chapter's blocks when a rule needs them.
      */
     fun resolve(
-        chapters: List<ChapterView>,
+        chapterIds: List<String>,
         contentVersion: String,
         stored: ReadingPosition,
+        loader: ChapterLoader,
     ): PositionResolution {
-        require(chapters.isNotEmpty()) { "a book must expose at least one chapter" }
+        require(chapterIds.isNotEmpty()) { "a book must expose at least one chapter" }
+
+        // A chapter body is loaded at most once per resolution, so fallback candidate scans cannot
+        // read the same document twice even when several rules consider it.
+        val loaded = HashMap<String, List<NovelBlock>>()
+        fun blocksOf(chapterId: String): List<NovelBlock> =
+            loaded.getOrPut(chapterId) { loader.blocksOf(chapterId) }
 
         // 1/2: same chapter still exists.
-        val chapterIndex = chapters.indexOfFirst { it.id == stored.chapterId }
+        val chapterIndex = chapterIds.indexOf(stored.chapterId)
         if (chapterIndex >= 0) {
-            val chapter = chapters[chapterIndex]
-            val anchored = locateBlock(chapter.blocks, stored.blockIndex, stored.blockFingerprint)
-            when (anchored) {
+            val blocks = blocksOf(stored.chapterId)
+            when (val anchored = locateBlock(blocks, stored.blockIndex, stored.blockFingerprint)) {
                 is BlockMatch.Exact -> {
                     val offset = clampToBlock(anchored.block, stored.codePointOffset)
                     return PositionResolution(
-                        positionFor(chapter.id, chapterIndex, contentVersion, anchored.index, anchored.block, offset),
+                        positionFor(stored.chapterId, chapterIndex, contentVersion, anchored.index, anchored.block, offset),
                         PositionResolution.ResolutionKind.EXACT,
                     )
                 }
                 is BlockMatch.Moved -> {
                     val offset = clampToBlock(anchored.block, stored.codePointOffset)
                     return PositionResolution(
-                        positionFor(chapter.id, chapterIndex, contentVersion, anchored.index, anchored.block, offset),
+                        positionFor(stored.chapterId, chapterIndex, contentVersion, anchored.index, anchored.block, offset),
                         PositionResolution.ResolutionKind.REANCHORED_BLOCK,
                     )
                 }
                 BlockMatch.Gone -> Unit
             }
 
-            // 3/4: recover to a neighbouring paragraph within the same chapter.
-            val neighbouring = nearestParagraph(chapter.blocks, stored.blockIndex)
+            // 3/4: recover to a neighbouring paragraph within the same chapter. Running out of
+            // paragraphs here falls through to the cross-chapter rules, as before.
+            val neighbouring = nearestParagraph(blocks, stored.blockIndex)
             if (neighbouring != null) {
                 val kind = if (neighbouring.fromEnd) {
                     PositionResolution.ResolutionKind.PREVIOUS_PARAGRAPH
@@ -74,54 +106,43 @@ object ReadingPositionResolver {
                     clampToBlock(neighbouring.block, stored.codePointOffset)
                 }
                 return PositionResolution(
-                    positionFor(chapter.id, chapterIndex, contentVersion, neighbouring.index, neighbouring.block, offset),
+                    positionFor(stored.chapterId, chapterIndex, contentVersion, neighbouring.index, neighbouring.block, offset),
                     kind,
                 )
             }
         }
 
-        // 5/6: the chapter is gone (or it has no paragraphs at all). Use the saved ordinal to pick the
-        // nearest surviving chapter, so a deleted chapter resolves next door rather than to the book's
-        // first chapter.
-        val fallbackChapter = neighbourChapter(chapters, chapterIndex, stored.chapterIndex)
-        val firstParagraph = firstParagraph(fallbackChapter.blocks)
-        if (firstParagraph != null) {
-            return PositionResolution(
-                positionFor(
-                    fallbackChapter.id,
-                    chapters.indexOfFirst { it.id == fallbackChapter.id },
-                    contentVersion,
-                    firstParagraph.index,
-                    firstParagraph.block,
-                    0,
-                ),
-                if (chapterIndex >= 0) {
-                    PositionResolution.ResolutionKind.CHAPTER_START
-                } else {
-                    PositionResolution.ResolutionKind.NEIGHBOR_CHAPTER
-                },
-            )
+        // 5/6: the chapter is gone (or it has no paragraphs at all). Walk the candidate chapters in
+        // the documented preference order and stop at the first one that can render a paragraph.
+        for (candidateIndex in fallbackOrder(chapterIds, chapterIndex, stored.chapterIndex)) {
+            val candidateId = chapterIds[candidateIndex]
+            val firstParagraph = firstParagraph(blocksOf(candidateId))
+            if (firstParagraph != null) {
+                return PositionResolution(
+                    positionFor(candidateId, candidateIndex, contentVersion, firstParagraph.index, firstParagraph.block, 0),
+                    if (chapterIndex >= 0) {
+                        PositionResolution.ResolutionKind.CHAPTER_START
+                    } else {
+                        PositionResolution.ResolutionKind.NEIGHBOR_CHAPTER
+                    },
+                )
+            }
         }
 
-        // A chapter with no paragraphs at all: anchor at block 0 with an empty-text fingerprint.
+        // A book with no paragraphs anywhere: anchor at block 0 of the first chapter with an
+        // empty-text fingerprint, matching the old eager implementation.
         val emptyBlock = ""
         return PositionResolution(
             ReadingPosition(
-                chapterId = fallbackChapter.id,
+                chapterId = chapterIds.first(),
                 contentVersion = contentVersion,
                 blockIndex = 0,
                 blockFingerprint = NovelFingerprints.block(emptyBlock),
                 codePointOffset = 0,
-                chapterIndex = chapters.indexOfFirst { it.id == fallbackChapter.id },
+                chapterIndex = 0,
             ),
             PositionResolution.ResolutionKind.CHAPTER_START,
         )
-    }
-
-    /** Minimal view of a chapter the resolver needs. */
-    interface ChapterView {
-        val id: String
-        val blocks: List<NovelBlock>
     }
 
     private sealed interface BlockMatch {
@@ -189,33 +210,28 @@ object ReadingPositionResolver {
     }
 
     /**
-     * Picks a surviving chapter near the anchor.
+     * Candidate chapter indexes to try when the anchor chapter cannot supply a paragraph.
      *
-     * Preference order: the chapter at the stored ordinal (clamped to the book), then the nearest
-     * chapter at or before it, then the first readable chapter. A chapter with no paragraphs is
-     * skipped so the result is always renderable when possible.
+     * The order is the historical one: the saved ordinal clamped into the book, then earlier chapters
+     * nearest-first, then later chapters nearest-first, then the matched id (a chapter that exists but
+     * has no paragraphs), then every chapter as a last sweep. Duplicates are dropped so each candidate
+     * is loaded at most once.
      */
-    private fun neighbourChapter(
-        chapters: List<ChapterView>,
-        unmatchedIdIndex: Int,
+    private fun fallbackOrder(
+        chapterIds: List<String>,
+        matchedIndex: Int,
         storedOrdinal: Int,
-    ): ChapterView {
-        val readable = { chapter: ChapterView -> chapter.blocks.any { it.asParagraph() != null } }
+    ): List<Int> {
+        val order = LinkedHashSet<Int>()
         if (storedOrdinal >= 0) {
-            val clamped = storedOrdinal.coerceAtMost(chapters.lastIndex)
-            chapters.getOrNull(clamped)?.takeIf(readable)?.let { return it }
-            // Prefer the nearest earlier readable chapter, then later, then anything.
-            for (index in clamped - 1 downTo 0) {
-                chapters[index].takeIf(readable)?.let { return it }
-            }
-            for (index in clamped + 1..chapters.lastIndex) {
-                chapters[index].takeIf(readable)?.let { return it }
-            }
+            val clamped = storedOrdinal.coerceAtMost(chapterIds.lastIndex)
+            order += clamped
+            for (index in clamped - 1 downTo 0) order += index
+            for (index in clamped + 1..chapterIds.lastIndex) order += index
         }
-        if (unmatchedIdIndex >= 0) {
-            chapters.getOrNull(unmatchedIdIndex)?.takeIf(readable)?.let { return it }
-        }
-        return chapters.firstOrNull(readable) ?: chapters.first()
+        if (matchedIndex >= 0) order += matchedIndex
+        for (index in chapterIds.indices) order += index
+        return order.toList()
     }
 
     private fun clampToBlock(block: ParagraphBlock, offset: Int): Int =

@@ -296,14 +296,27 @@ object InMemoryEpub {
      * The real file name matters because TXT and EPUB share the "title falls back to the file stem"
      * rule; opening a random temp name would not exercise it.
      */
-    fun open(bytes: ByteArray, displayPath: String): dev.reader.media.novel.NovelImport {
+    fun open(bytes: ByteArray, displayPath: String): dev.reader.media.novel.NovelImport =
+        open(bytes, displayPath, LocalNovelLimits.DEFAULT)
+
+    /**
+     * Like [open], but with explicit [limits].
+     *
+     * A failed open removes its temporary directory; a successful one leaves it to the OS temp
+     * cleanup, exactly as the single-argument overload does.
+     */
+    fun open(
+        bytes: ByteArray,
+        displayPath: String,
+        limits: LocalNovelLimits,
+    ): dev.reader.media.novel.NovelImport {
         val dir = FileSystem.SYSTEM_TEMPORARY_DIRECTORY / "epub-inmem-${kotlin.random.Random.nextLong()}"
         FileSystem.SYSTEM.createDirectories(dir)
         val name = displayPath.substringAfterLast('/').ifBlank { "book.epub" }
         val tmp = dir / name
         FileSystem.SYSTEM.write(tmp) { write(bytes) }
         return try {
-            openEpubNovel(FileSystem.SYSTEM, tmp)
+            openEpubNovel(FileSystem.SYSTEM, tmp, limits)
         } catch (e: Throwable) {
             FileSystem.SYSTEM.deleteRecursively(dir)
             throw e

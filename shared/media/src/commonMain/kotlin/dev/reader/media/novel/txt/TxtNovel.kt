@@ -7,7 +7,6 @@ import dev.reader.media.novel.NovelChapter
 import dev.reader.media.novel.NovelClosedException
 import dev.reader.media.novel.NovelImport
 import dev.reader.media.novel.NovelImportException
-import dev.reader.media.novel.ChapterViewOf
 import dev.reader.media.novel.NovelMetadata
 import dev.reader.media.novel.PositionResolution
 import dev.reader.media.novel.ReadingPosition
@@ -95,6 +94,16 @@ internal class TxtNovel private constructor(
     private var sections: List<Section> = initialSections
     private val chapterCache = mutableMapOf<String, NovelChapter>()
 
+    /**
+     * How many section bodies have been parsed into blocks since the last cache clear.
+     *
+     * Parsing is the lazy work this class avoids doing eagerly, so this counter is what a test can
+     * observe to prove an operation only touched the chapters it needed. It is monotonic while the
+     * cache lives and resets when [close] drops it.
+     */
+    internal var parsedSectionCount: Int = 0
+        private set
+
     /** Sections that produce a table-of-contents entry, in file order. */
     override val tableOfContents: List<TocEntry> =
         initialSections.map { TocEntry(id = it.id, title = it.title, level = it.level, parentId = it.parentId) }
@@ -130,24 +139,36 @@ internal class TxtNovel private constructor(
         )
     }
 
+    /**
+     * Re-locates a stored position without parsing the whole book.
+     *
+     * Only section ids are read up front; a section body is parsed through [requireChapter] (and its
+     * cache) when a resolver rule needs it, so an exact resume parses exactly one chapter.
+     */
     override fun resolvePosition(stored: ReadingPosition): PositionResolution {
         checkOpen()
-        val views = sections.map { section ->
-            ChapterViewOf(section.id, SectionParser.parse(section.body))
-        }
-        return ReadingPositionResolver.resolve(views, contentVersion, stored)
+        return ReadingPositionResolver.resolve(
+            chapterIds = sections.map { it.id },
+            contentVersion = contentVersion,
+            stored = stored,
+            loader = ReadingPositionResolver.ChapterLoader { chapterId ->
+                requireChapter(chapterId).blocks
+            },
+        )
     }
 
     private fun requireChapter(chapterId: String): NovelChapter {
         chapterCache[chapterId]?.let { return it }
         val section = sections.firstOrNull { it.id == chapterId }
             ?: throw IllegalArgumentException("$chapterId is not a chapter of $file")
+        val blocks = SectionParser.parse(section.body)
+        parsedSectionCount++
         val chapter = NovelChapter(
             id = section.id,
             title = section.title,
             level = section.level,
             parentId = section.parentId,
-            blocks = SectionParser.parse(section.body),
+            blocks = blocks,
         )
         chapterCache[chapterId] = chapter
         return chapter
@@ -171,6 +192,7 @@ internal class TxtNovel private constructor(
     override fun close() {
         closed = true
         chapterCache.clear()
+        parsedSectionCount = 0
         sections = emptyList()
     }
 

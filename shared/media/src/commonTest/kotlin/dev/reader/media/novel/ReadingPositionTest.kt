@@ -1,5 +1,6 @@
 package dev.reader.media.novel
 
+import dev.reader.media.novel.txt.TxtNovel
 import dev.reader.media.novel.txt.openTxtNovel
 import okio.Buffer
 import okio.FileSystem
@@ -332,5 +333,73 @@ class ReadingPositionTest {
         val decoded = kotlinx.serialization.json.Json.decodeFromString(ReadingPosition.serializer(), json)
         assertEquals(position, decoded)
         assertTrue(json.contains("\"codePointOffset\":42"))
+    }
+
+    // ---- Lazy resolution: only the chapters a rule needs are parsed ----
+
+    @Test
+    fun exactResumeParsesOnlyTheAnchoredChapter() {
+        val text =
+            "第一章 甲\n甲一。\n甲二。\n\n第二章 乙\n乙一。\n乙二。\n\n第三章 丙\n丙一。\n"
+        open(text).useImport { novel ->
+            val toc = novel.tableOfContents
+            val chapterTwo = toc[1].id
+            val parsedAfterOpen = (novel as TxtNovel).parsedSectionCount
+            // Opening must not parse any section body; it only decodes and splits the text.
+            assertEquals(0, parsedAfterOpen, "open must not parse section bodies")
+
+            val stored = novel.positionOf(chapterTwo, blockIndex = 1, codePointOffset = 2)
+            assertEquals(1, (novel as TxtNovel).parsedSectionCount, "positionOf parses its own chapter")
+
+            val resolution = novel.resolvePosition(stored)
+            assertEquals(PositionResolution.ResolutionKind.EXACT, resolution.resolution)
+            assertEquals(
+                1,
+                (novel as TxtNovel).parsedSectionCount,
+                "an exact resume must not parse the other chapters",
+            )
+            assertEquals(stored, resolution.position)
+
+            // Reading a different chapter afterwards parses exactly that one more section.
+            novel.readChapter(toc[2].id)
+            assertEquals(2, (novel as TxtNovel).parsedSectionCount)
+        }
+    }
+
+    @Test
+    fun reanchorInsideAnchoredChapterParsesNoOtherChapter() {
+        val before = "第一章 甲\n甲一。\n甲二。\n\n第二章 乙\n乙一。\n"
+        val after = "第一章 甲\n新插入。\n甲一。\n甲二。\n\n第二章 乙\n乙一。\n"
+        open(before).useImport { novel ->
+            val chapterOne = novel.tableOfContents[0].id
+            val stored = novel.positionOf(chapterOne, blockIndex = 0, codePointOffset = 1)
+            open(after).useImport { updated ->
+                val parsedBefore = (updated as TxtNovel).parsedSectionCount
+                assertEquals(0, parsedBefore)
+                val resolution = updated.resolvePosition(stored)
+                assertEquals(
+                    PositionResolution.ResolutionKind.REANCHORED_BLOCK,
+                    resolution.resolution,
+                )
+                assertEquals(1, (updated as TxtNovel).parsedSectionCount)
+            }
+        }
+    }
+
+    @Test
+    fun chapterFallbackLoadsCandidatesLazilyAndStopsAtTheFirstMatch() {
+        val before = "第一章 甲\n甲一。\n\n第二章 乙\n乙一。\n\n第三章 丙\n丙一。\n"
+        val after = "第一章 甲\n甲一。\n\n第三章 丙\n丙一。\n"
+        open(before).useImport { novel ->
+            val chapterTwo = novel.tableOfContents[1].id
+            val stored = novel.positionOf(chapterTwo, blockIndex = 0, codePointOffset = 1)
+            open(after).useImport { updated ->
+                val resolution = updated.resolvePosition(stored)
+                assertEquals(PositionResolution.ResolutionKind.NEIGHBOR_CHAPTER, resolution.resolution)
+                // The stored ordinal (1) still holds a readable chapter, so exactly one chapter is
+                // parsed even though the anchor chapter itself is gone.
+                assertEquals(1, (updated as TxtNovel).parsedSectionCount)
+            }
+        }
     }
 }
