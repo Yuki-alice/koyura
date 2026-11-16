@@ -586,6 +586,9 @@ class ExtensionService(
             if (fileName != oldFileName) runCatching { fileSystem.delete(target, mustExist = false) }
             throw ExtensionFailure.StorageFailure(e)
         }
+        withContext(NonCancellable) {
+            runCatching { live.finishReplacement(key) }
+        }
         if (oldFileName != fileName) runCatching { fileSystem.delete(scriptsDir / oldFileName) }
         if (repo != null) {
             queries().upsertOrigin(key, row.origin_kind, repo.id, repo.name, newOriginUrl)

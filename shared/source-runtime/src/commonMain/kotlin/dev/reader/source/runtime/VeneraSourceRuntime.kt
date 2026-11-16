@@ -30,6 +30,7 @@ class VeneraSourceRuntime private constructor(
 ) {
     private val mutex = Mutex()
     private val sources = linkedMapOf<String, VeneraSource>()
+    private val displacedSources = mutableMapOf<String, VeneraSource?>()
 
     suspend fun register(
         script: String,
@@ -81,6 +82,7 @@ class VeneraSourceRuntime private constructor(
                             failure.addSuppressed(close)
                         } finally {
                             sources.clear()
+                            displacedSources.clear()
                         }
                     }
                 }
@@ -114,7 +116,22 @@ class VeneraSourceRuntime private constructor(
     suspend fun repairDisplaced(key: String): Boolean = withContext(Dispatchers.Default) {
         mutex.withLock {
             checkOpen()
-            evaluate("__readerVenera.repairDisplaced(${JsonPrimitive(key)})", "venera-repair:$key")
+            val repaired = evaluate<Boolean>("__readerVenera.repairDisplaced(${JsonPrimitive(key)})", "venera-repair:$key")
+            if (repaired && key in displacedSources) {
+                val previous = displacedSources.remove(key)
+                if (previous == null) sources.remove(key) else sources[key] = previous
+            }
+            repaired
+        }
+    }
+
+    /** Releases the previous revision after the replacement has been persisted. */
+    suspend fun finishReplacement(key: String) = withContext(Dispatchers.Default) {
+        mutex.withLock {
+            checkOpen()
+            evaluate<Any?>("__readerVenera.finishReplacement(${JsonPrimitive(key)})", "venera-registry.js")
+            displacedSources.remove(key)
+            Unit
         }
     }
 
@@ -125,6 +142,7 @@ class VeneraSourceRuntime private constructor(
             withContext(NonCancellable) {
                 evaluate<Any?>("__readerVenera.unregister(${JsonPrimitive(key)})", "venera-registry.js")
                 sources.remove(key)
+                displacedSources.remove(key)
             }
             true
         }
@@ -153,6 +171,7 @@ class VeneraSourceRuntime private constructor(
         mutex.withLock {
             if (!engine.isClosed) engine.close()
             sources.clear()
+            displacedSources.clear()
         }
     }
 
@@ -239,6 +258,7 @@ class VeneraSourceRuntime private constructor(
         mutex.withLock {
             checkOpen()
             val previous = sources[key]
+            displacedSources.remove(key)
             try {
                 val source = withTimeout(INITIALIZE_TIMEOUT_MILLIS) {
                     val result = evaluate<String>(
@@ -265,6 +285,7 @@ class VeneraSourceRuntime private constructor(
                 }
                 withContext(NonCancellable) {
                     evaluate<Any?>("__readerVenera.commit()", fileName)
+                    displacedSources[key] = previous
                     sources[source.key] = source
                     source
                 }

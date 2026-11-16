@@ -618,7 +618,7 @@ class ExtensionServiceTest {
         try {
             service.installFromUrl("https://example.invalid/sources/example.js", expectedKey = KEY)
             assertEquals(JsonPrimitive("n:1"), callTitle(service, "a"))
-            served = scriptV2()
+            served = scriptV2().replace("loadInfo(id)", "loadEp(id)")
             driver.execute(null, "PRAGMA query_only=ON", 0)
             try {
                 assertFailsWith<ExtensionFailure.StorageFailure> { service.update(KEY) }
@@ -626,6 +626,7 @@ class ExtensionServiceTest {
                 driver.execute(null, "PRAGMA query_only=OFF", 0)
             }
             assertEquals(1, oldInitHits, "the old instance must be restored without re-running its init")
+            assertEquals("1.0.0", service.runtime!!.registeredSources().single().version)
             assertEquals(JsonPrimitive("n:2"), callTitle(service, "b"))
             assertEquals("1.0.0", service.listInstalled().single().version)
             assertEquals("https://example.invalid/sources/example.js", service.originFor(KEY)?.url)

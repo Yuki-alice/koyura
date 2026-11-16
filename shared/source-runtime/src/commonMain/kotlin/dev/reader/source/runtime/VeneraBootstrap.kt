@@ -162,6 +162,10 @@ internal val veneraBootstrap = """
             },
             unregister(key) {
                 delete sources[key];
+                displaced.delete(key);
+            },
+            finishReplacement(key) {
+                displaced.delete(key);
             },
             instanceSeq(key) {
                 const source = sources[key];
