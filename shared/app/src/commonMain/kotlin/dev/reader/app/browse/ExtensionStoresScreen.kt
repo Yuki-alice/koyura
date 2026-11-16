@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
@@ -35,6 +36,8 @@ import dev.reader.app.resources.Res
 import dev.reader.app.resources.browse_action_install
 import dev.reader.app.resources.browse_empty_stores
 import dev.reader.app.resources.browse_operation_failed
+import dev.reader.app.resources.browse_operation_succeeded
+import dev.reader.app.resources.browse_retry
 import dev.reader.app.resources.browse_tab_extensions
 import dev.reader.app.resources.stores_add
 import dev.reader.app.resources.stores_add_title
@@ -240,11 +243,9 @@ fun ExtensionStoresScreen(
             StoreCatalogDialog(
                 store = store,
                 catalogState = state.catalogStates[storeId],
+                itemStatus = { variant -> state.itemOperations[variant.key] },
                 onRetry = { scope.launch { session.previewStore(storeId) } },
-                onInstall = { packageName ->
-                    val key = extensionKey(storeId, packageName)
-                    scope.launch { session.install(key) }
-                },
+                onInstall = { variant -> scope.launch { session.installVariant(variant) } },
                 onDismiss = {
                     previewStoreId = null
                     session.clearStoreCatalog(storeId)
@@ -411,8 +412,9 @@ private fun StoreEditDialog(
 private fun StoreCatalogDialog(
     store: ExtensionStoreInfo,
     catalogState: CatalogState?,
+    itemStatus: (CatalogVariantId) -> OperationStatus?,
     onRetry: () -> Unit,
-    onInstall: (String) -> Unit,
+    onInstall: (CatalogVariantId) -> Unit,
     onDismiss: () -> Unit,
 ) {
     AlertDialog(
@@ -447,36 +449,24 @@ private fun StoreCatalogDialog(
                     }
                 }
                 is CatalogState.Ready -> {
-                    val entries = catalogState.catalog.entries
-                    if (entries.isEmpty()) {
+                    val refs = catalogState.catalog.variantRefs()
+                    if (refs.isEmpty()) {
                         Text(stringResource(Res.string.stores_preview_empty))
                     } else {
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text(
-                                text = stringResource(Res.string.stores_preview_count, entries.size),
+                                text = stringResource(Res.string.stores_preview_count, refs.size),
                                 style = MaterialTheme.typography.labelMedium,
                             )
                             LazyColumn(
                                 modifier = Modifier.fillMaxWidth().heightIn(max = 320.dp),
                             ) {
-                                items(entries, key = { it.packageName }) { entry ->
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                    ) {
-                                        Column(Modifier.weight(1f)) {
-                                            Text(entry.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                            Text(
-                                                text = "${entry.versionName} · ${entry.language}",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            )
-                                        }
-                                        TextButton(
-                                            onClick = { onInstall(entry.packageName) },
-                                            modifier = Modifier.testTag("catalog-install-${entry.packageName}"),
-                                        ) { Text(stringResource(Res.string.browse_action_install)) }
-                                    }
+                                items(refs, key = { it.variant.key }) { ref ->
+                                    CatalogRow(
+                                        ref = ref,
+                                        status = itemStatus(ref.variant),
+                                        onInstall = { onInstall(ref.variant) },
+                                    )
                                 }
                             }
                         }
@@ -490,6 +480,70 @@ private fun StoreCatalogDialog(
             }
         },
     )
+}
+
+@Composable
+private fun CatalogRow(
+    ref: CatalogEntryRef,
+    status: OperationStatus?,
+    onInstall: () -> Unit,
+) {
+    val entry = ref.entry
+    val running = status is OperationStatus.Running
+    Column(
+        modifier = Modifier.fillMaxWidth().testTag("catalog-entry-${ref.variant.key}"),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(entry.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    text = listOfNotNull(
+                        entry.versionName.takeIf { it.isNotEmpty() },
+                        entry.language.takeIf { it.isNotEmpty() },
+                        entry.sourceKey.takeIf { it.isNotEmpty() && it != entry.name },
+                    ).joinToString(" · "),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (entry.scriptUrl.isNotEmpty()) {
+                    Text(
+                        text = entry.scriptUrl,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            when {
+                running -> CircularProgressIndicator(
+                    modifier = Modifier.size(24.dp),
+                    strokeWidth = 2.dp,
+                )
+                status is OperationStatus.Failed -> TextButton(
+                    onClick = onInstall,
+                    modifier = Modifier.testTag("catalog-retry-${ref.variant.key}"),
+                ) { Text(stringResource(Res.string.browse_retry)) }
+                status is OperationStatus.Succeeded -> Text(
+                    text = stringResource(Res.string.browse_operation_succeeded),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.tertiary,
+                )
+                else -> TextButton(
+                    onClick = onInstall,
+                    modifier = Modifier.testTag("catalog-install-${ref.variant.key}"),
+                ) { Text(stringResource(Res.string.browse_action_install)) }
+            }
+        }
+        OperationFeedback(status, ref.variant.key)
+    }
+    HorizontalDivider()
 }
 
 private sealed interface StoreDialog {

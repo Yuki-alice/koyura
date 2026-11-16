@@ -8,7 +8,7 @@
 | --- | --- |
 | `browse/BrowseModels.kt` | 不可变状态：`BrowseState`、`ExtensionInfo`、`ExtensionStoreInfo`、分组、`validateStoreUrl` |
 | `browse/BrowseService.kt` | UI 与运行时之间的唯一接口，全部返回完整快照 |
-| `browse/BrowseSession.kt` | 数据加载、条目级操作状态、去重与旧结果防护 |
+| `browse/BrowseSession.kt` | 数据加载、条目级操作状态、去重、快照收敛 |
 | `browse/BrowseScreen.kt` | 来源 / 扩展两页、搜索、分组与条目操作 |
 | `browse/ExtensionStoresScreen.kt` | 仓库增删改、启停、目录预览 |
 | `browse/ExtensionDetailsScreen.kt` | 已安装扩展详情与卸载 |
@@ -21,12 +21,19 @@
 ```kotlin
 interface BrowseService {
     suspend fun loadSnapshot(): BrowseSnapshot
-    suspend fun addStore(url: String): BrowseSnapshot
+
+    // name 是用户输入的仓库名称；留空时由实现从索引推导
+    suspend fun addStore(name: String, indexUrl: String): BrowseSnapshot
     suspend fun saveStore(storeId: String, name: String, indexUrl: String): BrowseSnapshot
     suspend fun removeStore(storeId: String): BrowseSnapshot
     suspend fun setStoreEnabled(storeId: String, enabled: Boolean): BrowseSnapshot
     suspend fun previewStore(storeId: String): StoreCatalog
+
     suspend fun installExtension(extensionKey: String): BrowseSnapshot
+
+    // 目录变体安装：携带 repositoryId / sourceKey / scriptUrl，供同 key 多条脚本区分
+    suspend fun installCatalogVariant(variant: CatalogVariantId): BrowseSnapshot
+
     suspend fun updateExtension(extensionKey: String): BrowseSnapshot
     suspend fun uninstallExtension(extensionKey: String): BrowseSnapshot
     suspend fun updateAllExtensions(): BrowseSnapshot
@@ -35,9 +42,20 @@ interface BrowseService {
 
 约定：
 
-- 每个写操作返回**操作完成后的完整快照**；UI 不用增量事件拼状态。
+- 每个写操作返回**操作完成后的完整快照**。会话层只把返回值当作「提交已发生」的信号，真正的 UI 状态由随后一次 `loadSnapshot()` 决定，因此实现必须让 `loadSnapshot()` 反映已提交的写入。
 - 失败抛 `BrowseServiceException(message)`，`message` 直接展示给用户。
-- 可以慢，但不要乱序返回：会话层用 generation 丢弃被更新调用取代的旧快照，所以服务只需保证单次调用语义正确。
+- 可并发调用；会话层允许不同目标并行。同一目标运行中的重复提交在 UI 层被拒绝，实现无需自行去重。
+- `installCatalogVariant` 是安装目录条目的唯一入口；`installExtension(extensionKey)` 保留给已安装源的直接重装/修复场景。
+
+### 错误状态
+
+| 场景 | 界面表现 |
+| --- | --- |
+| `loadSnapshot` 抛错 | `LoadState.Failed(message)`，整页显示错误与「重试」 |
+| 单个写操作抛错 | 该条目 `OperationStatus.Failed(kind, message)`，行内错误文案；其他行不受影响 |
+| `previewStore` 抛错 | 该仓库 `CatalogState.Failed(message)`，预览对话框内显示错误与重试 |
+| 未注入服务 | `LoadState.Unavailable`，显示「浏览尚未连接」空态 |
+| 调用被取消 | 不写入失败状态；目标回到可重试，不会被 `Running` 卡住 |
 
 ### 注入方式
 
@@ -56,7 +74,7 @@ CompositionLocalProvider(LocalBrowseService provides realService) { App() }
 | `BrowseState.pane` | `Sources` / `Extensions`，随标签栈保留 |
 | `BrowseState.sourceQuery` / `extensionQuery` | 两个搜索词，分别保留 |
 | `BrowseState.load` | `Loading` / `Ready` / `Failed(message)` / `Unavailable` |
-| `BrowseState.itemOperations` | 扩展 key → `Running` / `Succeeded` / `Failed(kind, message)` |
+| `BrowseState.itemOperations` | 扩展 key 或 `CatalogVariantId.key` → `Running` / `Succeeded` / `Failed(kind, message)` |
 | `BrowseState.storeOperations` | 仓库 id（或 `AddStoreTarget`）→ 同上 |
 | `BrowseState.catalogStates` | 仓库 id → `Loading` / `Ready(catalog)` / `Failed(message)` |
 | `BrowseState.updateCount` | 有更新的扩展数，接到浏览角标 |
@@ -64,14 +82,34 @@ CompositionLocalProvider(LocalBrowseService provides realService) { App() }
 操作规则都在 `BrowseSession`：
 
 - 同一目标正在运行时的第二次提交被忽略（返回 `false`，不调用服务）。
-- 每次写操作递增快照 generation；只有最新 generation 的响应才替换列表，旧响应不会覆盖新结果。
-- 反馈按目标存放，一行失败不会污染其他行。
+- **快照收敛**：每次写操作完成后重新读取 `loadSnapshot()`，页面内容、操作状态与更新角标都对齐最终提交结果。并发调用无论完成顺序如何，UI 都收敛到服务的最新快照。
+- 并发期间若已有更晚的写入落地，较早返回的读取结果被丢弃，不会把新提交覆盖回旧值。
+- 失败只写自己的行状态，不替换任何已提交的数据。
+- 协程取消不会留下 `Running`，目标可立即重试。
+- 仓库索引地址被修改或仓库被移除时，该仓库的旧目录预览立即失效。
 
-### 需要主 agent 补齐的数据映射
+### 身份模型
 
-- `extensionKey = "$storeId::$packageName"`：同包名跨仓库变体因此可辨识，UI 与路由都用它。
+两层身份必须分开：
+
+| 层 | 类型 | 组成 | 用途 |
+| --- | --- | --- | --- |
+| 已安装源 | `ExtensionInfo.key` | `"$storeId::$packageName"` | 列表行、详情路由、更新/卸载 |
+| 目录变体 | `CatalogVariantId` | `repositoryId + sourceKey + scriptUrl + ordinal` | 预览行、变体安装 |
+
+`CatalogVariantId` 的 `ordinal` 只在同一仓库列出完全相同的 `sourceKey` 与 `scriptUrl` 时用于区分，保证列表 key 唯一且稳定。`StoreCatalog.variantRefs()` 按条目顺序分配，供 UI 直接消费。
+
+`StoreCatalogEntry` 携带：
+
+- `packageName`：包名，用于与已安装源关联；
+- `sourceKey`：仓库内脚本 key，默认等于包名；
+- `scriptUrl`：解析后的脚本地址，可为空；
+- `summary`：可选描述。
+
+其余映射：
+
 - `ExtensionInfo.hasUpdate` 由 `availableVersionName != versionName` 推导，服务只需填这两个字段。
-- 仓库预览的 `StoreCatalogEntry` 只含展示所需字段；真正安装仍走 `installExtension(key)`。
+- 预览中的安装事件调用 `installCatalogVariant(variant)`，实现据 `repositoryId` 找仓库、据 `scriptUrl` 取脚本；若 `scriptUrl` 为空，应回退到 `sourceKey` 解析。
 
 ## 验收
 

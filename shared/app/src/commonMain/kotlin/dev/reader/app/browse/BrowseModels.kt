@@ -13,7 +13,6 @@ data class SourceInfo(
     val versionName: String,
     val supportsLatest: Boolean = false,
 )
-
 enum class ExtensionGroup {
     Updates,
     Installed,
@@ -60,12 +59,67 @@ data class StoreCatalogEntry(
     val versionName: String,
     val language: String,
     val summary: String = "",
+    /**
+     * Script key inside the repository. Venera allows one repository to publish several scripts
+     * with the same package name, so this is part of the identity rather than the whole of it.
+     */
+    val sourceKey: String = packageName,
+    /** Resolved script URL. Empty when the repository index did not expose one. */
+    val scriptUrl: String = "",
+) {
+    /**
+     * Identity of this catalog entry inside [repositoryId].
+     *
+     * [CatalogVariantId.ordinal] only disambiguates entries that resolve to the same key and URL,
+     * which keeps two same-key listings displayable without inventing a URL.
+     */
+    fun variantId(repositoryId: String, ordinal: Int): CatalogVariantId = CatalogVariantId(
+        repositoryId = repositoryId,
+        sourceKey = sourceKey,
+        scriptUrl = scriptUrl,
+        ordinal = ordinal,
+    )
+}
+
+/**
+ * Lossless catalog variant identity: repository, script key and resolved URL, plus an ordinal that
+ * only matters when a repository lists the same key and URL twice.
+ *
+ * The installed-source identity ([ExtensionInfo.key]) stays separate from this; a listing is a
+ * candidate script, not an installed entry.
+ */
+data class CatalogVariantId(
+    val repositoryId: String,
+    val sourceKey: String,
+    val scriptUrl: String,
+    val ordinal: Int = 0,
+) {
+    /** Stable string key used for LazyColumn keys, per-item operation state and test tags. */
+    val key: String
+        get() = "$repositoryId|$sourceKey|$scriptUrl|$ordinal"
+}
+
+/** A catalog row together with the identity it resolves to. */
+data class CatalogEntryRef(
+    val entry: StoreCatalogEntry,
+    val variant: CatalogVariantId,
 )
 
 data class StoreCatalog(
     val storeId: String,
     val entries: List<StoreCatalogEntry>,
 )
+
+/** Assigns variant identities in listing order, so duplicates keep distinct but stable keys. */
+fun StoreCatalog.variantRefs(): List<CatalogEntryRef> {
+    val seen = mutableMapOf<String, Int>()
+    return entries.map { entry ->
+        val base = "${entry.sourceKey}|${entry.scriptUrl}"
+        val ordinal = seen[base] ?: 0
+        seen[base] = ordinal + 1
+        CatalogEntryRef(entry, entry.variantId(storeId, ordinal))
+    }
+}
 
 data class BrowseSnapshot(
     val sources: List<SourceInfo> = emptyList(),

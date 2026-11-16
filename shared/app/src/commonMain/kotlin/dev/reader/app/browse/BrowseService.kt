@@ -10,13 +10,26 @@ package dev.reader.app.browse
 interface BrowseService {
     suspend fun loadSnapshot(): BrowseSnapshot
 
-    suspend fun addStore(url: String): BrowseSnapshot
+    /**
+     * Adds a repository. [name] is the user's label; pass a blank string to let the service derive
+     * one from the index.
+     */
+    suspend fun addStore(name: String, indexUrl: String): BrowseSnapshot
     suspend fun saveStore(storeId: String, name: String, indexUrl: String): BrowseSnapshot
     suspend fun removeStore(storeId: String): BrowseSnapshot
     suspend fun setStoreEnabled(storeId: String, enabled: Boolean): BrowseSnapshot
     suspend fun previewStore(storeId: String): StoreCatalog
 
     suspend fun installExtension(extensionKey: String): BrowseSnapshot
+
+    /**
+     * Installs one catalog listing identified by [CatalogVariantId].
+     *
+     * Required for repositories that publish several scripts under one package name: the variant
+     * carries the repository, script key and resolved URL so the service can fetch the right script.
+     */
+    suspend fun installCatalogVariant(variant: CatalogVariantId): BrowseSnapshot
+
     suspend fun updateExtension(extensionKey: String): BrowseSnapshot
     suspend fun uninstallExtension(extensionKey: String): BrowseSnapshot
     suspend fun updateAllExtensions(): BrowseSnapshot

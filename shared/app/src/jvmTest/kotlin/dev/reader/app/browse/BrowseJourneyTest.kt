@@ -61,11 +61,11 @@ class BrowseJourneyTest {
         onNodeWithTag(CatalogDialogTag).assertIsDisplayed()
         onNodeWithTag("catalog-retry").assertIsDisplayed()
         onNodeWithTag("catalog-retry").performClick()
-        onNodeWithTag("catalog-install-com.example.new").assertIsDisplayed()
+        onNodeWithTag("catalog-install-" + catalogVariantKey("store:1", "new_en", "https://example.com/new_en.js")).assertIsDisplayed()
 
         // 4. Install an entry directly from the open catalog preview.
-        onNodeWithTag("catalog-install-com.example.new").performClick()
-        assertEquals(1, service.calls["install:store:1::com.example.new"])
+        onNodeWithTag("catalog-install-" + catalogVariantKey("store:1", "new_en", "https://example.com/new_en.js")).performClick()
+        assertEquals(1, service.calls["installVariant:" + catalogVariantKey("store:1", "new_en", "https://example.com/new_en.js")])
         onNodeWithTag("catalog-close").performClick()
 
         // 5. Back to extensions: update the pending row, then uninstall it.

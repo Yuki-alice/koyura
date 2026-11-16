@@ -103,11 +103,11 @@ class BrowseOperationsUiTest {
         onNodeWithTag(storePreviewTag("store:1")).performClick()
 
         onNodeWithTag(CatalogDialogTag).assertIsDisplayed()
-        onNodeWithTag("catalog-install-com.example.new").assertIsDisplayed()
-        onNodeWithTag("catalog-install-com.example.new").performClick()
+        onNodeWithTag("catalog-install-" + catalogVariantKey("store:1", "new_en", "https://example.com/new_en.js")).assertIsDisplayed()
+        onNodeWithTag("catalog-install-" + catalogVariantKey("store:1", "new_en", "https://example.com/new_en.js")).performClick()
 
         // Installing from the preview goes through the same per-target operation path.
-        assertEquals(1, service.calls["install:store:1::com.example.new"])
+        assertEquals(1, service.calls["installVariant:" + catalogVariantKey("store:1", "new_en", "https://example.com/new_en.js")])
     }
 
     @Test
@@ -128,7 +128,7 @@ class BrowseOperationsUiTest {
         // Failed catalog body shows the error and a retry that reloads the same store.
         onNodeWithTag("catalog-retry").assertIsDisplayed()
         onNodeWithTag("catalog-retry").performClick()
-        onNodeWithTag("catalog-install-com.example.new").assertIsDisplayed()
+        onNodeWithTag("catalog-install-" + catalogVariantKey("store:1", "new_en", "https://example.com/new_en.js")).assertIsDisplayed()
     }
 
     @Test

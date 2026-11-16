@@ -64,19 +64,29 @@ class FakeBrowseService(
         return snapshot
     }
 
-    override suspend fun addStore(url: String): BrowseSnapshot {
-        enter("addStore:$url")
+    override suspend fun addStore(name: String, indexUrl: String): BrowseSnapshot {
+        enter("addStore:$indexUrl")
+        lastAddedStoreName = name
         val id = "store:${snapshot.stores.size + 1}"
         snapshot = snapshot.copy(
             stores = snapshot.stores + ExtensionStoreInfo(
                 id = id,
-                name = url.substringAfterLast('/').ifBlank { url },
-                indexUrl = url,
+                name = name.ifBlank { indexUrl.substringAfterLast('/').ifBlank { indexUrl } },
+                indexUrl = indexUrl,
                 extensionCount = catalogs[id]?.entries?.size ?: 0,
             ),
         )
         return snapshot
     }
+
+    /** Name passed to the most recent [addStore] call, so tests can assert the UI forwarded it. */
+    var lastAddedStoreName: String? = null
+
+    /** Variants passed to the most recent [installCatalogVariant] call. */
+    val installedVariants = mutableListOf<CatalogVariantId>()
+
+    /** Catalog contents served per store after an index URL change, keyed by store id. */
+    var refreshedCatalogs: Map<String, StoreCatalog> = emptyMap()
 
     override suspend fun saveStore(storeId: String, name: String, indexUrl: String): BrowseSnapshot {
         enter("saveStore:$storeId")
@@ -108,7 +118,29 @@ class FakeBrowseService(
             previewFailure = null
             throw BrowseServiceException(message)
         }
-        return catalogs[storeId] ?: StoreCatalog(storeId, emptyList())
+        return refreshedCatalogs[storeId] ?: catalogs[storeId] ?: StoreCatalog(storeId, emptyList())
+    }
+
+    override suspend fun installCatalogVariant(variant: CatalogVariantId): BrowseSnapshot {
+        installedVariants += variant
+        enter("installVariant:${variant.key}")
+        val key = extensionKey(variant.repositoryId, variant.sourceKey)
+        val listed = catalogs[variant.repositoryId]?.entries
+            ?.firstOrNull { it.sourceKey == variant.sourceKey && it.scriptUrl == variant.scriptUrl }
+        snapshot = snapshot.copy(
+            extensions = snapshot.extensions.map {
+                if (it.key == key) {
+                    it.copy(
+                        isInstalled = true,
+                        availableVersionName = null,
+                        versionName = listed?.versionName ?: it.versionName,
+                    )
+                } else {
+                    it
+                }
+            },
+        )
+        return snapshot
     }
 
     override suspend fun installExtension(extensionKey: String): BrowseSnapshot {
@@ -214,12 +246,16 @@ fun defaultCatalogs(): Map<String, StoreCatalog> = mapOf(
     "store:1" to StoreCatalog(
         storeId = "store:1",
         entries = listOf(
-            StoreCatalogEntry("com.example.available", "Available Example", "3.0", "ja"),
-            StoreCatalogEntry("com.example.new", "New Example", "1.0", "en", "Freshly published"),
+            StoreCatalogEntry("com.example.available", "Available Example", "3.0", "ja", sourceKey = "available_ja", scriptUrl = "https://example.com/available_ja.js"),
+            StoreCatalogEntry("com.example.new", "New Example", "1.0", "en", "Freshly published", sourceKey = "new_en", scriptUrl = "https://example.com/new_en.js"),
         ),
     ),
     "store:2" to StoreCatalog(
         storeId = "store:2",
-        entries = listOf(StoreCatalogEntry("com.example.available", "Available Example", "9.9", "ja", "Variant from a second store")),
+        entries = listOf(StoreCatalogEntry("com.example.available", "Available Example", "9.9", "ja", "Variant from a second store", sourceKey = "available_ja", scriptUrl = "https://second.example/available_ja.js")),
     ),
 )
+
+/** Builds the expected variant key for a default catalog row. */
+fun catalogVariantKey(repositoryId: String, sourceKey: String, scriptUrl: String, ordinal: Int = 0): String =
+    CatalogVariantId(repositoryId, sourceKey, scriptUrl, ordinal).key
