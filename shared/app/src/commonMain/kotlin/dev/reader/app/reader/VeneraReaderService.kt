@@ -1,11 +1,16 @@
 package dev.reader.app.reader
 
+import dev.reader.data.history.HistoryStore
 import dev.reader.data.reading.ComicReadingService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
+import kotlin.time.Clock
 import kotlinx.coroutines.withContext
 
-internal class VeneraReaderService(private val reading: ComicReadingService) : ReaderService {
+internal class VeneraReaderService(
+    private val reading: ComicReadingService,
+    private val history: HistoryStore? = null,
+) : ReaderService {
     override suspend fun readProgress(sourceKey: String, workId: String): ReaderProgress? =
         withContext(Dispatchers.IO) {
             reading.readLatestProgress(sourceKey, workId)?.let { ReaderProgress(it.chapterId, it.pageIndex) }
@@ -37,7 +42,17 @@ internal class VeneraReaderService(private val reading: ComicReadingService) : R
         chapterId: String?,
         pageKey: String,
         pageIndex: Int,
-    ) = withContext(Dispatchers.IO) {
+        workTitle: String?,
+        chapterTitle: String?,
+    ): Unit = withContext(Dispatchers.IO) {
         reading.saveProgress(sourceKey, workId, chapterId, pageKey, pageIndex)
+        history?.stamp(
+            sourceKey = sourceKey,
+            workId = workId,
+            chapterId = chapterId,
+            readAtMillis = Clock.System.now().toEpochMilliseconds(),
+            workTitle = workTitle?.takeIf { it.isNotBlank() },
+            chapterTitle = chapterTitle?.takeIf { it.isNotBlank() },
+        )
     }
 }

@@ -133,7 +133,7 @@ class ReaderFlowTest {
         onNodeWithTag(ReaderBackTag).performClick()
         onNodeWithTag("source-detail-heading").assertIsDisplayed()
         assertEquals(
-            FakeReaderService.SaveCall("example_source", "demo", "ep_1", 2),
+            FakeReaderService.SaveCall("example_source", "demo", "ep_1", 2, "星图", "第一章"),
             reader.saveCalls.last(),
         )
 
@@ -209,7 +209,7 @@ class ReaderFlowTest {
 
         onNodeWithTag(ReaderBackTag).performClick()
         assertEquals(
-            FakeReaderService.SaveCall("example_source", "single", null, 1),
+            FakeReaderService.SaveCall("example_source", "single", null, 1, "Single", null),
             reader.saveCalls.last(),
         )
     }

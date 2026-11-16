@@ -21,6 +21,7 @@ import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.unit.dp
 import dev.reader.app.reader.VeneraReaderService
 import dev.reader.app.browse.venera.VeneraBrowseService
+import dev.reader.app.history.VeneraHistoryService
 import dev.reader.app.resources.Res
 import dev.reader.app.resources.extension_startup_failed
 import dev.reader.app.resources.extension_startup_loading
@@ -77,8 +78,9 @@ internal fun ExtensionApp(openSession: suspend () -> ExtensionSession) {
     val session = openedSession
     if (session != null) {
         val browse = remember(session) { VeneraBrowseService(session.service) }
-        val reader = remember(session) { VeneraReaderService(session.comicReading) }
-        App(browseService = browse, readerService = reader)
+        val reader = remember(session) { VeneraReaderService(session.comicReading, session.history) }
+        val history = remember(session) { VeneraHistoryService(session.history) }
+        App(browseService = browse, readerService = reader, historyService = history)
     } else {
         ReaderTheme {
             Surface(modifier = Modifier.fillMaxSize()) {

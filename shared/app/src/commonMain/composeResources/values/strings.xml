@@ -90,6 +90,16 @@
     <string name="stores_url_duplicate">That store is already added.</string>
     <string name="stores_count">%1$d extensions</string>
     <string name="stores_save">Save</string>
+    <string name="history_title">History</string>
+    <string name="history_search">Search history</string>
+    <string name="history_empty">No reading history yet</string>
+    <string name="history_no_results">No matching history</string>
+    <string name="history_unknown_time">Unknown time</string>
+    <string name="history_today">Today</string>
+    <string name="history_yesterday">Yesterday</string>
+    <string name="history_continue">Continue</string>
+    <string name="history_page">Page %1$d</string>
+    <string name="history_single_chapter">Oneshot</string>
 
     <!-- Comic reader -->
     <string name="reading_start">Start reading</string>

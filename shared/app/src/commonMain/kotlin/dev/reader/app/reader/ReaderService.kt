@@ -23,13 +23,20 @@ interface ReaderService {
     /** Returns the encoded image bytes for one page for decoding by the platform. */
     suspend fun loadPageBytes(sourceKey: String, workId: String, chapterId: String?, imageKey: String): ByteArray
 
-    /** Persists the currently displayed page. */
+    /**
+     * Persists the currently displayed page.
+     *
+     * [workTitle] and [chapterTitle] are best-effort display metadata recorded alongside the
+     * position; history UI falls back to IDs when they are absent.
+     */
     suspend fun saveProgress(
         sourceKey: String,
         workId: String,
         chapterId: String?,
         pageKey: String,
         pageIndex: Int,
+        workTitle: String? = null,
+        chapterTitle: String? = null,
     )
 }
 
