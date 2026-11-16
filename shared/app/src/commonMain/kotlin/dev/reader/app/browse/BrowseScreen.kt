@@ -87,6 +87,7 @@ fun BrowseScreen(
     session: BrowseSession,
     onOpenExtension: (String) -> Unit,
     onManageStores: (String?) -> Unit,
+    onOpenSource: (sourceKey: String, sourceName: String) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier,
 ) {
     val state = session.state
@@ -153,6 +154,7 @@ fun BrowseScreen(
                     state = state,
                     listStateHolder = sourcesListState,
                     onQueryChange = session::searchSources,
+                    onOpenSource = onOpenSource,
                 )
                 BrowsePane.Extensions -> ExtensionsPane(
                     session = session,
@@ -207,6 +209,7 @@ private fun SourcesPane(
     state: BrowseState,
     listStateHolder: androidx.compose.foundation.lazy.LazyListState,
     onQueryChange: (String) -> Unit,
+    onOpenSource: (sourceKey: String, sourceName: String) -> Unit,
 ) {
     val sections = state.sources.groupedSources(state.sourceQuery)
     Column(Modifier.fillMaxSize()) {
@@ -240,7 +243,7 @@ private fun SourcesPane(
                     SectionHeader(stringResource(Res.string.browse_language, section.language))
                 }
                 items(section.sources, key = { it.id }, contentType = { "source" }) { source ->
-                    SourceRow(source)
+                    SourceRow(source, onOpenSource)
                 }
             }
         }
@@ -326,10 +329,15 @@ private fun ExtensionsPane(
 }
 
 @Composable
-private fun SourceRow(source: SourceInfo) {
+private fun SourceRow(
+    source: SourceInfo,
+    onOpenSource: (sourceKey: String, sourceName: String) -> Unit,
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .clickable { onOpenSource(source.id, source.name) }
+            .testTag("source-row-${source.id}")
             .heightIn(min = 56.dp)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp),

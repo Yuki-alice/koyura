@@ -147,3 +147,64 @@ CompositionLocalProvider(LocalBrowseService provides realService) { App() }
 6. **无源固定与「最新」跳转**：原版来源项可固定、可进入 Latest 列表；这里来源仅展示，点击留给后续书架/浏览源任务。
 7. **扩展详情是精简版**：原版详情含来源开关、隐身模式、清 Cookie、应用信息跳转；这里保留标识信息、来源列表、更新与卸载。
 8. **安装/更新为同步反馈**：原版显示下载进度与可取消步骤（`InstallStep`）；这里的 `OperationStatus` 只有运行中/成功/失败，真实实现接入后可扩展为进度。
+
+## Venera 真实接线（production）
+
+`dev.reader.app.browse.venera.VeneraBrowseService` 把上面的 `BrowseService` 契约接到持久化扩展
+生命周期（SQLDelight + 脚本文件 + QuickJS + Ktor）：
+
+| 能力 | 实现 |
+| --- | --- |
+| 仓库增删改、启停、预览 | `ExtensionService.addRepository/updateRepository/removeRepository/setRepositoryEnabled/previewCatalog` |
+| 安装 / 更新 / 卸载 | `installFromCatalog`（带预览索引核验）、`update`、`uninstall` |
+| 更新角标 | `checkUpdatesDetailed().updates` 映射为 `availableVersionName` |
+| 来源搜索 | 已安装源的 `search.load(keyword, [], page)` → `WorkSearchPage` |
+| 作品详情 | 已安装源的 `comic.loadInfo(workId)` → `WorkDetail`（标题/作者/简介/章节/更新时间） |
+| 同 key 多变体 | 预览保留 `(repositoryId, sourceKey, scriptUrl)`；安装走 `installCatalogVariant`，服务按该三元组取脚本并用预览时索引地址做 `StaleCatalog` 核验 |
+
+### 主 agent 装配签名
+
+```kotlin
+// 1. 每个进程构造一次（Application / 单例作用域）
+val driver: SqlDriver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY) // 生产用平台 driver + Schema.create
+val scriptsDir: Path = appFilesDir / "extensions"                    // Okio Path，持久目录
+val http: HttpClient = HttpClient(platformEngine()) { applyReaderDefaults() }
+val extensions = ExtensionService(
+    driver = driver,
+    fileSystem = FileSystem.SYSTEM,
+    scriptsDir = scriptsDir,
+    httpClient = http,
+    environment = VeneraEnvironment(
+        compatibleAppVersion = APP_VENERA_VERSION, // 对外报告的宿主版本，如 "1.16.0"
+        locale = "zh_CN",
+        platform = "android" | "ios" | "desktop",
+    ),
+)
+extensions.open()
+extensions.restore() // 崩溃恢复：清 *.new、跳过缺失文件、漂移行按脚本元数据修正
+
+// 2. 会话与入口（二选一，推荐第一种）
+App(browseService = VeneraBrowseService(extensions))
+
+// 需要在外层持有会话（例如跨入口复用同一 BrowseSession）时：
+val session = BrowseSession(VeneraBrowseService(extensions))
+CompositionLocalProvider(LocalBrowseService provides VeneraBrowseService(extensions)) { App() }
+// 或直接：
+AppScaffold(navigation, useRail, browseService = VeneraBrowseService(extensions))
+// AppScaffold 也接受 browseSession = session，便于测试与预置状态。
+```
+
+说明：
+
+- `App(browseService: BrowseService?)` 已存在；`null` 时浏览页显示「尚未连接」空态，外壳其余部分照常用。这是当前生产入口的默认状态。
+- `VeneraBrowseService.loadSnapshot()` 每次重读已安装表与更新检查，因此安装/更新/卸载后页面、角标自动收敛到已提交结果。
+- `BrowseSession.searchWorks/loadWorkDetail` 是纯透传（结果不进快照收敛逻辑）；取消按取消处理、不写失败。
+- JSON 形状以 Venera 回调返回为准：搜索 `{comics: [{id,title,subtitle?,cover?,tags?}], maxPage}`详情为 `ComicDetails` 字段子集缺字段抛 `BrowseServiceException`，界面显示可读错误并可重试。
+- 上游示例 `minimal_source.js`（SHA-256 `41ff3cdc08f188080d1d346aba7bbaf9b6d6e762942e792ec897e6408fe8459d`）随测试资源提交在 `shared/app/src/jvmTest/resources/venera/minimal_source.js`；也可以用 `-PveneraReferenceDir=<含 doc/examples/minimal_source.js 的目录>` 指向外部检出。
+
+## 与 Komikku 的差异（Venera 层）
+
+1. **来源语言为空**：Venera 脚本元数据没有语言字段，已安装源按空语言分组显示；后续可按仓库或脚本注释补齐。
+2. **无 Latest 列表与来源固定**：`supportsLatest` 恒为 `false`，来源行只做搜索入口。
+3. **安装为同步反馈**：`OperationStatus` 只有运行中/成功/失败真实下载进度后续可在 `installValidated` 的文件写入处扩展。
+4. **更新检查走全量目录**：每次快照都调用 `checkUpdatesDetailed()`触发各启用仓库的目录拉取；后续可加缓存与后台刷新。

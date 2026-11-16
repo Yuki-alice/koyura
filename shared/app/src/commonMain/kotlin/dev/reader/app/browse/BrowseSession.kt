@@ -7,7 +7,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
-import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.CancellationException
 
 /**
  * Holds the Browse tab's data and per-item operation state.
@@ -88,6 +88,39 @@ class BrowseSession internal constructor(
     fun searchExtensions(query: String) {
         state = state.copy(extensionQuery = query)
     }
+
+    /**
+     * Runs a source search outside the snapshot machinery: results are per-query UI state, not
+     * list state, so they never disturb the convergence bookkeeping above.
+     */
+    suspend fun searchWorks(sourceKey: String, query: String, page: Int = 1): WorkSearchPage {
+        val service = serviceOrThrow()
+        return try {
+            service.searchWorks(sourceKey, query, page)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: BrowseServiceException) {
+            throw error
+        } catch (error: Exception) {
+            throw BrowseServiceException(error.message ?: "Search failed")
+        }
+    }
+
+    suspend fun loadWorkDetail(sourceKey: String, workId: String): WorkDetail {
+        val service = serviceOrThrow()
+        return try {
+            service.loadWorkDetail(sourceKey, workId)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: BrowseServiceException) {
+            throw error
+        } catch (error: Exception) {
+            throw BrowseServiceException(error.message ?: "Could not load details")
+        }
+    }
+
+    private fun serviceOrThrow(): BrowseService =
+        service ?: throw BrowseServiceException("Browse is not connected")
 
     fun statusOf(target: String): OperationStatus? =
         state.itemOperations[target] ?: state.storeOperations[target]

@@ -85,6 +85,21 @@
     <string name="stores_url_duplicate">该仓库已经添加。</string>
     <string name="stores_count">%1$d 个扩展</string>
     <string name="stores_save">保存</string>
+
+    <!-- Source search and detail -->
+    <string name="source_search_title">搜索 %1$s</string>
+    <string name="source_search_hint">搜索作品</string>
+    <string name="source_search_button">搜索</string>
+    <string name="source_search_empty">输入关键词后开始搜索。</string>
+    <string name="source_search_no_results">没有匹配的作品。</string>
+    <string name="source_search_results">%1$d 个结果，共 %2$d 页</string>
+    <string name="source_search_error">搜索失败：%1$s</string>
+    <string name="source_detail_title">作品详情</string>
+    <string name="source_detail_back">返回</string>
+    <string name="source_detail_error">详情加载失败：%1$s</string>
+    <string name="source_detail_empty">暂无详情。</string>
+    <string name="source_detail_no_description">暂无简介。</string>
+    <string name="source_detail_chapters">共 %1$d 章</string>
     <string name="stores_cancel">取消</string>
     <string name="stores_remove_confirm">移除</string>
 </resources>
