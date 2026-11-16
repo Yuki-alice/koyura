@@ -1,0 +1,9 @@
+# TXT fixtures are byte-exact inputs: BOMs, UTF-16 byte order and CRLF must survive checkout.
+# Marking them binary disables end-of-line conversion and text diffing on every platform.
+fixtures/txt/*.txt binary
+
+# EPUB fixtures are zip archives.
+fixtures/epub/*.epub binary
+
+# The generator is a normal LF text file.
+fixtures/txt/*.py text eol=lf
