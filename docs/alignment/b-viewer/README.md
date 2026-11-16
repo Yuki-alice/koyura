@@ -13,11 +13,17 @@ Viewer 与阅读状态放在 `:shared:features`，独立 UI 测试与截图宿�
   `ComicViewer.kt`（`ComicViewer` 及分页/条漫/缩放实现）。
 - `shared/features/src/commonTest/.../viewer/ComicSpreadsTest.kt`：配对与锚定位单测。
 - `shared/app/src/jvmTest/kotlin/reader/viewer/`：`ViewerFixture.kt`（两章固定夹具，
-  第 2 章 7 张编号页）、`ComicViewerTest.kt`（10 个 UI 测试）、
-  `ComicViewerScreenshotTest.kt`（10 个截图测试，11 张截图）。
+  第 2 章 7 张编号页）、`ComicViewerTest.kt`（11 个 UI 测试）、
+  `ComicViewerScreenshotTest.kt`（10 个截图测试，11 张截图）、
+  `FlowFramesTest.kt`（3 个操作分镜测试，11 帧）、
+  `OriginalReferenceShotsTest.kt`（1 个对照表测试：12 张原版行为示意 + 12 张对照表）。
 - `shared/app/.../values/reader_viewer.xml`：独立 `reader_viewer_` 前缀资源，
   不与生产 `reader_*` 混用。
-- `docs/alignment/b-viewer/shots/`：截图提交件（由截图测试生成，见下）。
+- `docs/alignment/b-viewer/shots/`：Koyura 截图提交件（由截图测试生成）。
+- `docs/alignment/b-viewer/compare/`：同数据同画布对照表（左 Koyura 实拍，
+  右原版行为示意）。
+- `docs/alignment/b-viewer/rec/`：三段操作录屏 MP4（`flow-rtl.mp4`、
+  `flow-chapter.mp4`、`flow-modes.mp4`）及逐帧 PNG（`frames/`）。
 
 ## 接口签名（与主 agent / C 的约定）
 
@@ -99,13 +105,17 @@ data class ComicViewerJump(val requestId: Long, val contentSeq: Long, val pageIn
 
 - `:shared:features:jvmTest`：`ReaderSessionTest`（12）+ `ComicSpreadsTest`（7），全过。
 - `:shared:app:jvmTest --tests 'app.koyura.app.reader.viewer.*'`：
-  `ComicViewerTest` 10 项、`ComicViewerScreenshotTest` 10 项（11 张截图），全过（20/20）。
-  - LTR 点按前进/中央切菜单/横向滑动（即时 down/move/up 注入，不依赖测试时钟）；
-    RTL 左侧点按=下一页、左/右方向键镜像、右向滑动前进；
+  `ComicViewerTest` 11 项、`ComicViewerScreenshotTest` 10 项（11 张截图）、
+  `FlowFramesTest` 3 项（11 帧）、`OriginalReferenceShotsTest` 1 项
+  （12 张原版示意 + 12 张对照表），全过（26/26；另 features 19 项）。
+  - LTR 点按前进/中央切菜单/横向滑动（即时 down/move/up 注入不依赖测试时钟）；
+    RTL 左侧点按=下一页、左/右方向键镜像、右向滑动前进（滑动后方向键仍可达，
+    根容器带 `focusable()`）；
     纵向分页上/下点按与上/下滑动、方向键；
     中央双击识别为缩放（两次点按都不翻页，之后点按仍可翻页）；
     WEBTOON 滚到底边区点按上报 NEXT 并由宿主切到第 2 章；
-    双页配对与反序保持主页面；跳页消费一次、忽略旧章节命令；
+    双页配对与反序保持主页面；运行时宽跨页解码后自动拆分独占并重锚同页；
+    跳页消费一次、忽略旧章节命令；
     切模式（LTR→WEBTOON→CONTINUOUS）保持同一原始页；
     q5 失败态出现重试键、重试后同一页键变 Ready；
     重建 Viewer 后第 2 章第 3 页仍是同一页键（q2）。
@@ -127,7 +137,7 @@ REF='/Users/kurisu/project x/reference/Venera-Next'
 ## 截图（同数据、同画布）
 
 截图测试按 420x780（窄）/1280x800（宽）、density=1 渲染，输出目录
-`build/komikku-b/`，提交件复制于 `docs/alignment/b-viewer/shots/`：
+`build/komikku-b/`，Koyura 提交件复制于 `docs/alignment/b-viewer/shots/`：
 
 - `viewer-ltr-narrow.png` / `viewer-rtl-narrow.png` / `viewer-vertical-narrow.png` /
   `viewer-webtoon-narrow.png` / `viewer-continuous-narrow.png`：五种模式首屏。
@@ -138,31 +148,53 @@ REF='/Users/kurisu/project x/reference/Venera-Next'
 - `viewer-pager-long-fitwidth.png`：分页 `FIT_WIDTH` 下的长图。
 - `viewer-failed.png` / `viewer-failed-retried.png`：q5 失败态与重试成功态。
 
-原版对照：原版是 Android View 实现，本机无 Android 运行环境，无法逐像素对照；
-上表行为逐项核对过原版源码（`ReadingMode.kt` 的模式映射、
-`PagerViewerAdapter.setJoinedItems` 的配对/逆序/首张单页、
-`ReaderActivity.setDoublePageMode` 的横屏双页、
-`WebtoonPageHolder.refreshLayoutParams` 的 15dp 间距与 `ReaderPageImageView`
-的缩放/裁边/双击语义）。原版真机对照截图待主 agent 在 Android 侧补拍，
-本目录截图即 Koyura 侧基线。
+## 原版对照（同数据、同画布）
 
-## 录屏
+原版是 Android View 实现，本机无 Android 运行环境，且原版仓库
+（`reference/komikku/.github/readme-images/screens.png`）只有浏览/主题宣传图、
+没有阅读器截图，无法逐像素对照。因此原版侧提供**同数据同画布的行为示意**：
+`OriginalReferenceShotsTest` 用同一份夹具字节在同一画布尺寸上，
+按原版代码逐项绘制（`orig-*.png`），再与 Koyura 实拍拼成对照表
+（`compare-*.png`，左 Koyura 右原版），提交于 `docs/alignment/b-viewer/compare/`。
+每张示意都可由引用的源码行复核，面板标题只写模式与页码（对照表头已注明
+code-derived；绝不冒充真机截图）。
 
-无显示服务器的 CI 宿主无法录制真机/桌面视频。以下操作分别由 UI 测试
-覆盖（可直接重跑即验收），真机录屏待主 agent 在桌面/Android 侧补录：
+| 对照表 | 原版规则与源码出处 |
+| --- | --- |
+| `compare-ltr/rtl/vertical-narrow` | 三种分页器的首屏单页 Fit 居中；点按区按 `ViewerNavigation` 的 `RightAndLeftNavigation`（左=LEFT/右=RIGHT）与 `LNavigation`（上=PREV/下=NEXT/中=MENU）绘制，配色取 `NavigationRegion` 的 ARGB；RTL 下同一视觉分区映射为 next（`R2LPagerViewer` 把 `moveToNext` 反转为 `moveLeft`，adapter 逆序） |
+| `compare-webtoon/continuous-narrow` | WEBTOON 页间 0 间距、`CONTINUOUS_VERTICAL` 15dp 间距（`WebtoonPageHolder.refreshLayoutParams` 的 `bottomMargin=15.dpToPx`，仅 `!isContinuous` 时加）；`ReadingMode` 把 WEBTOON 映射到 `WebtoonViewer(isContinuous=true)`，CONTINUOUS_VERTICAL 映射到 `(isContinuous=false)` |
+| `compare-double-wide[-inverted]` | `PagerViewerAdapter.setJoinedItems` 的相邻配对 + `firstPageSingle`（封面单页）；合并方向 `isLTR = !isRtl xor invertDoublePages`（`PagerPageImageView`/`mergePages`），反序表把左右互换 |
+| `compare-double-wide-spread` | 宽跨页解码后独占（`onPageSplit`/`InsertPage` + `fullPage` 隔离；Koyura 侧同机制，见 `wideSpreadSplitsAndReanchors` 测试） |
+| `compare-webtoon-long` / `compare-pager-long-fitwidth` | 长图按宽填满纵向延展（webtoon 从目标页顶开始；分页 `FIT_WIDTH` 上下裁剪居中；原版 `landscapeZoom`/长图走 `SubsamplingScaleImageView`，示意取同构图） |
+| `compare-failed[-retried]` | `PagerPageHolder.showErrorLayout` 的错误文案 + `actionRetry → pageLoader.retryPage`（原版另有 http 才有的 webview 入口，本地夹具无，故省略） |
 
-1. RTL 操作：`rtlTapAndKeysAreMirrored`（左侧点按前进、左/右方向键镜像、
-   右向滑动前进、左向滑动返回）。
-2. 跨章：`webtoonBoundaryReportsNextAndHostSwitches`（滚到底→NEXT→宿主切第 2 章）。
-3. 切模式保位：`modeSwitchKeepsSameOriginalPage`
-   （LTR 第 3 页 → WEBTOON → CONTINUOUS_VERTICAL 仍在同一原始页）。
-4. 双击缩放：`doubleTapZoomsInsteadOfTurningTwice`（双击不翻页、之后点按仍可翻页；
-   2.5x 缩放刻度本身是确定性代码路径，生产侧可在真机复核手感）。
+真机逐像素对照仍待主 agent 在 Android 侧补拍；补拍时可用同一份夹具
+（`ViewerFixture` 的编号与尺寸见「固定夹具」）复现。
+
+## 录屏（三段，均已落盘）
+
+`FlowFramesTest` 用同一交互宿主逐步操作并逐帧截图
+（`build/komikku-b/frames/flow-*.png`，帧即测试断言过的状态），再用 ffmpeg
+按 1fps 拼成 MP4（`docs/alignment/b-viewer/rec/flow-*.mp4`，840px 宽）：
+
+```bash
+ffmpeg -y -framerate 1 -i flow-rtl-%d.png -c:v libx264 -pix_fmt yuv420p \
+  -vf "scale=840:-2" rec/flow-rtl.mp4
+```
+
+1. RTL 操作：`rec/flow-rtl.mp4`（`recordRtlFlow`：RTL 第 2 章 p1 → 左侧点按到 p2 →
+   左方向键到 p3 → 右向滑动到 p4）。
+2. 跨章：`rec/flow-chapter.mp4`（`recordChapterFlow`：WEBTOON 第 1 章顶部 →
+   滚动 → 到底边区点按上报 NEXT → 宿主切到第 2 章顶部 → 再滚一屏）。
+3. 切模式保位：`rec/flow-modes.mp4`（`recordModeSwitchFlow`：LTR p3 →
+   WEBTOON p3 → CONTINUOUS_VERTICAL p3，计数器全程 `3 / 7`）。
+4. 双击缩放：由 `doubleTapZoomsInsteadOfTurningTwice` 覆盖（双击不翻页、
+   之后点按仍可翻页；2.5x 缩放刻度本身是确定性代码路径，生产侧可在真机复核手感）。
 
 ## 与生产接线的状态（分别报告）
 
-- 独立宿主：通过（20/20，见上）。Viewer 不依赖 `ReaderScreen.kt`，
-  可直接被生产阅读器嵌入。
+- 独立宿主：通过（features 19 项 + app viewer 26 项，见上）。Viewer 不依赖 `ReaderScreen.kt`，
+  可直接被生产阅读器嵌入。MP4 与对照表见上（`rec/`、`compare/`）。
 - 生产接线：未接线。`ReaderScreen.kt` 仍是旧单页横向阅读器（主 agent 负责把
   `ComicViewer`、`ComicViewerOptions`（C 的有效偏好映射）、`ComicViewerJump`
  （跳页/续读/章列表）与 `onChapterBoundary`（切章）接入，C 负责 chrome/设置；

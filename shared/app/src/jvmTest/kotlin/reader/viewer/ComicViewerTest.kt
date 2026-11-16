@@ -356,6 +356,37 @@ class ComicViewerTest {
     }
 
     @Test
+    fun wideSpreadSplitsAndReanchors() = runComposeUiTest {
+        val service = ViewerFixture.service()
+        val session = ViewerFixture.session(service)
+        var jump by mutableStateOf<ComicViewerJump?>(null)
+        val options = ComicViewerOptions(
+            mode = ComicReadingMode.LEFT_TO_RIGHT,
+            pagerLayout = ComicPagerLayout.DOUBLE_PAGES,
+        )
+        setContent {
+            ReaderTheme {
+                LaunchedEffect(Unit) {
+                    session.open(ViewerFixture.SOURCE, ViewerFixture.WORK, ViewerFixture.CHAPTER_2, ViewerFixture.chapterIds)
+                }
+                ViewerLab(session, ViewerFixture.CHAPTER_2, options, jump, { null }, mutableListOf())
+            }
+        }
+
+        awaitCounter("1 / 7")
+        // Jump onto the wide page: the visible spread decodes it, the spread
+        // splits, and the viewer re-anchors on the same master page.
+        jump = ComicViewerJump(requestId = 21L, contentSeq = session.contentSeq, pageIndex = 1)
+        awaitCounter("2 / 7")
+        // Jump past it: with q1 isolated, [q2, q3] pair up and q2 is the master.
+        // (Pre-split pairing would report q3 instead.)
+        jump = ComicViewerJump(requestId = 22L, contentSeq = session.contentSeq, pageIndex = 3)
+        awaitCounter("3 / 7")
+        onNodeWithTag(comicPageImageTag(2)).assertIsDisplayed()
+        onNodeWithTag(comicPageImageTag(3)).assertIsDisplayed()
+    }
+
+    @Test
     fun jumpConsumesOnceAndIgnoresStaleChapter() = runComposeUiTest {
         val service = ViewerFixture.service()
         val session = ViewerFixture.session(service)
