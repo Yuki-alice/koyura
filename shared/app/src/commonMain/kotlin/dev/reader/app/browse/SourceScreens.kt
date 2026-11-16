@@ -29,6 +29,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.reader.app.resources.Res
+import dev.reader.app.resources.reading_continue
+import dev.reader.app.resources.reading_start
 import dev.reader.app.resources.source_detail_back
 import dev.reader.app.resources.source_detail_chapters
 import dev.reader.app.resources.source_detail_empty
@@ -43,6 +45,8 @@ import dev.reader.app.resources.source_search_no_results
 import dev.reader.app.resources.source_search_results
 import dev.reader.app.resources.source_search_title
 import kotlinx.coroutines.launch
+import dev.reader.app.reader.LocalReaderService
+import dev.reader.app.reader.ReaderService
 import org.jetbrains.compose.resources.stringResource
 
 internal const val SourceSearchTestTag = "source-search"
@@ -223,16 +227,20 @@ fun SourceDetailScreen(
     fallbackTitle: String,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    readerService: ReaderService? = LocalReaderService.current,
+    onOpenChapter: (chapterId: String?, chapterIds: List<String>, chapterTitles: List<String>) -> Unit = { _, _, _ -> },
 ) {
     var detail by remember(sourceKey, workId) { mutableStateOf<WorkDetail?>(null) }
     var loading by remember(sourceKey, workId) { mutableStateOf(true) }
     var error by remember(sourceKey, workId) { mutableStateOf<String?>(null) }
+    var progress by remember(sourceKey, workId) { mutableStateOf<dev.reader.app.reader.ReaderProgress?>(null) }
 
     LaunchedEffect(sourceKey, workId) {
         loading = true
         error = null
         try {
             detail = session.loadWorkDetail(sourceKey, workId)
+            progress = readerService?.readProgress(sourceKey, workId)
         } catch (cancelled: kotlin.coroutines.cancellation.CancellationException) {
             throw cancelled
         } catch (failure: Exception) {
@@ -288,6 +296,17 @@ fun SourceDetailScreen(
                         },
                         style = MaterialTheme.typography.bodyMedium,
                     )
+                    if (readerService != null) {
+                        ReadingButtons(
+                            progress = progress,
+                            chapterIds = loaded.chapters.map { it.id },
+                            chapterTitles = loaded.chapters.map { it.title },
+                            onStart = { ids, titles ->
+                                onOpenChapter(ids.firstOrNull(), ids, titles)
+                            },
+                            onContinue = { chapterId, ids, titles -> onOpenChapter(chapterId, ids, titles) },
+                        )
+                    }
                     Text(
                         text = stringResource(Res.string.source_detail_chapters, loaded.chapters.size),
                         style = MaterialTheme.typography.titleSmall,
@@ -297,7 +316,18 @@ fun SourceDetailScreen(
                         Text(
                             text = chapter.title,
                             style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.testTag("source-detail-chapter-${chapter.id}"),
+                            modifier = Modifier
+                                .clickable(
+                                    enabled = readerService != null,
+                                    onClick = {
+                                        onOpenChapter(
+                                            chapter.id,
+                                            loaded.chapters.map { it.id },
+                                            loaded.chapters.map { it.title },
+                                        )
+                                    },
+                                )
+                                .testTag("source-detail-chapter-${chapter.id}"),
                         )
                     }
                 }
@@ -307,6 +337,40 @@ fun SourceDetailScreen(
                     text = stringResource(Res.string.source_detail_empty),
                     modifier = Modifier.padding(24.dp),
                 )
+            }
+        }
+    }
+}
+
+/**
+ * Start/continue actions driven by the saved progress. Shown only when a reader service is wired;
+ * without one the detail page stays a plain info screen.
+ */
+@Composable
+private fun ReadingButtons(
+    progress: dev.reader.app.reader.ReaderProgress?,
+    chapterIds: List<String>,
+    chapterTitles: List<String>,
+    onStart: (chapterIds: List<String>, chapterTitles: List<String>) -> Unit,
+    onContinue: (chapterId: String?, chapterIds: List<String>, chapterTitles: List<String>) -> Unit,
+) {
+    androidx.compose.foundation.layout.Row(
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Button(
+            onClick = { onStart(chapterIds, chapterTitles) },
+            modifier = Modifier.testTag("reading-start"),
+        ) {
+            Text(stringResource(Res.string.reading_start))
+        }
+        val saved = progress
+        if (saved != null && (saved.chapterId == null || saved.chapterId in chapterIds)) {
+            val label = stringResource(Res.string.reading_continue, saved.pageIndex + 1)
+            Button(
+                onClick = { onContinue(saved.chapterId, chapterIds, chapterTitles) },
+                modifier = Modifier.testTag("reading-continue"),
+            ) {
+                Text(label)
             }
         }
     }

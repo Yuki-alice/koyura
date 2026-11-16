@@ -33,10 +33,15 @@ import dev.reader.app.browse.ExtensionStoresScreen
 import dev.reader.app.browse.LocalBrowseSession
 import dev.reader.app.browse.SourceDetailScreen
 import dev.reader.app.browse.SourceSearchScreen
+import dev.reader.app.reader.ComicReaderScreen
+import dev.reader.app.reader.rememberReaderSession
+import dev.reader.app.reader.LocalReaderService
+import dev.reader.app.reader.ReaderService
 import dev.reader.app.browse.rememberBrowseSession
 import dev.reader.app.navigation.AppNavigationState
 import dev.reader.app.navigation.DetailRoute
 import dev.reader.app.navigation.ExtensionDetailsRoute
+import dev.reader.app.navigation.ComicReaderRoute
 import dev.reader.app.navigation.SourceDetailRoute
 import dev.reader.app.navigation.SourceSearchRoute
 import dev.reader.app.navigation.ExtensionStoresRoute
@@ -64,10 +69,13 @@ internal fun AppScaffold(
     useRail: Boolean,
     browseService: BrowseService? = LocalBrowseService.current,
     browseSession: BrowseSession? = null,
+    readerService: ReaderService? = LocalReaderService.current,
+    readerSession: dev.reader.app.reader.ReaderSession? = null,
 ) {
     BackToLibraryHandler(navigation)
 
     val activeBrowseSession = browseSession ?: rememberBrowseSession(browseService)
+    val activeReaderSession = readerSession ?: rememberReaderSession(readerService)
 
     // The bar and rail branches have different layout shapes, so recomposing one into the other
     // would dispose the content subtree and rebuild it from saved state. Moving the subtree with
@@ -75,11 +83,20 @@ internal fun AppScaffold(
     val saveableStateHolder = rememberSaveableStateHolder()
     val appContent = remember {
         movableContentOf<AppNavigationState, SaveableStateHolder, BrowseSession> { state, holder, browse ->
-            AppNavigationContent(state, holder, browse)
+            CompositionLocalProvider(LocalReaderService provides readerService) {
+                AppNavigationContent(state, holder, browse, activeReaderSession)
+            }
         }
     }
 
-    if (useRail) {
+    // The reader is fullscreen: it draws behind the system bars with its own controls and
+    // hides the tab bar/rail while a chapter is open.
+    val isReaderOpen = navigation.currentStack.lastOrNull() is ComicReaderRoute
+    if (isReaderOpen) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            appContent(navigation, saveableStateHolder, activeBrowseSession)
+        }
+    } else if (useRail) {
         val contentInsets = WindowInsets.safeDrawing.only(
             WindowInsetsSides.Top + WindowInsetsSides.End + WindowInsetsSides.Bottom,
         )
@@ -149,8 +166,9 @@ private fun AppNavigationContent(
     navigation: AppNavigationState,
     saveableStateHolder: SaveableStateHolder,
     browseSession: BrowseSession,
+    readerSession: dev.reader.app.reader.ReaderSession,
 ) {
-    val entryProvider = remember(navigation, browseSession) {
+    val entryProvider = remember(navigation, browseSession, readerSession) {
         entryProvider<NavKey> {
             entry<TabRootRoute> { route ->
                 if (route.tab == NavTab.Browse) {
@@ -207,6 +225,32 @@ private fun AppNavigationContent(
                         sourceKey = route.sourceKey,
                         workId = route.workId,
                         fallbackTitle = route.title,
+                        onBack = { navigation.popCurrentChild() },
+                        onOpenChapter = { chapterId, chapterIds, chapterTitles ->
+                            navigation.push(
+                                ComicReaderRoute(
+                                    sourceKey = route.sourceKey,
+                                    workId = route.workId,
+                                    chapterId = chapterId,
+                                    title = route.title,
+                                    chapterIds = chapterIds,
+                                    chapterTitles = chapterTitles,
+                                ),
+                            )
+                        },
+                    )
+                }
+            }
+            entry<ComicReaderRoute> { route ->
+                CompositionLocalProvider(LocalBrowseSession provides browseSession) {
+                    ComicReaderScreen(
+                        session = readerSession,
+                        sourceKey = route.sourceKey,
+                        workId = route.workId,
+                        chapterId = route.chapterId,
+                        title = route.title,
+                        chapterIds = route.chapterIds,
+                        chapterTitles = route.chapterTitles,
                         onBack = { navigation.popCurrentChild() },
                     )
                 }

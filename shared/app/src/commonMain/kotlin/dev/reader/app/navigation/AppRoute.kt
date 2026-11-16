@@ -39,6 +39,17 @@ data class SourceDetailRoute(
     val title: String = "",
 ) : AppRoute
 
+/** Fullscreen comic reader for one chapter ([chapterId] null for works without chapters). */
+@Serializable
+data class ComicReaderRoute(
+    val sourceKey: String,
+    val workId: String,
+    val chapterId: String? = null,
+    val title: String = "",
+    val chapterIds: List<String> = emptyList(),
+    val chapterTitles: List<String> = emptyList(),
+) : AppRoute
+
 /**
  * Saved-state configuration registering every [AppRoute] subtype for open polymorphism.
  *
@@ -53,6 +64,7 @@ val ReaderSavedStateConfiguration: SavedStateConfiguration = SavedStateConfigura
             subclass(ExtensionStoresRoute::class, ExtensionStoresRoute.serializer())
             subclass(SourceSearchRoute::class, SourceSearchRoute.serializer())
             subclass(SourceDetailRoute::class, SourceDetailRoute.serializer())
+            subclass(ComicReaderRoute::class, ComicReaderRoute.serializer())
         }
     }
 }

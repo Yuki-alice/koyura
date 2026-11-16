@@ -10,6 +10,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.reader.app.browse.BrowseService
 import dev.reader.app.browse.LocalBrowseService
+import dev.reader.app.reader.LocalReaderService
+import dev.reader.app.reader.ReaderService
 import dev.reader.app.navigation.rememberAppNavigationState
 import dev.reader.designsystem.ReaderTheme
 import dev.reader.designsystem.navigation.NavTab
@@ -34,11 +36,19 @@ fun App() {
     }
 }
 
-/** The shared shell with a Browse service supplied by startup, a preview, or a test. */
+/**
+ * The shared shell with Browse and reader services supplied by startup, a preview, or a test.
+ */
 @Composable
-fun App(browseService: BrowseService?) {
+fun App(
+    browseService: BrowseService? = null,
+    readerService: ReaderService? = null,
+) {
     ReaderTheme {
-        CompositionLocalProvider(LocalBrowseService provides browseService) {
+        CompositionLocalProvider(
+            LocalBrowseService provides browseService,
+            LocalReaderService provides readerService,
+        ) {
             Surface(modifier = Modifier.fillMaxSize()) {
                 AppShell()
             }
