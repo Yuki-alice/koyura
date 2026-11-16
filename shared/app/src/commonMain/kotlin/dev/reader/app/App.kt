@@ -10,6 +10,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.reader.app.browse.BrowseService
 import dev.reader.app.browse.LocalBrowseService
+import dev.reader.app.history.HistoryService
+import dev.reader.app.history.LocalHistoryService
 import dev.reader.app.reader.LocalReaderService
 import dev.reader.app.reader.ReaderService
 import dev.reader.app.navigation.rememberAppNavigationState
@@ -43,11 +45,13 @@ fun App() {
 fun App(
     browseService: BrowseService? = null,
     readerService: ReaderService? = null,
+    historyService: HistoryService? = null,
 ) {
     ReaderTheme {
         CompositionLocalProvider(
             LocalBrowseService provides browseService,
             LocalReaderService provides readerService,
+            LocalHistoryService provides historyService,
         ) {
             Surface(modifier = Modifier.fillMaxSize()) {
                 AppShell()

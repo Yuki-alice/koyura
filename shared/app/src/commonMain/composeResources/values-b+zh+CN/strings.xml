@@ -89,6 +89,16 @@
     <string name="stores_url_duplicate">该仓库已经添加。</string>
     <string name="stores_count">%1$d 个扩展</string>
     <string name="stores_save">保存</string>
+    <string name="history_title">历史</string>
+    <string name="history_search">搜索历史</string>
+    <string name="history_empty">还没有阅读记录</string>
+    <string name="history_no_results">没有匹配的历史记录</string>
+    <string name="history_unknown_time">未知时间</string>
+    <string name="history_today">今天</string>
+    <string name="history_yesterday">昨天</string>
+    <string name="history_continue">继续</string>
+    <string name="history_page">第%1$d页</string>
+    <string name="history_single_chapter">单话</string>
 
     <!-- Comic reader -->
     <string name="reading_start">开始阅读</string>

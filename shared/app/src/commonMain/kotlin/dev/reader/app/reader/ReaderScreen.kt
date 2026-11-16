@@ -91,7 +91,7 @@ fun ComicReaderScreen(
     var activeChapterId by rememberSaveable(sourceKey, workId, chapterId) { mutableStateOf(chapterId) }
 
     LaunchedEffect(sourceKey, workId, chapterId) {
-        session.open(sourceKey, workId, chapterId, chapterIds)
+        session.open(sourceKey, workId, chapterId, chapterIds, title, chapterTitles)
     }
 
     var menuVisible by rememberSaveable { mutableStateOf(true) }
@@ -117,7 +117,7 @@ fun ComicReaderScreen(
                     color = MaterialTheme.colorScheme.error,
                 )
                 Button(onClick = {
-                    scope.launch { session.open(sourceKey, workId, activeChapterId, chapterIds) }
+                    scope.launch { session.open(sourceKey, workId, activeChapterId, chapterIds, title, chapterTitles) }
                 }) {
                     Text(stringResource(Res.string.reader_retry))
                 }
@@ -156,13 +156,13 @@ fun ComicReaderScreen(
                     onPrevChapter = session.previousChapterId(activeChapterId)?.let { prevId ->
                         {
                             activeChapterId = prevId
-                            scope.launch { session.open(sourceKey, workId, prevId, chapterIds) }
+                            scope.launch { session.open(sourceKey, workId, prevId, chapterIds, title, chapterTitles) }
                         }
                     },
                     onNextChapter = session.nextChapterId(activeChapterId)?.let { nextId ->
                         {
                             activeChapterId = nextId
-                            scope.launch { session.open(sourceKey, workId, nextId, chapterIds) }
+                            scope.launch { session.open(sourceKey, workId, nextId, chapterIds, title, chapterTitles) }
                         }
                     },
                 )

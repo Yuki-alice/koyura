@@ -74,6 +74,9 @@ CREATE TABLE reading_progress(
   chapter_id TEXT NOT NULL,
   page_key TEXT NOT NULL,
   page_index INTEGER NOT NULL,
+  read_at INTEGER,
+  work_title TEXT,
+  chapter_title TEXT,
   PRIMARY KEY (source_key, work_id, chapter_id)
 );
 
@@ -89,5 +92,20 @@ upsertProgress:
 INSERT OR REPLACE INTO reading_progress(source_key, work_id, chapter_id, page_key, page_index)
 VALUES(?, ?, ?, ?, ?);
 
+upsertProgressWithMeta:
+INSERT OR REPLACE INTO reading_progress(
+  source_key, work_id, chapter_id, page_key, page_index,
+  read_at, work_title, chapter_title
+)
+VALUES(?, ?, ?, ?, ?, ?, ?, ?);
+
 deleteProgress:
 DELETE FROM reading_progress WHERE source_key = ? AND work_id = ? AND chapter_id = ?;
+
+selectHistoryLatest:
+SELECT * FROM reading_progress AS p
+WHERE NOT EXISTS (
+  SELECT 1 FROM reading_progress AS q
+  WHERE q.source_key = p.source_key AND q.work_id = p.work_id AND q.rowid > p.rowid
+)
+ORDER BY p.read_at IS NULL, p.read_at DESC, p.rowid DESC;

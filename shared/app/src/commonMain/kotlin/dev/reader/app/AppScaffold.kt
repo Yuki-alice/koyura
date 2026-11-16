@@ -33,6 +33,11 @@ import dev.reader.app.browse.ExtensionStoresScreen
 import dev.reader.app.browse.LocalBrowseSession
 import dev.reader.app.browse.SourceDetailScreen
 import dev.reader.app.browse.SourceSearchScreen
+import dev.reader.app.history.HistoryScreen
+import dev.reader.app.history.HistoryService
+import dev.reader.app.history.HistorySession
+import dev.reader.app.history.LocalHistoryService
+import dev.reader.app.history.rememberHistorySession
 import dev.reader.app.reader.ComicReaderScreen
 import dev.reader.app.reader.rememberReaderSession
 import dev.reader.app.reader.LocalReaderService
@@ -71,11 +76,14 @@ internal fun AppScaffold(
     browseSession: BrowseSession? = null,
     readerService: ReaderService? = LocalReaderService.current,
     readerSession: dev.reader.app.reader.ReaderSession? = null,
+    historyService: HistoryService? = LocalHistoryService.current,
+    historySession: HistorySession? = null,
 ) {
     BackToLibraryHandler(navigation)
 
     val activeBrowseSession = browseSession ?: rememberBrowseSession(browseService)
     val activeReaderSession = readerSession ?: rememberReaderSession(readerService)
+    val activeHistorySession = historySession ?: rememberHistorySession(historyService, browseService)
 
     // The bar and rail branches have different layout shapes, so recomposing one into the other
     // would dispose the content subtree and rebuild it from saved state. Moving the subtree with
@@ -84,7 +92,7 @@ internal fun AppScaffold(
     val appContent = remember {
         movableContentOf<AppNavigationState, SaveableStateHolder, BrowseSession> { state, holder, browse ->
             CompositionLocalProvider(LocalReaderService provides readerService) {
-                AppNavigationContent(state, holder, browse, activeReaderSession)
+                AppNavigationContent(state, holder, browse, activeReaderSession, activeHistorySession)
             }
         }
     }
@@ -167,8 +175,9 @@ private fun AppNavigationContent(
     saveableStateHolder: SaveableStateHolder,
     browseSession: BrowseSession,
     readerSession: dev.reader.app.reader.ReaderSession,
+    historySession: dev.reader.app.history.HistorySession,
 ) {
-    val entryProvider = remember(navigation, browseSession, readerSession) {
+    val entryProvider = remember(navigation, browseSession, readerSession, historySession) {
         entryProvider<NavKey> {
             entry<TabRootRoute> { route ->
                 if (route.tab == NavTab.Browse) {
@@ -182,6 +191,25 @@ private fun AppNavigationContent(
                             },
                         )
                     }
+                } else if (route.tab == NavTab.History) {
+                    HistoryScreen(
+                        session = historySession,
+                        onOpenWork = { sourceKey, workId, title ->
+                            navigation.push(SourceDetailRoute(sourceKey, workId, title))
+                        },
+                        onContinue = { entry, chapterIds, chapterTitles ->
+                            navigation.push(
+                                ComicReaderRoute(
+                                    sourceKey = entry.sourceKey,
+                                    workId = entry.workId,
+                                    chapterId = entry.chapterId,
+                                    title = entry.displayTitle,
+                                    chapterIds = chapterIds,
+                                    chapterTitles = chapterTitles,
+                                ),
+                            )
+                        },
+                    )
                 } else {
                     TabRootScreen(
                         tab = route.tab,

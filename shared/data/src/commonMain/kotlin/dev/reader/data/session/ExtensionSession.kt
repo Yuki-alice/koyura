@@ -4,6 +4,7 @@ import app.cash.sqldelight.db.QueryResult
 import app.cash.sqldelight.db.SqlDriver
 import dev.reader.data.extension.ExtensionDb
 import dev.reader.data.extension.ExtensionService
+import dev.reader.data.history.HistoryStore
 import dev.reader.data.extension.RestoreReport
 import dev.reader.data.reading.ComicReadingService
 import dev.reader.source.runtime.VeneraEnvironment
@@ -33,6 +34,7 @@ class ExtensionSession internal constructor(
     private val httpClient: HttpClient,
 ) {
     val comicReading = ComicReadingService(driver, service, httpClient)
+    val history = HistoryStore(driver)
 
     private val mutex = Mutex()
     private var closed = false
@@ -99,6 +101,17 @@ private val extensionTables = listOf("repositories", "origins", "extensions")
  * a partially created schema is dropped and recreated (no rows can reference
  * it yet, as writes only happen after a successful open).
  */
+private fun tableColumns(driver: SqlDriver, table: String): Set<String> {
+    val columns = mutableSetOf<String>()
+    driver.executeQuery(null, "PRAGMA table_info($table)", { cursor ->
+        while (cursor.next().value) {
+            cursor.getString(1)?.let { columns += it }
+        }
+        QueryResult.Value(Unit)
+    }, 0, null)
+    return columns
+}
+
 private fun ensureSchema(driver: SqlDriver) {
     val present = mutableSetOf<String>()
     driver.executeQuery(null, "SELECT name FROM sqlite_master WHERE type = 'table'", { cursor ->
@@ -107,10 +120,32 @@ private fun ensureSchema(driver: SqlDriver) {
         }
         QueryResult.Value(Unit)
     }, 0, null)
+    val target = ExtensionDb.Schema.version
     if (present.containsAll(extensionTables)) {
         if ("reading_progress" !in present) {
+            // Pre-reading database (no progress table yet): create it through migrations,
+            // which also bring the display columns.
             ExtensionDb(driver).transaction {
-                ExtensionDb.Schema.migrate(driver, 1, ExtensionDb.Schema.version).value
+                ExtensionDb.Schema.migrate(driver, 1, target).value
+            }
+            return
+        }
+        // Reading-era database without the display columns (the generated schema code
+        // never stamps PRAGMA user_version, so detection is structural, not stamp-based).
+        // ALTERs run in place and keep every committed row; already-migrated databases
+        // are untouched.
+        val columns = tableColumns(driver, "reading_progress")
+        if (!columns.containsAll(listOf("read_at", "work_title", "chapter_title"))) {
+            ExtensionDb(driver).transaction {
+                if ("read_at" !in columns) {
+                    driver.execute(null, "ALTER TABLE reading_progress ADD COLUMN read_at INTEGER", 0, null)
+                }
+                if ("work_title" !in columns) {
+                    driver.execute(null, "ALTER TABLE reading_progress ADD COLUMN work_title TEXT", 0, null)
+                }
+                if ("chapter_title" !in columns) {
+                    driver.execute(null, "ALTER TABLE reading_progress ADD COLUMN chapter_title TEXT", 0, null)
+                }
             }
         }
         return

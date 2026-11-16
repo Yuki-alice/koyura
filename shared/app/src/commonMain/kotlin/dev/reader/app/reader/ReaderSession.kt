@@ -67,6 +67,8 @@ class ReaderSession internal constructor(
     private var boundSourceKey: String = ""
     private var boundWorkId: String = ""
     private var chapterIds: List<String> = emptyList()
+    private var boundWorkTitle: String? = null
+    private var boundChapterTitles: Map<String, String> = emptyMap()
 
     val orderedChapterIds: List<String>
         get() = chapterIds
@@ -76,6 +78,8 @@ class ReaderSession internal constructor(
         workId: String,
         chapterId: String?,
         chapterIds: List<String>,
+        workTitle: String? = null,
+        chapterTitles: List<String> = emptyList(),
     ) {
         val currentService = service ?: return
         val token = ++openToken
@@ -83,6 +87,8 @@ class ReaderSession internal constructor(
         boundSourceKey = sourceKey
         boundWorkId = workId
         this.chapterIds = chapterIds.toList()
+        boundWorkTitle = workTitle
+        boundChapterTitles = chapterIds.zip(chapterTitles).toMap()
         content = ReaderContentState.Loading
         pages.clear()
         pageTokens.clear()
@@ -159,7 +165,15 @@ class ReaderSession internal constructor(
         val token = openToken
         saveMutex.withLock {
             if (token != openToken || index == lastSavedIndex) return
-            currentService.saveProgress(boundSourceKey, boundWorkId, ready.content.chapterId, pageKey, index)
+            currentService.saveProgress(
+                boundSourceKey,
+                boundWorkId,
+                ready.content.chapterId,
+                pageKey,
+                index,
+                workTitle = boundWorkTitle,
+                chapterTitle = boundChapterTitles[ready.content.chapterId],
+            )
             if (token == openToken) lastSavedIndex = index
         }
     }

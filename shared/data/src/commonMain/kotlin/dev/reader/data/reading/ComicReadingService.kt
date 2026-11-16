@@ -9,6 +9,7 @@ import dev.reader.domain.extension.OpenedChapter
 import dev.reader.domain.extension.ReadingFailure
 import dev.reader.domain.extension.ReadingProgress
 import dev.reader.source.runtime.KtorVeneraHttpTransport
+import dev.reader.source.runtime.ParsedImageConfig
 import dev.reader.source.runtime.VeneraCallback
 import dev.reader.source.runtime.VeneraHttpRequest
 import dev.reader.source.runtime.normalizeVeneraUrl
@@ -112,59 +113,229 @@ class ComicReadingService(
         return loadImageBytes(sourceKey, workId, chapterId, page.imageKey)
     }
 
+    /**
+     * Downloads one image, honoring the source's `onImageLoad` config when the
+     * source provides it (URL, method, headers, text body, `onResponse`
+     * transforms) and retrying through `onLoadFailed` replacements up to five
+     * additional times. Without the callback the raw key is fetched with GET.
+     *
+     * The runtime lock is held only while invoking script callbacks; the
+     * network waits in between leave other source callbacks unaffected.
+     */
     suspend fun loadImageBytes(sourceKey: String, workId: String, chapterId: String?, imageKey: String): ByteArray {
-        val live = extensions.runtime ?: throw ReadingFailure.SourceMissing(sourceKey)
+        val live = liveRuntime(sourceKey)
         val source = live.registeredSources().firstOrNull { it.key == sourceKey }
             ?: throw ReadingFailure.SourceMissing(sourceKey)
-        val config = if (VeneraCallback.LoadImage in source.callbacks) {
-            val args = JsonArray(
-                listOf(
-                    JsonPrimitive(imageKey),
-                    JsonPrimitive(workId),
-                    chapterId?.let(::JsonPrimitive) ?: JsonNull,
-                ),
-            )
-            try {
-                live.call(sourceKey, VeneraCallback.LoadImage, args)
+        if (VeneraCallback.LoadImage !in source.callbacks) {
+            return downloadDirect(sourceKey, imageKey)
+        }
+        val args = JsonArray(
+            listOf(
+                JsonPrimitive(imageKey),
+                JsonPrimitive(workId),
+                chapterId?.let(::JsonPrimitive) ?: JsonNull,
+            ),
+        )
+        return loadWithConfig(
+            live = live,
+            sourceKey = sourceKey,
+            imageKey = imageKey,
+            callback = VeneraCallback.LoadImage,
+            arguments = args,
+            capturable = listOf("onResponse", "onLoadFailed"),
+            supportsRetry = true,
+        )
+    }
+
+    /**
+     * Downloads one thumbnail through `comic.onThumbnailLoad`. Thumbnails use
+     * the same URL/method/headers/body mapping plus `onResponse` transforms,
+     * but (like upstream) have no `onLoadFailed` retry: a failed load throws.
+     */
+    suspend fun loadThumbnailBytes(sourceKey: String, imageKey: String): ByteArray {
+        val live = liveRuntime(sourceKey)
+        val source = live.registeredSources().firstOrNull { it.key == sourceKey }
+            ?: throw ReadingFailure.SourceMissing(sourceKey)
+        if (VeneraCallback.LoadThumbnail !in source.callbacks) {
+            return downloadDirect(sourceKey, imageKey)
+        }
+        return loadWithConfig(
+            live = live,
+            sourceKey = sourceKey,
+            imageKey = imageKey,
+            callback = VeneraCallback.LoadThumbnail,
+            // onLoadFailed is tracked for ownership like upstream, but the
+            // thumbnail path performs a single attempt and never retries.
+            arguments = JsonArray(listOf(JsonPrimitive(imageKey))),
+            capturable = listOf("onResponse", "onLoadFailed"),
+            supportsRetry = false,
+        )
+    }
+
+    private suspend fun liveRuntime(sourceKey: String): VeneraSourceRuntime {
+        val live = extensions.runtime ?: throw ReadingFailure.SourceMissing(sourceKey)
+        if (live.isClosed) throw ReadingFailure.RuntimeClosed()
+        return live
+    }
+
+    private suspend fun downloadDirect(sourceKey: String, imageKey: String): ByteArray {
+        val url = try {
+            normalizeVeneraUrl(imageKey)
+        } catch (e: Exception) {
+            throw ReadingFailure.ConfigInvalid(e)
+        }
+        return downloadImageBytes(
+            VeneraHttpRequest(sourceKey = sourceKey, method = "GET", url = url, headers = emptyMap()),
+        )
+    }
+
+    private suspend fun loadWithConfig(
+        live: VeneraSourceRuntime,
+        sourceKey: String,
+        imageKey: String,
+        callback: VeneraCallback,
+        arguments: JsonArray,
+        capturable: List<String>,
+        supportsRetry: Boolean,
+    ): ByteArray {
+        var config = parseImageConfig(live, sourceKey, callback, arguments, capturable)
+        val tracked = config.liveHandles.toMutableSet()
+        var retriesRemaining = MAX_IMAGE_RETRIES
+        suspend fun replaceOrRethrow(failure: ReadingFailure): ParsedImageConfig {
+            val handle = if (supportsRetry) config.onLoadFailed else null
+            if (handle == null || retriesRemaining <= 0) throw failure
+            retriesRemaining--
+            val next = try {
+                live.invokeImageOnLoadFailed(handle, capturable)
             } catch (e: CancellationException) {
                 throw e
+            } catch (e: ReadingFailure.RuntimeClosed) {
+                throw e
             } catch (e: Exception) {
-                throw ReadingFailure.ConfigInvalid(e)
-            }
-        } else {
-            null
+                throw mapEngineError(e)
+            } ?: throw failure
+            tracked.addAll(next.liveHandles)
+            return next
         }
-        val (url, method, headers, body) = try {
-            val parsed = parseImageConfig(config, imageKey)
-            // Image URLs must be absolute (upstream passes them straight to
-            // Dio, where a relative URL fails). Fail fast with a clear error
-            // instead of requesting a wrong host.
-            parsed.copy(url = normalizeVeneraUrl(parsed.url))
+        try {
+            while (true) {
+                val request = imageHttpRequest(sourceKey, imageKey, config)
+                val bytes = try {
+                    downloadImageBytes(request)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: ReadingFailure.RuntimeClosed) {
+                    throw e
+                } catch (e: ReadingFailure.HttpError) {
+                    config = replaceOrRethrow(e)
+                    continue
+                } catch (e: ReadingFailure.TransportFailed) {
+                    config = replaceOrRethrow(e)
+                    continue
+                } catch (e: Exception) {
+                    throw mapEngineError(e)
+                }
+                try {
+                    return applyOnResponse(live, tracked, config.onResponse, bytes)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: ReadingFailure.RuntimeClosed) {
+                    throw e
+                } catch (e: ReadingFailure.InvalidTransform) {
+                    config = replaceOrRethrow(e)
+                    continue
+                } catch (e: Exception) {
+                    throw mapEngineError(e, ReadingFailure::InvalidTransform)
+                }
+            }
+        } finally {
+            live.releaseImageCallbacks(tracked)
+        }
+    }
+
+    private fun imageHttpRequest(sourceKey: String, imageKey: String, config: ParsedImageConfig): VeneraHttpRequest {
+        // Upstream falls back to the original image key when the config omits
+        // its URL (lib/network/images.dart: `configs['url'] ?? imageKey`).
+        val url = try {
+            normalizeVeneraUrl(config.url ?: imageKey)
         } catch (e: ReadingFailure) {
-            throw e
-        } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             throw ReadingFailure.ConfigInvalid(e)
         }
+        return VeneraHttpRequest(
+            sourceKey = sourceKey,
+            method = config.method?.uppercase() ?: "GET",
+            url = url,
+            headers = config.headers,
+            data = config.data,
+        )
+    }
+
+    private suspend fun downloadImageBytes(request: VeneraHttpRequest): ByteArray {
         val transport = KtorVeneraHttpTransport(httpClient)
         val response = try {
-            transport.executeBytes(
-                VeneraHttpRequest(
-                    sourceKey = sourceKey,
-                    method = method,
-                    url = url,
-                    headers = headers,
-                    data = body,
-                ),
-            )
+            transport.executeBytes(request)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            throw ReadingFailure.TransportFailed(e)
+            throw mapEngineError(e, ReadingFailure::TransportFailed)
         }
         if (response.status !in 200..299) throw ReadingFailure.HttpError(response.status)
         return response.body
+    }
+
+    private suspend fun applyOnResponse(
+        live: VeneraSourceRuntime,
+        tracked: MutableSet<Int>,
+        handle: Int?,
+        bytes: ByteArray,
+    ): ByteArray {
+        if (handle == null) return bytes
+        try {
+            return live.invokeImageOnResponse(handle, bytes)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: ReadingFailure.RuntimeClosed) {
+            throw e
+        } catch (e: Exception) {
+            throw mapEngineError(e, ReadingFailure::InvalidTransform)
+        }
+    }
+
+    private suspend fun parseImageConfig(
+        live: VeneraSourceRuntime,
+        sourceKey: String,
+        callback: VeneraCallback,
+        arguments: JsonArray,
+        capturable: List<String>,
+    ): ParsedImageConfig {
+        return try {
+            live.parseImageConfig(sourceKey, callback, arguments, capturable)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: ReadingFailure) {
+            throw e
+        } catch (e: Exception) {
+            throw mapEngineError(e, ReadingFailure::ConfigInvalid)
+        }
+    }
+
+    /** Normalizes engine/bridge failures: cancellations and closes pass through, the rest map. */
+    private fun mapEngineError(
+        error: Throwable,
+        wrap: (Throwable) -> ReadingFailure = { ReadingFailure.ConfigInvalid(it) },
+    ): ReadingFailure {
+        val message = error.message.orEmpty()
+        if (message.contains("closed", ignoreCase = true)) return ReadingFailure.RuntimeClosed()
+        // Thrown by the bootstrap before any config is adopted (`<file>: ...` prefix included).
+        val marker = "Unsupported image capability: "
+        val markerAt = message.indexOf(marker)
+        if (markerAt >= 0) {
+            val kind = message.substring(markerAt + marker.length).lineSequence().firstOrNull()?.trim().orEmpty()
+            return ReadingFailure.TransformUnsupported(kind)
+        }
+        return wrap(error)
     }
 
     suspend fun saveProgress(
@@ -204,34 +375,12 @@ class ComicReadingService(
         pageIndex = page_index.toInt(),
     )
 
-    private fun parseImageConfig(
-        config: JsonElement?,
-        imageKey: String,
-    ): ImageRequest {
-        if (config == null || config is JsonNull) {
-            return ImageRequest(url = imageKey, method = "GET", headers = emptyMap(), body = null)
-        }
-        val obj = config as? JsonObject ?: throw ReadingFailure.ConfigInvalid(null)
-        for (field in listOf("onResponse", "modifyImage", "onLoadFailed")) {
-            val value = obj[field]
-            if (value != null && value !is JsonNull) throw ReadingFailure.TransformUnsupported(field)
-        }
-        fun stringField(name: String): String? =
-            (obj[name] as? JsonPrimitive)?.takeIf { it.isString }?.content
-        val url = stringField("url") ?: imageKey
-        val method = stringField("method")?.uppercase() ?: "GET"
-        val headers = (obj["headers"] as? JsonObject)
-            ?.mapValues { (_, v) ->
-                (v as? JsonPrimitive)?.takeIf { it.isString }?.content ?: v.toString()
-            } ?: emptyMap()
-        val data = obj["data"]?.takeIf { it !is JsonNull }
-        return ImageRequest(url = url, method = method, headers = headers, body = data)
+    companion object {
+        /**
+         * Follow-up requests after the initial image fetch: a failing fetch may
+         * be repeated with a replacement config from `onLoadFailed` at most
+         * this many times, mirroring upstream's retry budget.
+         */
+        const val MAX_IMAGE_RETRIES = 5
     }
-
-    private data class ImageRequest(
-        val url: String,
-        val method: String,
-        val headers: Map<String, String>,
-        val body: JsonElement?,
-    )
 }

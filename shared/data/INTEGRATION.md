@@ -71,3 +71,26 @@ session.close()
   labels are advisory only. Host-control headers (`cache-time`,
   `prevent-parallel`, `http_client`) never reach sites; the default
   `User-Agent` mirrors upstream `webUA`.
+
+## Image callbacks (`onResponse` / `onLoadFailed`, full + thumbnail)
+
+- Runtime (`VeneraSourceRuntime`, `:shared:source-runtime`): `parseImageConfig`
+  (JSON-safe part + integer handles into a JS-side registry),
+  `invokeImageOnResponse(handle, bytes): ByteArray` (sync/async, normalizes
+  Uint8Array views/ArrayBuffers with correct offsets, rejects the rest),
+  `invokeImageOnLoadFailed(handle)` (new config or null when declined),
+  `releaseImageCallbacks(handles)` (best-effort, idempotent),
+  `imageCallbackCount()` (diagnostics; must return to 0 after each load).
+  Function values never cross the JSON boundary; the registry holds them by
+  identity, so releasing one config can never free another's callbacks.
+- Service (`ComicReadingService.loadImageBytes`, `loadThumbnailBytes`):
+  configs without `url` fall back to the original image key (upstream parity); relative URLs are rejected as invalid instead of hitting a wrong host.
+
+  full-size images retry through `onLoadFailed` replacements up to 5
+  additional fetches (4xx/5xx, transport failures and invalid transforms are
+  retryable; cancellations, closed runtime, invalid configs and
+  `modifyImage` are not). Thumbnails do a single attempt and ignore
+  `onLoadFailed`. Image downloads never hold the runtime lock, so other
+  source callbacks proceed while bytes stream in.
+- Explicitly deferred (later stage): `modifyImage` scripts (need an isolated
+  engine), disk image cache, app-layer cover wiring (A owns `shared/app`).
