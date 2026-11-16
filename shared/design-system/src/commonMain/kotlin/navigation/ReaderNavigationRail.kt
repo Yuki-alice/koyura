@@ -1,21 +1,11 @@
 package app.koyura.designsystem.navigation
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailDefaults
 import androidx.compose.material3.NavigationRailItem
-import androidx.compose.material3.Surface
-import androidx.compose.material3.contentColorFor
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 
 /**
  * Center-aligned navigation rail for wide windows.
@@ -42,47 +32,28 @@ fun ReaderNavigationRail(
     browseBadgeCount: Int = 0,
     windowInsets: WindowInsets = NavigationRailDefaults.windowInsets,
 ) {
-    val containerColor = NavigationRailDefaults.ContainerColor
-    Surface(
-        color = containerColor,
-        contentColor = contentColorFor(containerColor),
-        tonalElevation = NavigationRailElevation,
+    // Mirrors Komikku HomeScreen navigation rail: Material 3 NavigationRail with the same five
+    // tabs, order, selection indicator and Updates/Browse badges as the bottom bar.
+    NavigationRail(
         modifier = modifier,
+        windowInsets = windowInsets,
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxHeight()
-                .windowInsetsPadding(windowInsets)
-                .widthIn(min = NavigationRailMinWidth)
-                .padding(vertical = NavigationRailVerticalPadding)
-                .selectableGroup(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(
-                NavigationRailVerticalPadding,
-                alignment = Alignment.CenterVertically,
-            ),
-        ) {
-            visibleTabs.ordered().forEach { tab ->
-                val selected = tab == selectedTab
-                NavigationRailItem(
-                    selected = selected,
-                    onClick = { onTabClick(tab) },
-                    icon = {
-                        NavigationTabIcon(
-                            tab = tab,
-                            selected = selected,
-                            updatesBadgeCount = updatesBadgeCount,
-                            browseBadgeCount = browseBadgeCount,
-                        )
-                    },
-                    label = { NavigationTabLabel(tab) },
-                    alwaysShowLabel = labelMode == NavLabelMode.AlwaysShow,
-                )
-            }
+        visibleTabs.ordered().forEach { tab ->
+            val selected = tab == selectedTab
+            NavigationRailItem(
+                selected = selected,
+                onClick = { onTabClick(tab) },
+                icon = {
+                    NavigationTabIcon(
+                        tab = tab,
+                        selected = selected,
+                        updatesBadgeCount = updatesBadgeCount,
+                        browseBadgeCount = browseBadgeCount,
+                    )
+                },
+                label = { NavigationTabLabel(tab) },
+                alwaysShowLabel = labelMode == NavLabelMode.AlwaysShow,
+            )
         }
     }
 }
-
-internal val NavigationRailMinWidth = 80.dp
-internal val NavigationRailVerticalPadding = 4.dp
-internal val NavigationRailElevation = 3.dp

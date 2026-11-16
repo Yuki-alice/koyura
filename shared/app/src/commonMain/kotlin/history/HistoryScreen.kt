@@ -8,7 +8,9 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -196,15 +198,10 @@ private fun HistoryGroupHeader(date: kotlinx.datetime.LocalDate?, groupKey: Stri
             else -> date.toString()
         }
     }
-    Text(
-        text = text,
-        style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp)
-            .testTag(historyGroupTag(groupKey)),
-    )
+    // Komikku ListGroupHeader: semibold bodyMedium in onSurfaceVariant.
+    Box(modifier = Modifier.testTag(historyGroupTag(groupKey))) {
+        app.koyura.designsystem.KomikkuListGroupHeader(text = text)
+    }
 }
 
 @Composable
@@ -213,6 +210,9 @@ private fun HistoryRow(
     onOpen: () -> Unit,
     onContinue: () -> Unit,
 ) {
+    // Komikku HistoryItem (simplified): fixed 96 dp row, cover placeholder, semibold title,
+    // chapter/page secondary line, source line, resume affordance. Tapping the row opens the
+    // work; Continue resumes the saved chapter/page. Test tags are unchanged.
     val chapterLabel = entry.chapterTitle?.takeIf { it.isNotBlank() }
         ?: entry.chapterId
         ?: stringResource(Res.string.history_single_chapter)
@@ -221,21 +221,35 @@ private fun HistoryRow(
             .fillMaxWidth()
             .clickable(onClick = onOpen)
             .testTag(historyRowTag(entry.sourceKey, entry.workId))
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+            .height(96.dp)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        app.koyura.designsystem.KomikkuCoverPlaceholder(
+            label = entry.displayTitle,
+            modifier = Modifier.size(width = 56.dp, height = 80.dp),
+        )
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = 16.dp, end = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
             Text(
                 text = entry.displayTitle,
-                style = MaterialTheme.typography.bodyLarge,
-                maxLines = 1,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.testTag(historyRowTitleTag(entry.sourceKey, entry.workId)),
             )
             Text(
                 text = "$chapterLabel · " + stringResource(Res.string.history_page, entry.pageIndex + 1),
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                    alpha = app.koyura.designsystem.KomikkuSecondaryAlpha,
+                ),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.testTag(historyRowDetailTag(entry.sourceKey, entry.workId)),
@@ -243,7 +257,9 @@ private fun HistoryRow(
             Text(
                 text = entry.sourceKey,
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                    alpha = app.koyura.designsystem.KomikkuSecondaryAlpha,
+                ),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )

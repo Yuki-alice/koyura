@@ -50,6 +50,9 @@
     <string name="browse_operation_running">处理中…</string>
     <string name="browse_operation_succeeded">完成</string>
     <string name="browse_operation_failed">失败：%1$s</string>
+    <string name="browse_nsfw_short">NSFW</string>
+    <string name="browse_show_more">展开更多</string>
+    <string name="browse_show_less">收起</string>
     <string name="browse_badge_description">%1$d 个扩展可更新</string>
 
     <!-- Extension details -->
@@ -60,6 +63,9 @@
     <string name="extension_details_store">仓库：%1$s</string>
     <string name="extension_details_sources">来源</string>
     <string name="extension_details_no_sources">该扩展当前没有提供来源。</string>
+    <string name="extension_details_version_title">版本</string>
+    <string name="extension_details_language_title">语言</string>
+    <string name="extension_details_store_title">仓库</string>
     <string name="extension_details_uninstall">卸载扩展</string>
     <string name="extension_details_uninstall_confirm_title">卸载 %1$s？</string>
     <string name="extension_details_uninstall_confirm_body">其来源将从浏览中移除，已安装的数据不受影响。</string>

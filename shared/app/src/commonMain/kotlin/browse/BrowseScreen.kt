@@ -1,6 +1,5 @@
 package app.koyura.app.browse
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -46,6 +46,7 @@ import app.koyura.app.resources.browse_group_updates
 import app.koyura.app.resources.browse_language
 import app.koyura.app.resources.browse_latest
 import app.koyura.app.resources.browse_manage_stores
+import app.koyura.app.resources.browse_nsfw_short
 import app.koyura.app.resources.browse_operation_failed
 import app.koyura.app.resources.browse_operation_running
 import app.koyura.app.resources.browse_operation_succeeded
@@ -333,22 +334,50 @@ private fun SourceRow(
     source: SourceInfo,
     onOpenSource: (sourceKey: String, sourceName: String) -> Unit,
 ) {
-    Column(
+    // Komikku BaseSourceItem: 40 dp icon, bodyMedium title, secondary language/version line,
+    // optional Latest action. The row keeps its test tag and opens the search page on tap.
+    app.koyura.designsystem.KomikkuBrowseRow(
+        onClick = { onOpenSource(source.id, source.name) },
+        icon = {
+            app.koyura.designsystem.KomikkuIconPlaceholder(label = source.name)
+        },
+        action = {
+            if (source.supportsLatest) {
+                TextButton(onClick = { onOpenSource(source.id, source.name) }) {
+                    Text(stringResource(Res.string.browse_latest))
+                }
+            }
+        },
+        content = {
+            Column(
+                modifier = Modifier
+                    .padding(horizontal = 16.dp)
+                    .weight(1f),
+            ) {
+                Text(
+                    text = source.name,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Text(
+                    text = listOf(source.language, source.versionName)
+                        .filter { it.isNotEmpty() }
+                        .joinToString(" · "),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                        alpha = app.koyura.designsystem.KomikkuSecondaryAlpha,
+                    ),
+                )
+            }
+        },
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onOpenSource(source.id, source.name) }
-            .testTag("source-row-${source.id}")
             .heightIn(min = 56.dp)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-        Text(source.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Text(
-            text = "${source.versionName} · ${source.language}",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
+            .testTag("source-row-${source.id}"),
+    )
 }
 
 @Composable
@@ -360,71 +389,105 @@ private fun ExtensionRow(
     onUpdate: () -> Unit,
     onUninstall: () -> Unit,
 ) {
+    // Komikku ExtensionItem: 40 dp icon slot with progress while Running, bodyMedium title,
+    // secondary version/language/store line with update arrow and NSFW flag, text actions.
+    // Test tags stay on the row and on each action so the install/update/uninstall flows keep
+    // working while the row rhythm matches BaseBrowseItem.
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(enabled = extension.isInstalled) { onOpen() }
-            .testTag(extensionRowTag(extension.key))
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+            .testTag(extensionRowTag(extension.key)),
     ) {
-        Row(
+        app.koyura.designsystem.KomikkuBrowseRow(
+            onClick = { if (extension.isInstalled) onOpen() },
+            icon = {
+                androidx.compose.foundation.layout.Box(
+                    modifier = Modifier.size(40.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (status is OperationStatus.Running) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(40.dp),
+                            strokeWidth = 2.dp,
+                        )
+                    }
+                    app.koyura.designsystem.KomikkuIconPlaceholder(label = extension.name)
+                }
+            },
+            action = {
+                when {
+                    extension.hasUpdate -> {
+                        TextButton(
+                            onClick = onUpdate,
+                            enabled = status !is OperationStatus.Running,
+                            modifier = Modifier.testTag(extensionActionTag(extension.key, "update")),
+                        ) { Text(stringResource(Res.string.browse_action_update)) }
+                    }
+                    extension.isInstalled -> {
+                        TextButton(
+                            onClick = onUninstall,
+                            enabled = status !is OperationStatus.Running,
+                            modifier = Modifier.testTag(extensionActionTag(extension.key, "uninstall")),
+                        ) { Text(stringResource(Res.string.browse_action_uninstall)) }
+                    }
+                    else -> {
+                        TextButton(
+                            onClick = onInstall,
+                            enabled = status !is OperationStatus.Running,
+                            modifier = Modifier.testTag(extensionActionTag(extension.key, "install")),
+                        ) { Text(stringResource(Res.string.browse_action_install)) }
+                    }
+                }
+                if (extension.isInstalled) {
+                    TextButton(
+                        onClick = onOpen,
+                        modifier = Modifier.testTag(extensionActionTag(extension.key, "open")),
+                    ) { Text(stringResource(Res.string.browse_action_open)) }
+                }
+            },
+            content = {
+                Column(
+                    modifier = Modifier
+                        .padding(horizontal = 16.dp)
+                        .weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    Text(
+                        text = extension.name,
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = listOfNotNull(
+                            extension.versionName.takeIf { it.isNotEmpty() },
+                            extension.language.takeIf { it.isNotEmpty() },
+                            "@${extension.storeName}".takeIf { extension.storeName.isNotEmpty() },
+                            extension.availableVersionName
+                                ?.takeIf { extension.hasUpdate }
+                                ?.let { "→ $it" },
+                            if (extension.isNsfw) {
+                                stringResource(Res.string.browse_nsfw_short).uppercase()
+                            } else {
+                                null
+                            },
+                        ).joinToString(" · "),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (extension.isNsfw) {
+                            MaterialTheme.colorScheme.error
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                                alpha = app.koyura.designsystem.KomikkuSecondaryAlpha,
+                            )
+                        },
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    OperationFeedback(status, extension.key)
+                }
+            },
             modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    text = extension.name,
-                    style = MaterialTheme.typography.bodyLarge,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = listOfNotNull(
-                        extension.versionName.takeIf { it.isNotEmpty() },
-                        extension.language.takeIf { it.isNotEmpty() },
-                        "@${extension.storeName}",
-                        extension.availableVersionName
-                            ?.takeIf { extension.hasUpdate }
-                            ?.let { "→ $it" },
-                    ).joinToString(" · "),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            when {
-                extension.hasUpdate -> {
-                    TextButton(
-                        onClick = onUpdate,
-                        enabled = status !is OperationStatus.Running,
-                        modifier = Modifier.testTag(extensionActionTag(extension.key, "update")),
-                    ) { Text(stringResource(Res.string.browse_action_update)) }
-                }
-                extension.isInstalled -> {
-                    TextButton(
-                        onClick = onUninstall,
-                        enabled = status !is OperationStatus.Running,
-                        modifier = Modifier.testTag(extensionActionTag(extension.key, "uninstall")),
-                    ) { Text(stringResource(Res.string.browse_action_uninstall)) }
-                }
-                else -> {
-                    TextButton(
-                        onClick = onInstall,
-                        enabled = status !is OperationStatus.Running,
-                        modifier = Modifier.testTag(extensionActionTag(extension.key, "install")),
-                    ) { Text(stringResource(Res.string.browse_action_install)) }
-                }
-            }
-            if (extension.isInstalled) {
-                TextButton(
-                    onClick = onOpen,
-                    modifier = Modifier.testTag(extensionActionTag(extension.key, "open")),
-                ) { Text(stringResource(Res.string.browse_action_open)) }
-            }
-        }
-        OperationFeedback(status, extension.key)
+        )
     }
     HorizontalDivider()
 }
@@ -456,14 +519,8 @@ internal fun OperationFeedback(status: OperationStatus?, target: String) {
 
 @Composable
 internal fun SectionHeader(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-    )
+    // Komikku ListGroupHeader: semibold bodyMedium in onSurfaceVariant.
+    app.koyura.designsystem.KomikkuListGroupHeader(text = text)
 }
 
 @Composable

@@ -1,26 +1,19 @@
 package app.koyura.designsystem.navigation
 
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarDefaults
 import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.contentColorFor
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import app.koyura.designsystem.resources.Res
 import app.koyura.designsystem.resources.nav_browse_badge_description
 import app.koyura.designsystem.resources.nav_updates_badge_description
@@ -56,42 +49,31 @@ fun ReaderNavigationBar(
     browseBadgeCount: Int = 0,
     windowInsets: WindowInsets = NavigationBarDefaults.windowInsets,
 ) {
-    val containerColor = NavigationBarDefaults.containerColor
-    Surface(
-        color = containerColor,
-        contentColor = contentColorFor(containerColor),
-        tonalElevation = NavigationBarDefaults.Elevation,
+    // Mirrors Komikku HomeScreen bottom bar: Material 3 NavigationBar with one item per tab in
+    // canonical order, badges on Updates/Browse, and an optional always-show-label preference.
+    NavigationBar(
         modifier = modifier,
+        windowInsets = windowInsets,
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .windowInsetsPadding(windowInsets)
-                .height(NavigationBarContentHeight)
-                .selectableGroup(),
-        ) {
-            visibleTabs.ordered().forEach { tab ->
-                val selected = tab == selectedTab
-                NavigationBarItem(
-                    selected = selected,
-                    onClick = { onTabClick(tab) },
-                    icon = {
-                        NavigationTabIcon(
-                            tab = tab,
-                            selected = selected,
-                            updatesBadgeCount = updatesBadgeCount,
-                            browseBadgeCount = browseBadgeCount,
-                        )
-                    },
-                    label = { NavigationTabLabel(tab) },
-                    alwaysShowLabel = labelMode == NavLabelMode.AlwaysShow,
-                )
-            }
+        visibleTabs.ordered().forEach { tab ->
+            val selected = tab == selectedTab
+            NavigationBarItem(
+                selected = selected,
+                onClick = { onTabClick(tab) },
+                icon = {
+                    NavigationTabIcon(
+                        tab = tab,
+                        selected = selected,
+                        updatesBadgeCount = updatesBadgeCount,
+                        browseBadgeCount = browseBadgeCount,
+                    )
+                },
+                label = { NavigationTabLabel(tab) },
+                alwaysShowLabel = labelMode == NavLabelMode.AlwaysShow,
+            )
         }
     }
 }
-
-internal val NavigationBarContentHeight = 80.dp
 
 internal fun Set<NavTab>.ordered(): List<NavTab> = NavTab.entries.filter { it in this }
 

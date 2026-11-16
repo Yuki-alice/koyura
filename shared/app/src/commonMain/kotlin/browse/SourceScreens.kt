@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.TextButton
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -26,11 +28,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.koyura.app.resources.Res
+import app.koyura.app.resources.browse_retry
+import app.koyura.app.resources.browse_show_less
+import app.koyura.app.resources.browse_show_more
 import app.koyura.app.resources.reading_continue
 import app.koyura.app.resources.reading_start
 import app.koyura.app.resources.source_detail_back
@@ -38,7 +44,6 @@ import app.koyura.app.resources.source_detail_chapters
 import app.koyura.app.resources.source_detail_empty
 import app.koyura.app.resources.source_detail_error
 import app.koyura.app.resources.source_detail_no_description
-import app.koyura.app.resources.source_detail_title
 import app.koyura.app.resources.source_search_button
 import app.koyura.app.resources.source_search_empty
 import app.koyura.app.resources.source_search_error
@@ -183,31 +188,46 @@ fun SourceSearchScreen(
                     modifier = Modifier.fillMaxSize().testTag(SourceSearchResultsTag),
                 ) {
                     item(key = "search-header") {
-                        Text(
+                        app.koyura.designsystem.KomikkuListGroupHeader(
                             text = stringResource(Res.string.source_search_results, results.size, maxPage),
-                            style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
                         )
                     }
                     items(results, key = { it.id }) { work ->
-                        Column(
+                        // Komikku BrowseSourceList row: cover placeholder with title/subtitle text.
+                        Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable { onOpenWork(work.id, work.title) }
                                 .testTag(sourceResultTag(work.id))
-                                .padding(horizontal = 16.dp, vertical = 10.dp),
-                            verticalArrangement = Arrangement.spacedBy(2.dp),
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(16.dp),
                         ) {
-                            Text(work.title, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            if (work.subtitle.isNotEmpty()) {
+                            app.koyura.designsystem.KomikkuCoverPlaceholder(
+                                label = work.title,
+                                modifier = Modifier.size(width = 48.dp, height = 72.dp),
+                            )
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(2.dp),
+                            ) {
                                 Text(
-                                    work.subtitle,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    work.title,
+                                    style = MaterialTheme.typography.bodyMedium,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                 )
+                                if (work.subtitle.isNotEmpty()) {
+                                    Text(
+                                        work.subtitle,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                                            alpha = app.koyura.designsystem.KomikkuSecondaryAlpha,
+                                        ),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
                             }
                         }
                         HorizontalDivider()
@@ -236,8 +256,9 @@ fun SourceDetailScreen(
     var loading by remember(sourceKey, workId) { mutableStateOf(true) }
     var error by remember(sourceKey, workId) { mutableStateOf<String?>(null) }
     var progress by remember(sourceKey, workId) { mutableStateOf<app.koyura.domain.reader.ReaderProgress?>(null) }
+    var reloadTick by remember(sourceKey, workId) { mutableStateOf(0) }
 
-    LaunchedEffect(sourceKey, workId) {
+    LaunchedEffect(sourceKey, workId, reloadTick) {
         loading = true
         error = null
         try {
@@ -252,14 +273,17 @@ fun SourceDetailScreen(
         }
     }
 
+    // Komikku MangaScreen: header with cover/title/meta/description/actions, chapter-count
+    // header, then one MangaChapterListItem-style row per chapter. Loading, empty and failed
+    // states match the history/browse empty/error pattern with a retry entry.
     Column(modifier = modifier.fillMaxSize().testTag(SourceDetailTestTag)) {
-        Text(
-            text = stringResource(Res.string.source_detail_title),
-            style = MaterialTheme.typography.headlineMedium,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-        )
         when {
-            loading -> CircularProgressIndicator(modifier = Modifier.padding(24.dp))
+            loading -> androidx.compose.foundation.layout.Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center,
+            ) {
+                CircularProgressIndicator()
+            }
             error != null -> {
                 Column(
                     modifier = Modifier.fillMaxSize().padding(24.dp),
@@ -269,34 +293,28 @@ fun SourceDetailScreen(
                         text = stringResource(Res.string.source_detail_error, error.orEmpty()),
                         color = MaterialTheme.colorScheme.error,
                     )
-                    Button(onClick = onBack) {
-                        Text(stringResource(Res.string.source_detail_back))
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Button(onClick = onBack) {
+                            Text(stringResource(Res.string.source_detail_back))
+                        }
+                        Button(
+                            onClick = { reloadTick++ },
+                        ) {
+                            Text(stringResource(Res.string.browse_retry))
+                        }
                     }
                 }
             }
             detail != null -> {
                 val loaded = detail!!
                 Column(
-                    modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
                 ) {
-                    Text(
-                        text = loaded.title.ifEmpty { fallbackTitle },
-                        style = MaterialTheme.typography.titleLarge,
-                        modifier = Modifier.testTag("source-detail-heading"),
-                    )
-                    if (loaded.subtitle.isNotEmpty()) {
-                        Text(
-                            text = loaded.subtitle,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    Text(
-                        text = loaded.description.ifEmpty {
-                            stringResource(Res.string.source_detail_no_description)
-                        },
-                        style = MaterialTheme.typography.bodyMedium,
+                    MangaHeader(
+                        title = loaded.title.ifEmpty { fallbackTitle },
+                        subtitle = loaded.subtitle,
+                        description = loaded.description,
+                        sourceName = sourceKey,
                     )
                     if (readerService != null) {
                         ReadingButtons(
@@ -307,30 +325,25 @@ fun SourceDetailScreen(
                                 onOpenChapter(ids.firstOrNull(), ids, titles)
                             },
                             onContinue = { chapterId, ids, titles -> onOpenChapter(chapterId, ids, titles) },
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                         )
                     }
-                    Text(
+                    app.koyura.designsystem.KomikkuListGroupHeader(
                         text = stringResource(Res.string.source_detail_chapters, loaded.chapters.size),
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.primary,
                     )
                     loaded.chapters.forEach { chapter ->
-                        Text(
-                            text = chapter.title,
-                            style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier
-                                .clickable(
-                                    enabled = readerService != null,
-                                    onClick = {
-                                        onOpenChapter(
-                                            chapter.id,
-                                            loaded.chapters.map { it.id },
-                                            loaded.chapters.map { it.title },
-                                        )
-                                    },
+                        MangaChapterRow(
+                            chapter = chapter,
+                            enabled = readerService != null,
+                            onClick = {
+                                onOpenChapter(
+                                    chapter.id,
+                                    loaded.chapters.map { it.id },
+                                    loaded.chapters.map { it.title },
                                 )
-                                .testTag("source-detail-chapter-${chapter.id}"),
+                            },
                         )
+                        HorizontalDivider()
                     }
                 }
             }
@@ -340,6 +353,124 @@ fun SourceDetailScreen(
                     modifier = Modifier.padding(24.dp),
                 )
             }
+        }
+    }
+}
+
+/**
+ * Komikku MangaInfoBox (simplified): cover placeholder, title, source/author line and an
+ * expandable description. The heading test tag stays on the title so shell flows keep working.
+ */
+@Composable
+private fun MangaHeader(
+    title: String,
+    subtitle: String,
+    description: String,
+    sourceName: String,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        app.koyura.designsystem.KomikkuCoverPlaceholder(
+            label = title,
+            modifier = Modifier.size(96.dp, 144.dp),
+        )
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.testTag("source-detail-heading"),
+            )
+            if (subtitle.isNotEmpty()) {
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = if (expanded) Int.MAX_VALUE else 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Text(
+                text = sourceName,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                    alpha = app.koyura.designsystem.KomikkuSecondaryAlpha,
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+    val body = description.ifEmpty { stringResource(Res.string.source_detail_no_description) }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(
+            text = body,
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = if (expanded) Int.MAX_VALUE else 3,
+            overflow = TextOverflow.Ellipsis,
+        )
+        if (description.isNotEmpty()) {
+            TextButton(onClick = { expanded = !expanded }) {
+                Text(
+                    stringResource(
+                        if (expanded) Res.string.browse_show_less else Res.string.browse_show_more,
+                    ),
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Komikku MangaChapterListItem (simplified): title row with read-progress affordance and a
+ * secondary line, padded start 16 / top 12 / end 8 / bottom 12. Direct tap opens the chapter in
+ * the reader; the row test tag is unchanged.
+ */
+@Composable
+private fun MangaChapterRow(
+    chapter: WorkChapter,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = enabled, onClick = onClick)
+            .testTag("source-detail-chapter-${chapter.id}")
+            .padding(start = 16.dp, top = 12.dp, end = 8.dp, bottom = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(
+                text = chapter.title,
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = chapter.id,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                    alpha = app.koyura.designsystem.KomikkuSecondaryAlpha,
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }
@@ -355,8 +486,10 @@ private fun ReadingButtons(
     chapterTitles: List<String>,
     onStart: (chapterIds: List<String>, chapterTitles: List<String>) -> Unit,
     onContinue: (chapterId: String?, chapterIds: List<String>, chapterTitles: List<String>) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     androidx.compose.foundation.layout.Row(
+        modifier = modifier,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Button(

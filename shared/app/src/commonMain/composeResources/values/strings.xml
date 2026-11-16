@@ -51,6 +51,9 @@
     <string name="browse_operation_running">Working…</string>
     <string name="browse_operation_succeeded">Done</string>
     <string name="browse_operation_failed">Failed: %1$s</string>
+    <string name="browse_nsfw_short">NSFW</string>
+    <string name="browse_show_more">Show more</string>
+    <string name="browse_show_less">Show less</string>
     <string name="browse_badge_description">%1$d extension updates</string>
 
     <!-- Extension details -->
@@ -61,6 +64,9 @@
     <string name="extension_details_store">Store: %1$s</string>
     <string name="extension_details_sources">Sources</string>
     <string name="extension_details_no_sources">This extension exposes no sources right now.</string>
+    <string name="extension_details_version_title">Version</string>
+    <string name="extension_details_language_title">Language</string>
+    <string name="extension_details_store_title">Store</string>
     <string name="extension_details_uninstall">Uninstall extension</string>
     <string name="extension_details_uninstall_confirm_title">Uninstall %1$s?</string>
     <string name="extension_details_uninstall_confirm_body">Its sources will be removed from Browse. Installed data stays untouched.</string>
