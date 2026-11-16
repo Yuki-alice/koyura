@@ -1,0 +1,10 @@
+CREATE TABLE reading_progress(
+  source_key TEXT NOT NULL,
+  work_id TEXT NOT NULL,
+  chapter_id TEXT NOT NULL,
+  page_key TEXT NOT NULL,
+  page_index INTEGER NOT NULL,
+  PRIMARY KEY (source_key, work_id, chapter_id)
+);
+
+CREATE INDEX reading_progress_work_idx ON reading_progress(source_key, work_id);

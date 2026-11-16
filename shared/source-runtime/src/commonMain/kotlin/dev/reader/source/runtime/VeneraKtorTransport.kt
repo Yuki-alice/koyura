@@ -2,12 +2,14 @@ package dev.reader.source.runtime
 
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.ResponseException
+import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.header
 import io.ktor.client.request.headers
 import io.ktor.client.request.request
 import io.ktor.client.request.setBody
 import io.ktor.client.request.url
 import io.ktor.client.statement.bodyAsText
+import io.ktor.client.statement.readBytes
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
@@ -44,10 +46,11 @@ import kotlinx.serialization.json.JsonPrimitive
  * Options implemented this round:
  * - Implemented: method/URL/headers/text-body forwarding, default browser UA,
  *   4xx/5xx passthrough (request-level [ResponseException] mapping),
- *   transport-error throw, cancellation propagation, `,` header join.
+ *   transport-error throw, cancellation propagation, `,` header join,
+ *   binary bodies via [executeBytes] (same mapping, bytes preserved).
  * - Not implemented (stripped/ignored): short-term `cache-time` caching,
  *   `prevent-parallel` serialization, `http_client == "dart:io"` alternate
- *   client, `extra` interceptor options, cookies/session, binary bodies.
+ *   client, `extra` interceptor options, cookies/session.
  *
  * Ownership: [VeneraSourceRuntime] never closes the transport. If [ownsClient]
  * is true, call [close] to close the underlying [HttpClient]; otherwise the
@@ -60,40 +63,7 @@ class KtorVeneraHttpTransport(
 ) : VeneraHttpTransport {
     override suspend fun execute(request: VeneraHttpRequest): VeneraHttpResponse {
         try {
-            val text = textBody(request)
-            val contentTypeHeader = request.headers.entries
-                .firstOrNull { it.key.equals(HttpHeaders.ContentType, ignoreCase = true) }
-                ?.value
-            val hasUserAgent = request.headers.keys.any { it.equals(HttpHeaders.UserAgent, ignoreCase = true) }
-            val response = client.request {
-                method = HttpMethod.parse(request.method.uppercase())
-                url(request.url)
-                headers {
-                    for ((name, value) in request.headers) {
-                        if (isHostControlHeader(name)) continue
-                        // Content-Type with a text body travels on the body itself;
-                        // without a body it is a plain header.
-                        if (text != null && name.equals(HttpHeaders.ContentType, ignoreCase = true)) continue
-                        append(name, value)
-                    }
-                    if (!hasUserAgent) {
-                        append(HttpHeaders.UserAgent, DEFAULT_BROWSER_USER_AGENT)
-                    }
-                }
-                if (text != null) {
-                    if (contentTypeHeader != null) {
-                        val contentType = runCatching { ContentType.parse(contentTypeHeader) }.getOrNull()
-                        if (contentType != null) {
-                            setBody(TextContent(text, contentType))
-                        } else {
-                            header(HttpHeaders.ContentType, contentTypeHeader)
-                            setBody(text)
-                        }
-                    } else {
-                        setBody(text)
-                    }
-                }
-            }
+            val response = client.request { applyVeneraRequest(request) }
             val headers = response.headers.entries()
                 .associate { (name, values) -> name to values.joinToString(",") }
             return VeneraHttpResponse(
@@ -114,6 +84,63 @@ class KtorVeneraHttpTransport(
                 body = failed.bodyAsText(),
                 headers = headers,
             )
+        }
+    }
+
+    /**
+     * Same mapping as [execute], but preserves raw response bytes for image
+     * payloads. Used by the comic reader for `onImageLoad` configs and direct
+     * image URLs; script text APIs keep using [execute].
+     */
+    suspend fun executeBytes(request: VeneraHttpRequest): VeneraBytesResponse {
+        val response = try {
+            client.request { applyVeneraRequest(request) }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: ResponseException) {
+            failure.response
+        }
+        val headers = response.headers.entries()
+            .associate { (name, values) -> name to values.joinToString(",") }
+        return VeneraBytesResponse(
+            status = response.status.value,
+            body = response.readBytes(),
+            headers = headers,
+        )
+    }
+
+    private fun HttpRequestBuilder.applyVeneraRequest(request: VeneraHttpRequest) {
+        val text = textBody(request)
+        val contentTypeHeader = request.headers.entries
+            .firstOrNull { it.key.equals(HttpHeaders.ContentType, ignoreCase = true) }
+            ?.value
+        val hasUserAgent = request.headers.keys.any { it.equals(HttpHeaders.UserAgent, ignoreCase = true) }
+        method = HttpMethod.parse(request.method.uppercase())
+        url(request.url)
+        headers {
+            for ((name, value) in request.headers) {
+                if (isHostControlHeader(name)) continue
+                // Content-Type with a text body travels on the body itself;
+                // without a body it is a plain header.
+                if (text != null && name.equals(HttpHeaders.ContentType, ignoreCase = true)) continue
+                append(name, value)
+            }
+            if (!hasUserAgent) {
+                append(HttpHeaders.UserAgent, DEFAULT_BROWSER_USER_AGENT)
+            }
+        }
+        if (text != null) {
+            if (contentTypeHeader != null) {
+                val contentType = runCatching { ContentType.parse(contentTypeHeader) }.getOrNull()
+                if (contentType != null) {
+                    setBody(TextContent(text, contentType))
+                } else {
+                    header(HttpHeaders.ContentType, contentTypeHeader)
+                    setBody(text)
+                }
+            } else {
+                setBody(text)
+            }
         }
     }
 
