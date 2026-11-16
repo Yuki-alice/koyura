@@ -150,7 +150,7 @@ CompositionLocalProvider(LocalBrowseService provides realService) { App() }
 
 ## Venera 真实接线（production）
 
-`dev.reader.app.browse.venera.VeneraBrowseService` 把上面的 `BrowseService` 契约接到持久化扩展
+`app.koyura.app.browse.venera.VeneraBrowseService` 把上面的 `BrowseService` 契约接到持久化扩展
 生命周期（SQLDelight + 脚本文件 + QuickJS + Ktor）：
 
 | 能力 | 实现 |

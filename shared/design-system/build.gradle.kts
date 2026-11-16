@@ -11,7 +11,7 @@ kotlin {
     jvmToolchain(21)
 
     android {
-        namespace = "dev.reader.designsystem"
+        namespace = "app.koyura.designsystem"
         compileSdk {
             version = release(37) { minorApiLevel = 1 }
         }
@@ -36,5 +36,5 @@ kotlin {
 }
 
 compose.resources {
-    packageOfResClass = "dev.reader.designsystem.resources"
+    packageOfResClass = "app.koyura.designsystem.resources"
 }

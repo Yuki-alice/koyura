@@ -12,7 +12,7 @@ kotlin {
     jvmToolchain(21)
 
     android {
-        namespace = "dev.reader.shared.app"
+        namespace = "app.koyura.app"
         compileSdk {
             version = release(37) { minorApiLevel = 1 }
         }
@@ -27,7 +27,7 @@ kotlin {
         target.binaries.framework {
             baseName = "ReaderShared"
             isStatic = true
-            binaryOption("bundleId", "dev.reader.shared.app")
+            binaryOption("bundleId", "app.koyura.app")
         }
     }
 
@@ -82,5 +82,5 @@ tasks.withType<Test>().configureEach {
 }
 
 compose.resources {
-    packageOfResClass = "dev.reader.app.resources"
+    packageOfResClass = "app.koyura.app.resources"
 }

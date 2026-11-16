@@ -17,7 +17,7 @@ dependencies {
 
 compose.desktop {
     application {
-        mainClass = "dev.reader.desktop.MainKt"
+        mainClass = "app.koyura.desktop.MainKt"
 
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
@@ -25,7 +25,7 @@ compose.desktop {
             packageVersion = libs.versions.app.get()
 
             macOS {
-                bundleID = "dev.reader.app"
+                bundleID = "app.koyura"
             }
 
             linux {

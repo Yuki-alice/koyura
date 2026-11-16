@@ -7,12 +7,12 @@
 ## 最小示例
 
 ```kotlin
-import dev.reader.media.epub.openEpubNovel
-import dev.reader.media.novel.NovelBlock
-import dev.reader.media.novel.NovelImport
-import dev.reader.media.novel.ReadingPosition
-import dev.reader.media.novel.txt.openTxtNovel
-import dev.reader.media.novel.useImport
+import app.koyura.media.epub.openEpubNovel
+import app.koyura.media.novel.NovelBlock
+import app.koyura.media.novel.NovelImport
+import app.koyura.media.novel.ReadingPosition
+import app.koyura.media.novel.txt.openTxtNovel
+import app.koyura.media.novel.useImport
 import okio.FileSystem
 import okio.Path.Companion.toPath
 
@@ -167,5 +167,5 @@ openEpubNovel(FileSystem.SYSTEM, "/books/novel.epub".toPath()).useImport { novel
 
 ## 验证文档示例
 
-`src/commonTest/kotlin/dev/reader/media/novel/UsageDocExampleTest.kt` 直接调用上面的最小示例路径
+`src/commonTest/kotlin/app/koyura/media/novel/UsageDocExampleTest.kt` 直接调用上面的最小示例路径
 （打开 TXT 与 EPUB、读目录/章节/图片、序列化与恢复位置、关闭），因此示例一旦与 API 不符就会编译或测试失败。

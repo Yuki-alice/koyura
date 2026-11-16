@@ -11,7 +11,7 @@ kotlin {
     jvmToolchain(21)
 
     android {
-        namespace = "dev.reader.source.runtime"
+        namespace = "app.koyura.source.runtime"
         compileSdk {
             version = release(37) { minorApiLevel = 1 }
         }

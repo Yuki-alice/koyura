@@ -2,7 +2,7 @@
 
 ## Session API
 
-- `ExtensionSession` (`dev.reader.data.session`): an opened stack exposing
+- `ExtensionSession` (`app.koyura.data.session`): an opened stack exposing
   `service: ExtensionService` (already restored) and `report: RestoreReport`.
   Install/update/call/uninstall and repository management all go through
   `session.service`; `report.registered` / `report.failures` describe the

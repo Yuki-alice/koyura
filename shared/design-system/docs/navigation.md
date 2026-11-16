@@ -1,11 +1,11 @@
 # 一级导航共享组件
 
-`dev.reader.designsystem.navigation` 提供 Komikku 一级导航的跨平台共享实现：同一套五标签类型，以及窄屏底栏、宽屏导航轨两个 Composable。宽窄屏判定、返回栈、首选项和角标数据由应用层负责。
+`app.koyura.designsystem.navigation` 提供 Komikku 一级导航的跨平台共享实现：同一套五标签类型，以及窄屏底栏、宽屏导航轨两个 Composable。宽窄屏判定、返回栈、首选项和角标数据由应用层负责。
 
 ## 公开 API
 
 ```kotlin
-package dev.reader.designsystem.navigation
+package app.koyura.designsystem.navigation
 
 enum class NavTab { Library, Updates, History, Browse, More }
 

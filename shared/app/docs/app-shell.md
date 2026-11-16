@@ -1,6 +1,6 @@
 # 应用外壳与五栏导航
 
-Android、桌面 JVM 和 iOS 都通过 `dev.reader.app.App()` 进入同一套五栏外壳。外壳复用 `shared/design-system` 的 `ReaderNavigationBar`、`ReaderNavigationRail` 和 `NavTab`，不修改其公开 API。
+Android、桌面 JVM 和 iOS 都通过 `app.koyura.app.App()` 进入同一套五栏外壳。外壳复用 `shared/design-system` 的 `ReaderNavigationBar`、`ReaderNavigationRail` 和 `NavTab`，不修改其公开 API。
 
 ## 结构
 
@@ -66,7 +66,7 @@ Android、桌面 JVM 和 iOS 都通过 `dev.reader.app.App()` 进入同一套五
 截图命令：
 
 ```bash
-./gradlew :shared:app:jvmTest --tests 'dev.reader.app.ScreenshotCaptureTest' \
+./gradlew :shared:app:jvmTest --tests 'app.koyura.app.ScreenshotCaptureTest' \
   -PreaderScreenshotDir=shared/app/docs/screenshots
 ```
 

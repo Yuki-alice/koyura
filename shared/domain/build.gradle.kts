@@ -10,7 +10,7 @@ kotlin {
     jvmToolchain(21)
 
     android {
-        namespace = "dev.reader.domain"
+        namespace = "app.koyura.domain"
         compileSdk {
             version = release(37) { minorApiLevel = 1 }
         }

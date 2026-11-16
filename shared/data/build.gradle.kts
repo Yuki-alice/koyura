@@ -12,7 +12,7 @@ kotlin {
     jvmToolchain(21)
 
     android {
-        namespace = "dev.reader.data"
+        namespace = "app.koyura.data"
         compileSdk {
             version = release(37) { minorApiLevel = 1 }
         }
@@ -57,7 +57,7 @@ kotlin {
 sqldelight {
     databases {
         create("ExtensionDb") {
-            packageName.set("dev.reader.data.extension")
+            packageName.set("app.koyura.data.extension")
         }
     }
 }

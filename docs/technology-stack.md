@@ -2,7 +2,7 @@
 
 2026-11-15 · Greenfield 项目 · [架构设计与项目目录](architecture.md)
 
-项目用 Kotlin Multiplatform 实现业务和 JS 源系统，用 Compose Multiplatform 复刻 Komikku 的界面、交互和可见功能，并新增小说阅读。账号、书架、备份格式和内部数据模型独立设计。JS 脚本、宿主 API、源仓库和更新行为以 Venera-Next 为兼容基线。
+项目用 Kotlin Multiplatform 实现业务和 JS 源系统，用 Compose Multiplatform 复刻 Komikku 的界面、交互和可见功能。小说接入与差异化功能按[当前对齐计划](komikku-alignment.md)安排在漫画对齐之后。账号、书架、备份格式和内部数据模型独立设计。JS 脚本、宿主 API、源仓库和更新行为以 Venera-Next 为兼容基线。
 
 候选库来自本地 [kmp-awesome `33879a1`](https://github.com/terrakok/kmp-awesome/blob/33879a1b240c15cee9b1b82cd260a77680382021/README.MD#libraries) 的网络、存储、架构、依赖注入、Compose UI、文件、序列化、测试和工具条目。该列表优先收录 Android 与 iOS 库，选型同时以库作者文档、发布物和桌面 ABI 为依据。
 
@@ -57,4 +57,4 @@
 | 网页登录 | 沿用 Venera-Next 的平台 WebView 路线。Android 用系统 WebView，iOS / macOS 用 WKWebView，Windows 用 WebView2，Linux 用系统 WebKitGTK 并可用独立原生窗口。登录完成后把当前站点 Cookie 和 `localStorage` 交回 Venera 源回调。Windows 缺 Runtime 时给出安装提示，Linux 包声明系统库依赖。 [Venera 登录实现](https://github.com/CyrilPeng/Venera-Next/blob/c0c45979d453c2a8740c45f08e95997c90717629/lib/features/comic_source/comic_source_page.dart#L1314) · [Venera 桌面后端](https://github.com/CyrilPeng/Venera-Next/blob/c0c45979d453c2a8740c45f08e95997c90717629/packages/desktop_webview_window/README.md) · [WKWebView](https://developer.apple.com/documentation/webkit/wkwebview) · [WebView2 Runtime](https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/distribution) · [WebKitGTK](https://webkitgtk.org/reference/webkit2gtk/stable/) |
 | 社区发布 | 应用以社区 Release 安装包分发。扩展作者发布 Venera 格式的原始 `.js` 和 JSON 源仓库索引，用户在应用中添加仓库或导入脚本，更新沿用同一仓库和更新机制。 [Venera 源发布格式](https://github.com/CyrilPeng/Venera-Next/blob/c0c45979d453c2a8740c45f08e95997c90717629/doc/api/comic_source.zh.md#7-发布脚本与源仓库) |
 
-每个发布平台分别验证书架读写、JS 扩展安装与回滚、在线漫画和小说、离线重启续读、文件导入与实际安装包启动。平台差异记入功能验收清单，以用户可操作的结果为准。
+每个发布平台分别验证书架读写、JS 扩展安装与回滚、在线漫画、离线重启续读、漫画本地文件导入与实际安装包启动。平台差异和结果记入 [Komikku 对齐计划](komikku-alignment.md) 的验收记录。

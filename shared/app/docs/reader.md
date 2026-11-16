@@ -42,7 +42,7 @@ Android、桌面和 iOS 通过 `ExtensionApp` 打开持久化会话，再将 `Ve
 `VeneraReaderRestartTest` 用原版 Venera 示例脚本和磁盘 SQLite 验证第 2 章第 3 页的跨会话续读。需要跨进程复现时，先将 `READER_COMIC_RESTART_PROFILE` 指向一个空目录，再分别以 `READER_COMIC_RESTART_PHASE=read` 和 `READER_COMIC_RESTART_PHASE=resume` 运行以下命令。
 
 ```bash
-./gradlew :shared:app:jvmTest --rerun --tests 'dev.reader.app.reader.VeneraReaderRestartTest'
+./gradlew :shared:app:jvmTest --rerun --tests 'app.koyura.app.reader.VeneraReaderRestartTest'
 ```
 
 `ReaderSessionTest` 和 `ReaderFlowTest` 覆盖以下场景。

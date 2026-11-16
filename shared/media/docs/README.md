@@ -25,8 +25,8 @@
 入口是一个函数，其余都是数据模型：
 
 ```kotlin
-import dev.reader.media.novel.NovelImport
-import dev.reader.media.novel.txt.openTxtNovel
+import app.koyura.media.novel.NovelImport
+import app.koyura.media.novel.txt.openTxtNovel
 import okio.FileSystem
 import okio.Path.Companion.toPath
 
@@ -184,8 +184,8 @@ novel.close()
 ## 共用 API
 
 ```kotlin
-import dev.reader.media.epub.openEpubNovel
-import dev.reader.media.novel.LocalNovelLimits
+import app.koyura.media.epub.openEpubNovel
+import app.koyura.media.novel.LocalNovelLimits
 
 val book = openEpubNovel(
     fileSystem = okio.FileSystem.SYSTEM,

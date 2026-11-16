@@ -2,7 +2,7 @@
 
 2026-11-15 · [技术栈选型](technology-stack.md)
 
-这是独立的漫画与小说阅读器。Komikku `383ffaa816` 定义要复刻的界面、交互和用户可见能力。JS 源完整兼容 Venera-Next `c0c4597` 的协议与生命周期，已有脚本和源仓库应能原样导入。书架、账号、内部数据和备份格式从新项目开始，作品换源和批量迁移在新客户端内实现。 [Komikku 功能说明](https://github.com/komikku-app/komikku/blob/383ffaa81667f45fc6c2975edb1760a7606531d3/README.md#features) · [Venera-Next 数据源文档](https://github.com/CyrilPeng/Venera-Next/blob/c0c45979d453c2a8740c45f08e95997c90717629/doc/api/comic_source.zh.md)
+这是独立的跨平台漫画阅读器项目，当前工作以[Komikku 对齐计划](komikku-alignment.md)为准。本文同时记录漫画、离线内容与后续小说的架构设计，小说应用接入安排在漫画对齐之后。Komikku `383ffaa816` 定义要复刻的界面、交互和用户可见能力。JS 源完整兼容 Venera-Next `c0c4597` 的协议与生命周期，已有脚本和源仓库应能原样导入。书架、账号、内部数据和备份格式从新项目开始，作品换源和批量迁移在新客户端内实现。 [Komikku 功能说明](https://github.com/komikku-app/komikku/blob/383ffaa81667f45fc6c2975edb1760a7606531d3/README.md#features) · [Venera-Next 数据源文档](https://github.com/CyrilPeng/Venera-Next/blob/c0c45979d453c2a8740c45f08e95997c90717629/doc/api/comic_source.zh.md)
 
 ## 目录结构
 
@@ -82,6 +82,8 @@ flowchart TD
 
 ## 漫画、小说与离线数据
 
+本节是长期数据模型设计。当前应用工作以漫画和 Komikku 功能对齐为范围。
+
 `Work` 具有 `COMIC` 或 `NOVEL` 类型，两者共享元数据、目录、收藏、分类、历史、更新和下载任务。远程作品以 `(sourceId, kind, remoteWorkId)` 去重，章节以作品 ID 和源章节 ID 去重。JS 源以 Venera 的稳定 `key` 标识，仓库地址可变化。作品和章节在 SQLite 中使用本项目的内部 ID，发起源请求时使用源自己的定位值。
 
 | 边界 | 漫画 | 小说 |
@@ -125,11 +127,7 @@ SQLite 管理 `works`、`chapters`、`library_entries`、`categories`、`chapter
 | 应用外壳与视觉 | 书架、更新、历史、浏览、更多的标签顺序和返回规则，窄屏底栏、宽屏导航轨，浅色/深色、自定义主题和封面取色 |
 | 书架与详情 | 网格、列表、分类和隐藏分类、筛选与搜索语义、批量收藏、详情与目录、长按操作、作品合并和跨源迁移 |
 | 浏览与扩展 | 来源、全局搜索、Feed、保存搜索、相关推荐、源设置、仓库启停、安装、更新、卸载和错误状态 |
-| 阅读与下载 | 在线、离线和本地阅读，漫画各种阅读模式、手势、翻页和续读，下载队列、暂停、重试和重启恢复。小说按相同主流程单独验收阅读器 |
+| 阅读与下载 | 在线、离线和本地阅读，漫画各种阅读模式、手势、翻页和续读，下载队列、暂停、重试和重启恢复 |
 | 更新、追踪与数据管理 | 智能更新、待更新和错误列表、各追踪服务、双向进度、备份与恢复、WebDAV 同步、通知、平台小组件和应用更新机制 |
 
-对齐清单以后续逐屏录制和对照为准，每条记录 Komikku 入口、操作序列、前置条件、视觉基准、预期状态变化和各目标平台结果。Android 可在同尺寸和主题下做截图对照，桌面使用 Komikku 宽屏布局作为参照。手势、键盘、返回、滚动位置恢复和无障碍按平台实测。平台特有能力记录可达效果与实现方式。 [Komikku 功能集](https://github.com/komikku-app/komikku/blob/383ffaa81667f45fc6c2975edb1760a7606531d3/README.md#features) · [Komikku 导航实现](https://github.com/komikku-app/komikku/blob/383ffaa81667f45fc6c2975edb1760a7606531d3/app/src/main/java/eu/kanade/tachiyomi/ui/home/HomeScreen.kt#L81)
-
-1. **构建与运行时验证。** Android 与 macOS 起应用壳、导航、数据库和 QuickJS，验证 iOS framework 链接，并把 Windows 与 Linux 原生库的打包启动纳入 CI。验证 Venera 样例的同步与异步回调、图片处理、异常和资源释放。
-2. **打通阅读链路。** 用未修改的 Venera 漫画源和现有格式的仓库索引走完「浏览 → 安装 → 搜索 → 详情 → 收藏 → 阅读 → 下载 → 重启续读」。用独立小说样例验收同一流程。测试仓库导入、网页登录会话、成功更新、失败回滚和本项目备份恢复。
-3. **完成原版功能对齐。** 以交互复杂和平台相关功能为重点逐项验收，补完可用源、追踪服务、格式、同步与平台发行能力。首条链路通过代表架构可行，完整对齐以验收清单为准。
+具体工作顺序、Komikku 参考文件、截图与操作验收，以及首轮任务边界都记录在 [Komikku 对齐计划](komikku-alignment.md)。平台特有能力按可达操作和目标平台结果验收。

@@ -4,13 +4,13 @@ plugins {
 }
 
 android {
-    namespace = "dev.reader.android"
+    namespace = "app.koyura.android"
     compileSdk {
         version = release(37) { minorApiLevel = 1 }
     }
 
     defaultConfig {
-        applicationId = "dev.reader.app"
+        applicationId = "app.koyura"
         minSdk = 26
         targetSdk = 37
         versionCode = 1

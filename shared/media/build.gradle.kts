@@ -14,7 +14,7 @@ kotlin {
     jvmToolchain(21)
 
     android {
-        namespace = "dev.reader.media"
+        namespace = "app.koyura.media"
         compileSdk {
             version = release(37) { minorApiLevel = 1 }
         }
