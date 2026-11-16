@@ -252,6 +252,16 @@ internal val veneraBootstrap = """
                     if (result.method !== undefined && result.method !== null && typeof result.method !== "string") {
                         throw new TypeError("Image config field is not a string: method");
                     }
+                    if (result.headers !== undefined && result.headers !== null) {
+                        if (typeof result.headers !== "object" || Array.isArray(result.headers)) {
+                            throw new TypeError("Image config headers must be an object: headers");
+                        }
+                        for (const name of Object.keys(result.headers)) {
+                            if (typeof result.headers[name] !== "string") {
+                                throw new TypeError("Image config header is not a string: " + name);
+                            }
+                        }
+                    }
                     const handles = {};
                     const tracked = [];
                     const plain = {};
