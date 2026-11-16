@@ -599,6 +599,46 @@ class ExtensionServiceTest {
         }
     }
 
+    @Test
+    fun dbCommitFailureAfterSuccessfulInitKeepsOldInstanceAndState() = runTest {
+        var oldInitHits = 0
+        var served = scriptStatefulInit("1.0.0")
+        val mock = MockEngine { request ->
+            if (request.url.encodedPath == "/old-init") {
+                oldInitHits++
+                respond("ok", HttpStatusCode.OK)
+            } else {
+                respond(served, HttpStatusCode.OK)
+            }
+        }
+        val client = HttpClient(mock) { applyReaderDefaults() }
+        val scriptsDir = FileSystem.SYSTEM_TEMPORARY_DIRECTORY / "reader-ext-${Uuid.random()}"
+        val driver = createTestDriver()
+        val service = openService(client, driver = driver, scriptsDir = scriptsDir)
+        try {
+            service.installFromUrl("https://example.invalid/sources/example.js", expectedKey = KEY)
+            assertEquals(JsonPrimitive("n:1"), callTitle(service, "a"))
+            served = scriptV2()
+            driver.execute(null, "PRAGMA query_only=ON", 0)
+            try {
+                assertFailsWith<ExtensionFailure.StorageFailure> { service.update(KEY) }
+            } finally {
+                driver.execute(null, "PRAGMA query_only=OFF", 0)
+            }
+            assertEquals(1, oldInitHits, "the old instance must be restored without re-running its init")
+            assertEquals(JsonPrimitive("n:2"), callTitle(service, "b"))
+            assertEquals("1.0.0", service.listInstalled().single().version)
+            assertEquals("https://example.invalid/sources/example.js", service.originFor(KEY)?.url)
+            val files = FileSystem.SYSTEM.list(scriptsDir).filter { it.name.endsWith(".js") }
+            assertEquals(1, files.size)
+            assertTrue(FileSystem.SYSTEM.read(files.single()) { readUtf8() }.contains("n:"))
+        } finally {
+            service.close()
+            client.close()
+            FileSystem.SYSTEM.deleteRecursively(scriptsDir)
+        }
+    }
+
     private suspend fun callTitle(service: ExtensionService, id: String) =
         service.runtime!!.call(KEY, VeneraCallback.LoadInfo, JsonArray(listOf(JsonPrimitive(id)))).jsonObject["title"]
 
@@ -638,6 +678,21 @@ class ExtensionServiceTest {
             version = "$version";
             minAppVersion = "1.16.0";
             url = "https://example.invalid/sources/example.js";
+            comic = {
+                loadInfo(id) { this.n = (this.n || 0) + 1; return { title: "n:" + this.n }; },
+                onClickTag() { return null; },
+            };
+        }
+    """.trimIndent()
+
+    private fun scriptStatefulInit(version: String) = """
+        class ExampleSource extends ComicSource {
+            name = "Example";
+            key = "$KEY";
+            version = "$version";
+            minAppVersion = "1.16.0";
+            url = "https://example.invalid/sources/example.js";
+            async init() { await Network.get('https://example.invalid/old-init'); }
             comic = {
                 loadInfo(id) { this.n = (this.n || 0) + 1; return { title: "n:" + this.n }; },
                 onClickTag() { return null; },

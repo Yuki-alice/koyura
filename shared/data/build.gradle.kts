@@ -28,6 +28,7 @@ kotlin {
         commonMain.dependencies {
             api(project(":shared:domain"))
             api(project(":shared:source-runtime"))
+            api(project(":shared:network"))
             implementation(libs.ktor.client.core)
             implementation(libs.sqldelight.runtime)
             implementation(libs.sqldelight.coroutines)

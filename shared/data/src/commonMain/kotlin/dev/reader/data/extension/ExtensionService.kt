@@ -570,14 +570,19 @@ class ExtensionService(
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             // The live instance already runs the new revision while the pointer
-            // could not move: roll the instance back so rows, files and live
-            // agree again. The old file is untouched at this point.
-            val oldBytes = try {
-                fileSystem.read(scriptsDir / oldFileName) { readUtf8() }
-            } catch (_: Exception) {
-                throw ExtensionFailure.StorageFailure(e)
+            // could not move: put the exact displaced instance back (no init
+            // rerun, memory state intact) so rows, files and live agree again.
+            // Only when there is nothing to displace back do we fall back to
+            // the untouched old revision file.
+            withContext(NonCancellable) {
+                val repaired = runCatching { live.repairDisplaced(key) }.getOrDefault(false)
+                if (!repaired) {
+                    val oldBytes = runCatching { fileSystem.read(scriptsDir / oldFileName) { readUtf8() } }.getOrNull()
+                    if (oldBytes != null) {
+                        runCatching { live.replace(key, oldBytes, oldFileName, expectedKey = key) }
+                    }
+                }
             }
-            runCatching { live.replace(key, oldBytes, oldFileName, expectedKey = key) }
             if (fileName != oldFileName) runCatching { fileSystem.delete(target, mustExist = false) }
             throw ExtensionFailure.StorageFailure(e)
         }

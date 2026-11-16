@@ -134,7 +134,9 @@ internal val veneraBootstrap = """
                     throw e;
                 }
                 if (sources[key] !== pending) throw new Error("Source changed its registry entry during init: " + key);
-                displaced.delete(key);
+                // NOTE: the displaced entry is intentionally kept after success.
+                // A later DB-commit failure can still put the exact previous
+                // instance back via repairDisplaced; the next replace overwrites it.
                 return true;
             },
             repairDisplaced(key) {
