@@ -6,6 +6,8 @@ import com.dokar.quickjs.binding.asyncFunction
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -245,13 +247,18 @@ class VeneraSourceRuntime private constructor(
             } catch (failure: Throwable) {
                 // The engine already restored the previous registry entry;
                 // only the pending slot needs clearing. The engine stays open
-                // so the surviving instance remains callable.
+                // so the surviving instance remains callable. A failure that
+                // arrives while the caller is cancelled is rethrown as
+                // cancellation even if the JS bridge wrapped it.
                 withContext(NonCancellable) {
                     try {
                         evaluate<Any?>("__readerVenera.discard()", fileName)
                     } catch (cleanup: Throwable) {
                         failure.addSuppressed(cleanup)
                     }
+                }
+                if (failure !is CancellationException) {
+                    currentCoroutineContext().ensureActive()
                 }
                 if (previous != null) check(sources[key] === previous || key !in sources) {
                     "Source '$key' registry was left inconsistent after failed replacement"

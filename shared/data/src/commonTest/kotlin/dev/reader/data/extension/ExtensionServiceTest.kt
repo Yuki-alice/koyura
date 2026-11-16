@@ -511,6 +511,94 @@ class ExtensionServiceTest {
         }
     }
 
+    @Test
+    fun persistedVersionFollowsActualScriptNotCatalogLabel() = runTest {
+        val scriptsDir = FileSystem.SYSTEM_TEMPORARY_DIRECTORY / "reader-ext-${Uuid.random()}"
+        var servedScript = scriptFor("ka", "1.0.0")
+        val mock = MockEngine { request ->
+            when (request.url.toString()) {
+                "https://example.invalid/repo/index" -> respond(
+                    """[{"key":"ka","name":"A","version":"9.9.9","url":"https://example.invalid/a.js"}]""",
+                    HttpStatusCode.OK,
+                )
+                "https://example.invalid/a.js" -> respond(servedScript, HttpStatusCode.OK)
+                else -> respond("gone", HttpStatusCode.NotFound)
+            }
+        }
+        val client = HttpClient(mock) { applyReaderDefaults() }
+        val service = openService(client, scriptsDir = scriptsDir)
+        try {
+            val repo = service.addRepository("Main", "https://example.invalid/repo/index")
+            val installed = service.installFromCatalog(
+                repo.id,
+                VeneraCatalogEntry("ka", "A", "9.9.9", "https://example.invalid/a.js"),
+                repo.url,
+            )
+            assertEquals("1.0.0", installed.version)
+            assertEquals("1.0.0", service.listInstalled().single().version)
+            // The catalog still advertises 9.9.9, so an update is reported —
+            // while the previously committed row keeps the real script version.
+            assertEquals(mapOf("ka" to "9.9.9"), service.checkUpdates())
+            // Updating to a script whose actual version differs from the entry
+            // label persists the script version, not the label.
+            servedScript = scriptFor("ka", "2.0.0")
+            val updated = service.update("ka")
+            assertEquals("2.0.0", updated.version)
+            assertEquals("2.0.0", service.listInstalled().single().version)
+            assertTrue(updated.fileName.contains("2.0.0-"), "revision file binds the real version: ${updated.fileName}")
+        } finally {
+            service.close()
+            client.close()
+            FileSystem.SYSTEM.deleteRecursively(scriptsDir)
+        }
+    }
+
+    @Test
+    fun updateCandidateInitRunsOnce() = runTest {
+        var initHits = 0
+        val mock = MockEngine { request ->
+            if (request.url.encodedPath == "/init") initHits++
+            if (request.url.toString() == "https://example.invalid/sources/example.js") {
+                respond(scriptWithInit("2.0.0"), HttpStatusCode.OK)
+            } else {
+                respond("ok", HttpStatusCode.OK)
+            }
+        }
+        val client = HttpClient(mock) { applyReaderDefaults() }
+        val scriptsDir = FileSystem.SYSTEM_TEMPORARY_DIRECTORY / "reader-ext-${Uuid.random()}"
+        val service = openService(client, scriptsDir = scriptsDir)
+        try {
+            service.installFromContent("Example", scriptV1(), expectedKey = KEY)
+            service.update(KEY)
+            assertEquals(1, initHits, "a successful update runs the candidate init exactly once")
+            assertEquals(JsonPrimitive("ok"), callTitle(service, "x"))
+        } finally {
+            service.close()
+            client.close()
+            FileSystem.SYSTEM.deleteRecursively(scriptsDir)
+        }
+    }
+
+    @Test
+    fun brokenDatabaseFailsCleanlyAndKeepsOldRevision() = runTest {
+        val scriptsDir = FileSystem.SYSTEM_TEMPORARY_DIRECTORY / "reader-ext-${Uuid.random()}"
+        val mock = MockEngine { respond(scriptV1(), HttpStatusCode.OK) }
+        val client = HttpClient(mock) { applyReaderDefaults() }
+        val driver = createTestDriver()
+        val service = openService(client, driver = driver, scriptsDir = scriptsDir)
+        try {
+            service.installFromUrl("https://example.invalid/sources/example.js", expectedKey = KEY)
+            driver.close()
+            assertFailsWith<ExtensionFailure.StorageFailure> { service.update(KEY) }
+            assertEquals(JsonPrimitive("v1:ok"), callTitle(service, "ok"))
+            assertEquals(1, FileSystem.SYSTEM.list(scriptsDir).count { it.name.endsWith(".js") })
+        } finally {
+            service.close()
+            client.close()
+            FileSystem.SYSTEM.deleteRecursively(scriptsDir)
+        }
+    }
+
     private suspend fun callTitle(service: ExtensionService, id: String) =
         service.runtime!!.call(KEY, VeneraCallback.LoadInfo, JsonArray(listOf(JsonPrimitive(id)))).jsonObject["title"]
 

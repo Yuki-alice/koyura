@@ -24,13 +24,18 @@ import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
 import kotlin.uuid.Uuid
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonElement
 import okio.FileSystem
+import okio.HashingSink
 import okio.Path
+import okio.buffer
 
 private fun sanitizeFileName(key: String): String {
     val mapped = key.map { c ->
@@ -39,9 +44,17 @@ private fun sanitizeFileName(key: String): String {
     return mapped.ifBlank { "source" }
 }
 
-/** Immutable revision file name: one complete script per (key, version). */
-internal fun revisionFileName(key: String, version: String): String =
-    sanitizeFileName("${key}@${version}") + ".js"
+/** Immutable revision file identity: the name binds key, version and content, so a
+ * same-version candidate with different bytes never overwrites the live file. */
+internal fun revisionFileName(key: String, version: String, script: String): String {
+    val blackhole = okio.Buffer()
+    val hashing = HashingSink.sha256(blackhole)
+    val buffered = hashing.buffer()
+    buffered.writeUtf8(script)
+    buffered.flush()
+    val digest = hashing.hash.hex().take(16)
+    return sanitizeFileName("${key}@${version}-${digest}") + ".js"
+}
 
 /**
  * Injectable extension lifecycle service (milestones 2-3, consistency round).
@@ -253,8 +266,7 @@ class ExtensionService(
         installValidated(
             script = script,
             expectedKey = entry.key,
-            name = entry.name,
-            version = entry.version,
+            fileProbeName = entry.key,
             originKind = "repository",
             originRepositoryId = repo.id,
             originRepositoryName = repo.name,
@@ -273,8 +285,7 @@ class ExtensionService(
             installValidated(
                 script = script,
                 expectedKey = expectedKey,
-                name = null,
-                version = null,
+                fileProbeName = expectedKey ?: "source",
                 originKind = "url",
                 originUrl = normalized,
             )
@@ -285,8 +296,7 @@ class ExtensionService(
             installValidated(
                 script = content,
                 expectedKey = expectedKey,
-                name = name.ifBlank { null },
-                version = null,
+                fileProbeName = name.ifBlank { expectedKey ?: "source" },
                 originKind = "file",
             )
         }
@@ -356,8 +366,12 @@ class ExtensionService(
         mutex.withLock { if (!updating.add(key)) throw ExtensionFailure.UpdateInProgress(key) }
         try {
             return mutex.withLock {
-                val row = queries().selectExtensionByKey(key).executeAsOneOrNull()
-                    ?: throw ExtensionFailure.MissingExtension(key)
+                val row = try {
+                    queries().selectExtensionByKey(key).executeAsOneOrNull()
+                } catch (e: Exception) {
+                    if (e is CancellationException) throw e
+                    throw ExtensionFailure.StorageFailure(e)
+                } ?: throw ExtensionFailure.MissingExtension(key)
                 val origin = queries().selectOriginByKey(key).executeAsOneOrNull()
                 val repo = origin?.repository_id?.let { queries().selectRepositoryById(it).executeAsOneOrNull() }
                 val targetUrl = if (repo != null && repo.enabled != 0L) {
@@ -416,17 +430,17 @@ class ExtensionService(
     private suspend fun installValidated(
         script: String,
         expectedKey: String?,
-        name: String?,
-        version: String?,
+        fileProbeName: String,
         originKind: String,
         originRepositoryId: String? = null,
         originRepositoryName: String? = null,
         originUrl: String? = null,
     ): InstalledExtensionRecord {
         val live = runtime ?: throw ExtensionFailure.StorageFailure(IllegalStateException("service not restored"))
-        val fileProbe = sanitizeFileName(expectedKey ?: name ?: "source") + ".js"
+        val fileProbe = sanitizeFileName(fileProbeName) + ".js"
         // Metadata first without init; the single initializing registration below
-        // runs the candidate init exactly once.
+        // runs the candidate init exactly once. The persisted version always
+        // follows the actual script metadata, never a caller-supplied label.
         val peeked = try {
             live.peekMetadata(script, fileProbe, expectedKey)
         } catch (e: IllegalArgumentException) {
@@ -437,6 +451,7 @@ class ExtensionService(
             throw ExtensionFailure.InvalidScript(e)
         } catch (e: Exception) {
             if (e is CancellationException) throw e
+            currentCoroutineContext().ensureActive()
             throw ExtensionFailure.InvalidScript(e)
         }
         if (queries().selectExtensionByKey(peeked.key).executeAsOneOrNull() != null) {
@@ -448,11 +463,10 @@ class ExtensionService(
             throw e
         } catch (e: Exception) {
             if (e is CancellationException) throw e
+            currentCoroutineContext().ensureActive()
             throw ExtensionFailure.InvalidScript(e)
         }
-        val finalName = name ?: registered.name
-        val finalVersion = version ?: registered.version
-        val fileName = revisionFileName(registered.key, finalVersion)
+        val fileName = revisionFileName(registered.key, registered.version, script)
         val target = scriptsDir / fileName
         val temp = scriptsDir / "$fileName.new"
         try {
@@ -469,7 +483,7 @@ class ExtensionService(
         }
         try {
             db.transaction {
-                queries().upsertExtension(registered.key, finalName, finalVersion, fileName, originKind, originRepositoryId, originRepositoryName, originUrl)
+                queries().upsertExtension(registered.key, registered.name, registered.version, fileName, originKind, originRepositoryId, originRepositoryName, originUrl)
                 queries().upsertOrigin(registered.key, originKind, originRepositoryId, originRepositoryName, originUrl)
             }
         } catch (e: Exception) {
@@ -481,7 +495,7 @@ class ExtensionService(
             }
             throw ExtensionFailure.StorageFailure(e)
         }
-        return InstalledExtensionRecord(registered.key, finalName, finalVersion, fileName, originKind, originRepositoryId, originRepositoryName, originUrl)
+        return InstalledExtensionRecord(registered.key, registered.name, registered.version, fileName, originKind, originRepositoryId, originRepositoryName, originUrl)
     }
 
     private suspend fun replaceValidated(
@@ -493,8 +507,9 @@ class ExtensionService(
     ): InstalledExtensionRecord {
         val live = runtime ?: throw ExtensionFailure.StorageFailure(IllegalStateException("service not restored"))
         // Metadata first (no init) so the immutable revision file can be named.
+        // The persisted version always follows the actual script metadata.
         val peeked = live.peekMetadata(script, row.file_name, expectedKey = key)
-        val fileName = revisionFileName(key, peeked.version)
+        val fileName = revisionFileName(key, peeked.version, script)
         val target = scriptsDir / fileName
         val temp = scriptsDir / "$fileName.new"
         try {
@@ -523,9 +538,8 @@ class ExtensionService(
         try {
             live.replace(key, script, fileName, expectedKey = key)
         } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            // Live instance untouched by a failed replace; move the pointer back
-            // and drop the orphan revision so file, rows and live agree again.
+            // Roll the commit pointer back first so file, rows and live keep
+            // describing exactly one complete revision however we got here.
             try {
                 db.transaction {
                     queries().upsertExtension(
@@ -536,6 +550,20 @@ class ExtensionService(
             } catch (_: Exception) {
             }
             runCatching { fileSystem.delete(target, mustExist = false) }
+            val cancelled = e is CancellationException || currentCoroutineContext()[Job]?.isActive == false
+            if (cancelled) {
+                // Cancellation may strand the candidate in the JS registry when
+                // its init never settles. Re-register the untouched old revision
+                // file so live, rows and files agree again.
+                val oldBytes = runCatching { fileSystem.read(scriptsDir / oldFileName) { readUtf8() } }.getOrNull()
+                if (oldBytes != null) {
+                    withContext(NonCancellable) {
+                        runCatching { live.replace(key, oldBytes, oldFileName, expectedKey = key) }
+                    }
+                }
+                if (e is CancellationException) throw e
+                currentCoroutineContext().ensureActive()
+            }
             throw e
         }
         if (oldFileName != fileName) runCatching { fileSystem.delete(scriptsDir / oldFileName) }
