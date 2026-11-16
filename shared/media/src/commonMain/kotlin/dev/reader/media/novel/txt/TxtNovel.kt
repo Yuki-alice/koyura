@@ -7,8 +7,14 @@ import dev.reader.media.novel.NovelChapter
 import dev.reader.media.novel.NovelClosedException
 import dev.reader.media.novel.NovelImport
 import dev.reader.media.novel.NovelImportException
+import dev.reader.media.novel.ChapterViewOf
 import dev.reader.media.novel.NovelMetadata
+import dev.reader.media.novel.PositionResolution
+import dev.reader.media.novel.ReadingPosition
+import dev.reader.media.novel.ReadingPositionResolver
+import dev.reader.media.novel.ReadingPositions
 import dev.reader.media.novel.SeparatorStyle
+import dev.reader.media.novel.buildContentVersion
 import dev.reader.media.novel.TextDecoder
 import dev.reader.media.novel.TextEncoding
 import dev.reader.media.novel.TocEntry
@@ -37,13 +43,21 @@ import okio.buffer
 fun openTxtNovel(fileSystem: FileSystem, path: Path): NovelImport =
     TxtNovel.open(fileSystem = fileSystem, path = path)
 
-/** Stable TOC id format: `txt-` followed by 16 lowercase hex digits. */
+/**
+ * Stable TOC id format: `txt-` followed by 16 lowercase hex digits.
+ *
+ * The id hashes the title and the occurrence ordinal of that title, **not** the text offset. Offsets
+ * shift whenever an earlier chapter grows or shrinks, which would silently change every later id and
+ * invalidate saved positions. Hashing title + occurrence keeps a chapter's id stable while other
+ * chapters are edited, added or removed, and two chapters that share a title still differ by
+ * occurrence.
+ */
 internal object TxtChapterIds {
     private const val PREFIX = "txt-"
 
-    /** FNV-1a over `level|offset|title`, rendered as unsigned hex. Deterministic across platforms. */
-    fun idFor(level: Int, offset: Long, title: String): String =
-        PREFIX + fnv1a64("$level|$offset|$title").toULong().toString(16).padStart(16, '0')
+    /** FNV-1a over `level|occurrence|title`, rendered as unsigned hex. Deterministic across platforms. */
+    fun idFor(level: Int, occurrence: Int, title: String): String =
+        PREFIX + fnv1a64("$level|$occurrence|$title").toULong().toString(16).padStart(16, '0')
 
     private fun fnv1a64(input: String): Long {
         var hash = -0x340d631b7bdddcdbL // 0xcbf29ce484222325
@@ -88,11 +102,46 @@ internal class TxtNovel private constructor(
     /** Number of section bodies still retained; `0` after [close]. Used by tests to prove release. */
     internal val retainedSectionCount: Int get() = sections.size
 
+    /**
+     * Content version, computed eagerly from the decoded sections.
+     *
+     * TXT has no manifest, so the version hashes chapter ids and their raw section text in order. It
+     * is computed at open, before any section can be released, using cheap hashing rather than block
+     * parsing: identical file bytes always produce the same value, and [close] keeps this small string
+     * while dropping the bodies.
+     */
+    override val contentVersion: String = buildContentVersion(initialSections)
+
     override fun readChapter(id: String): NovelChapter {
         checkOpen()
-        chapterCache[id]?.let { return it }
-        val section = sections.firstOrNull { it.id == id }
-            ?: throw IllegalArgumentException("$id is not a chapter of $file")
+        return requireChapter(id)
+    }
+
+    override fun positionOf(chapterId: String, blockIndex: Int, codePointOffset: Int): ReadingPosition {
+        checkOpen()
+        val chapter = requireChapter(chapterId)
+        return ReadingPositions.forBlockInChapter(
+            chapterId = chapterId,
+            chapterIndex = tableOfContents.indexOfFirst { it.id == chapterId },
+            contentVersion = contentVersion,
+            blocks = chapter.blocks,
+            blockIndex = blockIndex,
+            codePointOffset = codePointOffset,
+        )
+    }
+
+    override fun resolvePosition(stored: ReadingPosition): PositionResolution {
+        checkOpen()
+        val views = sections.map { section ->
+            ChapterViewOf(section.id, SectionParser.parse(section.body))
+        }
+        return ReadingPositionResolver.resolve(views, contentVersion, stored)
+    }
+
+    private fun requireChapter(chapterId: String): NovelChapter {
+        chapterCache[chapterId]?.let { return it }
+        val section = sections.firstOrNull { it.id == chapterId }
+            ?: throw IllegalArgumentException("$chapterId is not a chapter of $file")
         val chapter = NovelChapter(
             id = section.id,
             title = section.title,
@@ -100,17 +149,23 @@ internal class TxtNovel private constructor(
             parentId = section.parentId,
             blocks = SectionParser.parse(section.body),
         )
-        chapterCache[id] = chapter
+        chapterCache[chapterId] = chapter
         return chapter
     }
 
     /**
      * TXT has no binary resources: covers and inline images are text references only.
      *
-     * @throws UnsupportedOperationException always.
+     * `close()` is checked first, so a closed import reports [NovelClosedException] consistently with
+     * [readChapter]; only an open TXT import reports [UnsupportedOperationException].
+     *
+     * @throws NovelClosedException when the import has been closed.
+     * @throws UnsupportedOperationException when open (TXT stores no binary resources).
      */
-    override fun readResource(path: String): ByteArray =
+    override fun readResource(path: String): ByteArray {
+        checkOpen()
         throw UnsupportedOperationException("TXT novels have no binary resources")
+    }
 
     /** Drops decoded text and parsed chapters. Safe to call more than once. */
     override fun close() {
@@ -123,14 +178,21 @@ internal class TxtNovel private constructor(
         if (closed) throw NovelClosedException(file)
     }
 
-    /** One heading-delimited region of text. [body] excludes the heading line itself. */
+    /**
+     * One heading-delimited region of text. [body] excludes the heading line itself.
+     *
+     * [text] is what the content version hashes; for TXT that is the body, so an edit to any paragraph
+     * changes the version.
+     */
     internal data class Section(
-        val id: String,
+        override val id: String,
         val title: String,
         val level: Int,
         val parentId: String?,
         val body: String,
-    )
+    ) : dev.reader.media.novel.ContentVersionSection {
+        override val text: String get() = body
+    }
 
     companion object {
         private val AUTHOR_LINE = Regex("^作者[：:]\\s*(.+)$")
@@ -306,7 +368,7 @@ internal class TxtNovel private constructor(
                 if (body.isBlank()) return emptyList()
                 return listOf(
                     Section(
-                        id = TxtChapterIds.idFor(level = 1, offset = 0L, title = "single"),
+                        id = TxtChapterIds.idFor(level = 1, occurrence = 0, title = "single"),
                         title = "正文",
                         level = 1,
                         parentId = null,
@@ -315,10 +377,16 @@ internal class TxtNovel private constructor(
                 )
             }
 
+            // Occurrence counts per (level, title), so duplicate titles get distinct ids while each
+            // chapter's id stays put when unrelated chapters change.
+            val occurrences = HashMap<String, Int>()
             val sections = raws.map { raw ->
                 val title = if (raw.isHeading) raw.title else frontMatterTitle(raw.body)
+                val key = raw.level.toString() + "|" + title
+                val occurrence = occurrences[key] ?: 0
+                occurrences[key] = occurrence + 1
                 Section(
-                    id = TxtChapterIds.idFor(raw.level, raw.offset, title),
+                    id = TxtChapterIds.idFor(raw.level, occurrence, title),
                     title = title,
                     level = raw.level,
                     parentId = null,

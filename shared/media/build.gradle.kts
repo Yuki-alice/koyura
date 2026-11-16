@@ -4,6 +4,7 @@ import org.jetbrains.kotlin.gradle.targets.native.tasks.KotlinNativeSimulatorTes
 
 plugins {
     kotlin("multiplatform") version "2.4.21"
+    kotlin("plugin.serialization") version "2.4.21"
     id("com.android.kotlin.multiplatform.library") version "9.2.1"
 }
 
@@ -28,6 +29,7 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             api("com.squareup.okio:okio:3.18.2")
+            api("org.jetbrains.kotlinx:kotlinx-serialization-json:1.12.0")
             implementation("com.fleeksoft.ksoup:ksoup:0.2.6")
         }
         commonTest.dependencies {

@@ -28,7 +28,7 @@
 | `src/jvmTest/kotlin/dev/reader/media/` | 读系统属性 `reader.media.fixtures` 的 actual |
 | `src/iosSimulatorArm64Test/kotlin/dev/reader/media/` | 读 `READER_MEDIA_FIXTURES` 环境变量的 actual |
 | `fixtures/txt/` | 用 `fixtures/txt/generate_fixtures.py` 生成的 TXT 二进制夹具，用途见 `fixtures/README.md` |
-| `fixtures/epub/` | 两个真实 EPUB 加七个合成 EPUB；合成夹具由 `fixtures/epub/generate_fixtures.py` 生成 |
+| `fixtures/epub/` | 两个真实 EPUB 加 28 个合成 EPUB；合成夹具由 `fixtures/epub/generate_fixtures.py` 生成 |
 
 ## 夹具路径注入
 

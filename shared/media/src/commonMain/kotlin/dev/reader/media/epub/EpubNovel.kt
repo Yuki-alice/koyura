@@ -6,8 +6,14 @@ import dev.reader.media.novel.NovelChapter
 import dev.reader.media.novel.NovelClosedException
 import dev.reader.media.novel.NovelImport
 import dev.reader.media.novel.NovelImportException
+import dev.reader.media.novel.ChapterViewOf
 import dev.reader.media.novel.NovelMetadata
 import dev.reader.media.novel.NovelResource
+import dev.reader.media.novel.NovelFingerprints
+import dev.reader.media.novel.PositionResolution
+import dev.reader.media.novel.ReadingPosition
+import dev.reader.media.novel.ReadingPositionResolver
+import dev.reader.media.novel.ReadingPositions
 import dev.reader.media.novel.TextEncoding
 import dev.reader.media.novel.TocEntry
 import okio.FileSystem
@@ -91,6 +97,15 @@ internal class EpubNovel private constructor(
     private val zipIndex: ZipCentralDirectory,
     /** Where the table of contents came from, exposed for diagnostics and tests. */
     internal val tocSource: TocSource,
+    /**
+     * Content version derived from the central directory (path, size and CRC per spine document).
+     *
+     * EPUB files have no cheap whole-book text digest that would not defeat lazy opening, so the
+     * version is a fingerprint of the archive's own integrity records. It is stable for identical
+     * bytes and changes whenever any spine document is edited, because a CRC change implies a content
+     * change.
+     */
+    override val contentVersion: String,
 ) : NovelImport {
 
     private var closed = false
@@ -156,6 +171,27 @@ internal class EpubNovel private constructor(
             chapterCache.remove(eldest)
         }
         return result
+    }
+
+    override fun positionOf(chapterId: String, blockIndex: Int, codePointOffset: Int): ReadingPosition {
+        checkOpen()
+        val chapter = readChapter(chapterId)
+        return ReadingPositions.forBlockInChapter(
+            chapterId = chapterId,
+            chapterIndex = tableOfContents.indexOfFirst { it.id == chapterId },
+            contentVersion = contentVersion,
+            blocks = chapter.blocks,
+            blockIndex = blockIndex,
+            codePointOffset = codePointOffset,
+        )
+    }
+
+    override fun resolvePosition(stored: ReadingPosition): PositionResolution {
+        checkOpen()
+        val views = chapters.map { entry ->
+            ChapterViewOf(entry.id, readChapter(entry.id).blocks)
+        }
+        return ReadingPositionResolver.resolve(views, contentVersion, stored)
     }
 
     override fun readResource(path: String): ByteArray {
@@ -532,6 +568,17 @@ internal class EpubNovel private constructor(
                 cover = cover?.let { item -> NovelResource(path = item.path, mediaType = item.mediaType) },
             )
 
+            // Version from the archive's own records: cheap, stable for identical bytes, and changes
+            // whenever a spine document's content changes (a different CRC).
+            val versionSource = buildString {
+                for (document in documents) {
+                    append(document.path).append('\u0000')
+                    val entry = zipIndex.entry(document.path)
+                    append(entry?.uncompressedSize ?: -1L).append('\u0001')
+                    append(entry?.crc32 ?: -1L).append('\u0002')
+                }
+            }
+
             return EpubNovel(
                 file = displayPath,
                 metadata = metadata,
@@ -541,6 +588,7 @@ internal class EpubNovel private constructor(
                 encrypted = encrypted,
                 zipIndex = zipIndex,
                 tocSource = tocSource,
+                contentVersion = NovelFingerprints.content(versionSource),
             ).also { it.packageDocument = pkg }
         }
 

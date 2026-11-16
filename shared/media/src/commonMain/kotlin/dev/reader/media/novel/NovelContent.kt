@@ -143,6 +143,15 @@ interface NovelImport : Closeable {
     val tableOfContents: List<TocEntry>
 
     /**
+     * Fingerprint of this book's content, stable for identical file bytes.
+     *
+     * Computed from the ordered chapter ids and their paragraph fingerprints, so any change in text,
+     * chapter order or chapter presence yields a different value. A stored [ReadingPosition] carries
+     * the version it was taken against, letting callers detect that the file changed.
+     */
+    val contentVersion: String
+
+    /**
      * Parses and returns the chapter with [id].
      *
      * @throws NovelClosedException when the import has been closed.
@@ -154,8 +163,9 @@ interface NovelImport : Closeable {
      * Reads the raw bytes of a local resource, such as a cover or an in-chapter image.
      *
      * [path] must be the normalized archive path carried by [NovelResource.path] or
-     * [ImageReference.resource]; implementations never fetch remote URLs. TXT has no resources, so
-     * it throws [UnsupportedOperationException].
+     * [ImageReference.resource]; implementations never fetch remote URLs. TXT has no resources, so an
+     * **open** TXT import throws [UnsupportedOperationException]; a **closed** import throws
+     * [NovelClosedException] first, like every other content read.
      *
      * Known limitation: archive entry names containing literal `%` or `#` are ambiguous with percent
      * escapes and fragments, so a document that references such a name (even percent-encoded) may
@@ -167,4 +177,27 @@ interface NovelImport : Closeable {
      * @throws NovelImportException.LimitExceeded when the resource exceeds the configured limit.
      */
     fun readResource(path: String): ByteArray
+
+    /**
+     * Builds a [ReadingPosition] for a code point [offset] inside the block at [blockIndex].
+     *
+     * [blockIndex] indexes the chapter's [NovelChapter.blocks] list (so headings, separators and
+     * images count). When the block is not a paragraph, the returned position anchors to the nearest
+     * following paragraph so it is always renderable; when the chapter has no paragraphs the position
+     * anchors to block 0 with an empty fingerprint.
+     *
+     * @throws NovelClosedException when the import has been closed.
+     * @throws IllegalArgumentException when [chapterId] is not in [tableOfContents].
+     */
+    fun positionOf(chapterId: String, blockIndex: Int, codePointOffset: Int): ReadingPosition
+
+    /**
+     * Re-locates [stored] in this book, applying the recovery rules in [ReadingPositionResolver].
+     *
+     * The result is always a valid position for this book, together with the [PositionResolution]
+     * describing which rule matched.
+     *
+     * @throws NovelClosedException when the import has been closed.
+     */
+    fun resolvePosition(stored: ReadingPosition): PositionResolution
 }

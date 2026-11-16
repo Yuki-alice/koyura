@@ -1,6 +1,8 @@
 # 本地小说导入（TXT 与 EPUB）
 
-`shared/media` 的本地小说导入契约与 TXT、EPUB 3 实现。全部代码在 `commonMain`，只依赖 Okio 与 Ksoup；不依赖 Compose 或 Android，可直接被书架、数据库和阅读器复用。TXT 与 EPUB 共用同一组 `NovelImport` / `NovelBlock` 模型，差异只在实现。
+`shared/media` 的本地小说导入契约与 TXT、EPUB 3 实现。全部代码在 `commonMain`，只依赖 Okio、Ksoup 与 kotlinx.serialization；不依赖 Compose 或 Android，可直接被书架、数据库和阅读器复用。TXT 与 EPUB 共用同一组 `NovelImport` / `NovelBlock` / `ReadingPosition` 模型，差异只在实现。
+
+可直接复制的最小调用示例、支持范围、资源关闭与进度定位语义见 **[使用指南](usage.md)**。
 
 ## TXT 支持范围
 
@@ -16,7 +18,7 @@
 | 无章标题文件 | 全文作为一个可读章节返回，不丢内容 |
 | 内嵌目录页 | 文件开头“仅列章名、无正文”的目录清单（`目录`/`目次`/`Contents` 标记可省略，允许 `目　录`/`目 录` 字间空白）会被剔除，不产生空章节；清单后的书名/作者页保留为卷首，紧接的真实卷标题保留 |
 
-尚未支持：GBK/GB18030 等中文旧编码；无 BOM 的 UTF-16（ASCII 为主的字节会按 NUL 分布识别为不支持格式，中文为主的字节无法与二进制安全区分，会报编码错误）；正文章节内容的分页缓存；图片字节解析。
+尚未支持：GBK/GB18030 等中文旧编码；无 BOM 的 UTF-16。这类字节按 NUL 分布识别不支持格式，并额外拒绝解码后出现 C0/C1 控制字符的情形（BOM-less UTF-16 误当 UTF-8 的典型产物），因此真实篇幅的中文小说会被拒绝而不是静默乱码；只有 1–2 个字符的极短文件仍无法与合法文本区分，可能按 UTF-8 解出无意义但无控制字符的内容。正文章节内容的分页缓存、图片字节解析亦未支持。
 
 ## API 概览
 
@@ -47,7 +49,7 @@ novel.close()
 ### 模型
 
 - `NovelMetadata(title, author)`：TXT 无内嵌元数据，标题取文件名，作者取前五行中的 `作者：…` 行。
-- `TocEntry(id, title, level, parentId)`：`id` 形如 `txt-` + 16 位十六进制，由「层级 + 字符偏移 + 标题」的 FNV-1a 计算，**同一文件字节重复打开得到相同 id**，可存为阅读进度键。
+- `TocEntry(id, title, level, parentId)`：`id` 形如 `txt-` + 16 位十六进制。TXT 由「层级 + 同标题出现序号 + 标题」的 FNV-1a 计算，**不含文本偏移**（否则编辑靠前章节会让后面所有 id 变化、已存进度失效）；EPUB 由文档路径计算。**同一文件字节重复打开得到相同 id**，可存为阅读进度键。
 - `NovelBlock`：
   - `Paragraph(text)`：段落。首部缩进已去除，换行由阅读器决定。折行判定按整章统计：缩进散文行占全部散文行 ≥ 1/4 视为**折行排版**（两行段落 50%、三行 33%、四行 25% 都覆盖），否则视为**逐行排版**。折行排版下，缩进行或句末标点后的行起新段，未结束句子的无缩进行并入上一段；逐行排版下每行一段。因此「缩进叙述 + 无缩进对白」逐行保留，零散缩进（低于 1/4）也不会把整章并成一段。
   - `Separator(style)`：`***`/`---`/`...` 一类的分隔线，`style` 区分星号、横线与点。
@@ -83,6 +85,28 @@ novel.close()
 - `close()` 之后 `readChapter` 抛 `NovelClosedException`；`metadata`、`encoding`、`tableOfContents` 是不可变快照，仍可读取，便于列表页展示已关闭的书。
 - 异常路径无需额外清理：`openTxtNovel` 失败时不会返回半开对象。
 - Kotlin `use` 在部分原生目标不可用，因此提供 `novel.useImport { … }`，行为等同 try/finally 关闭；block 抛异常时同样关闭（有测试覆盖）。
+
+## 阅读进度与定位
+
+`ReadingPosition`（`kotlinx.serialization` 可序列化）由六部分组成：
+
+| 字段 | 说明 |
+| --- | --- |
+| `chapterId` | 目录项稳定 ID。TXT 用「层级 + 同标题出现序号 + 标题」哈希，**不含文本偏移**，因此前面的章节增删不会改变后面章节的 ID；EPUB 用文档路径 |
+| `contentVersion` | 整本内容指纹（SHA-256 前 16 位十六进制），对任意字符变化敏感。TXT 由各章节 body 的**原始文本**顺序哈希（不做空白归一，因此插入空行改变分段也会变）；EPUB 由中央目录中 spine 文档的 path/size/CRC 哈希，保持懒加载。段落锚点指纹 `blockFingerprint` 则忽略空白差异，二者用途不同 |
+| `blockIndex` | 章节 `blocks` 下标（含 Heading/Separator/Image） |
+| `blockFingerprint` | 锚定段落的**空白归一**后文本指纹；重复段落共享指纹，靠 `blockIndex` 区分。归一让重新折行不影响定位，但也意味着仅空白变化不改变锚点 |
+| `codePointOffset` | 段内 **Unicode 码点**偏移；emoji 与补充平面字符计 1 |
+| `chapterIndex` | 保存时的章节序号，仅用于章节被删除时的相邻回退（旧数据为 -1） |
+
+`positionOf(chapterId, blockIndex, codePointOffset)` 生成位置。若指定块不是段落（标题/分隔/图片），先前移到最近的后续段落；没有后续段落时回退到章节内任意首个段落；整章无段落时固定在块 0、偏移 0。EPUB 的 level-0 分组条目本身没有正文，对它保存位置会在解析时落到下一章的段落（`CHAPTER_START`），调用方应只对 level-1 章节保存进度。`resolvePosition(stored)` 返回 `PositionResolution`，其 `resolution` 依次为：
+
+`EXACT` → `REANCHORED_BLOCK`（同章内插删，按指纹重定位）→ `PREVIOUS_PARAGRAPH`（锚定段落被删，取前一幸存段，
+偏移收敛到段末）→ `NEXT_PARAGRAPH` → `NEIGHBOR_CHAPTER`（整章被删，按 `chapterIndex` 取相邻章节）→
+`CHAPTER_START`。
+
+码点工具在 `CodePoints`：`length` 计码点，`toStringIndex`/`toCodePointOffset` 在码点与 UTF-16 下标间转换，
+`clamp` 把越界偏移收敛到段落范围，永不落在代理对中间。同一文件重复打开得到相同的 ID、版本与位置。
 
 ## 构建与测试
 
@@ -168,9 +192,17 @@ book.metadata.title        // dc:title
 book.metadata.authors      // 全部 dc:creator
 book.metadata.language     // dc:language
 book.metadata.cover?.path  // 归档内封面路径，配合 readResource 取字节
+book.contentVersion        // 内容指纹，随正文变化
 book.tableOfContents       // 按 spine 顺序的目录
 book.readChapter(id).blocks   // Heading / Paragraph / Separator / Image
 book.readResource("OEBPS/images/a b.png")  // 按需取图片/封面字节
+
+// 阅读位置：保存与恢复
+val saved = book.positionOf(chapterId = id, blockIndex = 0, codePointOffset = 0)
+val json = kotlinx.serialization.json.Json.encodeToString(ReadingPosition.serializer(), saved)
+val resolution = book.resolvePosition(
+    kotlinx.serialization.json.Json.decodeFromString(ReadingPosition.serializer(), json),
+)
 book.close()
 ```
 

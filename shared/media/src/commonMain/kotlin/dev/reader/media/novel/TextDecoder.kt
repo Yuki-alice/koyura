@@ -69,9 +69,14 @@ internal object TextDecoder {
         detectNulHeavyText(path, bytes)?.let { throw it }
         detectBomlessUtf16(path, bytes)?.let { throw it }
 
+        val text = decodeUtf8(path, bytes, start = 0)
+        // Some BOM-less UTF-16 byte sequences are valid UTF-8 by accident. Decoding them yields text
+        // salted with C0 control characters (every other byte of a CJK code unit lands in 0x00..0x1F),
+        // which no real novel contains. Reject that rather than serving mojibake.
+        detectControlCharacterGarbage(path, text)?.let { throw it }
         return DecodedText(
             encoding = TextEncoding.UTF_8,
-            text = decodeUtf8(path, bytes, start = 0),
+            text = text,
         )
     }
 
@@ -121,6 +126,34 @@ internal object TextDecoder {
     }
 
     private const val HEX_DIGITS = "0123456789abcdef"
+
+    /**
+     * Rejects decoded text containing control characters that never appear in prose.
+     *
+     * BOM-less UTF-16 files whose high byte falls in 0x00..0x1F decode as valid UTF-8 but produce a C0
+     * control character per such code unit. Real text uses only tab, LF, CR and form feed; any other
+     * C0/C1 control character means the bytes were not UTF-8 text, so serving them would be silent
+     * mojibake. The check is deliberately strict, because a wrong-but-readable book is worse than a
+     * clear encoding error.
+     */
+    private fun detectControlCharacterGarbage(
+        path: String,
+        text: String,
+    ): NovelImportException.Encoding? {
+        for (char in text) {
+            val code = char.code
+            val isAllowedTextWhitespace = code == 0x09 || code == 0x0A || code == 0x0C || code == 0x0D
+            if ((code < 0x20 && !isAllowedTextWhitespace) || code in 0x7F..0x9F) {
+                return NovelImportException.Encoding(
+                    path = path,
+                    byteOffset = null,
+                    line = null,
+                    encoding = TextEncoding.UTF_8.displayName,
+                )
+            }
+        }
+        return null
+    }
 
     private fun detectUtf32Bom(path: String, bytes: ByteArray): NovelImportException.UnsupportedFormat? {
         if (bytes.size < 4) return null
