@@ -7,6 +7,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
+import kotlin.coroutines.cancellation.CancellationException
 
 /**
  * Holds the Browse tab's data and per-item operation state.
@@ -16,7 +17,10 @@ import androidx.compose.runtime.staticCompositionLocalOf
  * - after every settled operation the session re-reads the authoritative snapshot, so page content,
  *   operation state and the update badge all converge on the committed result even when several
  *   calls overlap or finish out of order;
- * - a failed or cancelled call never replaces an already committed newer result;
+ * - a cancelled call is not a failure: it clears its own running marker, keeps every already
+ *   committed result and leaves the target immediately retryable;
+ * - a preview is bound to the index URL that was current when it started; editing that URL, removing
+ *   the store or closing the preview invalidates the in-flight request and any later arrival;
  * - feedback is stored per target, so one row's failure never marks another row.
  */
 class BrowseSession internal constructor(
@@ -33,7 +37,17 @@ class BrowseSession internal constructor(
      * was in flight, which keeps the oldest stale read from overwriting a newer commit.
      */
     private var settledMutations = 0L
+
+    /** Per-target tokens for value operations such as store toggles and catalog previews. */
     private val targetGeneration = mutableMapOf<String, Long>()
+
+    /**
+     * Bumped whenever a store's preview becomes stale (URL edit, removal, dialog close).
+     *
+     * Any preview that started with an older validity stamp is discarded on arrival, which also
+     * covers the case where a newer preview was opened and completed before the old one returned.
+     */
+    private val catalogValidity = mutableMapOf<String, Long>()
 
     private val busy: Boolean
         get() = state.itemOperations.values.any { it is OperationStatus.Running } ||
@@ -50,6 +64,12 @@ class BrowseSession internal constructor(
         try {
             val snapshot = currentService.loadSnapshot()
             if (generation == settledMutations) applySnapshot(snapshot, LoadState.Ready)
+        } catch (cancelled: CancellationException) {
+            // A cancelled refresh must not be reported as a load failure.
+            if (generation == settledMutations && state.load is LoadState.Loading) {
+                state = state.copy(load = LoadState.Ready)
+            }
+            throw cancelled
         } catch (error: Exception) {
             if (generation == settledMutations) {
                 state = state.copy(load = LoadState.Failed(error.userMessage()))
@@ -80,8 +100,9 @@ class BrowseSession internal constructor(
     /**
      * Installs one catalog variant.
      *
-     * The variant identity is forwarded unchanged so a repository listing two scripts with the same
-     * package name installs the row the user actually tapped.
+     * The variant identity, including the index URL that was previewed, is forwarded unchanged so a
+     * repository listing two scripts with the same package name installs the row the user tapped
+     * and the runtime can verify the script origin.
      */
     suspend fun installVariant(variant: CatalogVariantId): Boolean =
         mutate(OperationKind.Install, variant.key, storeTarget = false) {
@@ -114,8 +135,9 @@ class BrowseSession internal constructor(
         return mutate(OperationKind.SaveStore, storeId, storeTarget = true) {
             it.saveStore(storeId, name.trim(), trimmedUrl)
         }.also { saved ->
-            // A changed index URL invalidates anything cached from the old one.
-            if (saved && changesUrl) clearStoreCatalog(storeId)
+            // A changed index URL invalidates anything cached from the old one, including in-flight
+            // previews that would otherwise land afterwards.
+            if (saved && changesUrl) invalidateStoreCatalog(storeId)
         }
     }
 
@@ -123,7 +145,7 @@ class BrowseSession internal constructor(
         mutate(OperationKind.RemoveStore, storeId, storeTarget = true) {
             it.removeStore(storeId)
         }.also { removed ->
-            if (removed) clearStoreCatalog(storeId)
+            if (removed) invalidateStoreCatalog(storeId)
         }
 
     suspend fun setStoreEnabled(storeId: String, enabled: Boolean): Boolean =
@@ -131,24 +153,57 @@ class BrowseSession internal constructor(
             it.setStoreEnabled(storeId, enabled)
         }
 
-    /** Loads a store catalog for preview. Retries replace the previous attempt for that store. */
+    /**
+     * Loads a store catalog for preview.
+     *
+     * The preview snapshots the store's index URL when it starts; a later URL change or an explicit
+     * close invalidates it, so a slow response can never repopulate a stale dialog.
+     */
     suspend fun previewStore(storeId: String) {
         val currentService = service ?: return
         if (state.catalogStates[storeId] is CatalogState.Loading) return
+
         val token = (targetGeneration["catalog:$storeId"] ?: 0L) + 1
         targetGeneration["catalog:$storeId"] = token
+        val validity = catalogValidity[storeId] ?: 0L
+        val indexUrl = state.storeById(storeId)?.indexUrl.orEmpty()
+
         state = state.copy(catalogStates = state.catalogStates + (storeId to CatalogState.Loading))
-        val next = try {
-            CatalogState.Ready(currentService.previewStore(storeId))
+        try {
+            val catalog = currentService.previewStore(storeId)
+            if (isCurrentPreview(storeId, token, validity)) {
+                state = state.copy(
+                    catalogStates = state.catalogStates +
+                        (storeId to CatalogState.Ready(catalog.copy(repositoryIndexUrl = indexUrl))),
+                )
+            }
+        } catch (cancelled: CancellationException) {
+            if (isCurrentPreview(storeId, token, validity)) {
+                state = state.copy(catalogStates = state.catalogStates - storeId)
+            }
+            throw cancelled
         } catch (error: Exception) {
-            CatalogState.Failed(error.userMessage())
-        }
-        if (targetGeneration["catalog:$storeId"] == token) {
-            state = state.copy(catalogStates = state.catalogStates + (storeId to next))
+            if (isCurrentPreview(storeId, token, validity)) {
+                state = state.copy(
+                    catalogStates = state.catalogStates + (storeId to CatalogState.Failed(error.userMessage())),
+                )
+            }
         }
     }
 
+    /** Drops a preview when its dialog closes and invalidates any request still in flight. */
     fun clearStoreCatalog(storeId: String) {
+        invalidateStoreCatalog(storeId)
+    }
+
+    /**
+     * Invalidates the preview and bumps the store's validity stamp.
+     *
+     * The stamp bump is what makes an already-running request stale, not just the map removal.
+     */
+    fun invalidateStoreCatalog(storeId: String) {
+        catalogValidity[storeId] = (catalogValidity[storeId] ?: 0L) + 1
+        targetGeneration.remove("catalog:$storeId")
         state = state.copy(catalogStates = state.catalogStates - storeId)
     }
 
@@ -158,6 +213,10 @@ class BrowseSession internal constructor(
             storeOperations = state.storeOperations - target,
         )
     }
+
+    private fun isCurrentPreview(storeId: String, token: Long, validity: Long): Boolean =
+        targetGeneration["catalog:$storeId"] == token &&
+            (catalogValidity[storeId] ?: 0L) == validity
 
     private suspend fun mutate(
         kind: OperationKind,
@@ -182,6 +241,13 @@ class BrowseSession internal constructor(
             // committed after this one started, and the UI must show the newest committed state.
             reconcilesSnapshot(currentService)
             true
+        } catch (cancelled: CancellationException) {
+            // Cancellation is not a failure. Clear this target's marker so it can be retried and
+            // leave every already committed snapshot untouched.
+            if (targetGeneration[target] == token) {
+                clearStatus(target)
+            }
+            throw cancelled
         } catch (error: Exception) {
             if (targetGeneration[target] == token) {
                 setStatus(target, storeTarget, OperationStatus.Failed(kind, error.userMessage()))
@@ -204,6 +270,8 @@ class BrowseSession internal constructor(
         val generation = settledMutations
         val snapshot = try {
             service.loadSnapshot()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (_: Exception) {
             return
         }

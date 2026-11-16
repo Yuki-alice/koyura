@@ -73,12 +73,14 @@ data class StoreCatalogEntry(
      * [CatalogVariantId.ordinal] only disambiguates entries that resolve to the same key and URL,
      * which keeps two same-key listings displayable without inventing a URL.
      */
-    fun variantId(repositoryId: String, ordinal: Int): CatalogVariantId = CatalogVariantId(
-        repositoryId = repositoryId,
-        sourceKey = sourceKey,
-        scriptUrl = scriptUrl,
-        ordinal = ordinal,
-    )
+    fun variantId(repositoryId: String, ordinal: Int, repositoryIndexUrl: String = ""): CatalogVariantId =
+        CatalogVariantId(
+            repositoryId = repositoryId,
+            sourceKey = sourceKey,
+            scriptUrl = scriptUrl,
+            ordinal = ordinal,
+            repositoryIndexUrl = repositoryIndexUrl,
+        )
 }
 
 /**
@@ -93,6 +95,13 @@ data class CatalogVariantId(
     val sourceKey: String,
     val scriptUrl: String,
     val ordinal: Int = 0,
+    /**
+     * Repository index URL that was in effect when this entry was previewed.
+     *
+     * The install event carries it so the runtime can verify the script still comes from the
+     * repository the user actually looked at, even if the store was edited afterwards.
+     */
+    val repositoryIndexUrl: String = "",
 ) {
     /** Stable string key used for LazyColumn keys, per-item operation state and test tags. */
     val key: String
@@ -108,6 +117,13 @@ data class CatalogEntryRef(
 data class StoreCatalog(
     val storeId: String,
     val entries: List<StoreCatalogEntry>,
+    /**
+     * Index URL the catalog was actually loaded from.
+     *
+     * The session fills this from the store snapshot that was current when the preview started, so
+     * every variant remembers the exact index the user previewed.
+     */
+    val repositoryIndexUrl: String = "",
 )
 
 /** Assigns variant identities in listing order, so duplicates keep distinct but stable keys. */
@@ -117,7 +133,7 @@ fun StoreCatalog.variantRefs(): List<CatalogEntryRef> {
         val base = "${entry.sourceKey}|${entry.scriptUrl}"
         val ordinal = seen[base] ?: 0
         seen[base] = ordinal + 1
-        CatalogEntryRef(entry, entry.variantId(storeId, ordinal))
+        CatalogEntryRef(entry, entry.variantId(storeId, ordinal, repositoryIndexUrl))
     }
 }
 

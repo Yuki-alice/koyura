@@ -31,7 +31,7 @@ interface BrowseService {
 
     suspend fun installExtension(extensionKey: String): BrowseSnapshot
 
-    // 目录变体安装：携带 repositoryId / sourceKey / scriptUrl，供同 key 多条脚本区分
+    // 目录变体安装：携带 repositoryId / sourceKey / scriptUrl / repositoryIndexUrl
     suspend fun installCatalogVariant(variant: CatalogVariantId): BrowseSnapshot
 
     suspend fun updateExtension(extensionKey: String): BrowseSnapshot
@@ -46,6 +46,8 @@ interface BrowseService {
 - 失败抛 `BrowseServiceException(message)`，`message` 直接展示给用户。
 - 可并发调用；会话层允许不同目标并行。同一目标运行中的重复提交在 UI 层被拒绝，实现无需自行去重。
 - `installCatalogVariant` 是安装目录条目的唯一入口；`installExtension(extensionKey)` 保留给已安装源的直接重装/修复场景。
+- `CatalogVariantId.repositoryIndexUrl` 是**该条目实际预览时的仓库索引地址**。仓库随后被编辑或删除不会改写已打开的变体身份；实现应用它核验脚本来源，而不是重新读取当前仓库地址。
+- 预览返回的 `StoreCatalog.repositoryIndexUrl` 由会话层填入预览开始时的索引地址；`variantRefs()` 会把它带到每个变体上。
 
 ### 错误状态
 
@@ -55,7 +57,10 @@ interface BrowseService {
 | 单个写操作抛错 | 该条目 `OperationStatus.Failed(kind, message)`，行内错误文案；其他行不受影响 |
 | `previewStore` 抛错 | 该仓库 `CatalogState.Failed(message)`，预览对话框内显示错误与重试 |
 | 未注入服务 | `LoadState.Unavailable`，显示「浏览尚未连接」空态 |
-| 调用被取消 | 不写入失败状态；目标回到可重试，不会被 `Running` 卡住 |
+| 调用被取消 | 不写入失败状态；目标清空状态后可立即重试，已提交的数据保持不变 |
+| 刷新被取消 | 不转为 `LoadState.Failed`；保留原状态（首次加载则回到 `Ready` 空态）并允许重试 |
+| 预览被取消 | 清除该仓库的 `Loading`，不写 `Failed`，可重新预览 |
+| 预览关闭 / 仓库地址变更 / 仓库移除 | 立即作废该仓库的预览与在途请求；晚到的响应不会重新打开或替换 |
 
 ### 注入方式
 
@@ -85,8 +90,8 @@ CompositionLocalProvider(LocalBrowseService provides realService) { App() }
 - **快照收敛**：每次写操作完成后重新读取 `loadSnapshot()`，页面内容、操作状态与更新角标都对齐最终提交结果。并发调用无论完成顺序如何，UI 都收敛到服务的最新快照。
 - 并发期间若已有更晚的写入落地，较早返回的读取结果被丢弃，不会把新提交覆盖回旧值。
 - 失败只写自己的行状态，不替换任何已提交的数据。
-- 协程取消不会留下 `Running`，目标可立即重试。
-- 仓库索引地址被修改或仓库被移除时，该仓库的旧目录预览立即失效。
+- **取消不等于失败**：协程取消清除该目标的状态而不是写 `Failed`，刷新、预览和单项写操作都如此；已提交的条目、操作结果和角标不受影响，目标可立即重试。
+- **预览生命周期**：每个仓库维护一个预览有效性标记。地址修改、仓库移除和关闭预览都会提升标记并清空缓存，因此在途请求即使更晚返回也不会写入，重新打开预览的结果也不会被旧请求覆盖。
 
 ### 身份模型
 
