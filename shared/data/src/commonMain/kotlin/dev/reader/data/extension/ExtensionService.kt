@@ -404,7 +404,9 @@ class ExtensionService(
                 replaceValidated(key, row, script, targetUrl, repo)
             }
         } finally {
-            mutex.withLock { updating.remove(key) }
+            withContext(NonCancellable) {
+                mutex.withLock { updating.remove(key) }
+            }
         }
     }
 
@@ -525,40 +527,16 @@ class ExtensionService(
         }
         currentCoroutineContext().ensureActive()
         val newOriginUrl = originUrl ?: row.origin_url
-        try {
-            db.transaction {
-                queries().upsertExtension(key, peeked.name, peeked.version, fileName, row.origin_kind, row.origin_repository_id, row.origin_repository_name, newOriginUrl)
-                queries().upsertOrigin(key, row.origin_kind, row.origin_repository_id, row.origin_repository_name, newOriginUrl)
-            }
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            // Pointer untouched conceptually (transaction rolled back); drop the orphan revision.
-            if (fileName != oldFileName) runCatching { fileSystem.delete(target, mustExist = false) }
-            throw ExtensionFailure.StorageFailure(e)
-        }
-        currentCoroutineContext().ensureActive()
         // The pre-replace JS instance identity: a failed candidate must leave
         // exactly this instance registered.
         val oldSeq = runCatching { live.liveInstanceSeq(key) }.getOrNull()
+        // Candidate, init and commit share one boundary: the live swap runs
+        // first, and the DB pointer moves only after init succeeds. Anything
+        // observed before that point (file, old rows, old instance) is a
+        // complete revision, so an exit at any moment restarts consistently.
         try {
             live.replace(key, script, fileName, expectedKey = key)
         } catch (e: Exception) {
-            // Roll the commit pointer — extension row and origin row together —
-            // back first so file, rows and live keep describing exactly one
-            // complete revision however we got here.
-            try {
-                db.transaction {
-                    queries().upsertExtension(
-                        row.source_key, row.name, row.version, row.file_name,
-                        row.origin_kind, row.origin_repository_id, row.origin_repository_name, row.origin_url,
-                    )
-                    queries().upsertOrigin(
-                        row.source_key, row.origin_kind, row.origin_repository_id,
-                        row.origin_repository_name, row.origin_url,
-                    )
-                }
-            } catch (_: Exception) {
-            }
             if (fileName != oldFileName) runCatching { fileSystem.delete(target, mustExist = false) }
             val cancelled = e is CancellationException || currentCoroutineContext()[Job]?.isActive == false
             if (cancelled && oldSeq != null) {
@@ -583,6 +561,25 @@ class ExtensionService(
                 currentCoroutineContext().ensureActive()
             }
             throw e
+        }
+        try {
+            db.transaction {
+                queries().upsertExtension(key, peeked.name, peeked.version, fileName, row.origin_kind, row.origin_repository_id, row.origin_repository_name, newOriginUrl)
+                queries().upsertOrigin(key, row.origin_kind, row.origin_repository_id, row.origin_repository_name, newOriginUrl)
+            }
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            // The live instance already runs the new revision while the pointer
+            // could not move: roll the instance back so rows, files and live
+            // agree again. The old file is untouched at this point.
+            val oldBytes = try {
+                fileSystem.read(scriptsDir / oldFileName) { readUtf8() }
+            } catch (_: Exception) {
+                throw ExtensionFailure.StorageFailure(e)
+            }
+            runCatching { live.replace(key, oldBytes, oldFileName, expectedKey = key) }
+            if (fileName != oldFileName) runCatching { fileSystem.delete(target, mustExist = false) }
+            throw ExtensionFailure.StorageFailure(e)
         }
         if (oldFileName != fileName) runCatching { fileSystem.delete(scriptsDir / oldFileName) }
         if (repo != null) {
