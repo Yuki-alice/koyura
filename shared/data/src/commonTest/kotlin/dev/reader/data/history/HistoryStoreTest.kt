@@ -5,14 +5,15 @@ import dev.reader.data.extension.createTestDriver
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
  * History storage contract: reading_progress stays the single source of truth for
- * chapter and page, while HistoryStore adds recency ordering and display metadata
- * around it without changing any existing write path (writes below go through the
- * same upsertProgress query the production writer uses).
+ * chapter and page. [HistoryStore.save] commits position and display metadata in one
+ * statement, while the pre-existing [ExtensionDb.extensionDbQueries] upsert remains
+ * the position-only writer for callers without a history store.
  */
 class HistoryStoreTest {
     private fun save(
@@ -65,8 +66,16 @@ class HistoryStoreTest {
             val db = ExtensionDb(driver)
             val store = HistoryStore(driver)
             save(db, "s", "old", "ep_1")
-            save(db, "s", "new", "ep_1")
-            store.stamp("s", "new", "ep_1", readAtMillis = 1_700_000_000_000, workTitle = "New", chapterTitle = "Ch 1")
+            store.save(
+                sourceKey = "s",
+                workId = "new",
+                chapterId = "ep_1",
+                pageKey = "p0",
+                pageIndex = 0,
+                readAtMillis = 1_700_000_000_000,
+                workTitle = "New",
+                chapterTitle = "Ch 1",
+            )
 
             val entries = store.latestEntries()
             assertEquals(listOf("new", "old"), entries.map { it.workId })
@@ -134,5 +143,100 @@ class HistoryStoreTest {
         } finally {
             driver.close()
         }
+    }
+
+    @Test
+    fun saveCommitsPositionAndMetadataTogether() = runTest {
+        val driver = createTestDriver()
+        try {
+            val db = ExtensionDb(driver)
+            val store = HistoryStore(driver)
+            store.save("s", "w", "ep_2", pageKey = "p2", pageIndex = 1, readAtMillis = 111, workTitle = "Original Title", chapterTitle = "Second")
+            store.save("s", "w", "ep_2", pageKey = "p3", pageIndex = 2, readAtMillis = 222, workTitle = "New Title", chapterTitle = "Second")
+
+            val row = db.extensionDbQueries.selectProgress("s", "w", "ep_2").executeAsOne()
+            assertEquals("p3", row.page_key)
+            assertEquals(2L, row.page_index)
+            assertEquals(222L, row.read_at)
+            assertEquals("New Title", row.work_title)
+            assertEquals("Second", row.chapter_title)
+
+            val entry = store.latestEntries().single()
+            assertEquals("p3", entry.pageKey)
+            assertEquals(2, entry.pageIndex)
+            assertEquals("New Title", entry.workTitle)
+            assertEquals(222L, entry.readAtMillis)
+        } finally {
+            driver.close()
+        }
+    }
+
+    @Test
+    fun failedSaveKeepsPreviousPageTitleAndTime() = runTest {
+        val driver = createTestDriver()
+        try {
+            val db = ExtensionDb(driver)
+            val store = HistoryStore(driver)
+            store.save("s", "w", "ep_2", pageKey = "p2", pageIndex = 1, readAtMillis = 111, workTitle = "Original Title", chapterTitle = "Second")
+            // Inject the failure on the actual write path: every save now aborts before
+            // the row is inserted or replaced.
+            driver.execute(null, FailSaveTrigger, 0, null)
+
+            assertFailsWith<Throwable> {
+                store.save("s", "w", "ep_2", pageKey = "p3", pageIndex = 2, readAtMillis = 222, workTitle = "New Title", chapterTitle = "Second")
+            }
+
+            val row = db.extensionDbQueries.selectProgress("s", "w", "ep_2").executeAsOne()
+            assertEquals("p2", row.page_key)
+            assertEquals(1L, row.page_index)
+            assertEquals(111L, row.read_at)
+            assertEquals("Original Title", row.work_title)
+            assertEquals("Second", row.chapter_title)
+
+            val entry = store.latestEntries().single()
+            assertEquals("p2", entry.pageKey)
+            assertEquals(1, entry.pageIndex)
+            assertEquals("Original Title", entry.workTitle)
+            assertEquals(111L, entry.readAtMillis)
+
+            // The same save succeeds once the injected failure is removed, proving the
+            // failure came from the trigger and not from the arguments.
+            driver.execute(null, "DROP TRIGGER fail_save", 0, null)
+            store.save("s", "w", "ep_2", pageKey = "p3", pageIndex = 2, readAtMillis = 222, workTitle = "New Title", chapterTitle = "Second")
+            val committed = db.extensionDbQueries.selectProgress("s", "w", "ep_2").executeAsOne()
+            assertEquals("p3", committed.page_key)
+            assertEquals("New Title", committed.work_title)
+            assertEquals(222L, committed.read_at)
+        } finally {
+            driver.close()
+        }
+    }
+
+    @Test
+    fun failedFirstSaveLeavesNoHalfWrittenRow() = runTest {
+        val driver = createTestDriver()
+        try {
+            val store = HistoryStore(driver)
+            driver.execute(null, FailSaveTrigger, 0, null)
+
+            assertFailsWith<Throwable> {
+                store.save("s", "new-work", "ep_1", pageKey = "p1", pageIndex = 0, readAtMillis = 111, workTitle = "Title", chapterTitle = "One")
+            }
+
+            assertTrue(store.latestEntries().isEmpty())
+            assertNull(
+                ExtensionDb(driver).extensionDbQueries
+                    .selectProgress("s", "new-work", "ep_1").executeAsOneOrNull(),
+            )
+        } finally {
+            driver.close()
+        }
+    }
+
+    private companion object {
+        const val FailSaveTrigger = """
+            CREATE TRIGGER fail_save BEFORE INSERT ON reading_progress
+            BEGIN SELECT RAISE(ABORT, 'simulated metadata failure'); END
+        """
     }
 }

@@ -135,9 +135,16 @@ class VeneraHistoryFlowTest {
             }
             // The source is installed, but the saved chapter is no longer in its catalog.
             driver(profile).use { db ->
-                val queries = ExtensionDb(db).extensionDbQueries
-                queries.upsertProgress(SourceKey, "demo", "ep_9", "https://example.invalid/gone.png", 4)
-                queries.stampProgressMeta(1_794_916_800_000, "星图", "第九章", SourceKey, "demo", "ep_9")
+                ExtensionDb(db).extensionDbQueries.upsertProgressWithMeta(
+                    source_key = SourceKey,
+                    work_id = "demo",
+                    chapter_id = "ep_9",
+                    page_key = "https://example.invalid/gone.png",
+                    page_index = 4,
+                    read_at = 1_794_916_800_000,
+                    work_title = "星图",
+                    chapter_title = "第九章",
+                )
             }
             runComposeUiTest {
                 setContent { ExtensionApp { openSession(profile, ConcurrentLinkedQueue()) } }

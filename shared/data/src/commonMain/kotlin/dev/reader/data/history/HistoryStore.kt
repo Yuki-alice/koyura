@@ -7,11 +7,13 @@ import dev.reader.domain.history.HistoryRecord
 private fun chapterKey(chapterId: String?): String = chapterId ?: ""
 
 /**
- * Reads the latest saved progress per work for the history tab and stamps
- * display metadata after each successful save.
+ * Reads the latest saved progress per work for the history tab and writes the
+ * reading position together with its display metadata.
  *
  * The reading_progress table stays the single source of truth for chapter and
- * page; this store only adds presentation data (titles, timestamps) around it.
+ * page. [save] covers page key, page index, read time and both titles in one
+ * SQL statement, so a failed write leaves the previously committed row — and
+ * therefore both the detail continue button and the history entry — untouched.
  */
 class HistoryStore(driver: SqlDriver) {
     private val db = ExtensionDb(driver)
@@ -36,25 +38,32 @@ class HistoryStore(driver: SqlDriver) {
         }
 
     /**
-     * Records when a save happened plus best-effort display titles. Called by
-     * the app layer right after a successful progress write so already
-     * committed rows stay untouched and old rows keep their NULL timestamp.
+     * Commits the new position and its metadata atomically.
+     *
+     * One `INSERT OR REPLACE` carries every column, so either all values become
+     * visible or the previous row keeps its page, title and timestamp. Old
+     * writers that only know the position keep using `upsertProgress`; their
+     * rows gain NULL metadata and show up as "unknown time".
      */
-    suspend fun stamp(
+    suspend fun save(
         sourceKey: String,
         workId: String,
         chapterId: String?,
+        pageKey: String,
+        pageIndex: Int,
         readAtMillis: Long,
         workTitle: String?,
         chapterTitle: String?,
     ) {
-        db.extensionDbQueries.stampProgressMeta(
-            read_at = readAtMillis,
-            work_title = workTitle,
-            chapter_title = chapterTitle,
+        db.extensionDbQueries.upsertProgressWithMeta(
             source_key = sourceKey,
             work_id = workId,
             chapter_id = chapterKey(chapterId),
+            page_key = pageKey,
+            page_index = pageIndex.toLong(),
+            read_at = readAtMillis,
+            work_title = workTitle,
+            chapter_title = chapterTitle,
         )
     }
 }

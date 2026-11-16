@@ -92,12 +92,15 @@ upsertProgress:
 INSERT OR REPLACE INTO reading_progress(source_key, work_id, chapter_id, page_key, page_index)
 VALUES(?, ?, ?, ?, ?);
 
+upsertProgressWithMeta:
+INSERT OR REPLACE INTO reading_progress(
+  source_key, work_id, chapter_id, page_key, page_index,
+  read_at, work_title, chapter_title
+)
+VALUES(?, ?, ?, ?, ?, ?, ?, ?);
+
 deleteProgress:
 DELETE FROM reading_progress WHERE source_key = ? AND work_id = ? AND chapter_id = ?;
-
-stampProgressMeta:
-UPDATE reading_progress SET read_at = ?, work_title = ?, chapter_title = ?
-WHERE source_key = ? AND work_id = ? AND chapter_id = ?;
 
 selectHistoryLatest:
 SELECT * FROM reading_progress AS p

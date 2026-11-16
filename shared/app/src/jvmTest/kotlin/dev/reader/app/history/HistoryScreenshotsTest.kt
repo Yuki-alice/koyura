@@ -81,29 +81,32 @@ class HistoryScreenshotsTest {
                 VeneraEnvironment("1.16.0", "zh_CN", "desktop"),
             ).also { opened ->
                 val now = System.currentTimeMillis()
-                opened.comicReading.saveProgress("example_source", "demo", "ep_2", "https://example.invalid/3.png", 2)
-                opened.history.stamp(
+                opened.history.save(
                     sourceKey = "example_source",
                     workId = "demo",
                     chapterId = "ep_2",
+                    pageKey = "https://example.invalid/3.png",
+                    pageIndex = 2,
                     readAtMillis = now,
                     workTitle = "星图",
                     chapterTitle = "第二章",
                 )
-                opened.comicReading.saveProgress("example_source", "night", "ep_1", "https://example.invalid/1.png", 0)
-                opened.history.stamp(
+                opened.history.save(
                     sourceKey = "example_source",
                     workId = "night",
                     chapterId = "ep_1",
+                    pageKey = "https://example.invalid/1.png",
+                    pageIndex = 0,
                     readAtMillis = now - 86_400_000,
                     workTitle = "夜行记",
                     chapterTitle = "第一话",
                 )
-                opened.comicReading.saveProgress("other_source", "demo", "", "https://example.invalid/single.png", 4)
-                opened.history.stamp(
+                opened.history.save(
                     sourceKey = "other_source",
                     workId = "demo",
                     chapterId = null,
+                    pageKey = "https://example.invalid/single.png",
+                    pageIndex = 4,
                     readAtMillis = now - 2 * 86_400_000,
                     workTitle = "同名单话",
                     chapterTitle = null,

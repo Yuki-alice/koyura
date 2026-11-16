@@ -45,14 +45,24 @@ internal class VeneraReaderService(
         workTitle: String?,
         chapterTitle: String?,
     ): Unit = withContext(Dispatchers.IO) {
-        reading.saveProgress(sourceKey, workId, chapterId, pageKey, pageIndex)
-        history?.stamp(
-            sourceKey = sourceKey,
-            workId = workId,
-            chapterId = chapterId,
-            readAtMillis = Clock.System.now().toEpochMilliseconds(),
-            workTitle = workTitle?.takeIf { it.isNotBlank() },
-            chapterTitle = chapterTitle?.takeIf { it.isNotBlank() },
-        )
+        val historyStore = history
+        if (historyStore == null) {
+            // No history store: keep the position-only writer for old callers.
+            reading.saveProgress(sourceKey, workId, chapterId, pageKey, pageIndex)
+        } else {
+            // Position and display metadata commit in one statement. A failed
+            // write reports the error and leaves the previous page/title/time
+            // intact for both the detail and history continue paths.
+            historyStore.save(
+                sourceKey = sourceKey,
+                workId = workId,
+                chapterId = chapterId,
+                pageKey = pageKey,
+                pageIndex = pageIndex,
+                readAtMillis = Clock.System.now().toEpochMilliseconds(),
+                workTitle = workTitle?.takeIf { it.isNotBlank() },
+                chapterTitle = chapterTitle?.takeIf { it.isNotBlank() },
+            )
+        }
     }
 }
