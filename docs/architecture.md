@@ -8,7 +8,7 @@
 
 以工作区根目录作为新项目根。`apps/` 放端入口，`shared/` 放 KMP 和 CMP 模块，`extension-sdk/` 放发布给源作者的契约与示例。参考仓库独立保存在 `reference/`，Gradle 构建只包含新项目的模块。
 
-初始化已接通三个应用入口、`shared/app` 和 `shared/design-system`。下方目录树包含后续开发的模块。
+初始化已接通三个应用入口，以及 `shared/app`、`shared/design-system`、`shared/domain`、`shared/data`、`shared/network`、`shared/source-runtime`。`shared/media` 独立构建、暂未接入 Gradle（见下文）。下方目录树包含后续开发的模块，标注为规划中。
 
 ```text
 .
@@ -17,27 +17,27 @@
 │   ├── ios/                     # Xcode 工程、iOS 入口和系统生命周期接线
 │   └── desktop/                 # JVM 入口、窗口、桌面打包配置
 ├── shared/
-│   ├── app/                     # App()、导航、Koin 装配、启动与任务接线
-│   ├── design-system/           # Material 3 主题、组件、字体、图标和字符串
-│   ├── features/                # 共享页面、ViewModel、事件、预览与 UI 测试
-│   │   └── src/commonMain/kotlin/…/
-│   │       ├── library/         # 书架、分类、排序、搜索和批量操作
-│   │       ├── updates/         # 已更新、待更新、更新错误和任务状态
-│   │       ├── history/         # 阅读历史与继续阅读
-│   │       ├── browse/          # 源、扩展、Feed、全局搜索、保存搜索
-│   │       ├── details/         # 作品详情、目录、相关推荐、换源与合并入口
-│   │       ├── reader/          # comic/、novel/、阅读菜单与设置
-│   │       ├── downloads/       # 下载队列、离线查看与失败恢复交互
-│   │       └── settings/        # 更多、追踪、备份、同步与偏好
-│   ├── domain/                  # 作品、章节、源能力、用例和仓储/平台接口
-│   ├── data/                    # SQLDelight、设置、仓储、备份编解码
-│   │   └── src/commonMain/sqldelight/…/
-│   ├── network/                 # Ktor、HTTP 策略、按源会话、限流
-│   ├── source-runtime/          # Venera 入口、JS 宿主桥接、源仓库、安装与更新
-│   ├── media/                   # 正文清洗、资源加载、本地格式和离线内容包
-│   ├── integrations/            # 追踪服务、WebDAV 等外部服务适配
-│   └── platform/                # 文件授权、密钥、调度、通知、网页登录适配
-├── extension-sdk/               # Venera 兼容说明、测试样例与小说能力说明
+│   │   ├── app/                     # 已接入：App()、导航、装配、启动与任务接线
+│   │   ├── design-system/           # 已接入：Material 3 主题、组件、字体、图标和字符串
+│   │   ├── features/                # 规划中：共享页面、事件、预览与 UI 测试
+│   │   │   └── src/commonMain/kotlin/…/   # 首批只落 comic 阅读器，其余页面后续再迁
+│   │   │       ├── library/         # 规划：书架、分类、排序、搜索和批量操作
+│   │   │       ├── updates/         # 规划：已更新、待更新、更新错误和任务状态
+│   │   │       ├── history/         # 规划：阅读历史与继续阅读
+│   │   │       ├── browse/          # 规划：源、扩展、Feed、全局搜索、保存搜索
+│   │   │       ├── details/         # 规划：作品详情、目录、相关推荐、换源与合并入口
+│   │   │       ├── reader/          # 规划：comic/、novel/、阅读菜单与设置
+│   │   │       ├── downloads/       # 规划：下载队列、离线查看与失败恢复交互
+│   │   │       └── settings/        # 规划：更多、追踪、备份、同步与偏好
+│   │   ├── domain/                  # 已接入：作品、章节、源能力、用例和仓储/平台接口
+│   │   ├── data/                    # 已接入：SQLDelight、设置、仓储、备份编解码
+│   │   │   └── src/commonMain/sqldelight/…/  # schema 目录与包名逐段对应（见下文）
+│   │   ├── network/                 # 已接入：Ktor、HTTP 策略、按源会话、限流
+│   │   ├── source-runtime/          # 已接入：Venera 入口、JS 宿主桥接、源仓库、安装与更新
+│   │   ├── media/                   # 独立构建：本地小说解析与阅读位置，暂未接入 settings
+│   │   ├── integrations/            # 规划：追踪服务、WebDAV 等外部服务适配
+│   │   └── platform/                # 规划：文件授权、密钥、调度、通知、网页登录适配
+│   ├── extension-sdk/               # 规划：发布给源作者的契约与示例
 ├── gradle/libs.versions.toml
 ├── build.gradle.kts
 ├── settings.gradle.kts
@@ -48,6 +48,16 @@
 ```
 
 共享模块采用 `commonMain` / `commonTest`，用 `androidMain`、`iosMain`、`jvmMain` 接平台实现，桌面系统差异收在 `jvmMain` 的小型适配器里。只有需要平台 API 或原生依赖的模块增加对应源集。初期以功能包组织页面，随着编译或团队边界出现再拆 Gradle 模块。 [KMP 项目结构](https://kotlinlang.org/docs/multiplatform/multiplatform-discover-project.html) · [源集层级](https://kotlinlang.org/docs/multiplatform/multiplatform-hierarchy.html) · [应用平台入口](https://kotlinlang.org/docs/multiplatform/compose-multiplatform-entry-points.html)
+
+## 包名与短目录约定
+
+学 Animeko 的做法：包名写全反向域名，目录只保留功能后缀。
+
+- Kotlin 源码从各 source set 的 `kotlin/` 根目录开始，按功能增加必要子目录，不再逐段重复包名前缀。例如 `shared/app` 的 `commonMain/kotlin/browse/` 对应包 `app.koyura.app.browse`，根目录的 `App.kt` 对应包 `app.koyura.app`。本项目当前基线是 `app.koyura`，与应用安装标识同源。
+- 每个 source set 的 `kotlin/` 根目录放一个只声明基包的 `package.kt`（如 `package app.koyura.app`），锚定该源集的包前缀。
+- **例外是 SQLDelight**：`.sq` / `.sqm` 文件必须放在与包名逐段对应的目录里，生成器按相对路径推导查询包。例如 `shared/data` 的 schema 在 `src/commonMain/sqldelight/app/koyura/data/extension/`，`packageName` 为 `app.koyura.data.extension`。
+- **Compose Resources** 按模块各自维护：`src/commonMain/composeResources/values/`（默认）与 `values-b+zh+CN/`（中文），各模块的 `packageOfResClass` 指向自己的 resources 包（如 `app.koyura.app.resources`）。阅读器字符串随阅读器迁入 `:shared:features`，共用文案继续由其现有归属模块维护。
+- **安装标识与模块包名是两回事**：Android `applicationId`、iOS `PRODUCT_BUNDLE_IDENTIFIER`、macOS `bundleID` 统一为 `app.koyura`；iOS framework（`ReaderShared`）的 bundleId 为 `app.koyura.app`，与应用标识区分。Kotlin 包名、Gradle `namespace` 与安装标识保持同源，但互不强制相等。
 
 ## 依赖和职责
 
@@ -76,7 +86,7 @@ flowchart TD
 ```
 
 - `domain` 定义跨平台的作品、章节、资源、任务与进度模型，以及应用用例和所需的仓储与能力接口。公开接口用 Kotlin 值类型、`suspend`、`Flow` 表达。
-- `features` 依赖 `domain` 和 `design-system`。ViewModel 把用户意图交给用例，输出不可变 `UiState`。页面按状态渲染，页面键只携带可序列化的 ID 和必要参数。五个一级页面各自保留返回栈，阅读器沿用从书架、详情和历史进入的操作路径。
+- `features` 依赖 `domain` 和 `design-system`。各页面的 session/state holder 把用户意图交给用例，输出不可变 `UiState`（Lifecycle ViewModel 待后续任务引入，见[技术栈选型](technology-stack.md)）。页面按状态渲染，页面键只携带可序列化的 ID 和必要参数。五个一级页面各自保留返回栈，阅读器沿用从书架、详情和历史进入的操作路径。
 - `data` 实现持久化接口。`source-runtime`、`media`、`integrations` 和 `platform` 分别实现对应领域接口。`network` 向适配器提供 Ktor 之上的请求与会话能力。具体实现由 `app` 装配，后台工作入口也调用同一组用例。
 - 持久偏好进入设置仓储，页面进程恢复只保存导航和轻量界面状态。书架、章节、下载和进度以 SQLite 提交后的状态驱动 UI。HTTP DTO、数据库行和 JS 值在边界处转换。
 

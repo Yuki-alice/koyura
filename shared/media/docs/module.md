@@ -19,14 +19,14 @@
 
 | 路径 | 内容 |
 | --- | --- |
-| `src/commonMain/kotlin/app/koyura/media/` | `MediaModule` 模块信息；`epub/` 只读 EPUB 归档与解析 |
-| `src/commonMain/kotlin/app/koyura/media/novel/` | 共用契约（`NovelContent`、`NovelImportException`、`LocalNovelLimits`）、TXT 编码与章节识别；`novel/txt/TxtNovel` 是 TXT 实现 |
-| `src/commonMain/kotlin/app/koyura/media/epub/` | `EpubNovel`（懒加载 EPUB 3）、`EpubPathResolver`、`EpubPackageParser`、`EpubNavParser`、`EpubXhtmlParser` |
-| `src/commonTest/kotlin/app/koyura/media/` | `fixtureRoot()` 的 expect 声明、EPUB 夹具自检 |
-| `src/commonTest/kotlin/app/koyura/media/novel/` | TXT 导入测试：编码、章节、正文块、生命周期、失败路径与资源关闭 |
-| `src/commonTest/kotlin/app/koyura/media/novel/epub/` | EPUB 测试：真实夹具、spine 顺序、路径解析、错误、限制、懒加载与关闭 |
-| `src/jvmTest/kotlin/app/koyura/media/` | 读系统属性 `reader.media.fixtures` 的 actual |
-| `src/iosSimulatorArm64Test/kotlin/app/koyura/media/` | 读 `READER_MEDIA_FIXTURES` 环境变量的 actual |
+| `src/commonMain/kotlin/` | `MediaModule` 模块信息；`epub/` 只读 EPUB 归档与解析 |
+| `src/commonMain/kotlin/novel/` | 共用契约（`NovelContent`、`NovelImportException`、`LocalNovelLimits`）、TXT 编码与章节识别；`novel/txt/TxtNovel` 是 TXT 实现 |
+| `src/commonMain/kotlin/epub/` | `EpubNovel`（懒加载 EPUB 3）、`EpubPathResolver`、`EpubPackageParser`、`EpubNavParser`、`EpubXhtmlParser` |
+| `src/commonTest/kotlin/` | `fixtureRoot()` 的 expect 声明、EPUB 夹具自检 |
+| `src/commonTest/kotlin/novel/` | TXT 导入测试：编码、章节、正文块、生命周期、失败路径与资源关闭 |
+| `src/commonTest/kotlin/novel/epub/` | EPUB 测试：真实夹具、spine 顺序、路径解析、错误、限制、懒加载与关闭 |
+| `src/jvmTest/kotlin/` | 读系统属性 `reader.media.fixtures` 的 actual |
+| `src/iosSimulatorArm64Test/kotlin/` | 读 `READER_MEDIA_FIXTURES` 环境变量的 actual |
 | `fixtures/txt/` | 用 `fixtures/txt/generate_fixtures.py` 生成的 TXT 二进制夹具，用途见 `fixtures/README.md` |
 | `fixtures/epub/` | 两个真实 EPUB 加 28 个合成 EPUB；合成夹具由 `fixtures/epub/generate_fixtures.py` 生成 |
 

@@ -167,5 +167,5 @@ openEpubNovel(FileSystem.SYSTEM, "/books/novel.epub".toPath()).useImport { novel
 
 ## 验证文档示例
 
-`src/commonTest/kotlin/app/koyura/media/novel/UsageDocExampleTest.kt` 直接调用上面的最小示例路径
+`src/commonTest/kotlin/novel/UsageDocExampleTest.kt` 直接调用上面的最小示例路径
 （打开 TXT 与 EPUB、读目录/章节/图片、序列化与恢复位置、关闭），因此示例一旦与 API 不符就会编译或测试失败。
