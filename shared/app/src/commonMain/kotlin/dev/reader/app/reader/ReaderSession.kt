@@ -9,6 +9,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateMap
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /** Loading state of the opened chapter. */
 sealed interface ReaderContentState {
@@ -34,8 +36,8 @@ sealed interface ReaderPageState {
  * - the same tokening applies per page key, so retrying a failed page cannot be clobbered by the
  *   failed attempt landing late;
  * - a second load for a page that is already loading or ready is ignored (no duplicate submit);
- * - progress is only ever written for a page the UI reports as displayed, and the initial page is
- *   never written on open (opening at a restored page must not overwrite it with page 0).
+ * - the pager reports displayed positions, and opening at an already saved position
+ *   does not overwrite it.
  */
 class ReaderSession internal constructor(
     private val service: ReaderService?,
@@ -60,10 +62,10 @@ class ReaderSession internal constructor(
     var contentSeq by mutableStateOf(0L)
         private set
     private var lastSavedIndex: Int? = null
+    private val saveMutex = Mutex()
 
     private var boundSourceKey: String = ""
     private var boundWorkId: String = ""
-    private var boundChapterId: String? = null
     private var chapterIds: List<String> = emptyList()
 
     val orderedChapterIds: List<String>
@@ -80,10 +82,10 @@ class ReaderSession internal constructor(
         contentSeq += 1
         boundSourceKey = sourceKey
         boundWorkId = workId
-        boundChapterId = chapterId
         this.chapterIds = chapterIds.toList()
         content = ReaderContentState.Loading
         pages.clear()
+        pageTokens.clear()
         currentPage = 0
         lastSavedIndex = null
         try {
@@ -91,8 +93,7 @@ class ReaderSession internal constructor(
             if (token != openToken) return
             content = ReaderContentState.Ready(opened)
             currentPage = opened.startPageIndex.coerceInPageRange(opened.pageKeys.size)
-            // The initial display restores progress; it is never written back on open.
-            lastSavedIndex = currentPage
+            if (!opened.saveInitialPosition) lastSavedIndex = currentPage
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (failure: Exception) {
@@ -107,19 +108,19 @@ class ReaderSession internal constructor(
         val currentService = service ?: return
         val ready = content as? ReaderContentState.Ready ?: return
         val token = openToken
-        val pageToken = (pageTokens[pageKey] ?: 0L) + 1
-        pageTokens[pageKey] = pageToken
         when (pages[pageKey]) {
             is ReaderPageState.Loading, is ReaderPageState.Ready -> return
             else -> Unit
         }
+        val pageToken = (pageTokens[pageKey] ?: 0L) + 1
+        pageTokens[pageKey] = pageToken
         pages[pageKey] = ReaderPageState.Loading
         try {
             val bytes = currentService.loadPageBytes(
                 boundSourceKey,
                 boundWorkId,
                 ready.content.chapterId,
-                pageKey,
+                ready.content.imageKeys[pageKey] ?: pageKey,
             )
             if (token == openToken && pageTokens[pageKey] == pageToken) {
                 pages[pageKey] = ReaderPageState.Ready(bytes)
@@ -153,9 +154,14 @@ class ReaderSession internal constructor(
      */
     suspend fun savePage(index: Int) {
         val currentService = service ?: return
-        if (index == lastSavedIndex) return
-        currentService.saveProgress(boundSourceKey, boundWorkId, boundChapterId, index)
-        lastSavedIndex = index
+        val ready = content as? ReaderContentState.Ready ?: return
+        val pageKey = ready.content.pageKeys.getOrNull(index) ?: return
+        val token = openToken
+        saveMutex.withLock {
+            if (token != openToken || index == lastSavedIndex) return
+            currentService.saveProgress(boundSourceKey, boundWorkId, ready.content.chapterId, pageKey, index)
+            if (token == openToken) lastSavedIndex = index
+        }
     }
 
     /** Persists the currently displayed page unless it is already saved. */

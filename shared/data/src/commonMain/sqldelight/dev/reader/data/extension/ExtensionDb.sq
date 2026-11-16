@@ -82,8 +82,8 @@ CREATE INDEX reading_progress_work_idx ON reading_progress(source_key, work_id);
 selectProgress:
 SELECT * FROM reading_progress WHERE source_key = ? AND work_id = ? AND chapter_id = ?;
 
-selectChaptersForWork:
-SELECT * FROM reading_progress WHERE source_key = ? AND work_id = ? ORDER BY rowid DESC;
+selectLatestProgress:
+SELECT * FROM reading_progress WHERE source_key = ? AND work_id = ? ORDER BY rowid DESC LIMIT 1;
 
 upsertProgress:
 INSERT OR REPLACE INTO reading_progress(source_key, work_id, chapter_id, page_key, page_index)

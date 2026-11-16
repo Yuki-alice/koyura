@@ -5,6 +5,7 @@ import app.cash.sqldelight.db.SqlDriver
 import dev.reader.data.extension.ExtensionDb
 import dev.reader.data.extension.ExtensionService
 import dev.reader.data.extension.RestoreReport
+import dev.reader.data.reading.ComicReadingService
 import dev.reader.source.runtime.VeneraEnvironment
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.NonCancellable
@@ -31,6 +32,8 @@ class ExtensionSession internal constructor(
     private val driver: SqlDriver,
     private val httpClient: HttpClient,
 ) {
+    val comicReading = ComicReadingService(driver, service, httpClient)
+
     private val mutex = Mutex()
     private var closed = false
 
@@ -91,7 +94,8 @@ private val extensionTables = listOf("repositories", "origins", "extensions")
 
 /**
  * Creates the extension schema unless it already exists. Re-running against
- * an existing database is a no-op so reopening never touches committed rows;
+ * a current database leaves committed rows intact. A pre-reading database is
+ * upgraded here for drivers that leave schema management to their caller;
  * a partially created schema is dropped and recreated (no rows can reference
  * it yet, as writes only happen after a successful open).
  */
@@ -103,7 +107,14 @@ private fun ensureSchema(driver: SqlDriver) {
         }
         QueryResult.Value(Unit)
     }, 0, null)
-    if (present.containsAll(extensionTables)) return
+    if (present.containsAll(extensionTables)) {
+        if ("reading_progress" !in present) {
+            ExtensionDb(driver).transaction {
+                ExtensionDb.Schema.migrate(driver, 1, ExtensionDb.Schema.version).value
+            }
+        }
+        return
+    }
     if (present.any { it in extensionTables }) {
         for (table in extensionTables) {
             if (table in present) {

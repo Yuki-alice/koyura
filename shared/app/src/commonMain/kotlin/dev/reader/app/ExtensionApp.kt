@@ -19,7 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.unit.dp
-import dev.reader.app.browse.BrowseService
+import dev.reader.app.reader.VeneraReaderService
 import dev.reader.app.browse.venera.VeneraBrowseService
 import dev.reader.app.resources.Res
 import dev.reader.app.resources.extension_startup_failed
@@ -52,7 +52,7 @@ internal fun extensionEnvironment(platform: String): VeneraEnvironment {
 
 @Composable
 internal fun ExtensionApp(openSession: suspend () -> ExtensionSession) {
-    var sessionService by remember { mutableStateOf<BrowseService?>(null) }
+    var openedSession by remember { mutableStateOf<ExtensionSession?>(null) }
     var failed by remember { mutableStateOf(false) }
     var attempt by remember { mutableIntStateOf(0) }
 
@@ -61,7 +61,7 @@ internal fun ExtensionApp(openSession: suspend () -> ExtensionSession) {
         try {
             // Capture ownership on the opening dispatcher before a cancelled caller can lose it.
             withContext(Dispatchers.IO) { session = openSession() }
-            sessionService = VeneraBrowseService(checkNotNull(session).service)
+            openedSession = checkNotNull(session)
             awaitCancellation()
         } catch (cancelled: CancellationException) {
             throw cancelled
@@ -74,9 +74,11 @@ internal fun ExtensionApp(openSession: suspend () -> ExtensionSession) {
         }
     }
 
-    val service = sessionService
-    if (service != null) {
-        App(service)
+    val session = openedSession
+    if (session != null) {
+        val browse = remember(session) { VeneraBrowseService(session.service) }
+        val reader = remember(session) { VeneraReaderService(session.comicReading) }
+        App(browseService = browse, readerService = reader)
     } else {
         ReaderTheme {
             Surface(modifier = Modifier.fillMaxSize()) {

@@ -106,6 +106,19 @@ class ComicReadingServiceTest {
     }
 
     @Test
+    fun duplicatePageKeysDoNotCollideWithSourceKeys() = runTest {
+        val client = HttpClient(MockEngine { respond("ok", HttpStatusCode.OK) }) { applyReaderDefaults() }
+        readingHarness(client) { service, reading, _ ->
+            service.installFromContent("Read", readingScript("""["https://example.invalid/x","https://example.invalid/x","https://example.invalid/x#2"]"""), READ_KEY)
+            val opened = reading.openChapter(READ_KEY, "w", "ep1")
+            assertEquals(
+                listOf("https://example.invalid/x", "https://example.invalid/x#3", "https://example.invalid/x#2"),
+                opened.pages.map { it.pageKey },
+            )
+        }
+    }
+
+    @Test
     fun loadImageUsesOnImageLoadConfig() = runTest {
         var seenUrl: String? = null
         var seenReferer: String? = null

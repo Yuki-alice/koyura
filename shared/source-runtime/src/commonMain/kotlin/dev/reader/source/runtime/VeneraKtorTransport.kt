@@ -9,7 +9,7 @@ import io.ktor.client.request.request
 import io.ktor.client.request.setBody
 import io.ktor.client.request.url
 import io.ktor.client.statement.bodyAsText
-import io.ktor.client.statement.readBytes
+import io.ktor.client.statement.readRawBytes
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
@@ -104,7 +104,7 @@ class KtorVeneraHttpTransport(
             .associate { (name, values) -> name to values.joinToString(",") }
         return VeneraBytesResponse(
             status = response.status.value,
-            body = response.readBytes(),
+            body = response.readRawBytes(),
             headers = headers,
         )
     }

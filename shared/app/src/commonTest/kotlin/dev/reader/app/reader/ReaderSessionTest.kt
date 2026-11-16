@@ -108,6 +108,25 @@ class ReaderSessionTest {
     }
 
     @Test
+    fun duplicateRequestDoesNotInvalidatePendingPage() = runTest {
+        val service = demoReaderService()
+        val gate = FakeReaderService.Gate()
+        service.gate = gate
+        service.gateKey = "page:p1"
+        val session = sessionWith(service)
+        session.open("example_source", "demo", "ep_1", listOf("ep_1", "ep_2"))
+
+        val pending = async { session.ensurePage("p1") }
+        yield()
+        session.ensurePage("p1")
+        gate.open()
+        pending.await()
+
+        assertIs<ReaderPageState.Ready>(session.pages["p1"])
+        assertEquals(1, service.loadCounts["p1"])
+    }
+
+    @Test
     fun retryReloadsAfterFailure() = runTest {
         val service = demoReaderService()
         service.pageFailures["p2"] = 1

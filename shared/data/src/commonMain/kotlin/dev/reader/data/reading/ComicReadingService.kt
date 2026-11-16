@@ -3,6 +3,7 @@ package dev.reader.data.reading
 import app.cash.sqldelight.db.SqlDriver
 import dev.reader.data.extension.ExtensionDb
 import dev.reader.data.extension.ExtensionService
+import dev.reader.data.extension.Reading_progress
 import dev.reader.domain.extension.ComicPage
 import dev.reader.domain.extension.OpenedChapter
 import dev.reader.domain.extension.ReadingFailure
@@ -75,10 +76,14 @@ class ComicReadingService(
         } catch (e: Exception) {
             throw ReadingFailure.ChapterInvalid(e)
         }
-        val seen = mutableMapOf<String, Int>()
+        val rawKeys = images.toSet()
+        val occurrences = mutableMapOf<String, Int>()
         val pages = images.mapIndexed { index, imageKey ->
-            val occurrence = (seen[imageKey] ?: 0) + 1
-            seen[imageKey] = occurrence
+            var occurrence = (occurrences[imageKey] ?: 0) + 1
+            if (occurrence > 1) {
+                while ("$imageKey#$occurrence" in rawKeys) occurrence++
+            }
+            occurrences[imageKey] = occurrence
             val pageKey = if (occurrence == 1) imageKey else "$imageKey#$occurrence"
             ComicPage(pageKey = pageKey, index = index, imageKey = imageKey)
         }
@@ -180,30 +185,24 @@ class ComicReadingService(
         }
     }
 
-    suspend fun readProgress(sourceKey: String, workId: String, chapterId: String?): ReadingProgress? {
-        val row = db.extensionDbQueries
-            .selectProgress(sourceKey, workId, chapterKey(chapterId))
-            .executeAsOneOrNull() ?: return null
-        return ReadingProgress(
-            sourceKey = row.source_key,
-            workId = row.work_id,
-            chapterId = row.chapter_id.ifEmpty { null },
-            pageKey = row.page_key,
-            pageIndex = row.page_index.toInt(),
-        )
-    }
+    suspend fun readProgress(sourceKey: String, workId: String, chapterId: String?): ReadingProgress? =
+        db.extensionDbQueries.selectProgress(sourceKey, workId, chapterKey(chapterId))
+            .executeAsOneOrNull()?.toProgress()
 
-    /**
-     * Most recently read chapter of a work, or null when nothing was saved.
-     * A chapterless work is reported as "" (documented marker).
-     */
-    suspend fun recentChapter(sourceKey: String, workId: String): String? {
-        val row = db.extensionDbQueries
-            .selectChaptersForWork(sourceKey, workId)
-            .executeAsList()
-            .firstOrNull() ?: return null
-        return row.chapter_id
-    }
+    suspend fun readLatestProgress(sourceKey: String, workId: String): ReadingProgress? =
+        db.extensionDbQueries.selectLatestProgress(sourceKey, workId).executeAsOneOrNull()?.toProgress()
+
+    /** A chapterless work is reported as ""; a work without progress returns null. */
+    suspend fun recentChapter(sourceKey: String, workId: String): String? =
+        db.extensionDbQueries.selectLatestProgress(sourceKey, workId).executeAsOneOrNull()?.chapter_id
+
+    private fun Reading_progress.toProgress() = ReadingProgress(
+        sourceKey = source_key,
+        workId = work_id,
+        chapterId = chapter_id.ifEmpty { null },
+        pageKey = page_key,
+        pageIndex = page_index.toInt(),
+    )
 
     private fun parseImageConfig(
         config: JsonElement?,
@@ -229,7 +228,7 @@ class ComicReadingService(
         return ImageRequest(url = url, method = method, headers = headers, body = data)
     }
 
-private data class ImageRequest(
+    private data class ImageRequest(
         val url: String,
         val method: String,
         val headers: Map<String, String>,

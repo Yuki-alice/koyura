@@ -200,19 +200,20 @@ private fun ReaderPager(
         }
     }
 
-    // Forward pager movement into the session: display tracking for progress, loading for the
-    // pages that actually come into view plus their neighbours.
+    LaunchedEffect(pagerState) {
+        snapshotFlow { pagerState.currentPage }.collect(session::markDisplayed)
+    }
+
+    // Load the active page and its neighbours without delaying the recorded position.
     LaunchedEffect(pagerState, content.pageKeys) {
-        snapshotFlow { pagerState.currentPage }.distinctUntilChanged().collect { index ->
-            session.markDisplayed(index)
+        snapshotFlow { pagerState.currentPage }.collect { index ->
             session.ensurePage(content.pageKeys[index])
             if (index > 0) session.ensurePage(content.pageKeys[index - 1])
             if (index + 1 < content.pageKeys.size) session.ensurePage(content.pageKeys[index + 1])
         }
     }
 
-    // Persist settled pages only. The initial emission equals the restored start page, which the
-    // session seeds as already saved, so opening never writes page 0 over restored progress.
+    // Write settled positions, including page one when opening a new chapter.
     LaunchedEffect(pagerState, content.pageKeys) {
         snapshotFlow { pagerState.settledPage }.distinctUntilChanged().collect { index ->
             session.savePage(index)

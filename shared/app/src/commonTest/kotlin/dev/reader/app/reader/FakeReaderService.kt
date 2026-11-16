@@ -84,8 +84,9 @@ class FakeReaderService(
         sourceKey: String,
         workId: String,
         chapterId: String?,
-        pageKey: String,
+        imageKey: String,
     ): ByteArray {
+        val pageKey = imageKey
         enter("page:$pageKey")
         loadCounts[pageKey] = (loadCounts[pageKey] ?: 0) + 1
         val remaining = pageFailures[pageKey] ?: 0
@@ -96,7 +97,13 @@ class FakeReaderService(
         return pageBytes[pageKey] ?: throw ReaderServiceException("Unknown page $pageKey")
     }
 
-    override suspend fun saveProgress(sourceKey: String, workId: String, chapterId: String?, pageIndex: Int) {
+    override suspend fun saveProgress(
+        sourceKey: String,
+        workId: String,
+        chapterId: String?,
+        pageKey: String,
+        pageIndex: Int,
+    ) {
         enter("save:$sourceKey:$workId:$chapterId:$pageIndex")
         saveCalls += SaveCall(sourceKey, workId, chapterId, pageIndex)
         savedProgress[sourceKey to workId] = ReaderProgress(chapterId, pageIndex)

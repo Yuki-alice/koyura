@@ -11,8 +11,6 @@ import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
-import dev.reader.app.reader.ReaderPageState
-import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
@@ -334,4 +332,3 @@ class ReaderFlowTest {
         awaitIndicator("1 / 5")
     }
 }
-
