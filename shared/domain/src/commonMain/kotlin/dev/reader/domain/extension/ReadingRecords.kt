@@ -38,10 +38,14 @@ sealed class ReadingFailure(message: String, cause: Throwable? = null) : Illegal
     class SourceMissing(val key: String) : ReadingFailure("Extension is not installed: $key")
     class ChapterInvalid(cause: Throwable? = null) : ReadingFailure("Source returned an unusable chapter", cause)
     class ConfigInvalid(cause: Throwable? = null) : ReadingFailure("Source returned an unusable image config", cause)
+    /** `kind` is `modifyImage` today; `onResponse` transforms and full-image `onLoadFailed` retries are supported. */
     class TransformUnsupported(val kind: String) : ReadingFailure(
-        "Image transform is not supported in this round: $kind (onResponse / modifyImage / onLoadFailed)",
+        "Image transform is not supported in this round: $kind",
     )
+    /** `onResponse` returned a non-bytes value (or threw a non-cancellation error). Retryable via `onLoadFailed`. */
+    class InvalidTransform(cause: Throwable? = null) : ReadingFailure("Image transform returned invalid bytes", cause)
     class PageNotFound(val pageKey: String) : ReadingFailure("Page is no longer listed: $pageKey")
     class HttpError(val status: Int) : ReadingFailure("Image server returned HTTP $status")
     class TransportFailed(cause: Throwable) : ReadingFailure("Image request failed: ${cause.message}", cause)
+    class RuntimeClosed : ReadingFailure("Image runtime is closed")
 }

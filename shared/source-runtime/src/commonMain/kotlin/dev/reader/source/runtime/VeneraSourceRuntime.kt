@@ -17,6 +17,7 @@ import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
@@ -164,6 +165,100 @@ class VeneraSourceRuntime private constructor(
                 val value = evaluate<String>(script, "$key:${callback.path}")
                 Json.parseToJsonElement(value)
             }
+        }
+    }
+
+    val isClosed: Boolean
+        get() = engine.isClosed
+
+    /**
+     * Parses an image loading config through the registered callback without
+     * serializing functions: function-valued fields listed in [capturable]
+     * come back as integer handles into a JS-side registry, everything else
+     * as plain JSON. Callers must [releaseImageCallbacks] every returned
+     * handle on all paths.
+     *
+     * The runtime lock is held only for the callback itself; callers perform
+     * network I/O outside of it so other source callbacks keep flowing.
+     */
+    suspend fun parseImageConfig(
+        key: String,
+        callback: VeneraCallback,
+        arguments: JsonArray = JsonArray(emptyList()),
+        capturable: List<String> = listOf("onResponse", "onLoadFailed"),
+    ): ParsedImageConfig = withContext(Dispatchers.Default) {
+        mutex.withLock {
+            checkOpen()
+            val source = requireNotNull(sources[key]) { "Source '$key' is not registered" }
+            require(callback in source.callbacks) { "Source '$key' does not provide ${callback.path}" }
+            val encodedArguments = JsonPrimitive(arguments.toString())
+            val encodedCapturable = JsonPrimitive(Json.encodeToString(capturable))
+            val script = "await __readerVenera.invokeImage(${JsonPrimitive(key)}, " +
+                "${JsonPrimitive(callback.path)}, JSON.parse($encodedArguments), JSON.parse($encodedCapturable))"
+            val raw = withTimeout(CALLBACK_TIMEOUT_MILLIS) {
+                evaluate<String>(script, "$key:${callback.path}:image")
+            }
+            ParsedImageConfig.decode(Json.parseToJsonElement(raw))
+        }
+    }
+
+    /**
+     * Invokes a tracked `onResponse` handle with [bytes] and returns the
+     * transformed bytes. The handle stays valid until released.
+     */
+    suspend fun invokeImageOnResponse(handle: Int, bytes: ByteArray): ByteArray =
+        withContext(Dispatchers.Default) {
+            mutex.withLock {
+                checkOpen()
+                val payload = bytes.joinToString(prefix = "[", postfix = "]") { (it.toInt() and 0xFF).toString() }
+                withTimeout(CALLBACK_TIMEOUT_MILLIS) {
+                    evaluate<UByteArray>("await __readerImage.callOnResponse($handle, $payload)", "image:onResponse")
+                        .toByteArray()
+                }
+            }
+        }
+
+    /**
+     * Invokes a tracked `onLoadFailed` handle and parses the replacement
+     * config. Returns null when the script declines to provide one (a nullish
+     * return), in which case the original failure must be rethrown.
+     */
+    suspend fun invokeImageOnLoadFailed(
+        handle: Int,
+        capturable: List<String> = listOf("onResponse", "onLoadFailed"),
+    ): ParsedImageConfig? = withContext(Dispatchers.Default) {
+        mutex.withLock {
+            checkOpen()
+            val encodedCapturable = JsonPrimitive(Json.encodeToString(capturable))
+            val raw = withTimeout(CALLBACK_TIMEOUT_MILLIS) {
+                evaluate<String>("await __readerImage.callOnLoadFailed($handle, JSON.parse($encodedCapturable))", "image:onLoadFailed")
+            }
+            val element = Json.parseToJsonElement(raw)
+            if (element is JsonNull) return@withLock null
+            ParsedImageConfig.decode(element)
+        }
+    }
+
+    /** Best-effort release of tracked image-callback handles. */
+    suspend fun releaseImageCallbacks(handles: Collection<Int>) {
+        if (handles.isEmpty()) return
+        withContext(Dispatchers.Default) {
+            mutex.withLock {
+                if (engine.isClosed) return@withLock
+                for (handle in handles) {
+                    runCatching {
+                        evaluate<Boolean>("__readerImage.release($handle)", "image:release")
+                    }
+                }
+            }
+        }
+    }
+
+    /** Number of tracked image callbacks, for tests and diagnostics. */
+    suspend fun imageCallbackCount(): Int = withContext(Dispatchers.Default) {
+        mutex.withLock {
+            checkOpen()
+            evaluate<String>("JSON.stringify(__readerImage.liveCount())", "image:count").toInt()
         }
     }
 

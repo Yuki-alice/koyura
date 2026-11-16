@@ -186,6 +186,112 @@ internal val veneraBootstrap = """
                 }
                 return Promise.resolve(result).then(serializeResult);
             },
+            async invokeImage(key, path, args, capturable) {
+                const source = sources[key];
+                if (source === undefined) throw new Error("Source is not registered: " + key);
+                const [owner, invoke] = callback(source, path);
+                if (typeof invoke !== "function") throw new TypeError("Source callback is unavailable: " + path);
+                const result = await Reflect.apply(invoke, owner, args);
+                return __readerImage.prepare(result, capturable ?? []);
+            },
         });
     })();
+
+    const __readerImage = (() => {
+            // Function handles keep JS callbacks callable across the JSON-only
+            // boundary: the host receives integer ids, never function objects.
+            // Each tracked function gets a fresh id, so releasing one config
+            // can never free another config's callbacks.
+            let nextHandle = 1;
+            const byId = new Map();
+            function track(fn) {
+                const id = nextHandle++;
+                byId.set(id, fn);
+                return id;
+            }
+            function get(id) {
+                const fn = byId.get(id);
+                if (fn === undefined) throw new Error("Image callback was released: " + id);
+                return fn;
+            }
+            function serializePlain(result) {
+                return JSON.stringify(result ?? null, (_, value) => {
+                    if (typeof value === "function" || value instanceof ArrayBuffer || ArrayBuffer.isView(value)) {
+                        throw new TypeError("The image config returned a function or binary value where the host expects JSON");
+                    }
+                    return value;
+                });
+            }
+            function normalizeBytesOut(out) {
+                if (out instanceof Uint8Array) return out.slice();
+                if (out instanceof ArrayBuffer) return new Uint8Array(out);
+                if (Array.isArray(out)) {
+                    for (const v of out) {
+                        if (typeof v !== "number" || !Number.isInteger(v) || v < 0 || v > 255) {
+                            throw new TypeError("Image bytes must be a Uint8Array or ArrayBuffer, got array with non-byte entry");
+                        }
+                    }
+                    return Uint8Array.from(out);
+                }
+                if (typeof out === "object" && out !== null && typeof out.buffer === "object") {
+                    return new Uint8Array(out.buffer, out.byteOffset ?? 0, out.byteLength ?? 0).slice();
+                }
+                throw new TypeError("Image bytes must be a Uint8Array or ArrayBuffer, got " + (out === null ? "null" : typeof out));
+            }
+            return Object.freeze({
+                prepare(result, capturable) {
+                    if (result === null || typeof result !== "object" || Array.isArray(result)) {
+                        throw new TypeError("Image config must be an object");
+                    }
+                    if (result.modifyImage != null) {
+                        throw new Error("Unsupported image capability: modifyImage");
+                    }
+                    const handles = {};
+                    const tracked = [];
+                    const plain = {};
+                    try {
+                        for (const name of Object.keys(result)) {
+                            const value = result[name];
+                            if (capturable.includes(name)) {
+                                if (typeof value === "function") {
+                                    const id = track(value);
+                                    tracked.push(id);
+                                    handles[name] = id;
+                                    continue;
+                                }
+                                if (value !== undefined && value !== null) {
+                                    throw new TypeError("Image config field is not a function: " + name);
+                                }
+                                continue;
+                            }
+                            plain[name] = value;
+                        }
+                        // serializePlain rejects any leftover function or binary
+                        // value, so nested callbacks and binary fields surface as
+                        // invalid configs instead of silently dropping data.
+                        return serializePlain({ data: plain, handles });
+                    } catch (e) {
+                        for (const id of tracked) byId.delete(id);
+                        throw e;
+                    }
+                },
+                async callOnResponse(id, bytes) {
+                    const fn = get(id);
+                    const out = await fn(new Uint8Array(bytes));
+                    return normalizeBytesOut(out);
+                },
+                async callOnLoadFailed(id, capturable) {
+                    const fn = get(id);
+                    const out = await fn();
+                    if (out === null || out === undefined) return "null";
+                    return this.prepare(out, capturable ?? []);
+                },
+                release(id) {
+                    return byId.delete(id);
+                },
+                liveCount() {
+                    return byId.size;
+                },
+            });
+        })();
 """.trimIndent()
