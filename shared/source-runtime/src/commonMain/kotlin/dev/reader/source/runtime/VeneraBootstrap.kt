@@ -32,6 +32,12 @@ internal val veneraBootstrap = """
         const sources = ComicSource.sources;
         let pending = null;
         let pendingKey = null;
+        let sequence = 0;
+        const seqBySource = new WeakMap();
+        // Previous instance displaced by initializeReplace. Kept so a repair
+        // can put the exact object (with its memory state) back when the
+        // candidate never settles, e.g. its init await was abandoned.
+        const displaced = new Map();
 
         function network(sendMessage) {
             return {
@@ -91,6 +97,7 @@ internal val veneraBootstrap = """
                 };
                 const source = construct(network(sendMessage), sendMessage);
                 if (!(source instanceof ComicSource)) throw new TypeError("Expected a ComicSource instance");
+                seqBySource.set(source, ++sequence);
 
                 const { name, key, version, minAppVersion, url } = source;
                 sourceKey = key;
@@ -108,7 +115,41 @@ internal val veneraBootstrap = """
                 if (sources[key] !== pending) throw new Error("Source changed its registry entry during init: " + key);
                 return true;
             },
+            async initializeReplace(key) {
+                if (pending === null || pending.key !== key) {
+                    throw new Error("Source cannot be initialized: " + key);
+                }
+                const prev = Object.hasOwn(sources, key) ? sources[key] : undefined;
+                displaced.set(key, prev);
+                pendingKey = key;
+                sources[key] = pending;
+                try {
+                    if (typeof pending.init === "function") await pending.init();
+                } catch (e) {
+                    if (sources[key] === pending) {
+                        if (prev === undefined) delete sources[key];
+                        else sources[key] = prev;
+                        displaced.delete(key);
+                    }
+                    throw e;
+                }
+                if (sources[key] !== pending) throw new Error("Source changed its registry entry during init: " + key);
+                displaced.delete(key);
+                return true;
+            },
+            repairDisplaced(key) {
+                if (!displaced.has(key)) return false;
+                const prev = displaced.get(key);
+                displaced.delete(key);
+                if (prev === undefined) delete sources[key];
+                else sources[key] = prev;
+                return true;
+            },
             commit() {
+                pending = null;
+                pendingKey = null;
+            },
+            discard() {
                 pending = null;
                 pendingKey = null;
             },
@@ -119,6 +160,11 @@ internal val veneraBootstrap = """
             },
             unregister(key) {
                 delete sources[key];
+            },
+            instanceSeq(key) {
+                const source = sources[key];
+                if (source === undefined) return null;
+                return seqBySource.has(source) ? seqBySource.get(source) : null;
             },
             invoke(key, path, args, synchronous) {
                 const source = sources[key];

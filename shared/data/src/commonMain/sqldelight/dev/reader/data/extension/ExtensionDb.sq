@@ -1,0 +1,69 @@
+CREATE TABLE repositories(
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  url TEXT NOT NULL,
+  enabled INTEGER NOT NULL DEFAULT 1
+);
+
+selectAllRepositories:
+SELECT * FROM repositories;
+
+selectRepositoryById:
+SELECT * FROM repositories WHERE id = ?;
+
+insertRepository:
+INSERT INTO repositories(id, name, url, enabled) VALUES(?, ?, ?, ?);
+
+updateRepository:
+UPDATE repositories SET name = ?, url = ? WHERE id = ?;
+
+updateRepositoryEnabled:
+UPDATE repositories SET enabled = ? WHERE id = ?;
+
+deleteRepository:
+DELETE FROM repositories WHERE id = ?;
+
+CREATE TABLE origins(
+  source_key TEXT PRIMARY KEY,
+  kind TEXT NOT NULL,
+  repository_id TEXT,
+  repository_name TEXT,
+  url TEXT
+);
+
+selectOriginByKey:
+SELECT * FROM origins WHERE source_key = ?;
+
+upsertOrigin:
+INSERT OR REPLACE INTO origins(source_key, kind, repository_id, repository_name, url)
+VALUES(?, ?, ?, ?, ?);
+
+deleteOrigin:
+DELETE FROM origins WHERE source_key = ?;
+
+snapshotOriginsRepositoryName:
+UPDATE origins SET repository_name = ? WHERE repository_id = ?;
+
+CREATE TABLE extensions(
+  source_key TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  version TEXT NOT NULL,
+  file_name TEXT NOT NULL,
+  origin_kind TEXT NOT NULL,
+  origin_repository_id TEXT,
+  origin_repository_name TEXT,
+  origin_url TEXT
+);
+
+selectAllExtensions:
+SELECT * FROM extensions;
+
+selectExtensionByKey:
+SELECT * FROM extensions WHERE source_key = ?;
+
+upsertExtension:
+INSERT OR REPLACE INTO extensions(source_key, name, version, file_name, origin_kind, origin_repository_id, origin_repository_name, origin_url)
+VALUES(?, ?, ?, ?, ?, ?, ?, ?);
+
+deleteExtension:
+DELETE FROM extensions WHERE source_key = ?;
