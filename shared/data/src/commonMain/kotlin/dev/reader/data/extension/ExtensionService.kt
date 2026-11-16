@@ -6,8 +6,12 @@ import dev.reader.domain.extension.ExtensionFailure
 import dev.reader.domain.extension.InstalledExtensionRecord
 import dev.reader.domain.extension.OriginRecord
 import dev.reader.domain.extension.RepositoryRecord
+import dev.reader.domain.extension.UpdateCheckResult
 import dev.reader.source.runtime.KtorVeneraHttpTransport
+import dev.reader.source.runtime.VeneraCallback
+import dev.reader.source.runtime.VeneraCatalog
 import dev.reader.source.runtime.VeneraCatalogEntry
+import dev.reader.source.runtime.VeneraCatalogError
 import dev.reader.source.runtime.VeneraEnvironment
 import dev.reader.source.runtime.VeneraSourceRuntime
 import dev.reader.source.runtime.isVeneraUpdateAvailable
@@ -20,8 +24,11 @@ import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
 import kotlin.uuid.Uuid
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.json.JsonElement
 import okio.FileSystem
 import okio.Path
 
@@ -32,25 +39,36 @@ private fun sanitizeFileName(key: String): String {
     return mapped.ifBlank { "source" }
 }
 
+/** Immutable revision file name: one complete script per (key, version). */
+internal fun revisionFileName(key: String, version: String): String =
+    sanitizeFileName("${key}@${version}") + ".js"
+
 /**
- * Injectable extension lifecycle service (milestones 2-3).
+ * Injectable extension lifecycle service (milestones 2-3, consistency round).
  *
  * Persistence split:
  * - SQLDelight ([SqlDriver]/[ExtensionDb]): repository configs, install origins,
- *   extension revisions.
- * - Okio ([FileSystem] + [scriptsDir]): raw script bytes `<sanitized-key>.js`.
+ *   extension revisions. The extensions row is the commit pointer: `file_name`
+ *   names the live immutable revision file.
+ * - Okio ([FileSystem] + [scriptsDir]): immutable raw script bytes
+ *   `<sanitized-key>@<version>.js`.
  *
- * Commit order (install/replace): validate in a scratch QuickJS runtime
- * (expected-key + metadata + `init`), write temp file + atomic move, DB
- * transaction (extension row + origin row), then register into the live runtime.
- * Any validation/write failure leaves old files, rows and live instances
- * untouched. A live-registration failure rolls file + rows back and re-registers
- * the previous revision when replacing.
+ * Commit order:
+ * - Install: row-exists check → live `register` (candidate `init` runs exactly
+ *   once) → write revision file → DB transaction (extension row + origin row).
+ *   File/DB failure after registration rolls the live instance back.
+ * - Replace: peek metadata (no `init`) to name the revision → write new revision
+ *   file → DB transaction moves the pointer → live `replace` (`init` once). The
+ *   previous live instance (with its memory state) is never unregistered before
+ *   the candidate succeeds; on candidate failure it stays callable.
  *
- * Crash recovery ([open]/[restore]): deletes `*.new` leftovers, then for every
- * extension row checks the script file exists; missing files are reported and
- * skipped (row kept for reinstall/uninstall), parse failures are reported and
- * skipped. A file without a row is deleted as an orphan.
+ * Crash recovery ([open]/[restore]): `*.new` leftovers are deleted; every row's
+ * file must exist and parse — missing files are reported and skipped (row kept
+ * for reinstall/uninstall retry); the installed version follows the actual
+ * script metadata and a drifted row is healed. Files not referenced by any row
+ * are deleted as orphans. A file written before its DB commit is therefore an
+ * orphan or still shadows a complete old revision: restart restores exactly one
+ * complete revision per key.
  */
 class ExtensionService(
     driver: SqlDriver,
@@ -90,6 +108,23 @@ class ExtensionService(
         return record
     }
 
+    fun updateRepository(id: String, name: String, url: String): RepositoryRecord {
+        val current = queries().selectRepositoryById(id).executeAsOneOrNull()
+            ?: throw ExtensionFailure.StorageFailure(NoSuchElementException("missing repository: $id"))
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) throw ExtensionFailure.StorageFailure(IllegalArgumentException("missing repository name"))
+        val normalized = try {
+            normalizeVeneraUrl(url)
+        } catch (e: Exception) {
+            throw ExtensionFailure.StorageFailure(e)
+        }
+        if (queries().selectAllRepositories().executeAsList().any { it.id != id && it.url == normalized }) {
+            throw ExtensionFailure.StorageFailure(IllegalStateException("duplicate repository url: $normalized"))
+        }
+        queries().updateRepository(trimmed, normalized, id)
+        return RepositoryRecord(id, trimmed, normalized, current.enabled != 0L)
+    }
+
     fun setRepositoryEnabled(id: String, enabled: Boolean) {
         queries().selectRepositoryById(id).executeAsOneOrNull()
             ?: throw ExtensionFailure.StorageFailure(NoSuchElementException("missing repository: $id"))
@@ -110,70 +145,122 @@ class ExtensionService(
         return OriginRecord(row.source_key, row.kind, row.repository_id, row.repository_name, row.url)
     }
 
+    // ---- browse entries: preview, installed list, per-key call ----
+
+    /**
+     * Loads a catalog for display without saving anything. Variants sharing a
+     * key are identified by `(repositoryId, sourceKey, resolved entry URL)`.
+     */
+    suspend fun previewCatalog(repositoryId: String): Pair<String, VeneraCatalog> {
+        val repo = queries().selectRepositoryById(repositoryId).executeAsOneOrNull()
+            ?: throw ExtensionFailure.StorageFailure(NoSuchElementException("missing repository: $repositoryId"))
+        return repo.url to loadVeneraCatalog(httpClient, repo.url)
+    }
+
+    suspend fun previewCatalogUrl(url: String): Pair<String, VeneraCatalog> {
+        val normalized = try {
+            normalizeVeneraUrl(url)
+        } catch (e: Exception) {
+            throw ExtensionFailure.StorageFailure(e)
+        }
+        return normalized to loadVeneraCatalog(httpClient, normalized)
+    }
+
+    fun listInstalled(): List<InstalledExtensionRecord> =
+        queries().selectAllExtensions().executeAsList().map {
+            InstalledExtensionRecord(
+                it.source_key, it.name, it.version, it.file_name,
+                it.origin_kind, it.origin_repository_id, it.origin_repository_name, it.origin_url,
+            )
+        }
+
+    suspend fun call(key: String, callback: VeneraCallback, args: kotlinx.serialization.json.JsonArray): JsonElement {
+        val live = runtime ?: throw ExtensionFailure.MissingExtension(key)
+        if (live.registeredSources().none { it.key == key }) throw ExtensionFailure.MissingExtension(key)
+        return live.call(key, callback, args)
+    }
+
     // ---- lifecycle ----
 
-    /** Creates dirs + schema state, cleans temp leftovers. Call once before use. */
+    /** Creates dirs, deletes `*.new` leftovers. Call once before use. */
     suspend fun open() {
         fileSystem.createDirectories(scriptsDir)
         fileSystem.listOrNull(scriptsDir)?.forEach { path ->
-            if (path.name.endsWith(".new")) fileSystem.delete(path, mustExist = false)
+            if (path.name.endsWith(".new")) runCatching { fileSystem.delete(path) }
         }
     }
 
     /**
-     * Registers persisted revisions into a new live runtime. Returns failures
-     * (missing file / parse-init error) without throwing; rows are kept.
+     * Registers persisted revisions into a new live runtime. Missing files and
+     * parse failures are reported and skipped (rows kept); a row whose version
+     * drifted from its file's actual script metadata is healed to the file.
+     * Unreferenced script files are deleted as orphans.
      */
     suspend fun restore(): RestoreReport {
         val failures = mutableListOf<RestoreFailure>()
         val live = VeneraSourceRuntime.create(environment, KtorVeneraHttpTransport(httpClient))
         runtime?.close()
         runtime = live
-        // Orphan files (no row) are removed.
         val rows = queries().selectAllExtensions().executeAsList()
-        val knownFiles = rows.map { it.file_name }.toSet()
+        val referenced = rows.map { it.file_name }.toSet()
         fileSystem.listOrNull(scriptsDir)?.forEach { path ->
-            if (path.name.endsWith(".js") && path.name !in knownFiles) {
-                fileSystem.delete(path, mustExist = false)
+            if (path.name.endsWith(".js") && path.name !in referenced) {
+                runCatching { fileSystem.delete(path) }
             }
         }
+        var registered = 0
         for (row in rows) {
-            val scriptPath = scriptsDir / row.file_name
-            val bytes = try {
-                fileSystem.read(scriptPath) { readByteArray() }
+            val script = try {
+                fileSystem.read(scriptsDir / row.file_name) { readUtf8() }
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 failures += RestoreFailure(row.source_key, e)
                 continue
             }
             try {
-                live.register(bytes.decodeToString(), row.file_name, expectedKey = row.source_key)
+                val source = live.register(script, row.file_name, expectedKey = row.source_key)
+                if (source.version != row.version || source.name != row.name) {
+                    queries().upsertExtension(
+                        row.source_key, source.name, source.version, row.file_name,
+                        row.origin_kind, row.origin_repository_id, row.origin_repository_name, row.origin_url,
+                    )
+                }
+                registered++
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 failures += RestoreFailure(row.source_key, e)
             }
         }
-        return RestoreReport(registered = rows.size - failures.size, failures = failures.toList())
+        return RestoreReport(registered = registered, failures = failures.toList())
     }
 
-    suspend fun installFromCatalog(repositoryId: String, entry: VeneraCatalogEntry): InstalledExtensionRecord =
-        mutex.withLock {
-            val repo = queries().selectRepositoryById(repositoryId).executeAsOneOrNull()
-                ?: throw ExtensionFailure.StorageFailure(NoSuchElementException("missing repository: $repositoryId"))
-            if (repo.id != repositoryId || repo.url.let { normalizeVeneraUrl(it) } != normalizeVeneraUrl(repo.url)) {
-                throw ExtensionFailure.StorageFailure(IllegalStateException("repository changed"))
-            }
-            val script = downloadScript(entry.url)
-            installValidated(
-                script = script,
-                expectedKey = entry.key,
-                name = entry.name,
-                version = entry.version,
-                originKind = "repository",
-                originRepositoryId = repo.id,
-                originRepositoryName = repo.name,
-                originUrl = entry.url,
-            )
+    suspend fun installFromCatalog(
+        repositoryId: String,
+        entry: VeneraCatalogEntry,
+        previewedRepoUrl: String,
+    ): InstalledExtensionRecord = mutex.withLock {
+        val repo = queries().selectRepositoryById(repositoryId).executeAsOneOrNull()
+            ?: throw ExtensionFailure.StorageFailure(NoSuchElementException("missing repository: $repositoryId"))
+        val previewed = try {
+            normalizeVeneraUrl(previewedRepoUrl)
+        } catch (e: Exception) {
+            throw ExtensionFailure.StorageFailure(e)
         }
+        if (previewed != repo.url) {
+            throw ExtensionFailure.StaleCatalog(previewed, repo.url)
+        }
+        val script = downloadScript(entry.url)
+        installValidated(
+            script = script,
+            expectedKey = entry.key,
+            name = entry.name,
+            version = entry.version,
+            originKind = "repository",
+            originRepositoryId = repo.id,
+            originRepositoryName = repo.name,
+            originUrl = entry.url,
+        )
+    }
 
     suspend fun installFromUrl(url: String, expectedKey: String? = null): InstalledExtensionRecord =
         mutex.withLock {
@@ -208,13 +295,14 @@ class ExtensionService(
         mutex.withLock {
             val row = queries().selectExtensionByKey(key).executeAsOneOrNull()
                 ?: throw ExtensionFailure.MissingExtension(key)
-            val live = runtime
-            // Unregister first so a missing runtime still allows file+row cleanup.
             try {
-                live?.unregister(key)
+                runtime?.unregister(key)
             } catch (_: Exception) {
             }
-            fileSystem.delete(scriptsDir / row.file_name, mustExist = false)
+            // Best effort: a crash here leaves the row behind; restart reports
+            // the missing file and a retry converges (missing files tolerated).
+            runCatching { fileSystem.delete(scriptsDir / row.file_name) }
+            deleteRevisionFiles(key, keep = null)
             db.transaction {
                 queries().deleteExtension(key)
                 queries().deleteOrigin(key)
@@ -222,39 +310,50 @@ class ExtensionService(
         }
     }
 
-    suspend fun checkUpdates(): Map<String, String> {
-        val live = runtime ?: return emptyMap()
+    suspend fun checkUpdates(): Map<String, String> = checkUpdatesDetailed().updates
+
+    suspend fun checkUpdatesDetailed(): UpdateCheckResult {
         val updates = mutableMapOf<String, String>()
+        val repoFailures = mutableMapOf<String, String>()
+        val ambiguous = mutableListOf<String>()
+        val missing = mutableListOf<String>()
         val rows = queries().selectAllExtensions().executeAsList()
-        for (row in rows) {
-            val origin = queries().selectOriginByKey(row.source_key).executeAsOneOrNull()
-            val repoId = origin?.repository_id
-            val repo = repoId?.let { queries().selectRepositoryById(it).executeAsOneOrNull() }
+        val repoIds = rows.mapNotNull { queries().selectOriginByKey(it.source_key).executeAsOneOrNull()?.repository_id }.toSet()
+        for (repoId in repoIds) {
+            val repo = queries().selectRepositoryById(repoId).executeAsOneOrNull()
             if (repo == null || repo.enabled == 0L) continue
             val catalog = try {
                 loadVeneraCatalog(httpClient, repo.url)
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
+                repoFailures[repoId] = e.message ?: e.toString()
                 continue
             }
-            val entry = try {
-                selectCatalogEntry(row.source_key, catalog.entries.map {
-                    VeneraCatalogEntry(it.key, it.name, it.version, it.url, it.description)
-                }, origin?.url)
-            } catch (_: Exception) {
-                continue
+            val entries = catalog.entries.map {
+                VeneraCatalogEntry(it.key, it.name, it.version, it.url, it.description)
             }
-            if (isVeneraUpdateAvailable(entry.version, row.version)) {
-                updates[row.source_key] = entry.version
+            for (row in rows) {
+                val origin = queries().selectOriginByKey(row.source_key).executeAsOneOrNull()
+                if (origin?.repository_id != repoId) continue
+                val entry = try {
+                    selectCatalogEntry(row.source_key, entries, origin.url)
+                } catch (e: VeneraCatalogError.AmbiguousSource) {
+                    if (row.source_key !in ambiguous) ambiguous += row.source_key
+                    continue
+                } catch (e: VeneraCatalogError.MissingSource) {
+                    if (row.source_key !in missing) missing += row.source_key
+                    continue
+                }
+                if (isVeneraUpdateAvailable(entry.version, row.version)) {
+                    updates[row.source_key] = entry.version
+                }
             }
         }
-        return updates
+        return UpdateCheckResult(updates, repoFailures, ambiguous, missing)
     }
 
     suspend fun update(key: String): InstalledExtensionRecord {
-        mutex.withLock {
-            if (!updating.add(key)) throw ExtensionFailure.UpdateInProgress(key)
-        }
+        mutex.withLock { if (!updating.add(key)) throw ExtensionFailure.UpdateInProgress(key) }
         try {
             return mutex.withLock {
                 val row = queries().selectExtensionByKey(key).executeAsOneOrNull()
@@ -268,11 +367,13 @@ class ExtensionService(
                     }
                     try {
                         selectCatalogEntry(key, entries, origin?.url)
-                    } catch (e: dev.reader.source.runtime.VeneraCatalogError) {
+                    } catch (e: VeneraCatalogError.AmbiguousSource) {
+                        throw ExtensionFailure.AmbiguousSource(key)
+                    } catch (e: VeneraCatalogError) {
                         throw ExtensionFailure.MissingSource(key)
                     }.url
                 } else {
-                    // Upstream fallback: script-declared URL.
+                    // Upstream fallback: the script's own declared URL.
                     val live = runtime ?: throw ExtensionFailure.MissingExtension(key)
                     val source = live.registeredSources().firstOrNull { it.key == key }
                         ?: throw ExtensionFailure.MissingExtension(key)
@@ -283,7 +384,9 @@ class ExtensionService(
                         throw ExtensionFailure.StorageFailure(e)
                     }
                 }
+                currentCoroutineContext().ensureActive()
                 val script = downloadScript(targetUrl)
+                currentCoroutineContext().ensureActive()
                 replaceValidated(key, row, script, targetUrl, repo)
             }
         } finally {
@@ -310,30 +413,6 @@ class ExtensionService(
         }
     }
 
-    private suspend fun validateInScratch(script: String, fileName: String, expectedKey: String?): Triple<String, String, String> {
-        val scratch = VeneraSourceRuntime.create(environment, KtorVeneraHttpTransport(httpClient))
-        try {
-            val source = scratch.register(script, fileName, expectedKey = expectedKey)
-            if (expectedKey != null && source.key != expectedKey) {
-                throw ExtensionFailure.KeyMismatch(expectedKey, source.key)
-            }
-            return Triple(source.key, source.name, source.version)
-        } catch (e: ExtensionFailure) {
-            throw e
-        } catch (e: IllegalArgumentException) {
-            if (expectedKey != null && e.message?.startsWith("Expected source") == true) {
-                val actual = Regex("got '([^']*)'").find(e.message!!)?.groupValues?.getOrNull(1)
-                throw ExtensionFailure.KeyMismatch(expectedKey, actual)
-            }
-            throw ExtensionFailure.InvalidScript(e)
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            throw ExtensionFailure.InvalidScript(e)
-        } finally {
-            scratch.close()
-        }
-    }
-
     private suspend fun installValidated(
         script: String,
         expectedKey: String?,
@@ -344,14 +423,36 @@ class ExtensionService(
         originRepositoryName: String? = null,
         originUrl: String? = null,
     ): InstalledExtensionRecord {
+        val live = runtime ?: throw ExtensionFailure.StorageFailure(IllegalStateException("service not restored"))
         val fileProbe = sanitizeFileName(expectedKey ?: name ?: "source") + ".js"
-        val (key, parsedName, parsedVersion) = validateInScratch(script, fileProbe, expectedKey)
-        if (queries().selectExtensionByKey(key).executeAsOneOrNull() != null) {
-            throw ExtensionFailure.AlreadyInstalled(key)
+        // Metadata first without init; the single initializing registration below
+        // runs the candidate init exactly once.
+        val peeked = try {
+            live.peekMetadata(script, fileProbe, expectedKey)
+        } catch (e: IllegalArgumentException) {
+            if (expectedKey != null && e.message?.startsWith("Expected source") == true) {
+                val actual = Regex("got '([^']*)'").find(e.message!!)?.groupValues?.getOrNull(1)
+                throw ExtensionFailure.KeyMismatch(expectedKey, actual)
+            }
+            throw ExtensionFailure.InvalidScript(e)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            throw ExtensionFailure.InvalidScript(e)
         }
-        val finalName = name ?: parsedName
-        val finalVersion = version ?: parsedVersion
-        val fileName = sanitizeFileName(key) + ".js"
+        if (queries().selectExtensionByKey(peeked.key).executeAsOneOrNull() != null) {
+            throw ExtensionFailure.AlreadyInstalled(peeked.key)
+        }
+        val registered = try {
+            live.register(script, fileProbe, expectedKey = peeked.key)
+        } catch (e: ExtensionFailure) {
+            throw e
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            throw ExtensionFailure.InvalidScript(e)
+        }
+        val finalName = name ?: registered.name
+        val finalVersion = version ?: registered.version
+        val fileName = revisionFileName(registered.key, finalVersion)
         val target = scriptsDir / fileName
         val temp = scriptsDir / "$fileName.new"
         try {
@@ -359,35 +460,28 @@ class ExtensionService(
             fileSystem.atomicMove(temp, target)
         } catch (e: Exception) {
             if (e is CancellationException) throw e
-            // Cleanup must never mask the original failure (e.g. POSIX ENOTDIR
-            // when the scripts dir itself is a file on Apple platforms).
             runCatching { fileSystem.delete(temp, mustExist = false) }
+            try {
+                live.unregister(registered.key)
+            } catch (_: Exception) {
+            }
             throw ExtensionFailure.StorageFailure(e)
         }
         try {
             db.transaction {
-                queries().upsertExtension(key, finalName, finalVersion, fileName, originKind, originRepositoryId, originRepositoryName, originUrl)
-                queries().upsertOrigin(key, originKind, originRepositoryId, originRepositoryName, originUrl)
+                queries().upsertExtension(registered.key, finalName, finalVersion, fileName, originKind, originRepositoryId, originRepositoryName, originUrl)
+                queries().upsertOrigin(registered.key, originKind, originRepositoryId, originRepositoryName, originUrl)
             }
         } catch (e: Exception) {
             if (e is CancellationException) throw e
-            fileSystem.delete(target, mustExist = false)
+            runCatching { fileSystem.delete(target, mustExist = false) }
+            try {
+                live.unregister(registered.key)
+            } catch (_: Exception) {
+            }
             throw ExtensionFailure.StorageFailure(e)
         }
-        val live = runtime ?: throw ExtensionFailure.StorageFailure(IllegalStateException("service not restored"))
-        try {
-            live.register(script, fileName, expectedKey = key)
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            // Roll back file + rows; live instance never admitted.
-            fileSystem.delete(target, mustExist = false)
-            db.transaction {
-                queries().deleteExtension(key)
-                queries().deleteOrigin(key)
-            }
-            throw e
-        }
-        return InstalledExtensionRecord(key, finalName, finalVersion, fileName, originKind, originRepositoryId, originRepositoryName, originUrl)
+        return InstalledExtensionRecord(registered.key, finalName, finalVersion, fileName, originKind, originRepositoryId, originRepositoryName, originUrl)
     }
 
     private suspend fun replaceValidated(
@@ -397,64 +491,69 @@ class ExtensionService(
         originUrl: String?,
         repo: dev.reader.data.extension.Repositories?,
     ): InstalledExtensionRecord {
-        val fileName = row.file_name
+        val live = runtime ?: throw ExtensionFailure.StorageFailure(IllegalStateException("service not restored"))
+        // Metadata first (no init) so the immutable revision file can be named.
+        val peeked = live.peekMetadata(script, row.file_name, expectedKey = key)
+        val fileName = revisionFileName(key, peeked.version)
         val target = scriptsDir / fileName
-        val oldBytes: ByteArray? = try {
-            fileSystem.read(target) { readByteArray() }
-        } catch (_: Exception) {
-            null
-        }
-        val (_, parsedName, parsedVersion) = validateInScratch(script, fileName, key)
         val temp = scriptsDir / "$fileName.new"
         try {
             fileSystem.write(temp) { writeUtf8(script) }
             fileSystem.atomicMove(temp, target)
         } catch (e: Exception) {
             if (e is CancellationException) throw e
-            // Cleanup must never mask the original failure (e.g. POSIX ENOTDIR
-            // when the scripts dir itself is a file on Apple platforms).
             runCatching { fileSystem.delete(temp, mustExist = false) }
             throw ExtensionFailure.StorageFailure(e)
         }
+        currentCoroutineContext().ensureActive()
         val newOriginUrl = originUrl ?: row.origin_url
+        val oldFileName = row.file_name
         try {
             db.transaction {
-                queries().upsertExtension(key, parsedName, parsedVersion, fileName, row.origin_kind, row.origin_repository_id, row.origin_repository_name, newOriginUrl)
+                queries().upsertExtension(key, peeked.name, peeked.version, fileName, row.origin_kind, row.origin_repository_id, row.origin_repository_name, newOriginUrl)
                 queries().upsertOrigin(key, row.origin_kind, row.origin_repository_id, row.origin_repository_name, newOriginUrl)
             }
         } catch (e: Exception) {
             if (e is CancellationException) throw e
-            if (oldBytes != null) {
-                fileSystem.write(target) { write(oldBytes) }
-            } else {
-                fileSystem.delete(target, mustExist = false)
-            }
+            // Pointer untouched conceptually (transaction rolled back); drop the orphan revision.
+            runCatching { fileSystem.delete(target, mustExist = false) }
             throw ExtensionFailure.StorageFailure(e)
         }
-        val live = runtime ?: throw ExtensionFailure.StorageFailure(IllegalStateException("service not restored"))
-        val previous = live.registeredSources().firstOrNull { it.key == key }
+        currentCoroutineContext().ensureActive()
         try {
-            if (previous != null) live.unregister(key)
-            live.register(script, fileName, expectedKey = key)
+            live.replace(key, script, fileName, expectedKey = key)
         } catch (e: Exception) {
             if (e is CancellationException) throw e
-            // Roll back file + rows, re-admit previous revision when possible.
-            if (oldBytes != null) {
-                fileSystem.write(target) { write(oldBytes) }
-            }
-            db.transaction {
-                queries().upsertExtension(row.source_key, row.name, row.version, row.file_name, row.origin_kind, row.origin_repository_id, row.origin_repository_name, row.origin_url)
-            }
+            // Live instance untouched by a failed replace; move the pointer back
+            // and drop the orphan revision so file, rows and live agree again.
             try {
-                if (oldBytes != null) live.register(oldBytes.decodeToString(), fileName, expectedKey = key)
+                db.transaction {
+                    queries().upsertExtension(
+                        row.source_key, row.name, row.version, row.file_name,
+                        row.origin_kind, row.origin_repository_id, row.origin_repository_name, row.origin_url,
+                    )
+                }
             } catch (_: Exception) {
             }
+            runCatching { fileSystem.delete(target, mustExist = false) }
             throw e
         }
+        if (oldFileName != fileName) runCatching { fileSystem.delete(scriptsDir / oldFileName) }
         if (repo != null) {
             queries().upsertOrigin(key, row.origin_kind, repo.id, repo.name, newOriginUrl)
         }
-        return InstalledExtensionRecord(key, parsedName, parsedVersion, fileName, row.origin_kind, row.origin_repository_id, row.origin_repository_name, newOriginUrl)
+        return InstalledExtensionRecord(key, peeked.name, peeked.version, fileName, row.origin_kind, row.origin_repository_id, row.origin_repository_name, newOriginUrl)
+    }
+
+    private fun deleteRevisionFiles(key: String, keep: String?) {
+        val prefix = sanitizeFileName(key) + "@"
+        fileSystem.listOrNull(scriptsDir)?.forEach { path ->
+            if (!path.name.endsWith(".js")) return@forEach
+            if (path.name == keep) return@forEach
+            if (path.name == sanitizeFileName(key) + ".js" || path.name.startsWith(prefix)) {
+                runCatching { fileSystem.delete(path) }
+            }
+        }
     }
 }
 

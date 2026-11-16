@@ -108,7 +108,28 @@ internal val veneraBootstrap = """
                 if (sources[key] !== pending) throw new Error("Source changed its registry entry during init: " + key);
                 return true;
             },
+            async initializeReplace(key) {
+                if (pending === null || pending.key !== key) {
+                    throw new Error("Source cannot be initialized: " + key);
+                }
+                const prev = Object.hasOwn(sources, key) ? sources[key] : undefined;
+                pendingKey = key;
+                sources[key] = pending;
+                try {
+                    if (typeof pending.init === "function") await pending.init();
+                } catch (e) {
+                    if (prev === undefined) delete sources[key];
+                    else sources[key] = prev;
+                    throw e;
+                }
+                if (sources[key] !== pending) throw new Error("Source changed its registry entry during init: " + key);
+                return true;
+            },
             commit() {
+                pending = null;
+                pendingKey = null;
+            },
+            discard() {
                 pending = null;
                 pendingKey = null;
             },

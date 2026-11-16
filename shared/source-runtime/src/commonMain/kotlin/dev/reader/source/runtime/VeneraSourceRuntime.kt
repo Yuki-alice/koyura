@@ -135,16 +135,128 @@ class VeneraSourceRuntime private constructor(
     }
 
     private fun validate(source: VeneraSource, expectedKey: String?) {
+        validateFormat(source, expectedKey)
+        require(source.key !in sources) { "Source '${source.key}' is already registered" }
+    }
+
+    private fun validateFormat(source: VeneraSource, expectedKey: String?) {
         require(source.name.isNotBlank()) { "A Venera source name is required" }
         require(sourceKeyPattern.matches(source.key)) { "Invalid Venera source key: '${source.key}'" }
         require(expectedKey == null || source.key == expectedKey) {
             "Expected source '$expectedKey', got '${source.key}'"
         }
-        require(source.key !in sources) { "Source '${source.key}' is already registered" }
         VeneraVersion.parse(source.version)
         source.minAppVersion?.let { minimum ->
             require(VeneraVersion.parse(minimum) <= supportedVersion) {
                 "Source '${source.key}' requires Venera host version $minimum"
+            }
+        }
+    }
+
+    /**
+     * Reads script metadata without running `init` and without touching the
+     * registry: stages the constructor, decodes the descriptor, then discards
+     * the pending instance. Used to name an immutable revision file before the
+     * single initializing registration/replacement.
+     */
+    suspend fun peekMetadata(
+        script: String,
+        fileName: String = "source.js",
+        expectedKey: String? = null,
+    ): VeneraSource = withContext(Dispatchers.Default) {
+        val code = script.removePrefix("\uFEFF")
+        val className = entryClass.find(code)?.groupValues?.get(1)
+            ?: throw VeneraScriptException("Expected a class extending ComicSource in $fileName")
+        val callbackPaths = Json.encodeToString(VeneraCallback.entries.map { it.path })
+
+        mutex.withLock {
+            checkOpen()
+            try {
+                val result = evaluate<String>(
+                    """
+                    __readerVenera.stage((Network, sendMessage) => {
+                    $code
+                    ;
+                    return new $className();
+                    }, $callbackPaths)
+                    """.trimIndent(),
+                    fileName,
+                )
+                val descriptor = decodeRegistration(result, fileName)
+                validateFormat(descriptor, expectedKey)
+                descriptor
+            } finally {
+                withContext(NonCancellable) {
+                    evaluate<Any?>("__readerVenera.discard()", fileName)
+                }
+            }
+        }
+    }
+
+    /**
+     * Atomically replaces the registered source for [key]. The candidate's
+     * `init` runs exactly once; when it fails the previous instance (with its
+     * in-memory state) stays registered and callable. When [key] is not
+     * registered this behaves like [register].
+     */
+    suspend fun replace(
+        key: String,
+        script: String,
+        fileName: String = "source.js",
+        expectedKey: String? = key,
+    ): VeneraSource = withContext(Dispatchers.Default) {
+        val code = script.removePrefix("\uFEFF")
+        val className = entryClass.find(code)?.groupValues?.get(1)
+            ?: throw VeneraScriptException("Expected a class extending ComicSource in $fileName")
+        val callbackPaths = Json.encodeToString(VeneraCallback.entries.map { it.path })
+
+        mutex.withLock {
+            checkOpen()
+            val previous = sources[key]
+            try {
+                val source = withTimeout(INITIALIZE_TIMEOUT_MILLIS) {
+                    val result = evaluate<String>(
+                        """
+                        __readerVenera.stage((Network, sendMessage) => {
+                        $code
+                        ;
+                        return new $className();
+                        }, $callbackPaths)
+                        """.trimIndent(),
+                        fileName,
+                    )
+                    val descriptor = decodeRegistration(result, fileName)
+                    validateFormat(descriptor, expectedKey)
+                    require(descriptor.key == key) {
+                        "Expected source '$key', got '${descriptor.key}'"
+                    }
+                    val initialized = evaluate<Boolean>(
+                        "await __readerVenera.initializeReplace(${JsonPrimitive(descriptor.key)})",
+                        fileName,
+                    )
+                    check(initialized) { "Source '${descriptor.key}' did not finish initialization" }
+                    descriptor
+                }
+                withContext(NonCancellable) {
+                    evaluate<Any?>("__readerVenera.commit()", fileName)
+                    sources[source.key] = source
+                    source
+                }
+            } catch (failure: Throwable) {
+                // The engine already restored the previous registry entry;
+                // only the pending slot needs clearing. The engine stays open
+                // so the surviving instance remains callable.
+                withContext(NonCancellable) {
+                    try {
+                        evaluate<Any?>("__readerVenera.discard()", fileName)
+                    } catch (cleanup: Throwable) {
+                        failure.addSuppressed(cleanup)
+                    }
+                }
+                if (previous != null) check(sources[key] === previous || key !in sources) {
+                    "Source '$key' registry was left inconsistent after failed replacement"
+                }
+                throw failure
             }
         }
     }

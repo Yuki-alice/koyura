@@ -42,4 +42,18 @@ sealed class ExtensionFailure(message: String, cause: Throwable? = null) : Illeg
     class UpdateInProgress(val key: String) : ExtensionFailure("Update already in progress: $key")
     class AmbiguousSource(val key: String) : ExtensionFailure("Multiple catalog variants for key: $key")
     class MissingSource(val key: String) : ExtensionFailure("Source not in catalog: $key")
+    class StaleCatalog(val previewedUrl: String, val currentUrl: String) : ExtensionFailure(
+        "Repository changed since preview (was $previewedUrl, now $currentUrl)",
+    )
 }
+
+/**
+ * Detailed update-check outcome for UI presentation: available updates plus
+ * per-repository failures and per-key resolution problems.
+ */
+data class UpdateCheckResult(
+    val updates: Map<String, String>,
+    val repoFailures: Map<String, String> = emptyMap(),
+    val ambiguousKeys: List<String> = emptyList(),
+    val missingKeys: List<String> = emptyList(),
+)
