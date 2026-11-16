@@ -104,6 +104,14 @@ internal class TxtNovel private constructor(
         return chapter
     }
 
+    /**
+     * TXT has no binary resources: covers and inline images are text references only.
+     *
+     * @throws UnsupportedOperationException always.
+     */
+    override fun readResource(path: String): ByteArray =
+        throw UnsupportedOperationException("TXT novels have no binary resources")
+
     /** Drops decoded text and parsed chapters. Safe to call more than once. */
     override fun close() {
         closed = true
@@ -216,7 +224,12 @@ internal class TxtNovel private constructor(
                 .mapNotNull { AUTHOR_LINE.matchEntire(it.trim())?.groupValues?.get(1)?.trim() }
                 .firstOrNull()
                 ?.takeIf { it.isNotEmpty() }
-            return NovelMetadata(title = title, author = author)
+            return NovelMetadata(
+                title = title,
+                authors = listOfNotNull(author),
+                language = null,
+                cover = null,
+            )
         }
 
         /** A heading discovered while walking the file, before TOC-page filtering. */

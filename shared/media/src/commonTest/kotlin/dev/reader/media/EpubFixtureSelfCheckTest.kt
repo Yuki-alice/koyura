@@ -1,6 +1,8 @@
 package dev.reader.media
 
-import dev.reader.media.epub.EpubArchive
+import dev.reader.media.epub.EpubNovel
+import dev.reader.media.epub.openEpubNovel
+import dev.reader.media.novel.useImport
 import okio.FileSystem
 import okio.Path.Companion.toPath
 import kotlin.test.Test
@@ -8,36 +10,36 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * Proves that both test targets can reach the checked-in EPUB fixtures.
+ * Proves that both test targets can reach the checked-in EPUB fixtures and open them through the
+ * public importer.
  *
  * Runs on the JVM and in the iOS simulator; [fixtureRoot] is wired per platform in
- * `build.gradle.kts`.
+ * `build.gradle.kts`. This replaces the earlier `EpubArchive`-based check: the importer is the only
+ * public read path, so validating container resolution here exercises the real code.
  */
 class EpubFixtureSelfCheckTest {
     @Test
-    fun opensPrideAndPrejudiceAndReadsContainer() {
+    fun opensPrideAndPrejudiceAndResolvesPackageDocument() {
         val epubPath = fixtureRoot().toPath() / "epub" / "pride-and-prejudice.epub"
         assertTrue(FileSystem.SYSTEM.exists(epubPath), "missing fixture: $epubPath")
 
-        val archive = EpubArchive.open(FileSystem.SYSTEM, epubPath)
-        assertEquals("epub/content.opf", archive.container.packageDocumentPath)
-        assertEquals(
-            "application/oebps-package+xml",
-            archive.container.packageDocumentMediaType,
-        )
-
-        val containerXml = archive.readText(EpubArchive.CONTAINER_ENTRY)
-        assertTrue(containerXml.contains("urn:oasis:names:tc:opendocument:xmlns:container"))
-        assertTrue(containerXml.contains("full-path=\"epub/content.opf\""))
+        openEpubNovel(FileSystem.SYSTEM, epubPath).useImport { novel ->
+            val epub = novel as EpubNovel
+            assertEquals("epub/content.opf", epub.packageDocument.opfPath)
+            assertEquals("Pride and Prejudice", novel.metadata.title)
+            assertTrue(novel.tableOfContents.isNotEmpty())
+        }
     }
 
     @Test
-    fun opensColeVoyageOfLifeAndReadsContainer() {
+    fun opensColeVoyageOfLifeAndResolvesPackageDocument() {
         val epubPath = fixtureRoot().toPath() / "epub" / "cole-voyage-of-life.epub"
         assertTrue(FileSystem.SYSTEM.exists(epubPath), "missing fixture: $epubPath")
 
-        val archive = EpubArchive.open(FileSystem.SYSTEM, epubPath)
-        assertEquals("EPUB/cole.opf", archive.container.packageDocumentPath)
-        assertTrue(archive.readText(EpubArchive.CONTAINER_ENTRY).contains("EPUB/cole.opf"))
+        openEpubNovel(FileSystem.SYSTEM, epubPath).useImport { novel ->
+            val epub = novel as EpubNovel
+            assertEquals("EPUB/cole.opf", epub.packageDocument.opfPath)
+            assertEquals("Thomas Cole - The Voyage of Life", novel.metadata.title)
+        }
     }
 }

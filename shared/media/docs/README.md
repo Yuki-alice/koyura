@@ -1,8 +1,8 @@
-# 本地小说导入（TXT）
+# 本地小说导入（TXT 与 EPUB）
 
-`shared/media` 的本地小说导入契约与 TXT 实现。全部代码在 `commonMain`，只依赖 Okio；不依赖 Compose 或 Android，可直接被书架、数据库和阅读器复用。
+`shared/media` 的本地小说导入契约与 TXT、EPUB 3 实现。全部代码在 `commonMain`，只依赖 Okio 与 Ksoup；不依赖 Compose 或 Android，可直接被书架、数据库和阅读器复用。TXT 与 EPUB 共用同一组 `NovelImport` / `NovelBlock` 模型，差异只在实现。
 
-## 支持范围
+## TXT 支持范围
 
 | 项目 | 支持 |
 | --- | --- |
@@ -93,3 +93,114 @@ novel.close()
 ```
 
 测试只在 `commonTest` 写一份，JVM 与 iOS 模拟器各自真实读取 `fixtures/txt/` 下的二进制夹具。夹具由 `fixtures/txt/generate_fixtures.py` 以原始字节生成，用途见 `fixtures/README.md`。
+
+## EPUB 支持范围
+
+| 项目 | 支持 |
+| --- | --- |
+| 版本 | EPUB 3（nav、`properties="cover-image"`），并兼容 EPUB 2 的 `meta name="cover"` 封面约定 |
+| 读取链路 | `META-INF/container.xml` → OPF → manifest/spine；ZIP 由 Okio `FileSystem.openZip` 只读访问 |
+| 打开时读取 | 仅 container、OPF、`META-INF/encryption.xml` 与 nav（各受 `maxMetadataBytes` 限制）。章节 XHTML 与图片按需读取。唯一例外：**无可用 nav 时**由 spine 生成目录，会读每章 `<title>` 一次（见下文） |
+| 正文顺序 | **严格按 spine**。`linear="no"` 的辅助项默认排除；过滤后为空则回退为全部 spine 项。manifest 顺序与 spine 不同时以 spine 为准 |
+| 目录 | 优先 EPUB 3 nav：`properties` 含 `nav` 的 manifest 项中，`type` 属性（任意前缀绑定 OPS，如 `epub:type`/`ops:type`）含 `toc` 的 `<nav>`。**只**接受 toc，`landmarks`/`page-list` 不会被误当作目录。nav 锚点按文档映射到 spine 文档，标题来自锚点文本；nav 未提及的 spine 文档仍按 spine 顺序出现（标题取文件名），因此不会丢内容。nav 缺失、损坏或没有可用条目时由 spine 生成目录，标题取 XHTML 的 `<title>` 或首个标题元素 |
+| 目录层级 | nav 中没有自身文档、只有子项的分组（如 `Volume I`）是 level 0，可读锚点是 level 1。层级按 nav **嵌套**确定：章节的 `parentId` 是其实际所在分组；不在任何分组内的章节 `parentId` 为 `null`。分组按位置区分，允许两个同名分组 |
+| 元数据 | `dc:title`、全部 `dc:creator`（`metadata.authors`，`author` 取首个）、`dc:language`；封面优先 `properties="cover-image"`，兼容 `meta name="cover"` |
+| 正文转换 | `h1`–`h6` → `Heading`（层级 1–6）；`p` 与块级容器 → `Paragraph`，容器内的裸文本（诗歌、信件、图注）也保留。块容器内的**行内元素**（`em`/`span`/`a`/`abbr`/`ruby`/`rt`/`rp` 等）并入同一段（`rp` 的回退括号丢弃），只有真正的块级元素（`p`/`div`/`h*`/`ul`/`table`/`hr` 等）才另起段落；`br` 在段内合并为空格；`hr` → `Separator`；本地 `img` → `Image`，且 `<a>/<span>/<li>` 包裹的图片同样识别，**包括块级位置**（`div`/`figure`/`body` 直接子级的 `a>img`，例如整页封面）；`script`/`style` 与远端图片被排除，绝不发起请求 |
+| 路径解析 | 支持相对路径、`./`、`../`、百分号编码（含中文 UTF-8，如 `%E6%B8%A1`）、含空格文件名、`#fragment`；全部规范化为归档根内路径。拒绝 `../` 越出根、绝对路径、`http(s)://`、`data:`、`//host` 与非法百分号编码 |
+| 图片/封面字节 | 通过 `readResource(path)` 按需返回，不返回远端请求。path 会先规范化（前导 `/` 视为归档根相对），再用规范路径查加密表与读取；远端引用只保留原始文本，`resource == null` |
+| 加密 | 读 `META-INF/encryption.xml`，CipherReference URI 允许前导 `/`、`./`、`//` 等等价写法，统一规范化后再比对。判定依据是**路径是否出现在加密表**，而不是是否带算法名：缺少 `EncryptionMethod` 的条目仍算加密。spine 文档、nav、封面加密 → 打开即抛 `EncryptedContent`；章内图片加密 → 读取时抛 `EncryptedContent`；`EncryptedData` 缺 `CipherReference`/`CipherData`/URI 无法映射 → 见 `UNRESOLVED_ENCRYPTION_KEY` 哨兵，打开即抛 `EncryptedContent`（fail-closed）。`encryption.xml` 为空元素、仅 XML 声明、仅注释（没有元素或没有任何 `EncryptedData`）属合法 OCF，正常打开；标签不匹配、未闭合、多根元素、纯文本等结构性错误 → `CorruptedArchive(invalid-encryption)`。只加密字体等阅读非必需资源不阻断 |
+| 懒加载 | 有 nav 时打开不读章节；单章读取只打开该 XHTML；章节缓存为**有界 LRU**（`maxCachedChapters`，默认 8）；资源只在 `readResource` 时读取。无 nav 时按 spine 读标题一次，属文档化例外 |
+| 完整性 | 打开时解析 ZIP 中央目录：解压大小与 CRC 用于校验。声明大小被改小 → `CorruptedArchive`；**stored 与 deflate 条目**的 CRC 不符（含等长流替换）→ `CorruptedArchive`，均不会产出静默截断或损坏的正文 |
+
+### 读取上限 `LocalNovelLimits`
+
+| 字段 | 默认值 | 含义 |
+| --- | --- | --- |
+| `maxChapterBytes` | 8 MiB | 单章 XHTML 最大**解压后**字节数 |
+| `maxResourceBytes` | 32 MiB | 单张封面/图片最大字节数 |
+| `maxChapterCount` | 5000 | 可读章节（spine 文档）数量上限 |
+| `maxMetadataBytes` | 4 MiB | container/OPF/nav/encryption 单个 XML 的上限；防止打开阶段 zip bomb。超限的 `limit` 为 `metadata-bytes` |
+| `maxCachedChapters` | 8 | 内存中保留的已解析章节数（LRU） |
+
+超限抛 `NovelImportException.LimitExceeded`，`limit` 为 `chapter-bytes` / `resource-bytes` / `chapter-count` / `metadata-bytes`，并带 `maximum`、`actual` 与 `entry`。限制同时按中央目录的未压缩大小与声明大小在分配前检查，再按实际读取字节复核。
+
+## EPUB 目录与 spine 规则（要点）
+
+1. 正文序列 = 过滤掉 `linear="no"` 后的 spine 顺序；过滤为空时使用完整 spine。
+2. nav 只提供标题与分组，不改变正文顺序，也不能引入 spine 之外的文档。
+3. nav 中未列出的 spine 文档仍按 spine 位置出现，标题取文件名（读取该章时可再取 XHTML 标题）。
+4. 同一 spine 文档出现多次（重复 `itemref`）时，每个位置仍是独立章节，ID 含出现序号而保持唯一。
+5. 章节 ID 由「文档路径 + 出现序号」的 FNV-1a 计算（`epub-` + 16 位十六进制），同一文件重复打开一致；分组条目使用「分组序号 + 标题」的合成键。
+6. 片段锚点（`#ch1`）目前不拆章：同一文档只生成一个章节，`fragment` 用于标识该文档的导航目标但不产生重复章节（已知限制）。
+7. nav 列表可以是直接 `<ol>`/`<ul>`，也可以被 `div`/`section`/`header` 等容器包裹；所有顶层列表都会被解析。
+
+## EPUB 资源与关闭
+
+- ZIP 文件系统在打开后保持打开，用于按需读取；`close()` 清空章节缓存与正文并调用 ZIP 文件系统的 `close()`，幂等。Okio 的 `ZipFileSystem` 按次打开/关闭底层句柄，`close()` 因此主要作用是让实例失效并释放缓存，不会遗留打开的文件描述符。
+- **打开失败路径同样关闭 ZIP 文件系统**（`openArchiveFileSystem` 与 `open` 都在失败时关闭）；有测试用计数 FileSystem 断言恰好关闭一次。
+- `close()` 后 `readChapter` 与 `readResource` 抛 `NovelClosedException`；`metadata`、`encoding`、`tableOfContents` 仍是可读快照。
+- EPUB 的 `encoding` 统一报告 `UTF_8`：XHTML/OPF 是 XML，解码后为 Unicode，不存在 TXT 那样的编码探测。
+
+## EPUB 错误
+
+| 类型 | 触发 | 关键字段 |
+| --- | --- | --- |
+| `CorruptedArchive` | 非 ZIP（`not-a-zip`）、XML 损坏、无 rootfile、空 spine、解压失败或 CRC/大小不符（`decompression-failed`/`crc-mismatch`/`size-mismatch`）、encryption.xml 不可解析（`invalid-encryption`） | `entry`、`detail` |
+| `MissingEntry` | container/OPF 不存在、spine 指向的 manifest 项或归档条目不存在。**nav 缺失不算错误**：会回退到 spine 生成目录（文档化行为） | `entry`、`declaredBy` |
+| `UnsafeReference` | 越出归档根、绝对路径、远端 URL、非法百分号编码 | `reference`、`document`、`reason` |
+| `EncryptedContent` | 阅读所需内容被加密 | `entry`、`algorithm` |
+| `LimitExceeded` | 超过 `LocalNovelLimits` | `limit`、`maximum`、`actual`、`entry` |
+| `NovelClosedException` | `close()` 后读取章节或资源 | — |
+
+## 共用 API
+
+```kotlin
+import dev.reader.media.epub.openEpubNovel
+import dev.reader.media.novel.LocalNovelLimits
+
+val book = openEpubNovel(
+    fileSystem = okio.FileSystem.SYSTEM,
+    path = "/books/novel.epub".toPath(),
+    limits = LocalNovelLimits.DEFAULT,
+)
+
+book.metadata.title        // dc:title
+book.metadata.authors      // 全部 dc:creator
+book.metadata.language     // dc:language
+book.metadata.cover?.path  // 归档内封面路径，配合 readResource 取字节
+book.tableOfContents       // 按 spine 顺序的目录
+book.readChapter(id).blocks   // Heading / Paragraph / Separator / Image
+book.readResource("OEBPS/images/a b.png")  // 按需取图片/封面字节
+book.close()
+```
+
+## 测试与夹具
+
+```bash
+./gradlew -p shared/media --max-workers=1 jvmTest iosSimulatorArm64Test
+```
+
+`commonTest` 一套测试在 JVM 和 iOS 模拟器上真实读取 `fixtures/epub/`。真实夹具
+`pride-and-prejudice.epub`（CC0）与 `cole-voyage-of-life.epub`（CC BY-SA 3.0）验证目录、正文、
+封面、元数据与章内图片；`spine-order.epub`、`refs.epub`、`corrupted.epub`、`missing-entry.epub`、
+`unsafe-ref.epub`、`encrypted.epub`、`encrypted-font.epub` 由
+`fixtures/epub/generate_fixtures.py` 生成，用途见 `fixtures/README.md`。懒加载通过包装 ZIP 文件系统并
+记录条目读取来验证（`EpubLazyLoadingTest`）。
+
+## EPUB 完整性校验
+
+打开时读取由 EOCD 记录的偏移与长度指定的完整中央目录（`ZipCentralDirectory`，含 ZIP64；条目数与目录字节数均有硬上限），记录每个条目的未压缩大小与 CRC32。**索引缺失或不完整即视为 `CorruptedArchive(no-central-directory)`**，不会退化为跳过校验。读取时：
+
+- 先按中央目录大小与 `metadata.size` 在分配前检查上限；
+- 读取后与中央目录大小比对，发现「声明更小」的攻击时抛 `CorruptedArchive(size-mismatch)`；
+- 对所有条目（stored 与 deflate）复核 CRC：stored 原地损坏、deflate 等长流替换都会抛 `CorruptedArchive(crc-mismatch)`；压缩流本身损坏由 Okio 抛 IOException，映射为 `CorruptedArchive(decompression-failed)`。
+
+这些检查保证损坏归档要么被明确报告，要么在 Okio 自身拒绝时报告，不会静默输出被截断或错乱的正文。由于索引覆盖整个目录，条数很多的书籍前段同样受校验；不存在「只校验尾部条目」的缺口。
+
+## EPUB 已知限制
+
+- **片段锚点不拆章**：nav 用多个 `#anchor` 指向同一 XHTML 时只生成一个章节。
+- **文件名含 `%` 或 `#`**：条目名里的这两个字符与百分号转义/片段冲突，引用这类名字（即使已转义）可能解析成不可达路径并报 `MissingEntry`。不含这两个字符的名字（覆盖夹具与常见书籍）不受影响。
+- **结构化条目可读**：`readResource` 允许读取 `META-INF/` 等归档内路径，因为渲染层只使用书籍自己生成的引用；它只保证不做远端请求，并不做“正文资源白名单”。若未来需要收紧，可在 API 层加白名单而不改解析。
+- **EOCD 条目数被改小**：中央目录按 EOCD 记录解析，篡改 total entries 会让部分条目不在索引中，读取时按 `MissingEntry` 报告。条目实际存在，因此分类是“缺失”而非“损坏”；不影响安全，只是错误文案不够精确。
+- **无 nav 回退读标题**：没有可用 nav 时，打开会读每个 spine 文档的 `<title>` 一次以生成目录（文档化例外）。

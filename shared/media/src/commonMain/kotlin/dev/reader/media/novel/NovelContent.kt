@@ -5,21 +5,39 @@ import okio.Closeable
 /**
  * Metadata every imported local novel exposes.
  *
- * TXT has no embedded metadata, so [title] is derived from the file name and [author] is taken from
- * a leading `作者：…` / `作者:…` line when present.
+ * TXT has no embedded metadata, so [title] is derived from the file name and [authors] from a
+ * leading `作者：…` / `作者:…` line when present. EPUB fills every field from the package document.
+ * [author] returns the first author for convenience; use [authors] when several exist.
  */
 data class NovelMetadata(
     val title: String,
-    val author: String? = null,
+    val authors: List<String> = emptyList(),
+    val language: String? = null,
+    /** Cover resource declared by the package document, resolved to an archive path. */
+    val cover: NovelResource? = null,
+) {
+    /** First author, or `null` when the book declares none. */
+    val author: String? get() = authors.firstOrNull()
+}
+
+/**
+ * A binary resource inside an archive, addressable through [NovelImport.readResource].
+ *
+ * [path] is normalized, archive-root relative and never contains `.`/`..`/absolute/remote parts.
+ * [mediaType] is the declared MIME type when the container provides one.
+ */
+data class NovelResource(
+    val path: String,
+    val mediaType: String? = null,
+    val altText: String? = null,
 )
 
 /**
  * One entry of a novel's table of contents.
  *
- * [level] expresses hierarchy: `0` is a volume/part heading (`第一卷`, `第二部`) and `1` is a
- * readable chapter/section (`第一章`, `第一节`, `楔子`, `番外`). [parentId] is the id of the
- * enclosing level-0 entry, or `null` when the entry is top level. [id] is stable for the same file
- * bytes, so it can be persisted as a progress key.
+ * [level] expresses hierarchy: `0` is a volume/part heading and `1` a readable chapter. [parentId] is
+ * the id of the enclosing level-0 entry, or `null` when the entry is top level. [id] is stable for
+ * the same file bytes, so it can be persisted as a progress key.
  */
 data class TocEntry(
     val id: String,
@@ -29,12 +47,15 @@ data class TocEntry(
 )
 
 /**
- * A block of novel body text.
+ * A block of novel body content.
  *
- * The hierarchy is intentionally small and shared by every novel format. Readers should treat
- * unknown future variants as ignorable rather than failing.
+ * The hierarchy is small and shared by every novel format. Readers should treat unknown future
+ * variants as ignorable rather than failing.
  */
 sealed interface NovelBlock {
+    /** A heading whose [level] is 1..6, matching the source `h1`..`h6`. */
+    data class Heading(val level: Int, val text: String) : NovelBlock
+
     /** A single paragraph. Leading indentation has already been removed; inner text is untouched. */
     data class Paragraph(val text: String) : NovelBlock
 
@@ -42,8 +63,11 @@ sealed interface NovelBlock {
     data class Separator(val style: SeparatorStyle) : NovelBlock
 
     /**
-     * A reference to an image. TXT carries no image bytes, so [reference] is the raw, unresolved
-     * reference written in the text (for Markdown image syntax, the URL inside the parentheses).
+     * An image reference.
+     *
+     * [reference] carries the raw source text. For EPUB, [ImageReference.resource] is set to a
+     * normalized archive path and [NovelImport.readResource] returns its bytes; remote images have no
+     * resource and must not be fetched.
      */
     data class Image(val reference: ImageReference) : NovelBlock
 }
@@ -56,15 +80,17 @@ enum class SeparatorStyle {
 }
 
 /**
- * An unresolved image reference from a novel file.
+ * An image reference from a novel file.
  *
- * [source] is exactly what the file contains (for example `images/ferry.png`); resolving it against
- * the book location, and loading bytes, belongs to a later import stage. [altText] is `null` when
- * the file supplies no alt text.
+ * [source] is exactly what the file contains (for example `images/ferry.png` or a Markdown URL).
+ * [resource] is non-null only when the reference resolved to a local archive resource that can be
+ * read; it is `null` for TXT (no archive) and for remote or unsafe references. [altText] is `null`
+ * when the file supplies no alt text.
  */
 data class ImageReference(
     val source: String,
     val altText: String? = null,
+    val resource: NovelResource? = null,
 )
 
 /** A parsed chapter, including its stable id and table-of-contents placement. */
@@ -93,22 +119,27 @@ inline fun <R> NovelImport.useImport(block: (NovelImport) -> R): R {
 /**
  * A readable, closeable local novel.
  *
- * Implementations decode the file once when opened and parse chapter blocks on demand.
- * `close()` releases the decoded text and parsed chapters, so implementations must drop their
- * retained bodies rather than rely on GC. After `close()`, [readChapter] throws
- * [NovelClosedException]; the immutable snapshots [metadata], [encoding] and [tableOfContents] stay
- * readable so a closed book can still be listed.
+ * Implementations parse the container when opened and read chapter bodies and resources on demand.
+ * `close()` releases everything they retain: for TXT the decoded text, for EPUB the zip filesystem
+ * and its handles. After `close()`, [readChapter] and [readResource] throw [NovelClosedException];
+ * the immutable snapshots [metadata], [encoding] and [tableOfContents] stay readable so a closed book
+ * can still be listed.
  */
 interface NovelImport : Closeable {
     /** Path descriptor of the underlying file, used in errors and logs. */
     val file: String
 
-    /** Text encoding detected when the file was opened. */
+    /**
+     * Text encoding of the source text.
+     *
+     * TXT reports the detected encoding. EPUB XHTML is XML, which is UTF-8/UTF-16 by definition, so
+     * EPUB implementations report [TextEncoding.UTF_8].
+     */
     val encoding: TextEncoding
 
     val metadata: NovelMetadata
 
-    /** Ordered table of contents: volume headings and readable chapters appear in file order. */
+    /** Ordered table of contents: volume headings and readable chapters appear in reading order. */
     val tableOfContents: List<TocEntry>
 
     /**
@@ -118,4 +149,22 @@ interface NovelImport : Closeable {
      * @throws IllegalArgumentException when [id] is not in [tableOfContents].
      */
     fun readChapter(id: String): NovelChapter
+
+    /**
+     * Reads the raw bytes of a local resource, such as a cover or an in-chapter image.
+     *
+     * [path] must be the normalized archive path carried by [NovelResource.path] or
+     * [ImageReference.resource]; implementations never fetch remote URLs. TXT has no resources, so
+     * it throws [UnsupportedOperationException].
+     *
+     * Known limitation: archive entry names containing literal `%` or `#` are ambiguous with percent
+     * escapes and fragments, so a document that references such a name (even percent-encoded) may
+     * resolve to an unreachable path and report `MissingEntry`. Names without those characters, which
+     * covers the EPUB fixtures and typical books, are unaffected.
+     *
+     * @throws NovelClosedException when the import has been closed.
+     * @throws NovelImportException.MissingEntry when the resource does not exist.
+     * @throws NovelImportException.LimitExceeded when the resource exceeds the configured limit.
+     */
+    fun readResource(path: String): ByteArray
 }

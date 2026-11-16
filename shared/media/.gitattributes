@@ -5,5 +5,6 @@ fixtures/txt/*.txt binary
 # EPUB fixtures are zip archives.
 fixtures/epub/*.epub binary
 
-# The generator is a normal LF text file.
+# Generators are normal LF text files.
 fixtures/txt/*.py text eol=lf
+fixtures/epub/*.py text eol=lf
