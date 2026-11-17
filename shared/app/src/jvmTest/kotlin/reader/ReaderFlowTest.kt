@@ -37,6 +37,7 @@ import app.koyura.features.reader.comic.ReaderRootTestTag
 import app.koyura.features.reader.comic.ReaderSession
 import app.koyura.features.reader.comic.ReaderTapNextTag
 import app.koyura.features.reader.comic.readerPageTag
+import app.koyura.features.reader.comic.viewer.ComicViewerRootTag
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -130,12 +131,13 @@ class ReaderFlowTest {
 
         // Start reading: the initial page restores nothing and writes nothing.
         onNodeWithTag("reading-start").performClick()
-        onNodeWithTag(ReaderPageIndicatorTag).assertTextEquals("1 / 5")
+        awaitIndicator("1 / 5")
         assertTrue(reader.saveCalls.isEmpty(), "initial page must not be written, got ${reader.saveCalls}")
         onNodeWithTag(readerPageTag(0)).assertIsDisplayed()
 
         // Turn to the third page.
         onNodeWithTag(ReaderTapNextTag).performClick()
+        awaitIndicator("2 / 5")
         onNodeWithTag(ReaderTapNextTag).performClick()
         awaitIndicator("3 / 5")
         onNodeWithTag(readerPageTag(2)).assertIsDisplayed()
@@ -333,11 +335,12 @@ class ReaderFlowTest {
         }
 
         onNodeWithTag("reading-start").performClick()
-        onNodeWithTag(ReaderRootTestTag).performKeyInput {
+        awaitIndicator("1 / 5")
+        onNodeWithTag(ComicViewerRootTag).performKeyInput {
             pressKey(Key.DirectionRight)
         }
         awaitIndicator("2 / 5")
-        onNodeWithTag(ReaderRootTestTag).performKeyInput {
+        onNodeWithTag(ComicViewerRootTag).performKeyInput {
             pressKey(Key.DirectionLeft)
         }
         awaitIndicator("1 / 5")

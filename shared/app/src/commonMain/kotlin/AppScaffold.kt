@@ -169,6 +169,7 @@ private fun BackToLibraryHandler(navigation: AppNavigationState) {
  * [saveableStateHolder] outlives both layouts and keys by tab, keeping screen-level state across tab
  * switches and across bottom bar / navigation rail changes.
  */
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 private fun AppNavigationContent(
     navigation: AppNavigationState,
@@ -273,6 +274,8 @@ private fun AppNavigationContent(
                 CompositionLocalProvider(LocalBrowseSession provides browseSession) {
                     ComicReaderScreen(
                         session = readerSession,
+                        preferences = LocalReaderPreferences.current,
+                        installBackHandler = { BackHandler(onBack = it) },
                         sourceKey = route.sourceKey,
                         workId = route.workId,
                         chapterId = route.chapterId,

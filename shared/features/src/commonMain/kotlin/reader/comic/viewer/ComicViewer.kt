@@ -63,6 +63,11 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import app.koyura.domain.reader.ChapterContent
+import app.koyura.features.resources.Res
+import app.koyura.features.resources.reader_empty_pages
+import app.koyura.features.resources.reader_page_failed
+import app.koyura.features.resources.reader_retry
+import org.jetbrains.compose.resources.stringResource
 import app.koyura.features.reader.comic.ReaderPageState
 import app.koyura.features.reader.comic.ReaderSession
 import app.koyura.features.reader.comic.decodeToImageBitmap
@@ -73,7 +78,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 
 /** Stable UI test hooks, identical values to the production reader for regression reuse. */
-const val ComicViewerRootTag = "reader-root"
+const val ComicViewerRootTag = "comic-viewer"
 const val ComicTapPrevTag = "reader-tap-prev"
 const val ComicTapNextTag = "reader-tap-next"
 const val ComicTapMenuTag = "reader-tap-menu"
@@ -173,7 +178,7 @@ private fun PagerComicViewer(
         }
         if (spreads.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("No pages")
+                Text(stringResource(Res.string.reader_empty_pages))
             }
             return@BoxWithConstraints
         }
@@ -445,7 +450,7 @@ private fun WebtoonComicViewer(
     val headerCount = if (hasPrev) 1 else 0
     if (content.pageKeys.isEmpty()) {
         Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("No pages")
+            Text(stringResource(Res.string.reader_empty_pages))
         }
         return
     }
@@ -903,14 +908,14 @@ private fun PageError(
         verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
     ) {
         Text(
-            text = "Couldn't load page",
+            text = stringResource(Res.string.reader_page_failed),
             color = MaterialTheme.colorScheme.error,
         )
         Button(
             onClick = onRetry,
             modifier = Modifier.testTag(comicPageRetryTag(pageKey)),
         ) {
-            Text("Retry")
+            Text(stringResource(Res.string.reader_retry))
         }
     }
 }

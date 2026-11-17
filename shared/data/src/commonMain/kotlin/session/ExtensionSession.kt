@@ -7,6 +7,7 @@ import app.koyura.data.extension.ExtensionService
 import app.koyura.data.history.HistoryStore
 import app.koyura.data.extension.RestoreReport
 import app.koyura.data.reading.ComicReadingService
+import app.koyura.data.reader.preferences.ReaderPreferencesStore
 import app.koyura.source.runtime.VeneraEnvironment
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.NonCancellable
@@ -32,6 +33,7 @@ class ExtensionSession internal constructor(
     val report: RestoreReport,
     private val driver: SqlDriver,
     private val httpClient: HttpClient,
+    val readerPreferences: ReaderPreferencesStore,
 ) {
     val comicReading = ComicReadingService(driver, service, httpClient)
     val history = HistoryStore(driver)
@@ -79,7 +81,8 @@ suspend fun openExtensionSession(
         ensureSchema(driver)
         service.open()
         val report = service.restore()
-        return ExtensionSession(service, report, driver, httpClient)
+        val readerPreferences = ReaderPreferencesStore(appDataDir, fileSystem)
+        return ExtensionSession(service, report, driver, httpClient, readerPreferences)
     } catch (e: Throwable) {
         // Release everything created for this attempt, even when the failure
         // is a cancellation.

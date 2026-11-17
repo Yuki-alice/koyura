@@ -13,6 +13,7 @@ import app.koyura.app.browse.LocalBrowseService
 import app.koyura.app.history.HistoryService
 import app.koyura.app.history.LocalHistoryService
 import app.koyura.domain.reader.ReaderService
+import app.koyura.domain.reader.preferences.ReaderPreferences
 import app.koyura.app.navigation.rememberAppNavigationState
 import app.koyura.designsystem.ReaderTheme
 import app.koyura.designsystem.navigation.NavTab
@@ -45,11 +46,13 @@ fun App(
     browseService: BrowseService? = null,
     readerService: ReaderService? = null,
     historyService: HistoryService? = null,
+    readerPreferences: ReaderPreferences? = null,
 ) {
     ReaderTheme {
         CompositionLocalProvider(
             LocalBrowseService provides browseService,
             LocalReaderService provides readerService,
+            LocalReaderPreferences provides readerPreferences,
             LocalHistoryService provides historyService,
         ) {
             Surface(modifier = Modifier.fillMaxSize()) {

@@ -1,5 +1,7 @@
 package app.koyura.data.reader.preferences
 
+import app.koyura.domain.reader.preferences.ReaderPreferences
+import app.koyura.domain.reader.preferences.ReaderPreferencesSnapshot
 import app.koyura.domain.reader.preferences.ReaderSettings
 import app.koyura.domain.reader.preferences.WorkReaderOverride
 import app.koyura.domain.reader.preferences.WorkReaderOverridePatch
@@ -51,7 +53,7 @@ class ReaderPreferencesStore(
         prettyPrint = true
     },
     private val hooks: PreferenceUpdateHooks = PreferenceUpdateHooks(),
-) {
+) : ReaderPreferences {
     private val globalFile: Path get() = directory / "reader_global.json"
     private val overridesFile: Path get() = directory / "reader_overrides.json"
 
@@ -63,7 +65,7 @@ class ReaderPreferencesStore(
         readJson(globalFile, ReaderSettings.serializer(), ReaderSettings())
     }
 
-    suspend fun writeGlobal(settings: ReaderSettings): Unit = withContext(Dispatchers.Default) {
+    override suspend fun writeGlobal(settings: ReaderSettings): Unit = withContext(Dispatchers.Default) {
         writeMutex.withLock {
             writeJson(globalFile, ReaderSettings.serializer(), settings)
         }
@@ -78,7 +80,7 @@ class ReaderPreferencesStore(
      * Merges [patch] into the stored override field-by-field. Read, merge and commit run in one
      * mutex-protected update, so two overlapping patches both survive.
      */
-    suspend fun writeOverride(sourceKey: String, workId: String, patch: WorkReaderOverridePatch) {
+    override suspend fun writeOverride(sourceKey: String, workId: String, patch: WorkReaderOverridePatch) {
         withContext(Dispatchers.Default) {
             val key = overrideKey(sourceKey, workId)
             hooks.beforeUpdate(key)
@@ -91,7 +93,7 @@ class ReaderPreferencesStore(
         }
     }
 
-    suspend fun clearOverride(sourceKey: String, workId: String): Unit =
+    override suspend fun clearOverride(sourceKey: String, workId: String): Unit =
         withContext(Dispatchers.Default) {
             val key = overrideKey(sourceKey, workId)
             hooks.beforeUpdate(key)
@@ -102,12 +104,18 @@ class ReaderPreferencesStore(
             }
         }
 
+    override suspend fun load(sourceKey: String, workId: String): ReaderPreferencesSnapshot =
+        withContext(Dispatchers.Default) {
+            writeMutex.withLock {
+                val global = readJson(globalFile, ReaderSettings.serializer(), ReaderSettings())
+                val override = readJson(overridesFile, overridesSerializer, emptyMap())[overrideKey(sourceKey, workId)]
+                ReaderPreferencesSnapshot(global, override)
+            }
+        }
+
     /** Effective settings for one work: its override merged over the global defaults. */
     suspend fun resolve(sourceKey: String, workId: String): ReaderSettings =
-        withContext(Dispatchers.Default) {
-            val global = readJson(globalFile, ReaderSettings.serializer(), ReaderSettings())
-            global.withOverride(readJson(overridesFile, overridesSerializer, emptyMap())[overrideKey(sourceKey, workId)])
-        }
+        load(sourceKey, workId).let { it.global.withOverride(it.override) }
 
     private fun overrideKey(sourceKey: String, workId: String): String = "$sourceKey/$workId"
 

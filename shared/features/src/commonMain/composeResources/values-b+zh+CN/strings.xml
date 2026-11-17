@@ -9,4 +9,6 @@
     <string name="reader_load_failed">章节打开失败：%1$s</string>
     <string name="reader_page_failed">本页加载失败。</string>
     <string name="reader_retry">重试</string>
+    <string name="reader_preferences_save_failed">无法保存阅读设置，请重试。</string>
+    <string name="reader_progress_save_failed">无法保存阅读进度，请重试。</string>
 </resources>

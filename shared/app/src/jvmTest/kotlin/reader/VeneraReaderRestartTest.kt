@@ -1,5 +1,8 @@
 package app.koyura.app.reader
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ComposeUiTest
@@ -13,6 +16,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.v2.runComposeUiTest
+import androidx.compose.ui.unit.dp
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import app.koyura.app.ExtensionApp
 import app.koyura.app.browse.BrowseSourcesTabTag
@@ -92,7 +96,11 @@ class VeneraReaderRestartTest {
         }
         val requests = ConcurrentLinkedQueue<String>()
         runComposeUiTest {
-            setContent { ExtensionApp { open(profile, requests) } }
+            setContent {
+                Box(Modifier.requiredSize(420.dp, 760.dp)) {
+                    ExtensionApp { open(profile, requests) }
+                }
+            }
             openDetail()
             awaitTag("source-detail-chapter-ep_2")
             onNodeWithTag("source-detail-chapter-ep_2").performClick()
@@ -124,7 +132,11 @@ class VeneraReaderRestartTest {
         val requests = ConcurrentLinkedQueue<String>()
         runComposeUiTest {
             // Startup restores the installed script from disk and builds fresh data and UI services.
-            setContent { ExtensionApp { open(profile, requests) } }
+            setContent {
+                Box(Modifier.requiredSize(420.dp, 760.dp)) {
+                    ExtensionApp { open(profile, requests) }
+                }
+            }
             openDetail()
             awaitTag("reading-continue")
             onNodeWithTag("reading-continue").performClick()

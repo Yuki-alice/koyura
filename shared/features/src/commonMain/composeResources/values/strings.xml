@@ -9,4 +9,6 @@
     <string name="reader_load_failed">Couldn't open this chapter: %1$s</string>
     <string name="reader_page_failed">Couldn't load this page.</string>
     <string name="reader_retry">Retry</string>
+    <string name="reader_preferences_save_failed">Could not save reader settings. Try again.</string>
+    <string name="reader_progress_save_failed">Could not save reading progress. Try again.</string>
 </resources>

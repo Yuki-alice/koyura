@@ -1,10 +1,17 @@
 package app.koyura.app.history
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.isDisplayed
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -13,6 +20,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.v2.runComposeUiTest
+import androidx.compose.ui.unit.dp
 import app.cash.sqldelight.db.SqlDriver
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import app.koyura.app.ExtensionApp
@@ -26,8 +34,13 @@ import app.koyura.features.reader.comic.ReaderBackTag
 import app.koyura.features.reader.comic.ReaderPageIndicatorTag
 import app.koyura.features.reader.comic.ReaderTapNextTag
 import app.koyura.data.extension.ExtensionDb
+import app.koyura.data.reader.preferences.ReaderPreferencesStore
 import app.koyura.data.session.ExtensionSession
 import app.koyura.data.session.openExtensionSession
+import app.koyura.domain.reader.preferences.ReadingMode
+import app.koyura.features.reader.comic.chrome.ReaderChromeModeApplyTag
+import app.koyura.features.reader.comic.chrome.ReaderChromeModeTag
+import app.koyura.features.reader.comic.chrome.readerChromeModeOptionTag
 import app.koyura.network.applyReaderDefaults
 import app.koyura.source.runtime.VeneraEnvironment
 import io.ktor.client.HttpClient
@@ -55,30 +68,67 @@ import okio.Path.Companion.toOkioPath
  * production reader chapter-position and page-key restoration and asserts the saved third page and
  * its image are shown. Also covers a pre-metadata database whose source no longer exists: the row
  * keeps its progress and ID fallback while Continue reports a clear failure.
+ *
+ * For the cross-process check, run this class twice with the same
+ * KOYURA_HISTORY_RESTART_PROFILE and KOYURA_HISTORY_RESTART_PHASE=read then resume.
+ * Run each Gradle test task with --rerun so each phase gets a fresh test worker.
  */
 class VeneraHistoryFlowTest {
     @Test
     fun historyRestoresSavedChapterAndPageAfterRestart() {
+        val profilePath = System.getenv("KOYURA_HISTORY_RESTART_PROFILE")
+        if (profilePath != null) {
+            val profile = File(profilePath)
+            when (System.getenv("KOYURA_HISTORY_RESTART_PHASE")) {
+                "read" -> {
+                    installExampleSource(profile)
+                    readThenOpenHistory(profile, exitFromReader = true)
+                    verifySavedReaderState(profile, "read")
+                }
+                "resume" -> {
+                    resumeFromHistory(profile)
+                    verifySavedReaderState(profile, "resume")
+                }
+                else -> error("KOYURA_HISTORY_RESTART_PHASE must be read or resume")
+            }
+            return
+        }
+
         val profile = Files.createTempDirectory("reader-history-flow").toFile()
         try {
-            runBlocking {
-                val seed = openSession(profile, ConcurrentLinkedQueue())
-                try {
-                    seed.service.addRepository("Example", VeneraFixtures.IndexUrl)
-                    seed.service.installFromContent(
-                        "Example Source",
-                        VeneraFixtures.upstreamScriptBytes().decodeToString(),
-                        expectedKey = SourceKey,
-                    )
-                } finally {
-                    seed.close()
-                }
-            }
+            installExampleSource(profile)
             readThenOpenHistory(profile)
             resumeFromHistory(profile)
         } finally {
             profile.deleteRecursively()
         }
+    }
+
+    private fun installExampleSource(profile: File) = runBlocking {
+        val seed = openSession(profile, ConcurrentLinkedQueue())
+        try {
+            seed.service.addRepository("Example", VeneraFixtures.IndexUrl)
+            seed.service.installFromContent(
+                "Example Source",
+                VeneraFixtures.upstreamScriptBytes().decodeToString(),
+                expectedKey = SourceKey,
+            )
+        } finally {
+            seed.close()
+        }
+    }
+
+    private fun verifySavedReaderState(profile: File, phase: String) {
+        val row = driver(profile).use { db ->
+            ExtensionDb(db).extensionDbQueries.selectProgress(SourceKey, "demo", "ep_2").executeAsOne()
+        }
+        assertEquals(2L, row.page_index)
+        assertEquals("https://example.invalid/images/3.png", row.page_key)
+        val mode = runBlocking {
+            ReaderPreferencesStore(profile.toOkioPath()).resolve(SourceKey, "demo").mode
+        }
+        assertEquals(ReadingMode.RIGHT_TO_LEFT, mode)
+        println("phase=$phase pid=${ProcessHandle.current().pid()} chapter=ep_2 page=3 key=${row.page_key} mode=$mode")
     }
 
     @Test
@@ -172,10 +222,15 @@ class VeneraHistoryFlowTest {
         }
     }
 
-    private fun readThenOpenHistory(profile: File) {
+    private fun readThenOpenHistory(profile: File, exitFromReader: Boolean = false) {
         val requests = ConcurrentLinkedQueue<String>()
         runComposeUiTest {
-            setContent { ExtensionApp { openSession(profile, requests) } }
+            var width by mutableIntStateOf(420)
+            setContent {
+                Box(Modifier.requiredSize(width.dp, 760.dp)) {
+                    ExtensionApp { openSession(profile, requests) }
+                }
+            }
             openDemoDetail()
             awaitTag("source-detail-chapter-ep_2")
             onNodeWithTag("source-detail-chapter-ep_2").performClick()
@@ -187,6 +242,22 @@ class VeneraHistoryFlowTest {
             awaitThirdPage()
             awaitDiskPage(profile, pageIndex = 2)
             awaitStamped(profile)
+
+            awaitTag(ReaderChromeModeTag)
+            onNodeWithTag(ReaderChromeModeTag).performClick()
+            val rtl = readerChromeModeOptionTag(ReadingMode.RIGHT_TO_LEFT.name)
+            awaitTag(rtl)
+            onNodeWithTag(rtl).performClick()
+            onNodeWithTag(ReaderChromeModeApplyTag).performClick()
+            val store = ReaderPreferencesStore(profile.toOkioPath())
+            waitUntil(timeoutMillis = 10_000) {
+                runBlocking { store.resolve(SourceKey, "demo").mode } == ReadingMode.RIGHT_TO_LEFT
+            }
+            awaitThirdPage()
+            runOnIdle { width = 1000 }
+            assertRtlDoublePageAtThird()
+            awaitDiskPage(profile, pageIndex = 2)
+            if (exitFromReader) return@runComposeUiTest
 
             // Returning to the detail page keeps the Browse stack intact.
             onNodeWithTag(ReaderBackTag).performClick()
@@ -213,7 +284,11 @@ class VeneraHistoryFlowTest {
     private fun resumeFromHistory(profile: File) {
         val requests = ConcurrentLinkedQueue<String>()
         runComposeUiTest {
-            setContent { ExtensionApp { openSession(profile, requests) } }
+            setContent {
+                Box(Modifier.requiredSize(1000.dp, 760.dp)) {
+                    ExtensionApp { openSession(profile, requests) }
+                }
+            }
             selectTab(HistoryTabIndex)
             awaitTag(historyRowTag(SourceKey, "demo"))
             // The list comes from SQLite only: nothing was fetched to display it.
@@ -222,7 +297,13 @@ class VeneraHistoryFlowTest {
             assertTrue("第二章" in detail && "3" in detail, detail)
 
             onNodeWithTag(historyContinueTag(SourceKey, "demo")).performClick()
-            awaitThirdPage()
+            assertRtlDoublePageAtThird()
+            onNodeWithTag(ReaderChromeModeTag).performClick()
+            val rtl = readerChromeModeOptionTag(ReadingMode.RIGHT_TO_LEFT.name)
+            awaitTag(rtl)
+            onNodeWithTag(rtl).assertIsSelected()
+            onNodeWithTag(ReaderChromeModeApplyTag).performClick()
+            awaitTag(ReaderBackTag)
             assertTrue("/images/3.png" in requests)
             assertEquals(
                 setOf("/api/comics/demo", "/api/comics/demo/chapters/2"),
@@ -234,6 +315,14 @@ class VeneraHistoryFlowTest {
             awaitTag(HistoryRootTestTag)
             awaitTag(historyRowTag(SourceKey, "demo"))
         }
+    }
+
+    private fun ComposeUiTest.assertRtlDoublePageAtThird() {
+        awaitThirdPage()
+        awaitTag("reader-page-image-1")
+        val secondPage = onNodeWithTag("reader-page-image-1").fetchSemanticsNode().boundsInRoot
+        val thirdPage = onNodeWithTag("reader-page-image-2").fetchSemanticsNode().boundsInRoot
+        assertTrue(thirdPage.center.x < secondPage.center.x, "expected the RTL double spread")
     }
 
     private fun ComposeUiTest.openDemoDetail() {

@@ -80,7 +80,12 @@ internal fun ExtensionApp(openSession: suspend () -> ExtensionSession) {
         val browse = remember(session) { VeneraBrowseService(session.service) }
         val reader = remember(session) { VeneraReaderService(session.comicReading, session.history) }
         val history = remember(session) { VeneraHistoryService(session.history) }
-        App(browseService = browse, readerService = reader, historyService = history)
+        App(
+            browseService = browse,
+            readerService = reader,
+            historyService = history,
+            readerPreferences = session.readerPreferences,
+        )
     } else {
         ReaderTheme {
             Surface(modifier = Modifier.fillMaxSize()) {
