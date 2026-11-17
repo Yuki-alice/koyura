@@ -5,6 +5,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import app.koyura.data.reader.preferences.ReaderPreferencesStore
 import app.koyura.domain.reader.preferences.WorkReaderOverride
+import app.koyura.domain.reader.preferences.WorkReaderOverridePatch
+import app.koyura.domain.reader.preferences.patchedWith
 import app.koyura.features.reader.comic.chrome.ReaderChromeAction
 import app.koyura.features.reader.comic.chrome.ReaderChromeDialog
 import app.koyura.features.reader.comic.chrome.ReaderChromeState

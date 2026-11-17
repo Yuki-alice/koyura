@@ -23,7 +23,12 @@ import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performMouseInput
 import androidx.compose.ui.test.performTextInput
 import app.koyura.designsystem.ReaderTheme
+import app.koyura.domain.reader.preferences.OverrideField
+import app.koyura.domain.reader.preferences.ReaderFit
 import app.koyura.domain.reader.preferences.ReaderSettings
+import app.koyura.domain.reader.preferences.ReadingMode
+import app.koyura.domain.reader.preferences.WorkReaderOverride
+import app.koyura.domain.reader.preferences.WorkReaderOverridePatch
 import app.koyura.features.reader.comic.ReaderBackTag
 import app.koyura.features.reader.comic.ReaderNextChapterTag
 import app.koyura.features.reader.comic.ReaderPageIndicatorTag
@@ -37,7 +42,11 @@ import app.koyura.features.reader.comic.chrome.ReaderChromeChapterListTag
 import app.koyura.features.reader.comic.chrome.ReaderChromeChaptersTag
 import app.koyura.features.reader.comic.chrome.ReaderChromeCropTag
 import app.koyura.features.reader.comic.chrome.ReaderChromeDialog
+import app.koyura.features.reader.comic.chrome.ReaderChromeModeApplyTag
+import app.koyura.features.reader.comic.chrome.ReaderChromeModeDefaultTag
 import app.koyura.features.reader.comic.chrome.ReaderChromeModeDialogTag
+import app.koyura.features.reader.comic.chrome.ReaderChromeModeTag
+import app.koyura.features.reader.comic.chrome.readerChromeModeOptionTag
 import app.koyura.features.reader.comic.chrome.ReaderChromeNoChaptersTag
 import app.koyura.features.reader.comic.chrome.ReaderChromePageGoTag
 import app.koyura.features.reader.comic.chrome.ReaderChromePageInputTag
@@ -280,5 +289,89 @@ class ChromeBehaviorTest {
         val patches = host.actions.filterIsInstance<ReaderChromeAction.ChangeWorkOverride>()
         assertTrue(patches.isNotEmpty())
         assertEquals(true, host.state.effective.cropBorders)
+    }
+
+    @Test
+    fun modeDialogSelectAndApplyEmitsSingleSetPatch() {
+        val host = ChromeTestHost(demoState())
+        setHostContent(host)
+
+        rule.onNodeWithTag(ReaderChromeModeTag).performClick()
+        rule.onNodeWithTag(ReaderChromeModeDialogTag).assertIsDisplayed()
+        rule.onNodeWithTag(readerChromeModeOptionTag("RIGHT_TO_LEFT")).performClick()
+        rule.onNodeWithTag(ReaderChromeModeApplyTag).performClick()
+
+        val patches = host.actions.filterIsInstance<ReaderChromeAction.ChangeWorkOverride>()
+        assertEquals(1, patches.size, "apply must emit exactly one patch")
+        assertEquals(
+            WorkReaderOverridePatch(
+                mode = OverrideField.Set(
+                    ReadingMode.RIGHT_TO_LEFT,
+                ),
+            ),
+            patches.single().patch,
+        )
+        assertEquals(ReadingMode.RIGHT_TO_LEFT, host.state.effective.mode)
+        // Selecting a mode keeps the current chapter and page.
+        assertEquals("ep_2", host.state.chapterId)
+        assertEquals(2, host.state.pageIndex)
+        rule.onNodeWithTag(ReaderChromeModeDialogTag).assertDoesNotExist()
+    }
+
+    @Test
+    fun modeDialogKeyboardSelectsCell() {
+        val host = ChromeTestHost(demoState())
+        setHostContent(host)
+
+        rule.onNodeWithTag(ReaderChromeModeTag).performClick()
+        val cell = rule.onNodeWithTag(readerChromeModeOptionTag("WEBTOON"))
+        cell.performSemanticsAction(SemanticsActions.RequestFocus)
+        cell.performKeyInput {
+            keyDown(Key.Enter)
+            keyUp(Key.Enter)
+        }
+        rule.onNodeWithTag(ReaderChromeModeApplyTag).performClick()
+
+        val patches = host.actions.filterIsInstance<ReaderChromeAction.ChangeWorkOverride>()
+        assertEquals(
+            WorkReaderOverridePatch(
+                mode = OverrideField.Set(
+                    ReadingMode.WEBTOON,
+                ),
+            ),
+            patches.single().patch,
+        )
+    }
+
+    @Test
+    fun modeDialogDefaultClearsOnlyModeField() {
+        val host = ChromeTestHost(
+            demoState().copy(
+                override = WorkReaderOverride(
+                    mode = ReadingMode.WEBTOON,
+                    fit = ReaderFit.FIT_WIDTH,
+                ),
+            ),
+        )
+        setHostContent(host)
+
+        // 复现 4/5：从模式弹层点「跟随全局」。
+        rule.onNodeWithTag(ReaderChromeModeTag).performClick()
+        rule.onNodeWithTag(ReaderChromeModeDefaultTag).performClick()
+        rule.onNodeWithTag(ReaderChromeModeApplyTag).performClick()
+
+        val patches = host.actions.filterIsInstance<ReaderChromeAction.ChangeWorkOverride>()
+        assertEquals(1, patches.size)
+        assertEquals(
+            WorkReaderOverridePatch(
+                mode = OverrideField.Clear,
+            ),
+            patches.single().patch,
+        )
+        assertEquals(null, host.state.override?.mode)
+        assertEquals(ReadingMode.LEFT_TO_RIGHT, host.state.effective.mode)
+        assertEquals(ReaderFit.FIT_WIDTH, host.state.effective.fit)
+        assertEquals("ep_2", host.state.chapterId)
+        assertEquals(2, host.state.pageIndex)
     }
 }

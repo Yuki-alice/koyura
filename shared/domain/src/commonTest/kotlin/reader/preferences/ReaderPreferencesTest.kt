@@ -36,14 +36,37 @@ class ReaderPreferencesTest {
     }
 
     @Test
-    fun patchKeepsUnsetFields() {
-        val base = WorkReaderOverride(mode = ReadingMode.VERTICAL)
-        val patched = base.patchedWith(WorkReaderOverride(cropBorders = true))
-        assertEquals(ReadingMode.VERTICAL, patched.mode)
+    fun patchKeepsSetsAndClears() {
+        val base = WorkReaderOverride(mode = ReadingMode.VERTICAL, cropBorders = true)
+        val patched = base.patchedWith(
+            WorkReaderOverridePatch(
+                mode = OverrideField.Clear,
+                fit = OverrideField.Set(ReaderFit.FIT_WIDTH),
+            ),
+        )
+        assertEquals(null, patched.mode)
+        assertEquals(ReaderFit.FIT_WIDTH, patched.fit)
         assertEquals(true, patched.cropBorders)
-        assertEquals(null, patched.fit)
-        assertFalse(patched.isEmpty())
+        assertTrue(WorkReaderOverridePatch().isEmpty())
         assertTrue(WorkReaderOverride().isEmpty())
+    }
+
+    @Test
+    fun explicitOffDiffersFromInherit() {
+        val global = ReaderSettings(cropBorders = true)
+        // Explicit off wins over a true global.
+        val off = global.withOverride(
+            WorkReaderOverride().patchedWith(
+                WorkReaderOverridePatch(cropBorders = OverrideField.Set(false)),
+            ),
+        )
+        assertEquals(false, off.cropBorders)
+        // Clearing the field inherits the global value again.
+        val cleared = WorkReaderOverride(cropBorders = false).patchedWith(
+            WorkReaderOverridePatch(cropBorders = OverrideField.Clear),
+        )
+        assertEquals(null, cleared.cropBorders)
+        assertEquals(true, global.withOverride(cleared).cropBorders)
     }
 
     @Test

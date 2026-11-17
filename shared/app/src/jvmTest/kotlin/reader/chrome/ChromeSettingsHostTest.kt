@@ -2,8 +2,9 @@ package app.koyura.app.reader.chrome
 
 import app.koyura.data.reader.preferences.ReaderPreferencesStore
 import app.koyura.domain.reader.preferences.ReaderSettings
+import app.koyura.domain.reader.preferences.OverrideField
 import app.koyura.domain.reader.preferences.ReadingMode
-import app.koyura.domain.reader.preferences.WorkReaderOverride
+import app.koyura.domain.reader.preferences.WorkReaderOverridePatch
 import app.koyura.features.reader.comic.chrome.ChapterEntry
 import app.koyura.features.reader.comic.chrome.ReaderChromeAction
 import app.koyura.features.reader.comic.chrome.ReaderChromeState
@@ -71,12 +72,12 @@ class ChromeSettingsHostTest {
 
         host.onAction(
             ReaderChromeAction.ChangeWorkOverride(
-                WorkReaderOverride(mode = ReadingMode.WEBTOON),
+                WorkReaderOverridePatch(mode = OverrideField.Set(ReadingMode.WEBTOON)),
             ),
         )
         host.onAction(
             ReaderChromeAction.ChangeWorkOverride(
-                WorkReaderOverride(cropBorders = true),
+                WorkReaderOverridePatch(cropBorders = OverrideField.Set(true)),
             ),
         )
         assertEquals(ReadingMode.WEBTOON, host.state.effective.mode)

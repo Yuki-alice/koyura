@@ -31,6 +31,8 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import app.koyura.domain.reader.preferences.OverrideField
+import app.koyura.domain.reader.preferences.WorkReaderOverridePatch
 import app.koyura.features.reader.comic.ReaderBackTag
 import app.koyura.features.reader.comic.ReaderNextChapterTag
 import app.koyura.features.reader.comic.ReaderPageIndicatorTag
@@ -203,8 +205,8 @@ fun ReaderChrome(
                     onClick = {
                         onAction(
                             ReaderChromeAction.ChangeWorkOverride(
-                                app.koyura.domain.reader.preferences.WorkReaderOverride(
-                                    cropBorders = !state.effective.cropBorders,
+                                WorkReaderOverridePatch(
+                                    cropBorders = OverrideField.Set(!state.effective.cropBorders),
                                 ),
                             ),
                         )
@@ -244,7 +246,9 @@ fun ReaderChrome(
             onApply = {
                 onAction(
                     ReaderChromeAction.ChangeWorkOverride(
-                        app.koyura.domain.reader.preferences.WorkReaderOverride(mode = it),
+                        WorkReaderOverridePatch(
+                            mode = it?.let { mode -> OverrideField.Set(mode) } ?: OverrideField.Clear,
+                        ),
                     ),
                 )
                 onAction(ReaderChromeAction.SetDialog(ReaderChromeDialog.None))

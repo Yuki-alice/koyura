@@ -27,7 +27,9 @@ import app.koyura.domain.reader.preferences.ReaderFit
 import app.koyura.domain.reader.preferences.ReaderLayout
 import app.koyura.domain.reader.preferences.ReaderSettings
 import app.koyura.domain.reader.preferences.ReadingMode
+import app.koyura.domain.reader.preferences.OverrideField
 import app.koyura.domain.reader.preferences.WorkReaderOverride
+import app.koyura.domain.reader.preferences.WorkReaderOverridePatch
 import app.koyura.features.resources.Res
 import app.koyura.features.resources.reader_chrome_cancel
 import app.koyura.features.resources.reader_chrome_crop_borders
@@ -174,7 +176,7 @@ private fun GlobalSection(
 private fun OverrideSection(
     global: ReaderSettings,
     override: WorkReaderOverride?,
-    onPatch: (WorkReaderOverride) -> Unit,
+    onPatch: (WorkReaderOverridePatch) -> Unit,
 ) {
     val current = override ?: WorkReaderOverride()
     InheritEnumRow(
@@ -183,7 +185,7 @@ private fun OverrideSection(
         selected = current.mode?.name,
         inheritLabel = "${stringResource(Res.string.reader_chrome_inherit)} (${modeLabel(global.mode)})",
         tag = { readerChromeOverrideOptionTag("mode", it) },
-        onSelect = { onPatch(WorkReaderOverride(mode = it?.let(ReadingMode::valueOf))) },
+        onSelect = { onPatch(WorkReaderOverridePatch(mode = it?.let { OverrideField.Set(ReadingMode.valueOf(it)) } ?: OverrideField.Clear)) },
     )
     InheritEnumRow(
         label = stringResource(Res.string.reader_chrome_layout),
@@ -191,7 +193,7 @@ private fun OverrideSection(
         selected = current.layout?.name,
         inheritLabel = "${stringResource(Res.string.reader_chrome_inherit)} (${layoutLabel(global.layout)})",
         tag = { readerChromeOverrideOptionTag("layout", it) },
-        onSelect = { onPatch(WorkReaderOverride(layout = it?.let(ReaderLayout::valueOf))) },
+        onSelect = { onPatch(WorkReaderOverridePatch(layout = it?.let { OverrideField.Set(ReaderLayout.valueOf(it)) } ?: OverrideField.Clear)) },
     )
     InheritEnumRow(
         label = stringResource(Res.string.reader_chrome_fit),
@@ -199,35 +201,35 @@ private fun OverrideSection(
         selected = current.fit?.name,
         inheritLabel = "${stringResource(Res.string.reader_chrome_inherit)} (${fitLabel(global.fit)})",
         tag = { readerChromeOverrideOptionTag("fit", it) },
-        onSelect = { onPatch(WorkReaderOverride(fit = it?.let(ReaderFit::valueOf))) },
+        onSelect = { onPatch(WorkReaderOverridePatch(fit = it?.let { OverrideField.Set(ReaderFit.valueOf(it)) } ?: OverrideField.Clear)) },
     )
     InheritBoolRow(
         label = stringResource(Res.string.reader_chrome_first_page_single),
         selected = current.firstPageSingle,
         global = global.firstPageSingle,
         tag = { readerChromeOverrideOptionTag("firstPageSingle", it) },
-        onSelect = { onPatch(WorkReaderOverride(firstPageSingle = it)) },
+        onSelect = { onPatch(WorkReaderOverridePatch(firstPageSingle = it?.let { OverrideField.Set(it) } ?: OverrideField.Clear)) },
     )
     InheritBoolRow(
         label = stringResource(Res.string.reader_chrome_dual_page_reversed),
         selected = current.dualPageReversed,
         global = global.dualPageReversed,
         tag = { readerChromeOverrideOptionTag("dualPageReversed", it) },
-        onSelect = { onPatch(WorkReaderOverride(dualPageReversed = it)) },
+        onSelect = { onPatch(WorkReaderOverridePatch(dualPageReversed = it?.let { OverrideField.Set(it) } ?: OverrideField.Clear)) },
     )
     InheritBoolRow(
         label = stringResource(Res.string.reader_chrome_crop_borders),
         selected = current.cropBorders,
         global = global.cropBorders,
         tag = { readerChromeOverrideOptionTag("cropBorders", it) },
-        onSelect = { onPatch(WorkReaderOverride(cropBorders = it)) },
+        onSelect = { onPatch(WorkReaderOverridePatch(cropBorders = it?.let { OverrideField.Set(it) } ?: OverrideField.Clear)) },
     )
     InheritBoolRow(
         label = stringResource(Res.string.reader_chrome_double_tap_zoom),
         selected = current.zoomOnDoubleTap,
         global = global.zoomOnDoubleTap,
         tag = { readerChromeOverrideOptionTag("doubleTapZoom", it) },
-        onSelect = { onPatch(WorkReaderOverride(zoomOnDoubleTap = it)) },
+        onSelect = { onPatch(WorkReaderOverridePatch(zoomOnDoubleTap = it?.let { OverrideField.Set(it) } ?: OverrideField.Clear)) },
     )
 }
 

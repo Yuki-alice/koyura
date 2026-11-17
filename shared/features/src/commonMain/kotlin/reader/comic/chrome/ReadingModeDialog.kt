@@ -1,15 +1,20 @@
 package app.koyura.features.reader.comic.chrome
 
-import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -19,6 +24,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
@@ -55,9 +64,9 @@ fun readerChromeLayoutOptionTag(layout: String) = "reader-chrome-layout-option-$
 fun readerChromeFitOptionTag(fit: String) = "reader-chrome-fit-option-$fit"
 
 /**
- * Reading-mode picker. [current] null means DEFAULT (inherit the global value); the Default row
- * is only shown when [allowDefault]. Apply emits the pick; the host decides whether it lands on
- * the global defaults or the work override.
+ * Reading-mode picker mirroring Komikku's `ReadingModeSelectDialog`: an adaptive grid of mode
+ * cells with icons, an Apply button, and a use-default row when [allowDefault] is set.
+ * Selecting only previews; [onApply] fires once with the pick (`null` = follow global).
  */
 @Composable
 fun ReadingModeDialog(
@@ -68,50 +77,191 @@ fun ReadingModeDialog(
 ) {
     var selected by remember(current) { mutableStateOf(current) }
     Dialog(onDismissRequest = onDismiss) {
-        Column(
-            modifier = Modifier
-                .testTag(ReaderChromeModeDialogTag)
-                .background(MaterialTheme.colorScheme.surface, MaterialTheme.shapes.large)
-                .padding(vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+        Surface(
+            shape = MaterialTheme.shapes.large,
+            tonalElevation = 6.dp,
+            modifier = Modifier.testTag(ReaderChromeModeDialogTag),
         ) {
-            Text(
-                text = stringResource(Res.string.reader_chrome_reading_mode),
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
-            )
-            if (allowDefault) {
-                OptionRow(
-                    label = stringResource(Res.string.reader_chrome_inherit),
-                    selected = selected == null,
-                    tag = ReaderChromeModeDefaultTag,
-                    onSelect = { selected = null },
-                )
-            }
-            ReadingMode.entries.forEach { mode ->
-                OptionRow(
-                    label = modeLabel(mode),
-                    selected = selected == mode,
-                    tag = readerChromeModeOptionTag(mode.name),
-                    onSelect = { selected = mode },
-                )
-            }
-            Row(
-                horizontalArrangement = Arrangement.End,
-                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            Column(
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier.padding(vertical = 12.dp),
             ) {
-                TextButton(onClick = onDismiss) {
-                    Text(stringResource(Res.string.reader_chrome_cancel))
+                Text(
+                    text = stringResource(Res.string.reader_chrome_reading_mode),
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp),
+                )
+                if (allowDefault) {
+                    ModeDefaultRow(
+                        selected = selected == null,
+                        onSelect = { selected = null },
+                    )
                 }
-                Button(
-                    onClick = { onApply(selected) },
-                    modifier = Modifier.testTag(ReaderChromeModeApplyTag),
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(minSize = 104.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Text(stringResource(Res.string.reader_chrome_apply))
+                    items(ReadingMode.entries, key = { it.name }) { mode ->
+                        ModeCell(
+                            mode = mode,
+                            selected = selected == mode,
+                            onSelect = { selected = mode },
+                        )
+                    }
+                }
+                Row(
+                    horizontalArrangement = Arrangement.End,
+                    modifier = Modifier.fillMaxWidth().padding(end = 12.dp),
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text(stringResource(Res.string.reader_chrome_cancel))
+                    }
+                    Button(
+                        onClick = { onApply(selected) },
+                        modifier = Modifier.testTag(ReaderChromeModeApplyTag),
+                    ) {
+                        Text(stringResource(Res.string.reader_chrome_apply))
+                    }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun ModeDefaultRow(
+    selected: Boolean,
+    onSelect: () -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag(ReaderChromeModeDefaultTag)
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onSelect)
+            .padding(horizontal = 24.dp, vertical = 10.dp),
+    ) {
+        androidx.compose.material3.RadioButton(selected = selected, onClick = null)
+        Text(
+            text = stringResource(Res.string.reader_chrome_inherit),
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.padding(start = 16.dp),
+        )
+    }
+}
+
+@Composable
+private fun ModeCell(
+    mode: ReadingMode,
+    selected: Boolean,
+    onSelect: () -> Unit,
+) {
+    val container = if (selected) {
+        MaterialTheme.colorScheme.secondaryContainer
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+    }
+    Surface(
+        shape = MaterialTheme.shapes.medium,
+        color = container,
+        tonalElevation = if (selected) 2.dp else 0.dp,
+        modifier = Modifier
+            .testTag(readerChromeModeOptionTag(mode.name))
+            .selectable(
+                selected = selected,
+                role = Role.RadioButton,
+                onClick = onSelect,
+            ),
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.padding(vertical = 12.dp, horizontal = 8.dp),
+        ) {
+            ModeGlyph(mode = mode, tint = MaterialTheme.colorScheme.onSurface)
+            Text(
+                text = modeLabel(mode),
+                style = MaterialTheme.typography.labelLarge,
+                maxLines = 2,
+            )
+        }
+    }
+}
+
+/**
+ * Hand-drawn mode glyphs (no icon dependency): the reading direction as pages plus a flow
+ * arrow. Content description comes from the adjacent label for accessibility.
+ */
+@Composable
+private fun ModeGlyph(mode: ReadingMode, tint: Color) {
+    Canvas(Modifier.size(width = 44.dp, height = 32.dp)) {
+        when (mode) {
+            ReadingMode.LEFT_TO_RIGHT -> {
+                pagePair(tint)
+                flowArrow(fromLeft = true, tint = tint)
+            }
+            ReadingMode.RIGHT_TO_LEFT -> {
+                pagePair(tint)
+                flowArrow(fromLeft = false, tint = tint)
+            }
+            ReadingMode.VERTICAL -> {
+                pageStack(vertical = true, tint = tint)
+                flowArrowDown(tint = tint)
+            }
+            ReadingMode.WEBTOON -> pageStrip(tint = tint)
+            ReadingMode.CONTINUOUS_VERTICAL -> pageStack(vertical = false, tint = tint)
+        }
+    }
+}
+
+private fun DrawScope.pagePair(tint: Color) {
+    val w = size.width
+    val h = size.height
+    drawRect(tint, topLeft = Offset(w * 0.08f, h * 0.15f), size = androidx.compose.ui.geometry.Size(w * 0.36f, h * 0.7f), style = Stroke(width = 3f))
+    drawRect(tint, topLeft = Offset(w * 0.56f, h * 0.15f), size = androidx.compose.ui.geometry.Size(w * 0.36f, h * 0.7f), style = Stroke(width = 3f))
+}
+
+private fun DrawScope.flowArrow(fromLeft: Boolean, tint: Color) {
+    val w = size.width
+    val h = size.height
+    val y = h * 0.5f
+    val x0 = if (fromLeft) w * 0.18f else w * 0.82f
+    val x1 = if (fromLeft) w * 0.82f else w * 0.18f
+    drawLine(tint, Offset(x0, y), Offset(x1, y), strokeWidth = 4f)
+    val dir = if (fromLeft) 1f else -1f
+    drawLine(tint, Offset(x1, y), Offset(x1 - dir * 10f, y - 8f), strokeWidth = 4f)
+    drawLine(tint, Offset(x1, y), Offset(x1 - dir * 10f, y + 8f), strokeWidth = 4f)
+}
+
+private fun DrawScope.flowArrowDown(tint: Color) {
+    val w = size.width
+    val x = w * 0.8f
+    drawLine(tint, Offset(x, size.height * 0.1f), Offset(x, size.height * 0.9f), strokeWidth = 4f)
+    drawLine(tint, Offset(x, size.height * 0.9f), Offset(x - 8f, size.height * 0.9f - 10f), strokeWidth = 4f)
+    drawLine(tint, Offset(x, size.height * 0.9f), Offset(x + 8f, size.height * 0.9f - 10f), strokeWidth = 4f)
+}
+
+private fun DrawScope.pageStack(vertical: Boolean, tint: Color) {
+    val w = size.width
+    val h = size.height
+    if (vertical) {
+        drawRect(tint, topLeft = Offset(w * 0.1f, h * 0.08f), size = androidx.compose.ui.geometry.Size(w * 0.55f, h * 0.36f), style = Stroke(width = 3f))
+        drawRect(tint, topLeft = Offset(w * 0.1f, h * 0.56f), size = androidx.compose.ui.geometry.Size(w * 0.55f, h * 0.36f), style = Stroke(width = 3f))
+    } else {
+        drawRect(tint, topLeft = Offset(w * 0.08f, h * 0.1f), size = androidx.compose.ui.geometry.Size(w * 0.84f, h * 0.24f), style = Stroke(width = 3f))
+        drawRect(tint, topLeft = Offset(w * 0.08f, h * 0.4f), size = androidx.compose.ui.geometry.Size(w * 0.84f, h * 0.24f), style = Stroke(width = 3f))
+        drawRect(tint, topLeft = Offset(w * 0.08f, h * 0.7f), size = androidx.compose.ui.geometry.Size(w * 0.84f, h * 0.24f), style = Stroke(width = 3f))
+    }
+}
+
+private fun DrawScope.pageStrip(tint: Color) {
+    val w = size.width
+    val h = size.height
+    drawRect(tint, topLeft = Offset(w * 0.25f, 0f), size = androidx.compose.ui.geometry.Size(w * 0.5f, h), style = Stroke(width = 3f))
+    drawLine(tint, Offset(w * 0.25f, h * 0.33f), Offset(w * 0.75f, h * 0.33f), strokeWidth = 2f)
+    drawLine(tint, Offset(w * 0.25f, h * 0.66f), Offset(w * 0.75f, h * 0.66f), strokeWidth = 2f)
 }
 
 @Composable
@@ -143,27 +293,3 @@ internal fun fitLabel(fit: ReaderFit): String = stringResource(
         ReaderFit.ORIGINAL -> Res.string.reader_chrome_fit_original
     },
 )
-
-@Composable
-private fun OptionRow(
-    label: String,
-    selected: Boolean,
-    tag: String,
-    onSelect: () -> Unit,
-) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .fillMaxWidth()
-            .testTag(tag)
-            .selectable(selected = selected, role = Role.RadioButton, onClick = onSelect)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-    ) {
-        RadioButton(selected = selected, onClick = null)
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyLarge,
-            modifier = Modifier.padding(start = 16.dp),
-        )
-    }
-}

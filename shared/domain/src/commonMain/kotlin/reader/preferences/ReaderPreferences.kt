@@ -63,18 +63,6 @@ data class WorkReaderOverride(
         mode == null && layout == null && fit == null && firstPageSingle == null &&
             dualPageReversed == null && cropBorders == null && zoomOnDoubleTap == null
 
-    /** Returns a copy with every non-null field of [patch] applied. */
-    fun patchedWith(patch: WorkReaderOverride): WorkReaderOverride =
-        WorkReaderOverride(
-            mode = patch.mode ?: mode,
-            layout = patch.layout ?: layout,
-            fit = patch.fit ?: fit,
-            firstPageSingle = patch.firstPageSingle ?: firstPageSingle,
-            dualPageReversed = patch.dualPageReversed ?: dualPageReversed,
-            cropBorders = patch.cropBorders ?: cropBorders,
-            zoomOnDoubleTap = patch.zoomOnDoubleTap ?: zoomOnDoubleTap,
-        )
-
     /** Resolves the effective settings against [base]. */
     fun resolvedOver(base: ReaderSettings): ReaderSettings =
         ReaderSettings(
@@ -87,6 +75,58 @@ data class WorkReaderOverride(
             zoomOnDoubleTap = zoomOnDoubleTap ?: base.zoomOnDoubleTap,
         )
 }
+
+/**
+ * One field of a [WorkReaderOverridePatch]. Three states are explicit so callers can tell
+ * "leave it alone" apart from "clear it back to the global default":
+ * - [Keep]: do not touch the stored field;
+ * - [Set]: store [value];
+ * - [Clear]: drop the stored field so it inherits the global value again.
+ */
+sealed interface OverrideField<out T> {
+    data object Keep : OverrideField<Nothing>
+
+    data class Set<T>(val value: T) : OverrideField<T>
+
+    data object Clear : OverrideField<Nothing>
+}
+
+/**
+ * A field-by-field patch for [WorkReaderOverride]. Unset fields ([OverrideField.Keep]) are left
+ * alone, which is what makes overlapping writes from different writers merge instead of clobber.
+ */
+data class WorkReaderOverridePatch(
+    val mode: OverrideField<ReadingMode> = OverrideField.Keep,
+    val layout: OverrideField<ReaderLayout> = OverrideField.Keep,
+    val fit: OverrideField<ReaderFit> = OverrideField.Keep,
+    val firstPageSingle: OverrideField<Boolean> = OverrideField.Keep,
+    val dualPageReversed: OverrideField<Boolean> = OverrideField.Keep,
+    val cropBorders: OverrideField<Boolean> = OverrideField.Keep,
+    val zoomOnDoubleTap: OverrideField<Boolean> = OverrideField.Keep,
+) {
+    fun isEmpty(): Boolean =
+        mode is OverrideField.Keep && layout is OverrideField.Keep && fit is OverrideField.Keep &&
+            firstPageSingle is OverrideField.Keep && dualPageReversed is OverrideField.Keep &&
+            cropBorders is OverrideField.Keep && zoomOnDoubleTap is OverrideField.Keep
+}
+
+private fun <T> currentOr(current: T?, patch: OverrideField<T>): T? = when (patch) {
+    OverrideField.Keep -> current
+    is OverrideField.Set -> patch.value
+    OverrideField.Clear -> null
+}
+
+/** Returns a copy with every non-[OverrideField.Keep] field of [patch] applied. */
+fun WorkReaderOverride.patchedWith(patch: WorkReaderOverridePatch): WorkReaderOverride =
+    WorkReaderOverride(
+        mode = currentOr(mode, patch.mode),
+        layout = currentOr(layout, patch.layout),
+        fit = currentOr(fit, patch.fit),
+        firstPageSingle = currentOr(firstPageSingle, patch.firstPageSingle),
+        dualPageReversed = currentOr(dualPageReversed, patch.dualPageReversed),
+        cropBorders = currentOr(cropBorders, patch.cropBorders),
+        zoomOnDoubleTap = currentOr(zoomOnDoubleTap, patch.zoomOnDoubleTap),
+    )
 
 /** Resolves the effective settings: [override] merged over this global, or this when null. */
 fun ReaderSettings.withOverride(override: WorkReaderOverride?): ReaderSettings =

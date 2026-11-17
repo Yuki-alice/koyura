@@ -2,6 +2,7 @@ package app.koyura.features.reader.comic.chrome
 
 import app.koyura.domain.reader.preferences.ReaderSettings
 import app.koyura.domain.reader.preferences.WorkReaderOverride
+import app.koyura.domain.reader.preferences.WorkReaderOverridePatch
 import app.koyura.domain.reader.preferences.withOverride
 
 /** One chapter in the chapter list. */
@@ -80,7 +81,7 @@ sealed interface ReaderChromeAction {
     data class ChangeGlobalSettings(val settings: ReaderSettings) : ReaderChromeAction
 
     /** Merge [patch] into the work override field-by-field (persisted by the host). */
-    data class ChangeWorkOverride(val patch: WorkReaderOverride) : ReaderChromeAction
+    data class ChangeWorkOverride(val patch: WorkReaderOverridePatch) : ReaderChromeAction
 
     /** Drop the work override so the work inherits the global defaults again. */
     data object ResetWorkOverride : ReaderChromeAction

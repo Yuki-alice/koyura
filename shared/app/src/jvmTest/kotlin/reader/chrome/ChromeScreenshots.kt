@@ -11,8 +11,10 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import app.koyura.designsystem.ReaderTheme
 import app.koyura.domain.reader.preferences.ReaderSettings
+import app.koyura.domain.reader.preferences.OverrideField
 import app.koyura.domain.reader.preferences.ReadingMode
 import app.koyura.domain.reader.preferences.WorkReaderOverride
+import app.koyura.domain.reader.preferences.WorkReaderOverridePatch
 import app.koyura.features.reader.comic.chrome.ChapterEntry
 import app.koyura.features.reader.comic.chrome.ReaderChrome
 import app.koyura.features.reader.comic.chrome.ReaderChromeAction
@@ -96,7 +98,20 @@ class ChromeScreenshots {
 
     @Test
     fun captureReadingMode() {
-        captureAll("chrome-mode", demoState().copy(dialog = ReaderChromeDialog.ReadingMode))
+        // 有作品覆盖：条漫选中。
+        captureAll(
+            "chrome-mode",
+            demoState().copy(
+                override = WorkReaderOverride(mode = ReadingMode.WEBTOON),
+                dialog = ReaderChromeDialog.ReadingMode,
+            ),
+        )
+    }
+
+    @Test
+    fun captureModeDefault() {
+        // 跟随全局：无作品覆盖，Default 行选中。
+        captureAll("chrome-mode-default", demoState().copy(dialog = ReaderChromeDialog.ReadingMode))
     }
 
     @Test
@@ -126,7 +141,7 @@ class ChromeScreenshots {
         host.onAction(ReaderChromeAction.OpenChapter("ep_1"))
         host.onAction(
             ReaderChromeAction.ChangeWorkOverride(
-                WorkReaderOverride(mode = ReadingMode.RIGHT_TO_LEFT),
+                WorkReaderOverridePatch(mode = OverrideField.Set(ReadingMode.RIGHT_TO_LEFT)),
             ),
         )
         host.onAction(ReaderChromeAction.SetDialog(ReaderChromeDialog.Settings))
