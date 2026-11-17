@@ -41,6 +41,12 @@ import kotlinx.serialization.json.jsonPrimitive
  */
 class VeneraBrowseService(
     private val extensions: ExtensionService,
+    /**
+     * 单次取图字节通路。生产装配传入 `comic.onThumbnailLoad`（见
+     * `ComicReadingService.loadThumbnailBytes`）；未传入时封面保持占位，
+     * 页面其余部分不受影响。
+     */
+    private val thumbnails: (suspend (sourceKey: String, imageKey: String) -> ByteArray)? = null,
 ) : BrowseService {
     override suspend fun loadSnapshot(): BrowseSnapshot = runService {
         val installed = extensions.listInstalled()
@@ -235,8 +241,7 @@ class VeneraBrowseService(
             )
         }
 
-    override suspend fun loadWorkDetail(sourceKey: String, workId: String): WorkDetail = runService {
-        val detail = extensions
+    override suspend fun loadWorkDetail(sourceKey: String, workId: String): WorkDetail = runService {        val detail = extensions
             .call(sourceKey, VeneraCallback.LoadInfo, JsonArray(listOf(JsonPrimitive(workId))))
             .jsonObject
         WorkDetail(
@@ -276,6 +281,18 @@ class VeneraBrowseService(
 
     private fun textOrNull(element: JsonElement?): String? =
         (element as? JsonPrimitive)?.takeIf { it.isString }?.content
+
+    override suspend fun loadCover(sourceKey: String, coverUrl: String): ByteArray? {
+        if (coverUrl.isBlank()) return null
+        val load = thumbnails ?: return null
+        return try {
+            load(sourceKey, coverUrl)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            null
+        }
+    }
 
     private suspend fun <T> runService(block: suspend () -> T): T {
         try {

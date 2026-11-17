@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import app.koyura.app.reader.VeneraReaderService
 import app.koyura.app.browse.venera.VeneraBrowseService
 import app.koyura.app.history.VeneraHistoryService
+import app.koyura.app.library.ProductionLibraryRepository
 import app.koyura.app.resources.Res
 import app.koyura.app.resources.extension_startup_failed
 import app.koyura.app.resources.extension_startup_loading
@@ -77,14 +78,28 @@ internal fun ExtensionApp(openSession: suspend () -> ExtensionSession) {
 
     val session = openedSession
     if (session != null) {
-        val browse = remember(session) { VeneraBrowseService(session.service) }
+        val browse = remember(session) {
+            VeneraBrowseService(session.service) { sourceKey, imageKey ->
+                session.comicReading.loadThumbnailBytes(sourceKey, imageKey)
+            }
+        }
         val reader = remember(session) { VeneraReaderService(session.comicReading, session.history) }
-        val history = remember(session) { VeneraHistoryService(session.history) }
+        val history = remember(session) { VeneraHistoryService(session.history, session.library) }
+        val library = remember(session) {
+            ProductionLibraryRepository(
+                store = session.library,
+                history = session.history,
+                thumbnails = { sourceKey, imageKey ->
+                    session.comicReading.loadThumbnailBytes(sourceKey, imageKey)
+                },
+            )
+        }
         App(
             browseService = browse,
             readerService = reader,
             historyService = history,
             readerPreferences = session.readerPreferences,
+            libraryRepository = library,
         )
     } else {
         ReaderTheme {

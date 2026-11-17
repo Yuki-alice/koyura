@@ -22,6 +22,26 @@ interface HistoryService {
      * Clears all history. Same default no-op contract as [deleteEntry].
      */
     suspend fun clearAll() = Unit
+
+    /**
+     * Persists the heart state against the shared library record (same row the detail page
+     * and the Library tab read). Default returns false meaning "not supported": the session
+     * then keeps the toggle local-only. Production returns true after the SQLite commit.
+     */
+    suspend fun setFavorite(
+        sourceKey: String,
+        workId: String,
+        title: String,
+        coverUrl: String,
+        sourceName: String?,
+        favorite: Boolean,
+    ): Boolean = false
+
+    /**
+     * Persisted favorite keys shared with the library record. Default empty; production reads
+     * the committed library rows. The session unions this with its local state on refresh.
+     */
+    suspend fun favoriteKeys(): Set<Pair<String, String>> = emptySet()
 }
 
 /** One row in the history list: the latest saved progress for a (sourceKey, workId) pair. */

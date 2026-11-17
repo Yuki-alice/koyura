@@ -10,11 +10,15 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.SemanticsNodeInteractionCollection
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.isDisplayed
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onChildren
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -24,6 +28,8 @@ import androidx.compose.ui.unit.dp
 import app.cash.sqldelight.db.SqlDriver
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import app.koyura.app.ExtensionApp
+import app.koyura.app.NavigationBarTestTag
+import app.koyura.app.NavigationRailTestTag
 import app.koyura.app.browse.BrowseSourcesTabTag
 import app.koyura.app.browse.SourceSearchQueryTag
 import app.koyura.app.browse.SourceSearchSubmitTag
@@ -340,7 +346,11 @@ class VeneraHistoryFlowTest {
     }
 
     private fun ComposeUiTest.selectTab(index: Int) {
-        val tabs = SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Tab)
+        // Scoped to the shell bar/rail: the Library page owns tab semantics for its
+        // own category row.
+        val tabs = SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Tab) and
+            (hasAnyAncestor(hasTestTag(NavigationBarTestTag)) or
+                hasAnyAncestor(hasTestTag(NavigationRailTestTag)))
         waitUntil(timeoutMillis = 15_000) {
             onAllNodes(tabs).fetchSemanticsNodes().size == 5
         }

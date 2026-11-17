@@ -66,4 +66,20 @@ class HistoryStore(driver: SqlDriver) {
             chapter_title = chapterTitle,
         )
     }
+
+    /**
+     * 删除一条历史（整部作品的全部进度行）。调用方刷新后列表即不再出现；
+     * 书架收藏行独立存放，不受影响。
+     */
+    suspend fun deleteEntry(sourceKey: String, workId: String) {
+        db.extensionDbQueries.deleteHistoryEntry(source_key = sourceKey, work_id = workId)
+    }
+
+    /**
+     * 清空全部历史（`reading_progress` 全表）。书架 `library_manga` 与分类归属保留，
+     * 清空后仍可从书架续读，重新阅读后条目再次出现。
+     */
+    suspend fun clearAll() {
+        db.extensionDbQueries.clearHistory()
+    }
 }

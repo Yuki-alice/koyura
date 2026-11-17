@@ -188,6 +188,14 @@ class LibrarySession(
         actionError = null
     }
 
+    /**
+     * 装配层展示继续/打开失败等非变更错误：只记提示、不碰已提交快照，
+     * 用户可重试或手动清除。
+     */
+    fun noteError(message: String) {
+        actionError = message
+    }
+
     /** 详情页收藏 / 取消收藏（重复收藏返回原行，收藏时间不变由仓储保证）。 */
     suspend fun setFavorite(entry: NewLibraryEntry, favorite: Boolean): Boolean {
         val current = repository ?: return fail("Library is not connected")

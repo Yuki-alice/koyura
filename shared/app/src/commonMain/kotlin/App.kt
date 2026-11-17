@@ -17,6 +17,8 @@ import app.koyura.domain.reader.preferences.ReaderPreferences
 import app.koyura.app.navigation.rememberAppNavigationState
 import app.koyura.designsystem.ReaderTheme
 import app.koyura.designsystem.navigation.NavTab
+import app.koyura.features.library.LocalLibraryRepository
+import app.koyura.features.library.LibraryRepository as FeaturesLibraryRepository
 
 /** Width at or above which the shell switches from the bottom bar to the navigation rail. */
 internal val RailWidthThreshold = 720.dp
@@ -47,6 +49,7 @@ fun App(
     readerService: ReaderService? = null,
     historyService: HistoryService? = null,
     readerPreferences: ReaderPreferences? = null,
+    libraryRepository: FeaturesLibraryRepository? = null,
 ) {
     ReaderTheme {
         CompositionLocalProvider(
@@ -54,6 +57,7 @@ fun App(
             LocalReaderService provides readerService,
             LocalReaderPreferences provides readerPreferences,
             LocalHistoryService provides historyService,
+            LocalLibraryRepository provides libraryRepository,
         ) {
             Surface(modifier = Modifier.fillMaxSize()) {
                 AppShell()

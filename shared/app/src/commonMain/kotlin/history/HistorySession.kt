@@ -69,12 +69,17 @@ class HistorySession(
     /**
      * Locally hidden entries (deleted rows). Applied on top of every refresh until the
      * data-layer delete lands (see notes); survives tab switches and the bar/rail switch
-     * because the session outlives both.
+     * because the session outlives both. With a persistent service the rows are gone from
+     * SQLite, so this is only a same-session hide for fakes and failed deletes.
      */
     var hiddenKeys: Set<Pair<String, String>> by mutableStateOf(emptySet())
         private set
 
-    /** Locally favorited entries (heart state), same lifetime as [hiddenKeys]. */
+    /**
+     * Favorited entries (heart state). Union of the persisted library rows (same record the
+     * detail page and the Library tab read) and same-session local toggles, so a heart set
+     * on a service without favorite support still renders until the next refresh.
+     */
     var favoriteKeys: Set<Pair<String, String>> by mutableStateOf(emptySet())
         private set
 
@@ -132,9 +137,31 @@ class HistorySession(
         favoriteKeys = emptySet()
     }
 
-    /** Toggles the local heart state of one row (persistence follows with the store). */
-    fun toggleFavorite(entry: HistoryEntry) {
+    /** Toggles the heart state: persisted to the shared library record when supported. */
+    suspend fun toggleFavorite(entry: HistoryEntry) {
         val key = entry.sourceKey to entry.workId
+        val current = service
+        if (current != null) {
+            val want = !favoriteKeys.contains(key)
+            try {
+                if (current.setFavorite(
+                        sourceKey = entry.sourceKey,
+                        workId = entry.workId,
+                        title = entry.workTitle?.takeIf { it.isNotBlank() } ?: entry.workId,
+                        coverUrl = entry.cover,
+                        sourceName = null,
+                        favorite = want,
+                    )
+                ) {
+                    favoriteKeys = if (want) favoriteKeys + key else favoriteKeys - key
+                    return
+                }
+            } catch (failure: Exception) {
+                if (failure is kotlinx.coroutines.CancellationException) throw failure
+                reportError(failure.message ?: "Operation failed")
+                return
+            }
+        }
         favoriteKeys = if (favoriteKeys.contains(key)) favoriteKeys - key else favoriteKeys + key
     }
 
@@ -164,6 +191,9 @@ class HistorySession(
         loadState = HistoryLoadState.Loading
         try {
             entries = current.loadHistory()
+            // Union, never replace: a heart set while the service lacked favorite support
+            // must survive until the persisted rows confirm it.
+            favoriteKeys = favoriteKeys + current.favoriteKeys()
             loadState = HistoryLoadState.Ready
         } catch (cancelled: kotlinx.coroutines.CancellationException) {
             throw cancelled

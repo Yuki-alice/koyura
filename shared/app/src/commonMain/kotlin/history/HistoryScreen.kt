@@ -220,7 +220,7 @@ fun HistoryScreen(
                                             }
                                         },
                                         onDelete = { scope.launch { session.delete(entry) } },
-                                        onToggleFavorite = { session.toggleFavorite(entry) },
+                                        onToggleFavorite = { scope.launch { session.toggleFavorite(entry) } },
                                     )
                                     HorizontalDivider()
                                 }

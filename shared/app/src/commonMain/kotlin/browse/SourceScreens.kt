@@ -81,6 +81,12 @@ import app.koyura.designsystem.KomikkuCover
 import app.koyura.designsystem.KomikkuDetailBackdrop
 import app.koyura.designsystem.LocalCoverDecoder
 import app.koyura.designsystem.LocalCoverImageLoader
+import app.koyura.features.library.LibraryEntryKey
+import app.koyura.features.library.LibraryKind
+import app.koyura.features.library.LibrarySession
+import app.koyura.features.library.NewLibraryEntry
+import app.koyura.features.library.rememberLibrarySession
+import kotlinx.coroutines.launch
 import app.koyura.designsystem.rememberCoverBitmap
 import app.koyura.domain.reader.ReaderService
 import kotlinx.coroutines.launch
@@ -318,15 +324,23 @@ fun SourceDetailScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     readerService: ReaderService? = LocalReaderService.current,
+    librarySession: LibrarySession? = null,
     onOpenChapter: (chapterId: String?, chapterIds: List<String>, chapterTitles: List<String>) -> Unit = { _, _, _ -> },
 ) {
+    val scope = rememberCoroutineScope()
     var detail by remember(sourceKey, workId) { mutableStateOf<WorkDetail?>(null) }
     var loading by remember(sourceKey, workId) { mutableStateOf(true) }
     var error by remember(sourceKey, workId) { mutableStateOf<String?>(null) }
     var progress by remember(sourceKey, workId) { mutableStateOf<app.koyura.domain.reader.ReaderProgress?>(null) }
     var reloadTick by remember(sourceKey, workId) { mutableStateOf(0) }
-    // Library flag is visual-only until the library track wires persistence (see notes).
-    var inLibrary by rememberSaveable(sourceKey, workId) { mutableStateOf(false) }
+    // 详情与书架同一收藏状态：有装配会话时读已提交快照，无装配时保持页内视觉态。
+    val library = librarySession ?: rememberLibrarySession()
+    val libraryKey = remember(sourceKey, workId) { LibraryEntryKey(sourceKey, LibraryKind.COMIC, workId) }
+    var visualInLibrary by rememberSaveable(sourceKey, workId) { mutableStateOf(false) }
+    val inLibrary = library?.isFavorite(libraryKey) ?: visualInLibrary
+    val sourceName = remember(session.state.sources, sourceKey) {
+        session.state.sources.firstOrNull { it.id == sourceKey }?.name.orEmpty()
+    }
     var selectedIds by remember(sourceKey, workId) { mutableStateOf(setOf<String>()) }
 
     LaunchedEffect(sourceKey, workId, reloadTick) {
@@ -402,6 +416,23 @@ fun SourceDetailScreen(
                         },
                         modifier = Modifier.testTag(SourceDetailToolbarTag),
                     )
+                    library?.actionError?.let { libraryError ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            // 点按错误行即清除（与书架页的清除按钮同一语义，避免引入新文案）。
+                            Text(
+                                text = libraryError,
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.weight(1f)
+                                    .testTag("detail-library-error")
+                                    .clickable { library.clearActionError() },
+                            )
+                        }
+                    }
                     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
                         if (maxWidth >= DetailWideWidthThreshold) {
                             Row(modifier = Modifier.fillMaxSize()) {
@@ -416,7 +447,26 @@ fun SourceDetailScreen(
                                         sourceKey = sourceKey,
                                         fallbackTitle = fallbackTitle,
                                         inLibrary = inLibrary,
-                                        onToggleLibrary = { inLibrary = !inLibrary },
+                                        onToggleLibrary = {
+                                            val repo = library
+                                            if (repo == null) {
+                                                visualInLibrary = !visualInLibrary
+                                            } else {
+                                                scope.launch {
+                                                    repo.setFavorite(
+                                                        NewLibraryEntry(
+                                                            sourceKey = sourceKey,
+                                                            workId = workId,
+                                                            title = loaded.title.ifEmpty { fallbackTitle },
+                                                            coverUrl = loaded.cover,
+                                                            sourceName = sourceName,
+                                                            totalChapters = loaded.chapters.size,
+                                                        ),
+                                                        !inLibrary,
+                                                    )
+                                                }
+                                            }
+                                        },
                                         canContinue = canContinue,
                                         onContinue = {
                                             val saved = progress
@@ -460,7 +510,26 @@ fun SourceDetailScreen(
                                     sourceKey = sourceKey,
                                     fallbackTitle = fallbackTitle,
                                     inLibrary = inLibrary,
-                                    onToggleLibrary = { inLibrary = !inLibrary },
+                                    onToggleLibrary = {
+                                        val repo = library
+                                        if (repo == null) {
+                                            visualInLibrary = !visualInLibrary
+                                        } else {
+                                            scope.launch {
+                                                repo.setFavorite(
+                                                    NewLibraryEntry(
+                                                        sourceKey = sourceKey,
+                                                        workId = workId,
+                                                        title = loaded.title.ifEmpty { fallbackTitle },
+                                                        coverUrl = loaded.cover,
+                                                        sourceName = sourceName,
+                                                        totalChapters = loaded.chapters.size,
+                                                    ),
+                                                    !inLibrary,
+                                                )
+                                            }
+                                        }
+                                    },
                                     canContinue = canContinue,
                                     onContinue = {
                                         val saved = progress
@@ -574,8 +643,9 @@ private fun DetailInfoColumn(
             }
         }
     }
-    // Four-key action row: library toggle is local-visual until the library track wires it;
-    // tracking and WebView stay disabled (tracker/sync/WebView are later tracks, see notes).
+    // Four-key action row: library toggle commits to the shared shelf (same snapshot as the
+    // Library tab); save failures keep the committed snapshot and surface a page error.
+    // Tracking and WebView stay disabled (tracker/sync/WebView are later tracks, see notes).
     Row(
         modifier = Modifier
             .fillMaxWidth()

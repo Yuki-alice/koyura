@@ -8,6 +8,8 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.v2.runComposeUiTest
@@ -18,6 +20,8 @@ import app.koyura.app.navigation.TabRootRoute
 import app.koyura.app.navigation.createAppNavigationState
 import app.koyura.designsystem.ReaderTheme
 import app.koyura.designsystem.navigation.NavTab
+import app.koyura.features.library.LibraryEmptyTag
+import app.koyura.features.library.LibraryRootTag
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -34,7 +38,9 @@ class AppShellUiTest {
         }
 
         onNodeWithTag(NavigationBarTestTag).assertIsDisplayed()
-        onNodeWithTag("tab-title-Library").assertIsDisplayed()
+        // 书架页签渲染真实书架屏（未装配仓储时呈空态），不再是占位页。
+        onNodeWithTag(LibraryRootTag).assertIsDisplayed()
+        onNodeWithTag(LibraryEmptyTag).assertIsDisplayed()
     }
 
     @Test
@@ -58,8 +64,11 @@ class AppShellUiTest {
             }
         }
 
-        onNode(selectedTab).performClick()
-        onNode(selectedTab).performClick()
+        // Scope to the bottom bar: the Library page also uses tab semantics for its
+        // category row, so a global selected-tab lookup would match twice.
+        val barSelected = selectedTab and hasAnyAncestor(hasTestTag(NavigationBarTestTag))
+        onNode(barSelected).performClick()
+        onNode(barSelected).performClick()
 
         assertEquals(listOf(NavTab.Library, NavTab.Library), events)
         assertEquals(1, navigation.stackOf(NavTab.Library).size)
@@ -74,12 +83,13 @@ class AppShellUiTest {
             }
         }
 
-        onNodeWithTag("open-detail-Library").performClick()
+        onNodeWithTag(LibraryRootTag).assertIsDisplayed()
+        navigation.push(DetailRoute(NavTab.Library, 1))
         onNodeWithTag("detail-title").assertIsDisplayed()
         assertEquals(2, navigation.stackOf(NavTab.Library).size)
 
         navigation.handleBack()
-        onNodeWithTag("tab-title-Library").assertIsDisplayed()
+        onNodeWithTag(LibraryRootTag).assertIsDisplayed()
         assertEquals(1, navigation.stackOf(NavTab.Library).size)
     }
 
@@ -100,6 +110,9 @@ class AppShellUiTest {
             } else if (tab == NavTab.History) {
                 // History renders its own surface instead of the placeholder root page.
                 onNodeWithTag(HistoryRootTestTag).assertIsDisplayed()
+            } else if (tab == NavTab.Library) {
+                // Library renders the real shelf instead of the placeholder root page.
+                onNodeWithTag(LibraryRootTag).assertIsDisplayed()
             } else {
                 onNodeWithTag("tab-title-${tab.name}").assertIsDisplayed()
             }
@@ -138,6 +151,7 @@ class AppShellUiTest {
             }
         }
 
-        onNode(selectedTab).assertIsSelected()
+        // Scope to the rail for the same reason: the Library page owns tab semantics too.
+        onNode(selectedTab and hasAnyAncestor(hasTestTag(NavigationRailTestTag))).assertIsSelected()
     }
 }

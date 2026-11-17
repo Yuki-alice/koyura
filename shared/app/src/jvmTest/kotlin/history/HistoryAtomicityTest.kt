@@ -77,7 +77,7 @@ class HistoryAtomicityTest {
                     assertEquals(1, latest.pageIndex)
 
                     // History shows the old page and title without inventing new metadata.
-                    val entry = VeneraHistoryService(session.history).loadHistory().single()
+                    val entry = VeneraHistoryService(session.history, session.library).loadHistory().single()
                     assertEquals("Original Title", entry.workTitle)
                     assertEquals("Second", entry.chapterTitle)
                     assertEquals("p2", entry.pageKey)
@@ -128,7 +128,7 @@ class HistoryAtomicityTest {
                             .selectProgress(SourceKey, WorkId, ChapterId).executeAsOneOrNull(),
                     )
                     assertNull(session.comicReading.readLatestProgress(SourceKey, WorkId))
-                    assertTrue(VeneraHistoryService(session.history).loadHistory().isEmpty())
+                    assertTrue(VeneraHistoryService(session.history, session.library).loadHistory().isEmpty())
                 } finally {
                     session.close()
                 }

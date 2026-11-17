@@ -38,6 +38,7 @@ import app.koyura.app.history.HistoryService
 import app.koyura.app.history.HistorySession
 import app.koyura.app.history.LocalHistoryService
 import app.koyura.app.history.rememberHistorySession
+import app.koyura.app.library.LibraryTabContent
 import app.koyura.domain.reader.ReaderService
 import app.koyura.features.reader.comic.ComicReaderScreen
 import app.koyura.features.reader.comic.ReaderSession
@@ -56,6 +57,8 @@ import app.koyura.app.ui.TabRootScreen
 import app.koyura.designsystem.navigation.NavTab
 import app.koyura.designsystem.navigation.ReaderNavigationBar
 import app.koyura.designsystem.navigation.ReaderNavigationRail
+import app.koyura.features.library.LibrarySession
+import app.koyura.features.library.rememberLibrarySession
 
 internal const val NavigationBarTestTag = "app-navigation-bar"
 internal const val NavigationRailTestTag = "app-navigation-rail"
@@ -79,11 +82,12 @@ internal fun AppScaffold(
     historyService: HistoryService? = LocalHistoryService.current,
     historySession: HistorySession? = null,
 ) {
-    BackToLibraryHandler(navigation)
-
     val activeBrowseSession = browseSession ?: rememberBrowseSession(browseService)
     val activeReaderSession = readerSession ?: rememberReaderSession(readerService)
     val activeHistorySession = historySession ?: rememberHistorySession(historyService, browseService)
+    val librarySession = rememberLibrarySession()
+
+    BackToLibraryHandler(navigation, librarySession)
 
     // The bar and rail branches have different layout shapes, so recomposing one into the other
     // would dispose the content subtree and rebuild it from saved state. Moving the subtree with
@@ -92,15 +96,17 @@ internal fun AppScaffold(
     val appContent = remember {
         movableContentOf<AppNavigationState, SaveableStateHolder, BrowseSession> { state, holder, browse ->
             CompositionLocalProvider(LocalReaderService provides readerService) {
-                AppNavigationContent(state, holder, browse, activeReaderSession, activeHistorySession)
+                AppNavigationContent(state, holder, browse, activeReaderSession, activeHistorySession, librarySession)
             }
         }
     }
 
     // The reader is fullscreen: it draws behind the system bars with its own controls and
-    // hides the tab bar/rail while a chapter is open.
+    // hides the tab bar/rail while a chapter is open. Library multi-select hides them the same
+    // way (Komikku parity: selection mode owns the chrome).
     val isReaderOpen = navigation.currentStack.lastOrNull() is ComicReaderRoute
-    if (isReaderOpen) {
+    val hideChrome = navigation.selectedTab == NavTab.Library && librarySession.selection.isNotEmpty()
+    if (isReaderOpen || hideChrome) {
         Box(modifier = Modifier.fillMaxSize()) {
             appContent(navigation, saveableStateHolder, activeBrowseSession)
         }
@@ -156,9 +162,18 @@ internal fun AppScaffold(
 @Suppress("DEPRECATION")
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-private fun BackToLibraryHandler(navigation: AppNavigationState) {
+private fun BackToLibraryHandler(
+    navigation: AppNavigationState,
+    librarySession: LibrarySession?,
+) {
     BackHandler(enabled = navigation.returnsToLibraryOnBack()) {
         navigation.handleBack()
+    }
+    // 书架根上返回键先清选择态/搜索，不直接交平台；与“回书架”分支互斥。
+    val consumeLibrary = navigation.selectedTab == NavTab.Library &&
+        navigation.currentStack.size <= 1 && librarySession?.wantsBack == true
+    BackHandler(enabled = consumeLibrary) {
+        librarySession?.consumeBack()
     }
 }
 
@@ -177,8 +192,9 @@ private fun AppNavigationContent(
     browseSession: BrowseSession,
     readerSession: ReaderSession,
     historySession: app.koyura.app.history.HistorySession,
+    librarySession: LibrarySession,
 ) {
-    val entryProvider = remember(navigation, browseSession, readerSession, historySession) {
+    val entryProvider = remember(navigation, browseSession, readerSession, historySession, librarySession) {
         entryProvider<NavKey> {
             entry<TabRootRoute> { route ->
                 if (route.tab == NavTab.Browse) {
@@ -192,6 +208,12 @@ private fun AppNavigationContent(
                             },
                         )
                     }
+                } else if (route.tab == NavTab.Library) {
+                    LibraryTabContent(
+                        navigation = navigation,
+                        session = librarySession,
+                        browseSession = browseSession,
+                    )
                 } else if (route.tab == NavTab.History) {
                     HistoryScreen(
                         session = historySession,
@@ -298,8 +320,7 @@ private fun AppNavigationContent(
         }
     }
 
-    saveableStateHolder.SaveableStateProvider(navigation.selectedTab.name) {
-        NavDisplay(
+    saveableStateHolder.SaveableStateProvider(navigation.selectedTab.name) {        NavDisplay(
             backStack = navigation.currentStack,
             onBack = { navigation.handleBack() },
             modifier = Modifier.fillMaxSize(),

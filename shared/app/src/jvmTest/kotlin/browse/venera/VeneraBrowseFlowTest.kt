@@ -6,9 +6,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.SemanticsNodeInteractionCollection
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onChildren
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -20,6 +25,7 @@ import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import app.koyura.app.App
 import app.koyura.app.AppScaffold
 import app.koyura.app.NavigationBarTestTag
+import app.koyura.app.NavigationRailTestTag
 import app.koyura.app.browse.BrowseExtensionQueryTag
 import app.koyura.app.browse.BrowseExtensionsListTag
 import app.koyura.app.browse.BrowseExtensionsTabTag
@@ -295,6 +301,20 @@ class VeneraBrowseFlowTest {
         }
     }
 
+    /**
+     * Shell tabs scoped to the bar/rail: the Library page owns tab semantics for its
+     * own category row, so a global lookup would over-count.
+     */
+    private fun ComposeUiTest.shellTabs(): SemanticsNodeInteractionCollection {
+        val tabs = SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Tab) and
+            (hasAnyAncestor(hasTestTag(NavigationBarTestTag)) or
+                hasAnyAncestor(hasTestTag(NavigationRailTestTag)))
+        waitUntil(timeoutMillis = 15_000) {
+            onAllNodes(tabs).fetchSemanticsNodes().size == 5
+        }
+        return onAllNodes(tabs)
+    }
+
     @Test
     fun normalEntryPointReachesBrowseWithRealService() = runComposeUiTest {
         val harness = realHarness()
@@ -306,8 +326,7 @@ class VeneraBrowseFlowTest {
             setContent { App(browseService = harness.browse()) }
 
             // Tabs render in canonical order (Library, Updates, History, Browse, More).
-            val tabs = SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Tab)
-            onAllNodes(tabs)[3].performClick()
+            shellTabs()[3].performClick()
             onNodeWithTag(BrowseRootTestTag).assertIsDisplayed()
         } finally {
             harness.close()

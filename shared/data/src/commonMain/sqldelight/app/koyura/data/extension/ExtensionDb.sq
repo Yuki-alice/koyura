@@ -102,6 +102,12 @@ VALUES(?, ?, ?, ?, ?, ?, ?, ?);
 deleteProgress:
 DELETE FROM reading_progress WHERE source_key = ? AND work_id = ? AND chapter_id = ?;
 
+deleteHistoryEntry:
+DELETE FROM reading_progress WHERE source_key = ? AND work_id = ?;
+
+clearHistory:
+DELETE FROM reading_progress;
+
 selectHistoryLatest:
 SELECT * FROM reading_progress AS p
 WHERE NOT EXISTS (

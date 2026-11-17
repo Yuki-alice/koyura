@@ -114,7 +114,7 @@ class HistoryScreenshotsTest {
             }
         }
         try {
-            block(session, VeneraHistoryService(session.history))
+            block(session, VeneraHistoryService(session.history, session.library))
         } finally {
             runBlocking { session.close() }
             profile.deleteRecursively()
