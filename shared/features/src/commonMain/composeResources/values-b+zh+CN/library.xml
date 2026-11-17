@@ -10,6 +10,7 @@
     <string name="library_display">显示</string>
     <string name="library_group">分组</string>
     <string name="library_more">更多选项</string>
+    <string name="library_menu_refresh">刷新书架</string>
     <string name="library_random_open">随机打开</string>
     <string name="library_select_all">全选</string>
     <string name="library_invert_selection">反选</string>

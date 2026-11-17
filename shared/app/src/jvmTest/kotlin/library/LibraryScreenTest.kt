@@ -48,7 +48,9 @@ import app.koyura.features.library.LibraryLoadState
 import app.koyura.features.library.LibraryCoverState
 import app.koyura.features.library.LibraryMenuCategoriesTag
 import app.koyura.features.library.LibraryMenuDisplayTag
+import app.koyura.features.library.LibraryMenuGlobalSearchTag
 import app.koyura.features.library.LibraryMenuGroupTag
+import app.koyura.features.library.LibraryMenuRefreshTag
 import app.koyura.features.library.LibraryMenuSortTag
 import app.koyura.features.library.libraryModeChipTag
 import app.koyura.features.library.LibraryNoResultsTag
@@ -460,6 +462,30 @@ class LibraryScreenTest {
         node(LibraryFavoriteButtonTag).performClick()
         waitUntil { !session.isFavorite(LibraryEntryKey("srcC", LibraryKind.COMIC, "w9")) }
         assertEquals(3, session.snapshot.entries.size)
+    }
+
+    @Test
+    fun overflowOffersRefreshAndGlobalSearch() = runComposeUiTest {
+        val session = LibrarySession(triStateFixture())
+        var global = 0
+        setContent {
+            ReaderTheme {
+                LibraryScreen(
+                    session = session,
+                    decodeCover = realDecode,
+                    onOpenWork = { _, _, _ -> },
+                    onContinue = {},
+                    onGlobalSearch = { global++ },
+                )
+            }
+        }
+        waitUntil { session.snapshot.entries.isNotEmpty() }
+        node(LibraryOverflowTag).performClick()
+        scrollAndClick(LibraryMenuRefreshTag)
+        waitUntil { session.loadState is LibraryLoadState.Ready }
+        // 刷新不行使关闭，对话框仍在，直接点全局搜索行。
+        scrollAndClick(LibraryMenuGlobalSearchTag)
+        assertEquals(1, global)
     }
 
     @Test

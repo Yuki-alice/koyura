@@ -57,6 +57,7 @@ import app.koyura.designsystem.KomikkuCover
 import app.koyura.designsystem.KomikkuCoverCornerRadius
 import app.koyura.designsystem.KomikkuListGroupHeader
 import app.koyura.features.resources.Res
+import app.koyura.features.resources.library_menu_refresh
 import app.koyura.features.resources.library_action_change_categories
 import app.koyura.features.resources.library_action_download
 import app.koyura.features.resources.library_action_failed
@@ -113,6 +114,8 @@ const val LibraryMenuGroupTag = "library-menu-group"
 const val LibraryMenuRandomTag = "library-menu-random"
 const val LibraryMenuSelectAllTag = "library-menu-select-all"
 const val LibraryMenuCategoriesTag = "library-menu-categories"
+const val LibraryMenuRefreshTag = "library-menu-refresh"
+const val LibraryMenuGlobalSearchTag = "library-menu-global-search"
 const val LibraryTabsTag = "library-tabs"
 const val LibraryGridTag = "library-grid"
 const val LibraryListTag = "library-list"
@@ -203,6 +206,7 @@ fun LibraryScreen(
                 onRandomOpen = { entry ->
                     onOpenWork(entry.sourceKey, entry.workId, entry.displayTitle)
                 },
+                onGlobalSearch = onGlobalSearch,
             )
         }
         LibraryCategoryTabs(session = session)
@@ -289,6 +293,7 @@ private fun LibraryToolbar(
     onToggleSearch: () -> Unit,
     onOpenSheet: (LibrarySheet) -> Unit,
     onRandomOpen: (LibraryEntry) -> Unit,
+    onGlobalSearch: () -> Unit,
 ) {
     var overflow by remember { mutableStateOf(false) }
     Column(modifier = Modifier.fillMaxWidth()) {        Row(
@@ -347,6 +352,10 @@ private fun LibraryToolbar(
                         overflow = false
                         onRandomOpen(it)
                     },
+                    onGlobalSearch = {
+                        overflow = false
+                        onGlobalSearch()
+                    },
                 )
             }
         }
@@ -379,7 +388,9 @@ private fun LibraryOverflowDialog(
     onDismiss: () -> Unit,
     onOpenSheet: (LibrarySheet) -> Unit,
     onRandomOpen: (LibraryEntry) -> Unit,
+    onGlobalSearch: () -> Unit,
 ) {
+    val scope = rememberCoroutineScope()
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(Res.string.library_more)) },
@@ -419,6 +430,18 @@ private fun LibraryOverflowDialog(
                     label = stringResource(Res.string.library_edit_categories),
                     tag = LibraryMenuCategoriesTag,
                     onClick = { onOpenSheet(LibrarySheet.CATEGORIES) },
+                )
+                LibraryOverflowRow(
+                    label = stringResource(Res.string.library_menu_refresh),
+                    tag = LibraryMenuRefreshTag,
+                    onClick = {
+                        scope.launch { session.refresh() }
+                    },
+                )
+                LibraryOverflowRow(
+                    label = stringResource(Res.string.library_global_search),
+                    tag = LibraryMenuGlobalSearchTag,
+                    onClick = { onGlobalSearch() },
                 )
             }
         },

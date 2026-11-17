@@ -10,6 +10,7 @@
     <string name="library_display">Display</string>
     <string name="library_group">Group</string>
     <string name="library_more">More options</string>
+    <string name="library_menu_refresh">Refresh library</string>
     <string name="library_random_open">Open random entry</string>
     <string name="library_select_all">Select all</string>
     <string name="library_invert_selection">Invert</string>
