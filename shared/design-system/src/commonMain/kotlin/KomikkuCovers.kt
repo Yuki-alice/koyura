@@ -109,6 +109,13 @@ const val KomikkuCoverImageTag = "komikku-cover-image"
 const val KomikkuCoverPlaceholderTag = "komikku-cover-placeholder"
 
 /**
+ * 全仓封面统一圆角（网格 2:3、搜索行 48x72、历史行 56x80、详情头 96x144 均用此值）。
+ *
+ * 尺寸由调用方 modifier 决定，本常量只定圆角。
+ */
+val KomikkuCoverCornerRadius = 8.dp
+
+/**
  * 加载一封面的解码位图（单次尝试，可空）：头部大图与模糊背景共用同一结果，
  * 缓存命中时不触发加载器。
  */
@@ -168,7 +175,7 @@ fun KomikkuCover(
             contentDescription = contentDescription,
             contentScale = ContentScale.Crop,
             modifier = modifier
-                .clip(RoundedCornerShape(8.dp))
+                .clip(RoundedCornerShape(KomikkuCoverCornerRadius))
                 .testTag(KomikkuCoverImageTag),
         )
     } else {

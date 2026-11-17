@@ -38,6 +38,7 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -53,8 +54,12 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import app.koyura.designsystem.CoverDecoder
+import app.koyura.designsystem.CoverImageLoader
 import app.koyura.designsystem.KomikkuCover
 import app.koyura.designsystem.KomikkuCoverCornerRadius
+import app.koyura.designsystem.LocalCoverDecoder
+import app.koyura.designsystem.LocalCoverImageLoader
 import app.koyura.designsystem.KomikkuListGroupHeader
 import app.koyura.features.resources.Res
 import app.koyura.features.resources.library_menu_refresh
@@ -859,15 +864,27 @@ private fun LibraryCoverImage(
     decodeCover: (ByteArray) -> ImageBitmap?,
     modifier: Modifier = Modifier,
 ) {
-    KomikkuCover(
-        sourceKey = entry.sourceKey,
-        coverUrl = entry.coverUrl,
-        label = entry.displayTitle,
-        load = { session.coverBytes(entry) },
-        decode = decodeCover,
-        cornerRadius = KomikkuCoverCornerRadius,
-        modifier = modifier,
-    )
+    // 书架封面走全仓唯一 A 轨管线：加载器委托会话单次取图（失败抛错转 null 回退占位），
+    // 解码器沿用调用方注入的平台实现；内存缓存沿用默认按源隔离实例。
+    val loader = remember(entry.sourceKey, entry.coverUrl) {
+        CoverImageLoader { _, _ ->
+            runCatching { session.coverBytes(entry) }.getOrNull()
+        }
+    }
+    val decoder = remember(decodeCover) {
+        CoverDecoder { bytes -> decodeCover(bytes) }
+    }
+    CompositionLocalProvider(
+        LocalCoverImageLoader provides loader,
+        LocalCoverDecoder provides decoder,
+    ) {
+        KomikkuCover(
+            sourceKey = entry.sourceKey,
+            coverUrl = entry.coverUrl,
+            label = entry.displayTitle,
+            modifier = modifier,
+        )
+    }
 }
 
 /** 封面徽标：左上未读/下载胶囊，右上语言+图源徽标（对齐原版 LibraryBadges）。 */
