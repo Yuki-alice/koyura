@@ -138,4 +138,34 @@ class LibraryListingTest {
         assertTrue(snapshot.categoriesOf(LibraryEntryKey("srcA", LibraryKind.COMIC, "w1")) == setOf(1L))
         assertTrue(snapshot.categoriesOf(LibraryEntryKey("srcA", LibraryKind.COMIC, "w5")).isEmpty())
     }
+
+    @Test
+    fun groupBySourceKeepsCaseDifferingNames() {
+        // 只有大小写不同的来源名称：分组不断言合并，只断言两组并存、作品无丢失、
+        // 大小写无关有序（iOS 无 toSortedMap，同样走本实现）。
+        val entries = listOf(
+            LibraryEntry(sourceKey = "s1", workId = "a", title = "甲", sourceName = "Example"),
+            LibraryEntry(sourceKey = "s2", workId = "b", title = "乙", sourceName = "EXAMPLE"),
+            LibraryEntry(sourceKey = "s3", workId = "c", title = "丙", sourceName = "beta"),
+        )
+        val sections = groupLibraryEntries(entries, LibraryGroupBy.SOURCE)
+        assertEquals(3, sections.sumOf { it.entries.size }, "no work may be lost in grouping")
+        assertEquals(listOf("beta", "Example", "EXAMPLE"), sections.map { it.title })
+        assertEquals(listOf("c"), sections.first { it.title == "beta" }.entries.map { it.workId })
+    }
+
+    @Test
+    fun groupByStatusKeepsRankOrder() {
+        val entries = listOf(
+            LibraryEntry(sourceKey = "s", workId = "u", title = "u", status = LibraryStatus.UNKNOWN),
+            LibraryEntry(sourceKey = "s", workId = "c", title = "c", status = LibraryStatus.COMPLETED),
+            LibraryEntry(sourceKey = "s", workId = "o", title = "o", status = LibraryStatus.ONGOING),
+        )
+        val sections = groupLibraryEntries(entries, LibraryGroupBy.STATUS)
+        assertEquals(
+            listOf(LibraryStatus.ONGOING.name, LibraryStatus.COMPLETED.name, LibraryStatus.UNKNOWN.name),
+            sections.map { it.title },
+        )
+        assertEquals(3, sections.sumOf { it.entries.size })
+    }
 }

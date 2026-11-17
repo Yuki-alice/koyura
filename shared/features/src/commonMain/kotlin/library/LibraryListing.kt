@@ -115,7 +115,10 @@ fun groupLibraryEntries(
     return when (groupBy) {
         LibraryGroupBy.CATEGORY -> listOf(LibrarySection("", ordered))
         LibraryGroupBy.SOURCE -> ordered.groupBy { it.sourceName.ifBlank { it.sourceKey } }
-            .toSortedMap(String.CASE_INSENSITIVE_ORDER)
+            // toSortedMap 是 JVM 专属，Kotlin/Native（iOS）无此扩展：改用 entries 明式排序。
+            // 大小写无关比较下同名不同大小写的来源（如 "Foo"/"FOO"）比较结果为 0，
+            // sortedWith 稳定排序保留其原始相对顺序，两组都不丢失作品。
+            .entries.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.key })
             .map { (name, items) -> LibrarySection(name, items) }
         LibraryGroupBy.STATUS -> {
             val rank = mapOf(
@@ -124,7 +127,7 @@ fun groupLibraryEntries(
                 LibraryStatus.UNKNOWN to 2,
             )
             ordered.groupBy { it.status }
-                .toSortedMap(compareBy { rank.getValue(it) })
+                .entries.sortedWith(compareBy({ rank[it.key] ?: Int.MAX_VALUE }))
                 .map { (status, items) -> LibrarySection(status.name, items) }
         }
     }
