@@ -9,12 +9,12 @@
 | `shared/features/…/reader/comic/chrome/ReaderChromeState.kt` | `ReaderChromeState`（作品标题、当前章 ID、章节列表及标题、零基页索引、总页数、菜单显隐、前后章可用性、全局设置、作品覆盖、有效设置、当前对话框）与 `ReaderChromeAction`（Back / SetMenuVisible / JumpToPage / OpenChapter / ChangeGlobalSettings / ChangeWorkOverride / ResetWorkOverride / SetDialog） |
 | `…/chrome/ReaderChrome.kt` | `ReaderChrome(state, onAction, modifier)`：顶栏（返回、标题+章节副标题、一点基页码，点页码开跳页框）、底栏（上一章/下一章 + 滑杆 + 章节/模式/裁边/设置四个入口）、焦点恢复（关弹层回到打开它的按钮） |
 | `…/chrome/ChapterListDialog.kt` | 章节弹层：打开即滚动到当前章、当前章高亮、无章节占位、点选发出 `OpenChapter` 并关框 |
-| `…/chrome/ReadingModeDialog.kt` | 模式弹层：5 种模式单选 + 应用；`allowDefault` 时可回到 DEFAULT（清覆盖字段） |
+| `…/chrome/ReadingModeDialog.kt`（`ModeDialog.kt`） | 模式弹层：对齐原版 `AdaptiveSheet`——窄屏（最小宽 < 720 dp）底部弹层贴底、上圆角、安全区内边距，宽屏居中面板最大 460 dp；5 种模式图标网格单选 + 应用；`allowDefault` 时可回到 DEFAULT（清覆盖字段）。桌面/iOS 无手势拖拽关闭，统一用点击外部/取消/应用关闭 |
 | `…/chrome/ReaderSettingsPanel.kt`（`ReaderSettingsDialog`） | 设置弹层：全局默认区（全量替换）与作品覆盖区（DEFAULT 继承 + 按字段补丁 + 恢复全局按钮） |
 | `shared/domain/…/reader/preferences/ReaderPreferences.kt` | `ReadingMode`（5 个 ID）、`ReaderLayout`、`ReaderFit`、`ReaderSettings`、`WorkReaderOverride`（全可空，`patchedWith`/`resolvedOver`/`withOverride`） |
 | `shared/data/…/reader/preferences/ReaderPreferencesStore.kt` | 文件存储：`reader_global.json` + `reader_overrides.json`（`sourceKey/workId` 键），同目录新实例可恢复；缺文件/缺字段/坏文件回默认值，原子写。SQLite schema、扩展事务、阅读进度文件原样未动 |
 | `shared/features/…/reader_chrome.xml`（`reader_chrome_` 前缀，中英） | chrome 专有文案；`nav_screen_back`、`reader-back`、`reader-page-indicator` 及前后章语义沿用原 key |
-| 测试 | features commonTest：`ReaderChromeStateTest`（当前章定位、前后章边界、页码钳制、合并语义）；data commonTest：`ReaderPreferencesStoreTest`（默认、新实例恢复、单作品合并、双源同名隔离、清除、旧配置缺字段、**单字段清除、并发补丁合并、写清交错、写失败保旧**）；app jvmTest `app.koyura.app.reader.chrome`：`ChromeTestHost` 独立宿主、`ChromeBehaviorTest`（显隐、遮挡、高亮、首尾禁用、无章节空页、页码边界、**鼠标拖拽只发一次**、焦点恢复、键盘回车、键盘选模式、裁边补丁、**模式选择应用、跟随全局清单字段**）、`ChromeSettingsHostTest`（真实文件存储 + 第 2 章第 3 页保持）、`ChromeScreenshots`（窄/宽 × 浅/深 × 6 状态 + 流程 5 步） |
+| 测试 | features commonTest：`ReaderChromeStateTest`（当前章定位、前后章边界、页码钳制、合并语义）；data commonTest：`ReaderPreferencesStoreTest`（默认、新实例恢复、单作品合并、双源同名隔离、清除、旧配置缺字段、**单字段清除、并发补丁合并、写清交错、写失败保旧**）；app jvmTest `app.koyura.app.reader.chrome`：`ChromeTestHost` 独立宿主、`ChromeBehaviorTest`（显隐、遮挡、高亮、首尾禁用、无章节空页、页码边界、**鼠标拖拽只发一次**、焦点恢复、键盘回车、键盘选模式、裁边补丁、**模式选择应用、跟随全局清单字段**）、`ChromeDialogLayoutTest`（720 断点、窄屏贴底+安全区+460 上限、宽屏居中+上限+可用、翻转保留选择、点击遮罩关闭、键盘选择）、`ChromeSettingsHostTest`（真实文件存储 + 第 2 章第 3 页保持）、`ChromeScreenshots`（窄/宽 × 浅/深 × 6 状态 + 流程 5 步） |
 
 ## 接口签名
 
@@ -63,8 +63,9 @@ sealed interface OverrideField<out T> {
 - `ReaderPreferencesStoreTest`（data）10/10：默认、新实例恢复、单作品合并、双源同名隔离、清除、旧配置缺字段、**单字段清除保留他字段、并发补丁合并（门控交错）、写清交错一致、写失败保旧**。无锁实现下并发测试按预期失败（已验证复现），加锁后通过。
 - `ReaderChromeStateTest`（features）4/4：当前章定位、前后章边界、页码钳制、合并语义。
 - `ChromeBehaviorTest`（app）12/12：显隐与遮挡、章列表高亮与首尾禁用、无章节空页、页码边界、**鼠标拖拽只发一次**、弹层关闭焦点恢复、键盘回车开框、**键盘选模式**、裁边补丁、**模式选择应用单补丁、跟随全局只清模式字段**。
+- `ChromeDialogLayoutTest`（app）6/6：720 断点、窄屏贴底+安全区+460 上限、宽屏居中+上限+可用、翻转保留选择、点击遮罩关闭、键盘选择。
 - `ChromeSettingsHostTest`（app）2/2：真实文件存储的全局/覆盖/恢复全链路，切换设置保持第 2 章第 3 页。
-- `ChromeScreenshots`（app）7/7：29 张对照与流程截图落 `build/komikku-c/`（新增模式跟随全局态）。
+- `ChromeScreenshots`（app）7/7：29 张对照与流程截图落 `build/komikku-c/`（模式弹层分有作品覆盖/跟随全局两态，窄屏底部弹层、宽屏居中面板可辨）。
 - 构建：`:shared:features:assembleAndroidMain`、`:shared:features:jvmJar`、`:shared:features:compileKotlinIosSimulatorArm64` 全过；Venera 夹具未修改（只读引用）。
 - 待主 agent 集成验收：实际 Viewer 联动、历史跨进程续读、真机杀进程重建、Windows/Linux 包、操作录屏视频。
 

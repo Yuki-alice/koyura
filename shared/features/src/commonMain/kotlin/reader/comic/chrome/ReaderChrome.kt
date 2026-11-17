@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -101,11 +102,14 @@ fun ReaderChrome(
     }
 
     if (!state.menuVisible) return
-    Column(
+    BoxWithConstraints(
         modifier
             .fillMaxSize()
             .testTag(ReaderChromeRootTag),
     ) {
+        // Dialog placement follows the app window, not the dialog window (Komikku breakpoint).
+        val compactDialog = isCompactDialog(minOf(maxWidth, maxHeight).value.toInt())
+        Column(Modifier.fillMaxSize()) {
         // Top bar: back, work title + chapter subtitle, 1-based indicator (tap = jump dialog).
         Row(
             modifier = Modifier
@@ -243,6 +247,7 @@ fun ReaderChrome(
         ReaderChromeDialog.ReadingMode -> ReadingModeDialog(
             current = state.override?.mode,
             allowDefault = true,
+            compact = compactDialog,
             onApply = {
                 onAction(
                     ReaderChromeAction.ChangeWorkOverride(
@@ -261,6 +266,7 @@ fun ReaderChrome(
             onDismiss = { onAction(ReaderChromeAction.SetDialog(ReaderChromeDialog.None)) },
         )
         ReaderChromeDialog.None -> Unit
+        }
     }
 }
 
