@@ -354,51 +354,18 @@ private fun PagerComicViewer(
                 }
             }
 
-            // Tap zones above the pager (below chrome): edges turn, centre toggles menu.
-            // Double-tap on a zone zooms instead of turning, so single taps never fire twice.
-            if (isVertical) {
-                Column(Modifier.fillMaxSize()) {
-                    TapZone(
-                        tag = ComicTapPrevTag,
-                        modifier = Modifier.weight(1f).fillMaxWidth(),
-                        onTap = { goVisual(-1) },
-                        onDoubleTap = { zoomPulse++ },
-                    )
-                    TapZone(
-                        tag = ComicTapMenuTag,
-                        modifier = Modifier.weight(1f).fillMaxWidth(),
-                        onTap = onToggleMenu,
-                        onDoubleTap = { zoomPulse++ },
-                    )
-                    TapZone(
-                        tag = ComicTapNextTag,
-                        modifier = Modifier.weight(1f).fillMaxWidth(),
-                        onTap = { goVisual(1) },
-                        onDoubleTap = { zoomPulse++ },
-                    )
-                }
-            } else {
-                Row(Modifier.fillMaxSize()) {
-                    TapZone(
-                        tag = ComicTapPrevTag,
-                        modifier = Modifier.weight(1f).fillMaxHeight(),
-                        onTap = { goVisual(-1) },
-                        onDoubleTap = { zoomPulse++ },
-                    )
-                    TapZone(
-                        tag = ComicTapMenuTag,
-                        modifier = Modifier.weight(1f).fillMaxHeight(),
-                        onTap = onToggleMenu,
-                        onDoubleTap = { zoomPulse++ },
-                    )
-                    TapZone(
-                        tag = ComicTapNextTag,
-                        modifier = Modifier.weight(1f).fillMaxHeight(),
-                        onTap = { goVisual(1) },
-                        onDoubleTap = { zoomPulse++ },
-                    )
-                }
-            }
+            // Tap zones above the pager (below chrome): the tiled overlay resolves each
+            // tap to prev/menu/next per the configured zone mode. Double-tap on a zone zooms
+            // instead of turning, so single taps never fire twice.
+            TapZoneOverlay(
+                zone = options.tapZone,
+                isVertical = isVertical,
+                invert = options.invertTapZone,
+                onPrev = { goVisual(-1) },
+                onMenu = onToggleMenu,
+                onNext = { goVisual(1) },
+                onDoubleTap = { zoomPulse++ },
+            )
         }
     }
 }
@@ -643,45 +610,100 @@ private fun WebtoonComicViewer(
         }
 
         // Edge tap zones scroll stepwise; at the ends they report the chapter
-        // boundary instead (the host owns the actual chapter switch).
-        Row(Modifier.fillMaxSize()) {
-            TapZone(
-                tag = ComicTapPrevTag,
-                modifier = Modifier.weight(1f).fillMaxHeight(),
-                onTap = {
-                    if (hasPrev && atTop()) {
-                        onChapterBoundary(ComicChapterBoundary.PREVIOUS)
-                    } else {
-                        scope.launch {
-                            val target = (listState.firstVisibleItemIndex - 1).coerceAtLeast(0)
-                            listState.animateScrollToItem(target)
-                        }
+        // boundary instead (the host owns the actual chapter switch). The tiled overlay
+        // keeps the same prev/menu/next actions under the configured zone mode.
+        TapZoneOverlay(
+            zone = options.tapZone,
+            isVertical = true,
+            invert = options.invertTapZone,
+            onPrev = {
+                if (hasPrev && atTop()) {
+                    onChapterBoundary(ComicChapterBoundary.PREVIOUS)
+                } else {
+                    scope.launch {
+                        val target = (listState.firstVisibleItemIndex - 1).coerceAtLeast(0)
+                        listState.animateScrollToItem(target)
                     }
-                },
-                onDoubleTap = {},
-            )
-            TapZone(
-                tag = ComicTapMenuTag,
-                modifier = Modifier.weight(1f).fillMaxHeight(),
-                onTap = onToggleMenu,
-                onDoubleTap = {},
-            )
-            TapZone(
-                tag = ComicTapNextTag,
-                modifier = Modifier.weight(1f).fillMaxHeight(),
-                onTap = {
-                    if (hasNext && atBottom()) {
-                        onChapterBoundary(ComicChapterBoundary.NEXT)
-                    } else {
-                        scope.launch {
-                            val total = listState.layoutInfo.totalItemsCount
-                            val target = (listState.firstVisibleItemIndex + 1).coerceAtMost((total - 1).coerceAtLeast(0))
-                            listState.animateScrollToItem(target.coerceAtLeast(0))
-                        }
+                }
+            },
+            onMenu = onToggleMenu,
+            onNext = {
+                if (hasNext && atBottom()) {
+                    onChapterBoundary(ComicChapterBoundary.NEXT)
+                } else {
+                    scope.launch {
+                        val total = listState.layoutInfo.totalItemsCount
+                        val target = (listState.firstVisibleItemIndex + 1).coerceAtMost((total - 1).coerceAtLeast(0))
+                        listState.animateScrollToItem(target.coerceAtLeast(0))
                     }
-                },
-                onDoubleTap = {},
-            )
+                }
+            },
+            onDoubleTap = {},
+        )
+    }
+}
+
+/**
+ * Tiled tap overlay for one viewer: lays [tapZoneRects] out in fractions of the viewport,
+ * transposing along/across for vertical modes. DEFAULT reproduces the historical fixed thirds
+ * (same order, tags and actions), so gestures and UI tests are unchanged; other modes only
+ * take effect once the settings surface sources [ComicViewerOptions.tapZone].
+ *
+ * Zones keep the stable prev/menu/next test tags by action; modes without a menu rect
+ * (LEFT_RIGHT) or with no rects at all (DISABLED) simply omit those tags.
+ */
+@Composable
+private fun TapZoneOverlay(
+    zone: ComicTapZoneMode,
+    isVertical: Boolean,
+    invert: Boolean,
+    onPrev: () -> Unit,
+    onMenu: () -> Unit,
+    onNext: () -> Unit,
+    onDoubleTap: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val rects = remember(zone) { tapZoneRects(zone) }
+    if (rects.isEmpty()) return
+    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+        rects.forEach { rect ->
+            val action = if (!invert) {
+                rect.action
+            } else {
+                when (rect.action) {
+                    ComicTapAction.PREVIOUS -> ComicTapAction.NEXT
+                    ComicTapAction.NEXT -> ComicTapAction.PREVIOUS
+                    ComicTapAction.MENU, ComicTapAction.NONE -> rect.action
+                }
+            }
+            val tag = when (action) {
+                ComicTapAction.PREVIOUS -> ComicTapPrevTag
+                ComicTapAction.MENU -> ComicTapMenuTag
+                ComicTapAction.NEXT -> ComicTapNextTag
+                ComicTapAction.NONE -> return@forEach
+            }
+            val onTap = when (action) {
+                ComicTapAction.PREVIOUS -> onPrev
+                ComicTapAction.MENU -> onMenu
+                ComicTapAction.NEXT -> onNext
+                ComicTapAction.NONE -> return@forEach
+            }
+            val x = (if (!isVertical) rect.alongFrom else rect.acrossFrom) * maxWidth.value
+            val y = (if (!isVertical) rect.acrossFrom else rect.alongFrom) * maxHeight.value
+            val w = (if (!isVertical) rect.alongTo else rect.acrossTo) * maxWidth.value - x
+            val h = (if (!isVertical) rect.acrossTo else rect.alongTo) * maxHeight.value - y
+            Box(
+                Modifier
+                    .offset(x = x.dp, y = y.dp)
+                    .size(width = w.dp, height = h.dp),
+            ) {
+                TapZone(
+                    tag = tag,
+                    modifier = Modifier.fillMaxSize(),
+                    onTap = onTap,
+                    onDoubleTap = onDoubleTap,
+                )
+            }
         }
     }
 }
