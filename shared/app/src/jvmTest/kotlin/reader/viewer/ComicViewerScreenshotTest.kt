@@ -13,6 +13,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import app.koyura.designsystem.ReaderTheme
+import app.koyura.features.reader.comic.FakeReaderService
 import app.koyura.features.reader.comic.ReaderContentState
 import app.koyura.features.reader.comic.ReaderSession
 import app.koyura.features.reader.comic.viewer.ComicPagerLayout
@@ -38,11 +39,14 @@ import org.jetbrains.skia.EncodedImageFormat
 class ComicViewerScreenshotTest {
     private val outputDir = File(System.getProperty("reader.screenshotDir") ?: "build/screenshots").apply { mkdirs() }
 
-    private fun openSession(chapterId: String = ViewerFixture.CHAPTER_2): ReaderSession {
-        val service = ViewerFixture.service()
+    private fun openSession(
+        chapterId: String = ViewerFixture.CHAPTER_2,
+        service: FakeReaderService = ViewerFixture.service(),
+        chapterIds: List<String> = ViewerFixture.chapterIds,
+    ): ReaderSession {
         val session = ViewerFixture.session(service)
         runBlocking {
-            session.open(ViewerFixture.SOURCE, ViewerFixture.WORK, chapterId, ViewerFixture.chapterIds)
+            session.open(ViewerFixture.SOURCE, ViewerFixture.WORK, chapterId, chapterIds)
         }
         return session
     }
@@ -217,6 +221,66 @@ class ComicViewerScreenshotTest {
             "viewer-failed-retried", 420, 780, session,
             options(ComicReadingMode.LEFT_TO_RIGHT),
             jumpPage = 5,
+        )
+    }
+
+    @Test
+    fun captureCropOff() {
+        val service = ViewerFixture.cropService()
+        val session = openSession(ViewerFixture.CROP_CHAPTER, service, ViewerFixture.cropChapterIds)
+        render(
+            "viewer-crop-off", 420, 780, session,
+            ComicViewerOptions(
+                mode = ComicReadingMode.LEFT_TO_RIGHT,
+                pagerLayout = ComicPagerLayout.SINGLE_PAGE,
+                cropBorders = false,
+            ),
+            jumpPage = 0,
+        )
+    }
+
+    @Test
+    fun captureCropOffBorderless() {
+        val service = ViewerFixture.cropService()
+        val session = openSession(ViewerFixture.CROP_CHAPTER, service, ViewerFixture.cropChapterIds)
+        render(
+            "viewer-crop-off-borderless", 420, 780, session,
+            ComicViewerOptions(
+                mode = ComicReadingMode.LEFT_TO_RIGHT,
+                pagerLayout = ComicPagerLayout.SINGLE_PAGE,
+                cropBorders = false,
+            ),
+            jumpPage = 1,
+        )
+    }
+
+    @Test
+    fun captureCropOnBorderless() {
+        val service = ViewerFixture.cropService()
+        val session = openSession(ViewerFixture.CROP_CHAPTER, service, ViewerFixture.cropChapterIds)
+        render(
+            "viewer-crop-on-borderless", 420, 780, session,
+            ComicViewerOptions(
+                mode = ComicReadingMode.LEFT_TO_RIGHT,
+                pagerLayout = ComicPagerLayout.SINGLE_PAGE,
+                cropBorders = true,
+            ),
+            jumpPage = 1,
+        )
+    }
+
+    @Test
+    fun captureCropOn() {
+        val service = ViewerFixture.cropService()
+        val session = openSession(ViewerFixture.CROP_CHAPTER, service, ViewerFixture.cropChapterIds)
+        render(
+            "viewer-crop-on", 420, 780, session,
+            ComicViewerOptions(
+                mode = ComicReadingMode.LEFT_TO_RIGHT,
+                pagerLayout = ComicPagerLayout.SINGLE_PAGE,
+                cropBorders = true,
+            ),
+            jumpPage = 0,
         )
     }
 }

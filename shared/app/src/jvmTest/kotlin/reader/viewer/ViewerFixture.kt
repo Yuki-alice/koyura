@@ -62,6 +62,29 @@ object ViewerFixture {
     }
 
     fun session(service: FakeReaderService): ReaderSession = ReaderSession(service)
+
+    const val CROP_CHAPTER = "crop_ch"
+    val cropChapterIds = listOf(CROP_CHAPTER)
+
+    /**
+     * Crop fixture: one bordered page (40px white frame with corner marks inside
+     * the content) plus one borderless page whose corners hold content. Both keep
+     * their page keys and positions with crop on or off.
+     */
+    fun cropService(): FakeReaderService = FakeReaderService(
+        chapters = mutableMapOf(
+            Triple(SOURCE, WORK, CROP_CHAPTER) to ChapterContent(
+                chapterId = CROP_CHAPTER,
+                title = "Crop",
+                pageKeys = listOf("cb0", "cb1"),
+                startPageIndex = 0,
+            ),
+        ),
+        pageBytes = mutableMapOf(
+            "cb0" to framedPng(400, 520, 40, 0xFFFFFF, 0x117A65, "C-1"),
+            "cb1" to cornerMarkedPng(400, 600, 0x2E86C1, "C-2"),
+        ),
+    )
 }
 
 /** Numbered PNG for viewer tests (decoded by Skia on JVM). */
@@ -82,6 +105,71 @@ fun numberedPng(width: Int, height: Int, rgb: Int, label: String): ByteArray {
     // Border so page edges are visible against the canvas.
     graphics.color = java.awt.Color.BLACK
     graphics.drawRect(0, 0, width - 1, height - 1)
+    graphics.dispose()
+    val out = java.io.ByteArrayOutputStream()
+    javax.imageio.ImageIO.write(image, "png", out)
+    return out.toByteArray()
+}
+
+/**
+ * Bordered page for crop tests: a solid [border]-px frame around a filled
+ * content rect with a centered label and contrasting corner squares just
+ * inside the content (they must survive border removal).
+ */
+fun framedPng(
+    width: Int,
+    height: Int,
+    border: Int,
+    borderRgb: Int,
+    fillRgb: Int,
+    label: String,
+): ByteArray {
+    val image = java.awt.image.BufferedImage(width, height, java.awt.image.BufferedImage.TYPE_INT_RGB)
+    val graphics = image.createGraphics()
+    graphics.color = java.awt.Color(borderRgb)
+    graphics.fillRect(0, 0, width, height)
+    graphics.color = java.awt.Color(fillRgb)
+    graphics.fillRect(border, border, width - 2 * border, height - 2 * border)
+    // Corner squares inside the content rect (must survive cropping).
+    graphics.color = java.awt.Color(0xFFFF0000.toInt())
+    val m = 14
+    graphics.fillRect(border, border, m, m)
+    graphics.fillRect(width - border - m, border, m, m)
+    graphics.fillRect(border, height - border - m, m, m)
+    graphics.fillRect(width - border - m, height - border - m, m, m)
+    graphics.color = java.awt.Color.WHITE
+    val fontSize = ((width - 2 * border) / (label.length * 0.7)).toInt().coerceIn(18, (height - 2 * border) / 8)
+    graphics.font = java.awt.Font("SansSerif", java.awt.Font.BOLD, fontSize)
+    val metrics = graphics.fontMetrics
+    val x = border + (width - 2 * border - metrics.stringWidth(label)) / 2
+    graphics.drawString(label, x.coerceAtLeast(border + 4), height / 2)
+    graphics.dispose()
+    val out = java.io.ByteArrayOutputStream()
+    javax.imageio.ImageIO.write(image, "png", out)
+    return out.toByteArray()
+}
+
+/**
+ * Borderless page with contrasting corner squares at the bitmap corners and
+ * a centered label. Crop must leave every pixel untouched.
+ */
+fun cornerMarkedPng(width: Int, height: Int, rgb: Int, label: String): ByteArray {
+    val image = java.awt.image.BufferedImage(width, height, java.awt.image.BufferedImage.TYPE_INT_RGB)
+    val graphics = image.createGraphics()
+    graphics.color = java.awt.Color(rgb)
+    graphics.fillRect(0, 0, width, height)
+    graphics.color = java.awt.Color(0xFFFFFF00.toInt())
+    val m = 14
+    graphics.fillRect(0, 0, m, m)
+    graphics.fillRect(width - m, 0, m, m)
+    graphics.fillRect(0, height - m, m, m)
+    graphics.fillRect(width - m, height - m, m, m)
+    graphics.color = java.awt.Color.WHITE
+    val fontSize = (width / (label.length * 0.7)).toInt().coerceIn(18, height / 8)
+    graphics.font = java.awt.Font("SansSerif", java.awt.Font.BOLD, fontSize)
+    val metrics = graphics.fontMetrics
+    val x = (width - metrics.stringWidth(label)) / 2
+    graphics.drawString(label, x.coerceAtLeast(8), height / 2)
     graphics.dispose()
     val out = java.io.ByteArrayOutputStream()
     javax.imageio.ImageIO.write(image, "png", out)

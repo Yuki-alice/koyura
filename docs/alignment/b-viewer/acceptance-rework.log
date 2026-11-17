@@ -1,0 +1,12 @@
+
+BUILD SUCCESSFUL in 1m 5s
+104 actionable tasks: 20 executed, 84 up-to-date
+Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.4.1/userguide/configuration_cache_enabling.html
+ComicViewerTest[jvm] 14 fail/errors: 0
+FlowFramesTest[jvm] 4 fail/errors: 0
+OriginalReferenceShotsTest[jvm] 1 fail/errors: 0
+ComicViewerScreenshotTest[jvm] 15 fail/errors: 0
+ComicSpreadsTest[jvm] 7 fail/errors: 0
+ComicCropTest[jvm] 8 fail/errors: 0
+ReaderSessionTest[jvm] 12 fail/errors: 0
+TOTAL 61 FAILED 0

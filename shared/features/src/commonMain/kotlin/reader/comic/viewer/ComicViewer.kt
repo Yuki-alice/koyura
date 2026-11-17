@@ -1,6 +1,7 @@
 package app.koyura.features.reader.comic.viewer
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
@@ -10,10 +11,13 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -38,7 +42,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -48,14 +54,18 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import app.koyura.domain.reader.ChapterContent
 import app.koyura.features.reader.comic.ReaderPageState
 import app.koyura.features.reader.comic.ReaderSession
 import app.koyura.features.reader.comic.decodeToImageBitmap
+import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -179,17 +189,37 @@ private fun PagerComicViewer(
         var zoomPulse by remember(session.contentSeq) { mutableStateOf(0L) }
         val focusRequester = remember { FocusRequester() }
 
-        fun spreadMaster(displayIndex: Int): Int =
-            spreads.getOrNull(displayIndex)?.masterPageIndex ?: 0
+        fun displayToLogical(displayIndex: Int): Int =
+            if (isRtl && !isVertical) spreads.size - 1 - displayIndex else displayIndex
+
+        /**
+         * Page reported for a displayed spread. Fresh turns land on spreads that do
+         * not contain the previous anchor, so they report the master page (logical
+         * reading order). Relayouts (resize, mode/layout switch) keep the spread
+         * containing the anchor, which is then reported unchanged instead of being
+         * downgraded to the spread master.
+         */
+        fun reportedPage(displayIndex: Int): Int? {
+            val spread = spreads.getOrNull(displayIndex) ?: return null
+            val anchor = session.currentPage
+            return if (anchor in spread.pageIndices) anchor else spread.masterPageIndex
+        }
 
         fun goVisual(delta: Int) {
             val target = pagerState.currentPage + delta
+            val mirrored = isRtl && !isVertical
             if (target < 0) {
-                if (hasPrev) onChapterBoundary(ComicChapterBoundary.PREVIOUS)
+                // Visual start: story start in LTR, story end in RTL.
+                val boundary = if (mirrored) ComicChapterBoundary.NEXT else ComicChapterBoundary.PREVIOUS
+                val hasNeighbour = if (mirrored) hasNext else hasPrev
+                if (hasNeighbour) onChapterBoundary(boundary)
                 return
             }
             if (target >= spreads.size) {
-                if (hasNext) onChapterBoundary(ComicChapterBoundary.NEXT)
+                // Visual end: story end in LTR, story start in RTL.
+                val boundary = if (mirrored) ComicChapterBoundary.PREVIOUS else ComicChapterBoundary.NEXT
+                val hasNeighbour = if (mirrored) hasPrev else hasNext
+                if (hasNeighbour) onChapterBoundary(boundary)
                 return
             }
             scope.launch { pagerState.animateScrollToPage(target) }
@@ -207,8 +237,9 @@ private fun PagerComicViewer(
             pagerState.scrollToPage(display.coerceIn(0, spreads.size - 1))
         }
 
-        // Re-anchor on layout/width/mode change: keep the same original page.
-        LaunchedEffect(spreads) {
+        // Re-anchor on layout/width/mode change: scroll to the spread that still
+        // contains the current original page; reporting keeps that page.
+        LaunchedEffect(spreads, options.mode) {
             val current = session.currentPage
             if (current !in content.pageKeys.indices) return@LaunchedEffect
             val logical = spreadIndexForPage(logicalSpreads, current)
@@ -216,13 +247,17 @@ private fun PagerComicViewer(
             if (display != pagerState.currentPage) pagerState.scrollToPage(display)
         }
 
-        // Displayed + settled reporting (master page in logical reading order).
+        // Displayed + settled reporting (anchor-preserving, see reportedPage).
         LaunchedEffect(pagerState, spreads) {
-            snapshotFlow { pagerState.currentPage }.collect { session.markDisplayed(spreadMaster(it)) }
+            snapshotFlow { pagerState.currentPage }.collect { display ->
+                val page = reportedPage(display) ?: return@collect
+                if (page != session.currentPage) session.markDisplayed(page)
+            }
         }
         LaunchedEffect(pagerState, spreads) {
-            snapshotFlow { pagerState.settledPage }.distinctUntilChanged().collect {
-                session.savePage(spreadMaster(it))
+            snapshotFlow { pagerState.settledPage }.distinctUntilChanged().collect { display ->
+                val page = reportedPage(display) ?: return@collect
+                session.savePage(page)
             }
         }
         // Demand loading: current spread plus neighbours. Only pages never attempted
@@ -230,7 +265,7 @@ private fun PagerComicViewer(
         // the error row until the user retries), so a failure stays observable.
         LaunchedEffect(pagerState, content.pageKeys) {
             snapshotFlow { pagerState.currentPage }.collect { display ->
-                val logical = if (isRtl && !isVertical) spreads.size - 1 - display else display
+                val logical = displayToLogical(display)
                 val pages = logicalSpreads.getOrNull(logical)?.pageIndices ?: return@collect
                 val neighbours = buildSet {
                     addAll(pages)
@@ -683,68 +718,152 @@ private fun ZoomableComicPage(
     viewportFill: Boolean,
 ) {
     val scope = rememberCoroutineScope()
-    var scale by remember(pageKey) { mutableStateOf(1f) }
-    var offset by remember(pageKey) { mutableStateOf(Offset.Zero) }
+    val density = LocalDensity.current
+    // Pinch state is relative (1x = the fitted base); the base transform below
+    // maps the (border-cropped) content rect into the viewport.
+    var pinch by remember(pageKey) { mutableStateOf(1f) }
+    var pan by remember(pageKey) { mutableStateOf(Offset.Zero) }
+    var viewportPx by remember(pageKey) { mutableStateOf(IntSize.Zero) }
     val transformState = rememberTransformableState { zoomChange, panChange, _ ->
-        val next = (scale * zoomChange).coerceIn(1f, 5f)
-        scale = next
-        offset = if (next <= 1f) Offset.Zero else offset + panChange
+        val next = (pinch * zoomChange).coerceIn(1f, 5f)
+        pinch = next
+        pan = if (next <= 1f) Offset.Zero else pan + panChange
     }
 
     // Double-tap pulse from the tap zones toggles 1x / 2.5x.
     LaunchedEffect(zoomPulse) {
         if (zoomPulse == 0L) return@LaunchedEffect
         if (options.doubleTapZoom) {
-            scale = if (scale > 1.2f) 1f else 2.5f
-            if (scale <= 1f) offset = Offset.Zero
+            pinch = if (pinch > 1.2f) 1f else 2.5f
+            if (pinch <= 1f) pan = Offset.Zero
         }
     }
 
-    Box(
-        modifier = (if (viewportFill) Modifier.fillMaxSize() else Modifier.fillMaxWidth())
-            .testTag(comicPageTag(index)),
-        contentAlignment = Alignment.Center,
-    ) {
-        when (state) {
-            null, ReaderPageState.Loading -> CircularProgressIndicator()
-            is ReaderPageState.Ready -> {
-                val bitmap = remember(state.bytes) {
-                    runCatching { state.bytes.decodeToImageBitmap() }.getOrNull()
-                }
-                if (bitmap == null) {
+    // Webtoon items size themselves from the content aspect; pager viewports
+    // are bounded by the pager itself.
+    when (state) {
+        null, ReaderPageState.Loading -> Box(
+            modifier = (if (viewportFill) Modifier.fillMaxSize() else Modifier.fillMaxWidth())
+                .testTag(comicPageTag(index)),
+            contentAlignment = Alignment.Center,
+        ) {
+            CircularProgressIndicator()
+        }
+
+        is ReaderPageState.Ready -> {
+            val bitmap = remember(state.bytes) {
+                runCatching { state.bytes.decodeToImageBitmap() }.getOrNull()
+            }
+            if (bitmap == null) {
+                Box(
+                    modifier = (if (viewportFill) Modifier.fillMaxSize() else Modifier.fillMaxWidth())
+                        .testTag(comicPageTag(index)),
+                    contentAlignment = Alignment.Center,
+                ) {
                     PageError(pageKey = pageKey, onRetry = onRetry)
-                } else {
-                    val wide = bitmap.width > bitmap.height
-                    LaunchedEffect(bitmap.width, bitmap.height) {
-                        if (wide) onWideDetected()
+                }
+            } else {
+                val wide = bitmap.width > bitmap.height
+                LaunchedEffect(bitmap.width, bitmap.height) {
+                    if (wide) onWideDetected()
+                }
+                // Real border crop (Komikku parity): detect solid outer strips
+                // and fit the remaining content rect with the user's scale type.
+                // Borderless pages detect zero margins, so corner content stays.
+                val crop = remember(bitmap, options.cropBorders) {
+                    if (!options.cropBorders) {
+                        ComicCrop.NONE
+                    } else {
+                        val pixels = runCatching { bitmap.toPixelMap().buffer }.getOrNull()
+                        if (pixels == null) ComicCrop.NONE
+                        else detectBorderCrop(pixels, bitmap.width, bitmap.height)
                     }
-                    val contentScale = when {
-                        options.cropBorders -> ContentScale.Crop
-                        else -> when (options.scaleFit) {
-                            ComicScaleFit.FIT -> ContentScale.Fit
-                            ComicScaleFit.FIT_WIDTH -> ContentScale.FillWidth
-                            ComicScaleFit.FIT_HEIGHT -> ContentScale.FillHeight
-                            ComicScaleFit.ORIGINAL -> ContentScale.None
+                }
+                val contentW = (bitmap.width - crop.left - crop.right).coerceAtLeast(1)
+                val contentH = (bitmap.height - crop.top - crop.bottom).coerceAtLeast(1)
+                // Display geometry in px. The middle box is exactly the displayed
+                // content rect and clips the cropped borders away; the bitmap is
+                // drawn at its scaled size underneath, shifted so the content
+                // aligns with the middle box. Pinch/pan apply on top.
+                val geometry = remember(viewportPx, bitmap.width, bitmap.height, crop, options.scaleFit, viewportFill) {
+                    val vw = viewportPx.width.toFloat()
+                    val vh = viewportPx.height.toFloat()
+                    val bw = bitmap.width.toFloat()
+                    val bh = bitmap.height.toFloat()
+                    val l = crop.left.toFloat()
+                    val t = crop.top.toFloat()
+                    val cw = contentW.toFloat()
+                    val ch = contentH.toFloat()
+                    if (viewportFill) {
+                        contentFitTransform(vw, vh, bw, bh, crop, options.scaleFit)
+                    } else {
+                        // Vertical strip: width is the only constraint, content
+                        // starts at the top (the aspect ratio sizes the item).
+                        val s = if (options.scaleFit == ComicScaleFit.ORIGINAL) {
+                            1f
+                        } else if (cw > 0f && vw > 0f) {
+                            vw / cw
+                        } else {
+                            1f
                         }
+                        Triple(s, (vw - s * cw) / 2f - s * l, -s * t)
                     }
-                    androidx.compose.foundation.Image(
-                        bitmap = bitmap,
-                        contentDescription = "page image",
-                        contentScale = contentScale,
-                        modifier = (if (viewportFill) Modifier.fillMaxSize() else Modifier.fillMaxWidth())
+                }
+                val (baseScale, baseTx, baseTy) = geometry
+                // Draw the content rect directly from the bitmap: no nested
+                // layout constraints, so large scaled images cannot be squeezed.
+                val dstW = contentW * baseScale
+                val dstH = contentH * baseScale
+                val dstX = baseTx + baseScale * crop.left
+                val dstY = baseTy + baseScale * crop.top
+                Box(
+                    modifier = (if (viewportFill) {
+                        Modifier.fillMaxSize().clipToBounds()
+                    } else {
+                        Modifier.fillMaxWidth()
+                            .aspectRatio(contentW.toFloat() / contentH.toFloat())
+                    })
+                        .onSizeChanged { viewportPx = it }
+                        .testTag(comicPageTag(index)),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(with(density) { dstW.toDp() }, with(density) { dstH.toDp() })
+                            .offset {
+                                androidx.compose.ui.unit.IntOffset(dstX.roundToInt(), dstY.roundToInt())
+                            }
                             .testTag(comicPageImageTag(index))
                             .graphicsLayer(
-                                scaleX = scale,
-                                scaleY = scale,
-                                translationX = offset.x,
-                                translationY = offset.y,
+                                scaleX = pinch,
+                                scaleY = pinch,
+                                translationX = pan.x,
+                                translationY = pan.y,
                             )
+                            .drawBehind {
+                                drawImage(
+                                    image = bitmap,
+                                    srcOffset = androidx.compose.ui.unit.IntOffset(crop.left, crop.top),
+                                    srcSize = androidx.compose.ui.unit.IntSize(contentW, contentH),
+                                    dstOffset = androidx.compose.ui.unit.IntOffset.Zero,
+                                    dstSize = androidx.compose.ui.unit.IntSize(
+                                        size.width.roundToInt().coerceAtLeast(1),
+                                        size.height.roundToInt().coerceAtLeast(1),
+                                    ),
+                                    filterQuality = androidx.compose.ui.graphics.FilterQuality.Medium,
+                                )
+                            }
                             .transformable(transformState),
                     )
                 }
             }
+        }
 
-            is ReaderPageState.Failed -> PageError(pageKey = pageKey, onRetry = onRetry)
+        is ReaderPageState.Failed -> Box(
+            modifier = (if (viewportFill) Modifier.fillMaxSize() else Modifier.fillMaxWidth())
+                .testTag(comicPageTag(index)),
+            contentAlignment = Alignment.Center,
+        ) {
+            PageError(pageKey = pageKey, onRetry = onRetry)
         }
     }
 }

@@ -3,6 +3,7 @@ package app.koyura.app.reader.viewer
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -22,7 +23,10 @@ import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.v2.runComposeUiTest
+import androidx.compose.ui.unit.dp
 import app.koyura.designsystem.ReaderTheme
+import app.koyura.domain.reader.ChapterContent
+import app.koyura.features.reader.comic.FakeReaderService
 import app.koyura.features.reader.comic.ReaderContentState
 import app.koyura.features.reader.comic.ReaderSession
 import app.koyura.features.reader.comic.viewer.ComicChapterBoundary
@@ -33,6 +37,7 @@ import app.koyura.features.reader.comic.viewer.ComicViewerJump
 import app.koyura.features.reader.comic.viewer.ComicViewerOptions
 import app.koyura.features.reader.comic.viewer.ComicViewerRootTag
 import app.koyura.features.reader.comic.viewer.comicPageImageTag
+import app.koyura.features.reader.comic.decodeToImageBitmap
 import app.koyura.features.reader.comic.viewer.comicPageRetryTag
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -454,6 +459,197 @@ class ComicViewerTest {
         // Webtoon -> continuous vertical keeps it too.
         options = options.copy(mode = ComicReadingMode.CONTINUOUS_VERTICAL)
         awaitCounter("3 / 7")
+    }
+
+    @Test
+    fun automaticDoubleAnchorsOriginalPageOnResize() = runComposeUiTest {
+        val service = ViewerFixture.service()
+        val session = ViewerFixture.session(service)
+        var widthDp by mutableStateOf(420)
+        var options by mutableStateOf(
+            ComicViewerOptions(
+                mode = ComicReadingMode.LEFT_TO_RIGHT,
+                pagerLayout = ComicPagerLayout.AUTOMATIC,
+                firstPageSingle = true,
+            ),
+        )
+        setContent {
+            ReaderTheme {
+                LaunchedEffect(Unit) {
+                    session.open(ViewerFixture.SOURCE, ViewerFixture.WORK, ViewerFixture.CHAPTER_1, ViewerFixture.chapterIds)
+                }
+                val content = (session.content as? ReaderContentState.Ready)?.content
+                Column(Modifier.fillMaxSize()) {
+                    Text(
+                        text = if (content == null) "0 / 0"
+                        else "${session.currentPage + 1} / ${content.pageKeys.size}",
+                        modifier = Modifier.testTag(CounterTag),
+                    )
+                    if (content != null) {
+                        Box(Modifier.size(widthDp.dp, 780.dp)) {
+                            ComicViewer(
+                                session = session,
+                                content = content,
+                                options = options,
+                                jump = null,
+                                onToggleMenu = {},
+                                onChapterBoundary = {},
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // Chapter 1: three portrait pages, narrow canvas = single spreads.
+        awaitCounter("1 / 3")
+        settledTap("reader-tap-next")
+        settledTap("reader-tap-next")
+        awaitCounter("3 / 3")
+        // Wait until the third page is persisted before resizing.
+        val savedBy = System.currentTimeMillis() + 10_000
+        while (service.saveCalls.none { it.pageIndex == 2 } && System.currentTimeMillis() < savedBy) {
+            waitForIdle()
+            Thread.sleep(100)
+        }
+        assertTrue(service.saveCalls.any { it.pageIndex == 2 }, "page 3 must be saved, got ${service.saveCalls}")
+        val onesBefore = service.saveCalls.count { it.pageIndex == 1 }
+
+        // Landscape: AUTOMATIC pairs [p1, p2] with the cover solo. Displayed page,
+        // saved index and pageKey must all stay on the original third page.
+        widthDp = 1000
+        awaitCounter("3 / 3")
+        waitForIdle()
+        Thread.sleep(600)
+        var content = (session.content as? ReaderContentState.Ready)?.content
+        assertEquals("p2", content?.pageKeys?.get(session.currentPage))
+        assertEquals(onesBefore, service.saveCalls.count { it.pageIndex == 1 })
+        assertEquals(2, service.saveCalls.last().pageIndex)
+
+        // Narrow again: back to solo spreads, still on the third page.
+        widthDp = 420
+        awaitCounter("3 / 3")
+        content = (session.content as? ReaderContentState.Ready)?.content
+        assertEquals("p2", content?.pageKeys?.get(session.currentPage))
+
+        // Mode switches keep the anchor too.
+        options = options.copy(mode = ComicReadingMode.CONTINUOUS_VERTICAL)
+        awaitCounter("3 / 3")
+        options = options.copy(mode = ComicReadingMode.LEFT_TO_RIGHT)
+        awaitCounter("3 / 3")
+        content = (session.content as? ReaderContentState.Ready)?.content
+        assertEquals("p2", content?.pageKeys?.get(session.currentPage))
+
+        // Rebuild the viewer: the saved position restores the same page key.
+        val second = ViewerFixture.session(service)
+        setContent {
+            ReaderTheme {
+                LaunchedEffect(Unit) {
+                    second.open(ViewerFixture.SOURCE, ViewerFixture.WORK, ViewerFixture.CHAPTER_1, ViewerFixture.chapterIds)
+                }
+                ViewerLab(second, ViewerFixture.CHAPTER_1, options, null, { null }, mutableListOf())
+            }
+        }
+        awaitCounter("3 / 3")
+        val content2 = (second.content as ReaderContentState.Ready).content
+        assertEquals("p2", content2.pageKeys[second.currentPage])
+    }
+
+    @Test
+    fun rtlChapterBoundariesMirrorVisualEdges() = runComposeUiTest {
+        val service = ViewerFixture.service()
+        val session = ViewerFixture.session(service)
+        var chapter by mutableStateOf(ViewerFixture.CHAPTER_2)
+        var jump by mutableStateOf<ComicViewerJump?>(null)
+        val options = ComicViewerOptions(mode = ComicReadingMode.RIGHT_TO_LEFT)
+        val seen = mutableListOf<ComicChapterBoundary>()
+        setContent {
+            ReaderTheme {
+                LaunchedEffect(chapter) {
+                    session.open(ViewerFixture.SOURCE, ViewerFixture.WORK, chapter, ViewerFixture.chapterIds)
+                }
+                ViewerLab(session, chapter, options, jump, { boundary ->
+                    seen += boundary
+                    null
+                }, mutableListOf())
+            }
+        }
+
+        // Chapter 2, first page: tapping right moves toward the previous chapter.
+        awaitCounter("1 / 7")
+        settledTap("reader-tap-next")
+        assertEquals(listOf(ComicChapterBoundary.PREVIOUS), seen)
+        // Direction keys follow the same visual mapping.
+        onNodeWithTag(ComicViewerRootTag).performKeyInput { pressKey(Key.DirectionRight) }
+        waitForIdle()
+        Thread.sleep(300)
+        assertEquals(listOf(ComicChapterBoundary.PREVIOUS, ComicChapterBoundary.PREVIOUS), seen)
+
+        // Last page of the last chapter: no NEXT neighbour, stays silent.
+        jump = ComicViewerJump(requestId = 31L, contentSeq = session.contentSeq, pageIndex = 6)
+        awaitCounter("7 / 7")
+        settledTap("reader-tap-prev")
+        waitForIdle()
+        Thread.sleep(300)
+        assertEquals(2, seen.size)
+
+        // Chapter 1, last page: left tap/key report NEXT (chapter 2 exists).
+        chapter = ViewerFixture.CHAPTER_1
+        awaitCounter("1 / 3")
+        jump = ComicViewerJump(requestId = 32L, contentSeq = session.contentSeq, pageIndex = 2)
+        awaitCounter("3 / 3")
+        settledTap("reader-tap-prev")
+        assertEquals(
+            listOf(ComicChapterBoundary.PREVIOUS, ComicChapterBoundary.PREVIOUS, ComicChapterBoundary.NEXT),
+            seen,
+        )
+        onNodeWithTag(ComicViewerRootTag).performKeyInput { pressKey(Key.DirectionLeft) }
+        waitForIdle()
+        Thread.sleep(300)
+        assertEquals(4, seen.size)
+        assertEquals(ComicChapterBoundary.NEXT, seen.last())
+
+        // Chapter 1, first page: no PREVIOUS neighbour, stays silent.
+        jump = ComicViewerJump(requestId = 33L, contentSeq = session.contentSeq, pageIndex = 0)
+        awaitCounter("1 / 3")
+        settledTap("reader-tap-next")
+        onNodeWithTag(ComicViewerRootTag).performKeyInput { pressKey(Key.DirectionRight) }
+        waitForIdle()
+        Thread.sleep(300)
+        assertEquals(4, seen.size)
+    }
+
+    @Test
+    fun cropBordersKeepsPositionAndRetrySemantics() = runComposeUiTest {
+        val service = ViewerFixture.cropService()
+        val session = ViewerFixture.session(service)
+        var options by mutableStateOf(ComicViewerOptions(mode = ComicReadingMode.LEFT_TO_RIGHT))
+        setContent {
+            ReaderTheme {
+                LaunchedEffect(Unit) {
+                    session.open(
+                        ViewerFixture.SOURCE,
+                        ViewerFixture.WORK,
+                        ViewerFixture.CROP_CHAPTER,
+                        ViewerFixture.cropChapterIds,
+                    )
+                }
+                ViewerLab(session, ViewerFixture.CROP_CHAPTER, options, null, { null }, mutableListOf())
+            }
+        }
+
+        awaitCounter("1 / 2")
+        onNodeWithTag(comicPageImageTag(0)).assertIsDisplayed()
+        options = options.copy(cropBorders = true)
+        awaitCounter("1 / 2")
+        onNodeWithTag(comicPageImageTag(0)).assertIsDisplayed()
+        val content = (session.content as ReaderContentState.Ready).content
+        assertEquals("cb0", content.pageKeys[session.currentPage])
+        settledTap("reader-tap-next")
+        awaitCounter("2 / 2")
+        options = options.copy(cropBorders = false)
+        awaitCounter("2 / 2")
+        onNodeWithTag(comicPageImageTag(1)).assertIsDisplayed()
     }
 
     @Test

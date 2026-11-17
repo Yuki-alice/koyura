@@ -3,6 +3,7 @@ package app.koyura.app.reader.viewer
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -23,6 +24,7 @@ import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.v2.runComposeUiTest
+import androidx.compose.ui.unit.dp
 import app.koyura.designsystem.ReaderTheme
 import app.koyura.features.reader.comic.ReaderContentState
 import app.koyura.features.reader.comic.ReaderSession
@@ -243,5 +245,59 @@ class FlowFramesTest {
         options = options.copy(mode = ComicReadingMode.CONTINUOUS_VERTICAL)
         Thread.sleep(1000)
         shot("flow-modes-3-continuous")
+    }
+
+    /**
+     * Resize storyboard: AUTOMATIC layout, third page reached on a narrow canvas,
+     * then widened to pair pages 2-3 and narrowed again. Every frame's counter
+     * must read `3 / 3`, the saved page key must stay `p2`.
+     */
+    @Test
+    fun recordResizeAnchoringFlow() = runComposeUiTest {
+        val service = ViewerFixture.service()
+        val session = ViewerFixture.session(service)
+        var widthDp by mutableStateOf(420)
+        val options = ComicViewerOptions(
+            mode = ComicReadingMode.LEFT_TO_RIGHT,
+            pagerLayout = ComicPagerLayout.AUTOMATIC,
+            firstPageSingle = true,
+        )
+        setContent {
+            ReaderTheme {
+                LaunchedEffect(Unit) {
+                    session.open(ViewerFixture.SOURCE, ViewerFixture.WORK, ViewerFixture.CHAPTER_1, ViewerFixture.chapterIds)
+                }
+                val content = (session.content as? ReaderContentState.Ready)?.content
+                Column(Modifier.fillMaxSize()) {
+                    Text(
+                        text = if (content == null) "0 / 0"
+                        else "AUTOMATIC ${session.currentPage + 1} / ${content.pageKeys.size}",
+                        modifier = Modifier.testTag("reader-viewer-flow-label"),
+                    )
+                    if (content != null) {
+                        Box(Modifier.size(widthDp.dp, 780.dp)) {
+                            ComicViewer(
+                                session = session,
+                                content = content,
+                                options = options,
+                                jump = null,
+                                onToggleMenu = {},
+                                onChapterBoundary = {},
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        tapNext()
+        tapNext()
+        shot("flow-resize-1-narrow")
+        widthDp = 1000
+        Thread.sleep(1200)
+        shot("flow-resize-2-wide-paired")
+        widthDp = 420
+        Thread.sleep(1200)
+        shot("flow-resize-3-narrow-again")
     }
 }
