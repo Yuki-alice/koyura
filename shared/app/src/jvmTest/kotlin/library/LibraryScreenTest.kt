@@ -7,8 +7,11 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.ComposeUiTest
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.v2.runComposeUiTest
@@ -25,6 +28,8 @@ import app.koyura.features.library.LibraryCategoriesSheetTag
 import app.koyura.features.library.LibraryCategoryAddTag
 import app.koyura.features.library.LibraryCategoryNameTag
 import app.koyura.features.library.LibraryCountTag
+import app.koyura.features.library.LibraryColumnsSliderTag
+import app.koyura.features.library.LibraryColumnsValueTag
 import app.koyura.features.library.LibraryDetailFavoriteRow
 import app.koyura.features.library.LibraryDisplayMode
 import app.koyura.features.library.LibraryDisplaySheetTag
@@ -79,6 +84,7 @@ import app.koyura.features.library.libraryCardTag
 import app.koyura.features.library.libraryCardTitleTag
 import app.koyura.features.library.libraryContinueTag
 import app.koyura.features.library.libraryDownloadBadgeTag
+import app.koyura.features.library.libraryDisplayToggleTag
 import app.koyura.features.library.libraryFilterRowTag
 import app.koyura.features.library.libraryGroupHeaderTag
 import app.koyura.features.library.libraryGroupRowTag
@@ -508,5 +514,60 @@ class LibraryScreenTest {
         node(LibraryCategoryNameTag).performTextReplacement("追更中")
         scrollAndClick(LibraryCategoryAddTag)
         waitUntil { session.snapshot.categories.any { it.name == "追更中" } }
+    }
+
+    @Test
+    fun displayPageSliderAndTogglesActOnRealData() = runComposeUiTest {
+        val fake = triStateFixture()
+        val session = LibrarySession(fake)
+        setContent {
+            ReaderTheme {
+                LibraryScreen(
+                    session = session,
+                    decodeCover = realDecode,
+                    onOpenWork = { _, _, _ -> },
+                    onContinue = {},
+                )
+            }
+        }
+        waitUntil { session.snapshot.entries.isNotEmpty() }
+        node(LibraryOverflowTag).performClick()
+        scrollAndClick(LibraryMenuDisplayTag)
+        node(LibraryDisplaySheetTag).assertIsDisplayed()
+        // 列数滑杆：语义动作精确置 5，偏好落盘且数值行同步。
+        node(LibraryColumnsValueTag).assertTextContains("2", substring = true)
+        node(LibraryColumnsSliderTag).performSemanticsAction(SemanticsActions.SetProgress) { it(5f) }
+        waitUntil { fake.prefs.columns == 5 }
+        node(LibraryColumnsValueTag).assertTextContains("5", substring = true)
+        // 七个显示开关逐个翻转并落盘（前五个默认开，隐藏分类默认关）。
+        scrollAndClick(libraryDisplayToggleTag("unread"))
+        waitUntil { !fake.prefs.showUnreadBadges }
+        scrollAndClick(libraryDisplayToggleTag("downloads"))
+        waitUntil { !fake.prefs.showDownloadBadges }
+        scrollAndClick(libraryDisplayToggleTag("language"))
+        waitUntil { !fake.prefs.showLanguageBadges }
+        scrollAndClick(libraryDisplayToggleTag("continue"))
+        waitUntil { !fake.prefs.showContinueButton }
+        scrollAndClick(libraryDisplayToggleTag("category-labels"))
+        waitUntil { !fake.prefs.showCategoryLabels }
+        scrollAndClick(libraryDisplayToggleTag("hidden-categories"))
+        waitUntil { fake.prefs.showHiddenCategories }
+        scrollAndClick(libraryDisplayToggleTag("work-count"))
+        waitUntil { !fake.prefs.showWorkCount }
+        scrollAndClick(LibrarySheetCloseTag)
+        // 开关作用于真实渲染：未读徽标与继续按钮消失，列数保持 5。
+        assertTrue(allNodes(libraryUnreadBadgeTag("srcA", "w1")).fetchSemanticsNodes().isEmpty())
+        assertTrue(allNodes(libraryContinueTag("srcA", "w1")).fetchSemanticsNodes().isEmpty())
+        assertEquals(5, session.snapshot.prefs.columns)
+        // 再打开并恢复两处，徽标重现。
+        node(LibraryOverflowTag).performClick()
+        scrollAndClick(LibraryMenuDisplayTag)
+        scrollAndClick(libraryDisplayToggleTag("unread"))
+        waitUntil { fake.prefs.showUnreadBadges }
+        scrollAndClick(libraryDisplayToggleTag("continue"))
+        waitUntil { fake.prefs.showContinueButton }
+        scrollAndClick(LibrarySheetCloseTag)
+        node(libraryUnreadBadgeTag("srcA", "w1")).assertIsDisplayed()
+        node(libraryContinueTag("srcA", "w1")).assertIsDisplayed()
     }
 }
