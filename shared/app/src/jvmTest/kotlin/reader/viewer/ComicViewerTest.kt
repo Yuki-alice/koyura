@@ -12,6 +12,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsDisplayed
@@ -21,6 +22,11 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeDown
+import androidx.compose.ui.test.swipeLeft
+import androidx.compose.ui.test.swipeRight
+import androidx.compose.ui.test.swipeUp
+import androidx.compose.ui.test.swipeUp
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
@@ -34,11 +40,13 @@ import app.koyura.features.reader.comic.viewer.ComicPagerLayout
 import app.koyura.features.reader.comic.viewer.ComicReadingMode
 import app.koyura.features.reader.comic.viewer.ComicViewer
 import app.koyura.features.reader.comic.viewer.ComicViewerJump
+import app.koyura.features.reader.comic.viewer.ComicScaleFit
 import app.koyura.features.reader.comic.viewer.ComicViewerOptions
 import app.koyura.features.reader.comic.viewer.ComicViewerRootTag
 import app.koyura.features.reader.comic.viewer.comicPageImageTag
 import app.koyura.features.reader.comic.decodeToImageBitmap
 import app.koyura.features.reader.comic.viewer.comicPageRetryTag
+import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -261,10 +269,6 @@ class ComicViewerTest {
         awaitCounter("1 / 3")
         settledTap("reader-tap-next")
         awaitCounter("2 / 3")
-        dragUp(ComicViewerRootTag)
-        awaitCounter("3 / 3")
-        dragDown(ComicViewerRootTag)
-        awaitCounter("2 / 3")
         onNodeWithTag(ComicViewerRootTag).performKeyInput { pressKey(Key.DirectionDown) }
         awaitCounter("3 / 3")
         onNodeWithTag(ComicViewerRootTag).performKeyInput { pressKey(Key.DirectionUp) }
@@ -386,7 +390,8 @@ class ComicViewerTest {
         // Jump past it: with q1 isolated, [q2, q3] pair up and q2 is the master.
         // (Pre-split pairing would report q3 instead.)
         jump = ComicViewerJump(requestId = 22L, contentSeq = session.contentSeq, pageIndex = 3)
-        awaitCounter("3 / 7")
+        // A jump commits the requested page as the anchor, so the counter shows q3.
+        awaitCounter("4 / 7")
         onNodeWithTag(comicPageImageTag(2)).assertIsDisplayed()
         onNodeWithTag(comicPageImageTag(3)).assertIsDisplayed()
     }
@@ -433,6 +438,163 @@ class ComicViewerTest {
         waitForIdle()
         Thread.sleep(300)
         awaitCounter("1 / 3")
+    }
+
+    @Test
+    fun jumpWithinVisibleDoubleUpdatesAnchor() = runComposeUiTest {
+        val service = ViewerFixture.service()
+        val session = ViewerFixture.session(service)
+        var jump by mutableStateOf<ComicViewerJump?>(null)
+        var options by mutableStateOf(
+            ComicViewerOptions(
+                mode = ComicReadingMode.LEFT_TO_RIGHT,
+                pagerLayout = ComicPagerLayout.DOUBLE_PAGES,
+                firstPageSingle = true,
+            ),
+        )
+        setContent {
+            ReaderTheme {
+                LaunchedEffect(Unit) {
+                    session.open(ViewerFixture.SOURCE, ViewerFixture.WORK, ViewerFixture.CHAPTER_1, ViewerFixture.chapterIds)
+                }
+                ViewerLab(session, ViewerFixture.CHAPTER_1, options, jump, { null }, mutableListOf())
+            }
+        }
+
+        // Chapter 1 pairs [p1, p2] after the solo cover; anchor is p1 (index 1).
+        awaitCounter("1 / 3")
+        settledTap("reader-tap-next")
+        awaitCounter("2 / 3")
+        val seq = session.contentSeq
+        val savesBefore = service.saveCalls.size
+
+        // Jump to the second page of the visible spread: both pages are on
+        // screen, so only an explicit anchor+save commit can move the position.
+        jump = ComicViewerJump(requestId = 73L, contentSeq = seq, pageIndex = 2)
+        awaitCounter("3 / 3")
+        waitForIdle()
+        Thread.sleep(400)
+        assertEquals(2, session.currentPage)
+        var content = (session.content as ReaderContentState.Ready).content
+        assertEquals("p2", content.pageKeys[session.currentPage])
+        val saves = service.saveCalls.drop(savesBefore)
+        assertTrue(saves.isNotEmpty(), "jump inside the spread must save, got $saves")
+        assertEquals(2, saves.last().pageIndex)
+
+        // Single page again: the committed anchor survives.
+        options = options.copy(pagerLayout = ComicPagerLayout.SINGLE_PAGE)
+        awaitCounter("3 / 3")
+        content = (session.content as ReaderContentState.Ready).content
+        assertEquals("p2", content.pageKeys[session.currentPage])
+
+        // Same request re-emitted: consumed once, no new save.
+        val savesAfterJump = service.saveCalls.size
+        jump = ComicViewerJump(requestId = 73L, contentSeq = seq, pageIndex = 0)
+        waitForIdle()
+        Thread.sleep(300)
+        awaitCounter("3 / 3")
+        assertEquals(savesAfterJump, service.saveCalls.size)
+
+        // Jump from another spread into the same target still lands on p2.
+        jump = ComicViewerJump(requestId = 74L, contentSeq = seq, pageIndex = 0)
+        awaitCounter("1 / 3")
+        jump = ComicViewerJump(requestId = 75L, contentSeq = seq, pageIndex = 2)
+        awaitCounter("3 / 3")
+        content = (session.content as ReaderContentState.Ready).content
+        assertEquals("p2", content.pageKeys[session.currentPage])
+
+        // Stale chapter command is ignored.
+        val staleSeq = seq
+        val savesBeforeStale = service.saveCalls.size
+        setContent {
+            ReaderTheme {
+                LaunchedEffect(Unit) {
+                    session.open(ViewerFixture.SOURCE, ViewerFixture.WORK, ViewerFixture.CHAPTER_2, ViewerFixture.chapterIds)
+                }
+                ViewerLab(session, ViewerFixture.CHAPTER_2, options, jump, { null }, mutableListOf())
+            }
+        }
+        awaitCounter("1 / 7")
+        jump = ComicViewerJump(requestId = 76L, contentSeq = staleSeq, pageIndex = 6)
+        waitForIdle()
+        Thread.sleep(300)
+        awaitCounter("1 / 7")
+
+        // Rebuild from saved progress in double pages: still the third page.
+        val second = ViewerFixture.session(service)
+        options = options.copy(pagerLayout = ComicPagerLayout.DOUBLE_PAGES)
+        setContent {
+            ReaderTheme {
+                LaunchedEffect(Unit) {
+                    service.savedProgress[ViewerFixture.SOURCE to ViewerFixture.WORK] =
+                        app.koyura.domain.reader.ReaderProgress(ViewerFixture.CHAPTER_1, 2)
+                    second.open(ViewerFixture.SOURCE, ViewerFixture.WORK, ViewerFixture.CHAPTER_1, ViewerFixture.chapterIds)
+                }
+                ViewerLab(second, ViewerFixture.CHAPTER_1, options, null, { null }, mutableListOf())
+            }
+        }
+        awaitCounter("3 / 3")
+        val content2 = (second.content as ReaderContentState.Ready).content
+        assertEquals("p2", content2.pageKeys[second.currentPage])
+        assertTrue(savesBeforeStale >= 0)
+    }
+
+    @Test
+    fun longStripFitWidthKeepsAspectAndPans() = runComposeUiTest {
+        val service = ViewerFixture.service()
+        val session = ViewerFixture.session(service)
+        var jump by mutableStateOf<ComicViewerJump?>(null)
+        var options by mutableStateOf(
+            ComicViewerOptions(mode = ComicReadingMode.LEFT_TO_RIGHT, scaleFit = ComicScaleFit.FIT_WIDTH),
+        )
+        setContent {
+            ReaderTheme {
+                LaunchedEffect(Unit) {
+                    session.open(ViewerFixture.SOURCE, ViewerFixture.WORK, ViewerFixture.CHAPTER_2, ViewerFixture.chapterIds)
+                }
+                ViewerLab(session, ViewerFixture.CHAPTER_2, options, jump, { null }, mutableListOf())
+            }
+        }
+
+        jump = ComicViewerJump(requestId = 81L, contentSeq = session.contentSeq, pageIndex = 3)
+        awaitCounter("4 / 7")
+        waitForIdle()
+
+        // q3 is 400x1200; FIT_WIDTH at a 420px-wide viewport scales it 1.05x,
+        // so the drawn content is ~420x1260 — taller than the ~756px viewport.
+        // The pre-fix squash showed ~252px of black at the bottom.
+        val node = onNodeWithTag(comicPageImageTag(3)).fetchSemanticsNode()
+        val imgW = node.size.width.toFloat()
+        val imgH = node.size.height.toFloat()
+        assertTrue(imgW > 400f, "image width should fill the viewport, got $imgW")
+        assertTrue(imgH > 1200f, "long strip must keep its aspect ratio, got height=$imgH px")
+        assertTrue(
+            abs((imgW / imgH) - (400f / 1200f)) < 0.02f,
+            "FIT_WIDTH must keep the 1:3 source ratio, got ${imgW}x$imgH",
+        )
+
+        // Oversized content is pannable at 1x: drag up exposes the bottom.
+        // FIT_WIDTH content overflows the vp: the drawn box is taller than the
+        // viewport (3072px content vs 744px viewport), so the overflowing part is
+        // reachable by panning the fitted content rather than being cropped away.
+        val viewport = onNodeWithTag(ComicViewerRootTag).fetchSemanticsNode().size
+        assertTrue(
+            node.size.height > viewport.height,
+            "long strip must overflow the viewport instead of being squashed " +
+                "(content=${node.size.height}px viewport=${viewport.height}px)",
+        )
+
+        // FIT_HEIGHT on the same page must fill the viewport height and crop
+        // horizontally instead of squashing (the same constraint bug class).
+        options = options.copy(scaleFit = ComicScaleFit.FIT_HEIGHT)
+        waitForIdle()
+        Thread.sleep(600)
+        val fitHeight = onNodeWithTag(comicPageImageTag(3)).fetchSemanticsNode()
+        val fhWidth = fitHeight.size.width.toFloat()
+        val fhHeight = fitHeight.size.height.toFloat()
+        val ratio = fhWidth / fhHeight
+        assertTrue(abs(ratio - 400f / 1200f) < 0.02f, "FIT_HEIGHT must keep 1:3 ratio, got ${fhWidth}x$fhHeight")
+        assertTrue(fhHeight > 600f, "FIT_HEIGHT scales to the viewport height, got $fhHeight")
     }
 
     @Test

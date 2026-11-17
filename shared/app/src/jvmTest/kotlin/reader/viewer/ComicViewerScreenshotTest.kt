@@ -225,6 +225,48 @@ class ComicViewerScreenshotTest {
     }
 
     @Test
+    fun captureJumpWithinDoubleBefore() {
+        // Anchor on the first page of [1-2, 1-3]; the jump below targets 1-3.
+        val service = ViewerFixture.service()
+        val session = openSession(ViewerFixture.CHAPTER_1, service)
+        render(
+            "viewer-jump-in-double-before", 1000, 760, session,
+            ComicViewerOptions(
+                mode = ComicReadingMode.LEFT_TO_RIGHT,
+                pagerLayout = ComicPagerLayout.DOUBLE_PAGES,
+                firstPageSingle = true,
+            ),
+            jumpPage = 1,
+        )
+    }
+
+    @Test
+    fun captureJumpWithinDoubleAfter() {
+        val service = ViewerFixture.service()
+        val session = openSession(ViewerFixture.CHAPTER_1, service)
+        // First land on the spread, then jump to its second page: both pages are
+        // already visible, so only the committed anchor moves (2 -> 3).
+        render(
+            "viewer-jump-in-double-after", 1000, 760, session,
+            ComicViewerOptions(
+                mode = ComicReadingMode.LEFT_TO_RIGHT,
+                pagerLayout = ComicPagerLayout.DOUBLE_PAGES,
+                firstPageSingle = true,
+            ),
+            jumpPage = 1,
+        )
+        render(
+            "viewer-jump-in-double-after", 1000, 760, session,
+            ComicViewerOptions(
+                mode = ComicReadingMode.LEFT_TO_RIGHT,
+                pagerLayout = ComicPagerLayout.DOUBLE_PAGES,
+                firstPageSingle = true,
+            ),
+            jumpPage = 2,
+        )
+    }
+
+    @Test
     fun captureCropOff() {
         val service = ViewerFixture.cropService()
         val session = openSession(ViewerFixture.CROP_CHAPTER, service, ViewerFixture.cropChapterIds)

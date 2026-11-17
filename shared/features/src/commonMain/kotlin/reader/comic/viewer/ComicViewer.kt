@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -232,9 +233,15 @@ private fun PagerComicViewer(
             if (command.requestId == consumedRequest) return@LaunchedEffect
             if (command.pageIndex !in content.pageKeys.indices) return@LaunchedEffect
             val logical = spreadIndexForPage(logicalSpreads, command.pageIndex)
-            val display = if (isRtl && !isVertical) logicalSpreads.size - 1 - logical else logical
+            val display = (if (isRtl && !isVertical) logicalSpreads.size - 1 - logical else logical)
+                .coerceIn(0, spreads.size - 1)
             consumedRequest = command.requestId
-            pagerState.scrollToPage(display.coerceIn(0, spreads.size - 1))
+            if (pagerState.currentPage != display) pagerState.scrollToPage(display)
+            // A jump is an explicit position request. Commit the anchor and save even
+            // when the target already sits in the visible spread: there is no page
+            // change event then, and anchor-preserving reporting would keep page 1.
+            session.markDisplayed(command.pageIndex)
+            session.savePage(command.pageIndex)
         }
 
         // Re-anchor on layout/width/mode change: scroll to the spread that still
@@ -724,10 +731,21 @@ private fun ZoomableComicPage(
     var pinch by remember(pageKey) { mutableStateOf(1f) }
     var pan by remember(pageKey) { mutableStateOf(Offset.Zero) }
     var viewportPx by remember(pageKey) { mutableStateOf(IntSize.Zero) }
+    // Fitted size at 1x: FIT_WIDTH long strips and FIT_HEIGHT wide pages overflow
+    // the viewport, so they must pan before any zoom (Komikku's canPan* contract).
+    var baseW by remember(pageKey) { mutableStateOf(0f) }
+    var baseH by remember(pageKey) { mutableStateOf(0f) }
+    fun clampPan(candidate: Offset, zoom: Float): Offset {
+        if (viewportPx.width <= 0 || viewportPx.height <= 0) return Offset.Zero
+        val overX = ((baseW * zoom) - viewportPx.width).coerceAtLeast(0f) / 2f
+        val overY = ((baseH * zoom) - viewportPx.height).coerceAtLeast(0f) / 2f
+        if (overX <= 0.5f && overY <= 0.5f) return Offset.Zero
+        return Offset(candidate.x.coerceIn(-overX, overX), candidate.y.coerceIn(-overY, overY))
+    }
     val transformState = rememberTransformableState { zoomChange, panChange, _ ->
         val next = (pinch * zoomChange).coerceIn(1f, 5f)
         pinch = next
-        pan = if (next <= 1f) Offset.Zero else pan + panChange
+        pan = clampPan(pan + panChange, next)
     }
 
     // Double-tap pulse from the tap zones toggles 1x / 2.5x.
@@ -816,6 +834,10 @@ private fun ZoomableComicPage(
                 val dstH = contentH * baseScale
                 val dstX = baseTx + baseScale * crop.left
                 val dstY = baseTy + baseScale * crop.top
+                androidx.compose.runtime.SideEffect {
+                    baseW = dstW
+                    baseH = dstH
+                }
                 Box(
                     modifier = (if (viewportFill) {
                         Modifier.fillMaxSize().clipToBounds()
@@ -827,8 +849,11 @@ private fun ZoomableComicPage(
                         .testTag(comicPageTag(index)),
                 ) {
                     Box(
+                        // requiredSize: FIT_WIDTH on a long strip produces content
+                        // taller than the spread; plain size() is coerced by the
+                        // parent constraint, which squashed the bitmap.
                         modifier = Modifier
-                            .size(with(density) { dstW.toDp() }, with(density) { dstH.toDp() })
+                            .requiredSize(with(density) { dstW.toDp() }, with(density) { dstH.toDp() })
                             .offset {
                                 androidx.compose.ui.unit.IntOffset(dstX.roundToInt(), dstY.roundToInt())
                             }
@@ -846,8 +871,8 @@ private fun ZoomableComicPage(
                                     srcSize = androidx.compose.ui.unit.IntSize(contentW, contentH),
                                     dstOffset = androidx.compose.ui.unit.IntOffset.Zero,
                                     dstSize = androidx.compose.ui.unit.IntSize(
-                                        size.width.roundToInt().coerceAtLeast(1),
-                                        size.height.roundToInt().coerceAtLeast(1),
+                                        dstW.roundToInt().coerceAtLeast(1),
+                                        dstH.roundToInt().coerceAtLeast(1),
                                     ),
                                     filterQuality = androidx.compose.ui.graphics.FilterQuality.Medium,
                                 )

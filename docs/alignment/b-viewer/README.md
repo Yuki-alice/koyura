@@ -297,6 +297,74 @@ ReaderSessionTest[jvm]           12   fail/errors: 0
 TOTAL 61  FAILED 0
 ```
 
+## 第二轮返修（1f57712 → 本次）
+
+### 返修 4 · 双页内跳页不更新阅读锚点
+
+- 复现：三张竖页，双页 + 首页单页，翻到 `[p1, p2]`（锚点 1），发出
+  `ComicViewerJump(requestId=73, contentSeq=当前, pageIndex=2)`。旧实现只
+  `scrollToPage`，目标已在可见 spread 内 → 无 page change 事件，锚点与保存都停在 1。
+- 根因：跳页只依赖 `pagerState.currentPage` 的变化来触发上报；同 spread 内跳页
+  不产生该事件。
+- 修复：跳页 effect 在 `scrollToPage` 之后显式 `session.markDisplayed(pageIndex)` 与
+  `session.savePage(pageIndex)`，把跳页视为显式位置请求（requestId 仍只消费一次，
+  contentSeq 不匹配的旧章节命令仍被忽略）。
+- 定向用例 `jumpWithinVisibleDoubleUpdatesAnchor` 断言：
+  - `session.currentPage == 2`、`pageKeys[2] == "p2"`；
+  - 跳页后新增保存调用，且最后一条保存 `pageIndex == 2`；
+  - 缩回 SINGLE_PAGE 仍 `3 / 3` 且键 `p2`；
+  - 同一 requestId 重发不再产生保存（只消费一次）；
+  - 从另一 spread（index 0）跳回 2 仍落在 `p2`；
+  - 旧章节 `contentSeq` 的跳页命令被忽略；
+  - 用保存进度重建 Viewer（双页）仍为 `p2`。
+- 截图：`docs/alignment/b-viewer/shots/viewer-jump-in-double-before.png`
+  （画面 `2 / 3`，spread 左侧 1-2）与 `viewer-jump-in-double-after.png`
+  （同 viewport，页码变 `3 / 3`，1-2 与 1-3 同时可见）。
+
+### 返修 5 · 长图 FIT_WIDTH 纵向压扁
+
+- 复现：第 2 章 q3（400x1200），420x780dp、横向单页 + `FIT_WIDTH`；1f57712
+  画面被压扁、底部约 252px 全黑（截图 `viewer-pager-long-fitwidth.png` 同场景）。
+- 根因：适配后的高度（约 1260px）超过 spread 高度，内层 `Modifier.size()` 被
+  父约束强制压缩，`drawImage` 的 `dstSize` 又取自被压小后的 `size`。
+- 修复：内层改用 `requiredSize`（不受父约束压缩），`dstSize` 直接取按位图
+  宽高比算出的 `dstW/dstH`；超出的部分由 spread 裁剪，等比关系保持。
+- 定向用例 `longStripFitWidthKeepsAspectAndPans` 断言：
+  - 绘制盒为 1024x3072 px（源 400x1200 的 1:3 等比），不再被压扁；
+  - 绘制盒高度 > 视口高度（1024x744），即溢出部分存在而非被裁掉。
+- 同视口前后截图：
+  `docs/alignment/b-viewer/shots/long-fitwidth-before/viewer-pager-long-fitwidth.png`
+  （底部黑区）与 `.../long-fitwidth-after/viewer-pager-long-fitwidth.png`
+  （黑区消失、等比填满）。
+- `FIT_HEIGHT` 同类约束已一并覆盖：用例同一页面切换 `FIT_HEIGHT` 后断言比例仍为
+  1:3 且高度按视口放大，确认没有其它地方再压缩画面。
+- 已知缺口（如实记录）：1x 下对溢出长图的交互式平移目前未接通——点按覆盖层是
+  pager 的兄弟节点，会截走拖动手势，`transformable` 收不到单指拖动；本轮曾尝试
+  容器级手势与按需安装均回归了既有的翻页/方向键行为，故回退，仅保证几何与
+  `requiredSize` 修复。溢出内容已完整渲染并可由缩放后平移访问；若需 1x 直接
+  拖动，建议主 agent 在接线时把点按分区改到 pager 内部（与 Komikku 的
+  `ViewerNavigation` 做法一致），属下一轮改动。
+
+### 本轮验收日志
+
+```text
+BUILD SUCCESSFUL
+
+ComicViewerTest[jvm]             16   fail/errors: 0
+ComicViewerScreenshotTest[jvm]   17   fail/errors: 0
+FlowFramesTest[jvm]               4   fail/errors: 0
+OriginalReferenceShotsTest[jvm]   1   fail/errors: 0
+ComicSpreadsTest[jvm]             7   fail/errors: 0
+ComicCropTest[jvm]                8   fail/errors: 0
+ReaderSessionTest[jvm]           12   fail/errors: 0
+TOTAL 65  FAILED 0
+```
+
+复跑覆盖：窗口缩放保位、RTL 章边界、失败重试、切模式、裁边（含无边框四角）、
+五种模式、跳页、双页反序、切章过滤旧结果。原版侧材料性质未变：`compare/` 中
+的原版面板是**源码推导示意**（code-derived），不是真机截图；裁边与长图前后对照
+均为 Koyura 自身同视口实拍。
+
 反向验证（把 `ComicViewer.kt` 回退到修复前）：
 
 ```text

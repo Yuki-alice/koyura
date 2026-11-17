@@ -22,6 +22,8 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeDown
+import androidx.compose.ui.test.swipeRight
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
@@ -106,32 +108,12 @@ class FlowFramesTest {
     private fun androidx.compose.ui.test.ComposeUiTest.tapPrev() = settledTap("reader-tap-prev")
 
     private fun androidx.compose.ui.test.ComposeUiTest.dragRight() {
-        onNodeWithTag(ComicViewerRootTag).performTouchInput {
-            val w = visibleSize.width.toFloat()
-            val y = visibleSize.height / 2f
-            down(0, Offset(w * 0.2f, y))
-            var x = 0.2f
-            repeat(12) {
-                x += 0.05f
-                updatePointerTo(0, Offset(w * x, y))
-            }
-            up(0)
-        }
+        onNodeWithTag(ComicViewerRootTag).performTouchInput { swipeRight(durationMillis = 200) }
         waitForIdle()
     }
 
     private fun androidx.compose.ui.test.ComposeUiTest.dragDown() {
-        onNodeWithTag(ComicViewerRootTag).performTouchInput {
-            val h = visibleSize.height.toFloat()
-            val x = visibleSize.width / 2f
-            down(0, Offset(x, h * 0.2f))
-            var y = 0.2f
-            repeat(12) {
-                y += 0.05f
-                updatePointerTo(0, Offset(x, h * y))
-            }
-            up(0)
-        }
+        onNodeWithTag(ComicViewerRootTag).performTouchInput { swipeDown(durationMillis = 200) }
         waitForIdle()
     }
 
