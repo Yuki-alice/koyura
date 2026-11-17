@@ -3,6 +3,7 @@ package app.koyura.app.history
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import app.koyura.app.reader.VeneraReaderService
 import app.koyura.data.extension.ExtensionDb
+import app.koyura.data.history.HistoryStore
 import app.koyura.data.session.openExtensionSession
 import app.koyura.network.applyReaderDefaults
 import app.koyura.source.runtime.VeneraEnvironment
@@ -21,15 +22,8 @@ import okio.FileSystem
 import okio.Path.Companion.toOkioPath
 
 /**
- * Saving a reading position is one atomic write of page key, page index, read time and both
- * display titles. This reproduces the review probe with the production [VeneraReaderService] and
- * real SQLite: the first save commits p2 with its title, an injected failure aborts the second
- * save, and the database must still hold the first row for both the detail continue path and the
- * history list.
- *
- * The failure is injected with a `BEFORE INSERT` trigger, which sits on the repaired write path
- * (a single `INSERT OR REPLACE`). The original probe's `BEFORE UPDATE OF read_at` trigger only
- * covered the old two-statement implementation.
+ * Exercises SQLite write failures through the production reader service.
+ * A failed save preserves the last position, metadata and history visibility.
  */
 class HistoryAtomicityTest {
     @Test
@@ -138,6 +132,53 @@ class HistoryAtomicityTest {
         }
     }
 
+    @Test
+    fun failedUnhideRollsBackProgressAndKeepsHistoryHidden() {
+        val dir = Files.createTempDirectory("history-atomicity-unhide").toFile()
+        val databaseUrl = "jdbc:sqlite:" + dir.resolve("extensions.db").absolutePath
+        try {
+            runBlocking {
+                val driver = JdbcSqliteDriver(databaseUrl)
+                val session = openExtensionSession(
+                    driver,
+                    FileSystem.SYSTEM,
+                    dir.toOkioPath(),
+                    HttpClient(MockEngine { respondOk() }) { applyReaderDefaults() },
+                    VeneraEnvironment("1.16.0", "en", "test"),
+                )
+                try {
+                    val reader = VeneraReaderService(session.comicReading, session.history)
+                    reader.saveProgress(SourceKey, WorkId, ChapterId, "p2", 1, "Original Title", "Second")
+                    val committed = row(driver)
+                    session.history.deleteEntry(SourceKey, WorkId)
+                    driver.execute(null, FailUnhideTrigger, 0, null)
+
+                    val failure = assertFailsWith<Throwable> {
+                        reader.saveProgress(SourceKey, WorkId, ChapterId, "p3", 2, "New Title", "Updated chapter")
+                    }
+                    assertTrue(failure.message.orEmpty().contains("simulated history unhide failure"))
+
+                    JdbcSqliteDriver(databaseUrl).use { reopened ->
+                        assertEquals(committed, row(reopened))
+                        assertTrue(HistoryStore(reopened).latestEntries().isEmpty())
+                    }
+
+                    driver.execute(null, "DROP TRIGGER fail_unhide", 0, null)
+                    reader.saveProgress(SourceKey, WorkId, ChapterId, "p3", 2, "New Title", "Updated chapter")
+                    val entry = session.history.latestEntries().single()
+                    assertEquals("p3", entry.pageKey)
+                    assertEquals(2, entry.pageIndex)
+                    assertEquals("New Title", entry.workTitle)
+                    assertEquals("Updated chapter", entry.chapterTitle)
+                } finally {
+                    session.close()
+                }
+            }
+        } finally {
+            dir.deleteRecursively()
+        }
+    }
+
     private fun row(driver: JdbcSqliteDriver) =
         ExtensionDb(driver).extensionDbQueries
             .selectProgress(SourceKey, WorkId, ChapterId).executeAsOne()
@@ -147,8 +188,11 @@ class HistoryAtomicityTest {
         const val WorkId = "work"
         const val ChapterId = "chapter"
 
-        // The repaired writer is a single INSERT OR REPLACE, so aborting INSERT covers
-        // the whole atomic write. The old probe's BEFORE UPDATE trigger is obsolete.
+        val FailUnhideTrigger = """
+            CREATE TRIGGER fail_unhide BEFORE DELETE ON history_hidden
+            BEGIN SELECT RAISE(ABORT, 'simulated history unhide failure'); END
+        """.trimIndent()
+
         val FailSaveTrigger = """
             CREATE TRIGGER fail_save BEFORE INSERT ON reading_progress
             BEGIN SELECT RAISE(ABORT, 'simulated metadata failure'); END

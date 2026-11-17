@@ -29,6 +29,7 @@ import app.koyura.designsystem.DefaultCoverMemoryCache
 import app.koyura.designsystem.KomikkuCoverImageTag
 import app.koyura.designsystem.KomikkuCoverPlaceholderTag
 import app.koyura.designsystem.ReaderTheme
+import app.koyura.domain.library.LibraryQuery
 import app.koyura.domain.library.WorkKind
 import app.koyura.features.library.LibraryDisplayMode
 import app.koyura.features.library.LibraryScreen
@@ -467,6 +468,47 @@ class VeneraLibraryHistoryPersistenceTest {
                     "追更",
                     runBlocking { session.library.listCategories() }.single { !it.isDefault }.name,
                 )
+            } finally {
+                runBlocking { session.close() }
+            }
+        } finally {
+            profile.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun hiddenCategoryKeepsComicFavoriteAndCoverInHistory() {
+        val profile = Files.createTempDirectory("library-history-hidden-category").toFile()
+        try {
+            val session = openProfile(profile)
+            try {
+                runBlocking {
+                    val library = session.library
+                    val service = VeneraHistoryService(session.history, library)
+                    library.addToLibrary(
+                        SourceKey, WorkKind.COMIC, WorkId, WorkTitle, CoverUrl, "Example Source",
+                        addedAtMillis = 1000L,
+                    )
+                    val category = library.createCategory("Hidden")
+                    library.setWorkCategories(SourceKey, WorkKind.COMIC, WorkId, listOf(category.id))
+                    library.setCategoryHidden(category.id, true)
+                    assertTrue(library.listEntries().isEmpty())
+                    VeneraReaderService(session.comicReading, session.history).saveProgress(
+                        SourceKey, WorkId, "ep_2", PageKey, 2, WorkTitle, "第二话",
+                    )
+
+                    val history = HistorySession(service)
+                    history.refresh()
+                    history.setFavoritesOnly(true)
+                    val entry = history.visibleEntries().single()
+                    assertTrue(history.isFavorite(entry))
+                    assertEquals(CoverUrl, entry.cover)
+
+                    history.toggleFavorite(entry)
+                    history.refresh()
+                    assertTrue(history.visibleEntries().isEmpty())
+                    assertTrue(library.listEntries(LibraryQuery(includeHiddenCategories = true)).isEmpty())
+                }
             } finally {
                 runBlocking { session.close() }
             }

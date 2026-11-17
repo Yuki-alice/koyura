@@ -1,6 +1,7 @@
 package app.koyura.app.history
 
 import app.koyura.data.history.HistoryStore
+import app.koyura.domain.library.LibraryQuery
 import app.koyura.domain.library.LibraryRepository
 import app.koyura.domain.library.WorkKind
 import kotlin.time.Clock
@@ -10,8 +11,7 @@ import kotlin.time.Clock
  *
  * - 列表只读本地 `reading_progress`，封面按需从已提交的书架行取快照 URL
  *   （未收藏作品封面为空，回退占位；字节经共用封面管线加载）。
- * - 单条删除与清空直写 `reading_progress`，重启后仍生效；书架收藏、分类与
- *   章节进度行独立存放，不受影响。
+ * - 单条删除与清空持久化历史可见性，续读继续使用 `reading_progress`。
  * - 收藏心直接写书架三元主键行，与详情页、书架页同一记录。
  */
 class VeneraHistoryService(
@@ -19,7 +19,7 @@ class VeneraHistoryService(
     private val library: LibraryRepository,
 ) : HistoryService {
     override suspend fun loadHistory(): List<HistoryEntry> {
-        val covers = library.listEntries().associate { entry ->
+        val covers = comicFavorites().associate { entry ->
             (entry.manga.sourceKey to entry.manga.workId) to entry.manga.coverUrl
         }
         return store.latestEntries().map { record ->
@@ -60,5 +60,9 @@ class VeneraHistoryService(
     }
 
     override suspend fun favoriteKeys(): Set<Pair<String, String>> =
-        library.listEntries().map { it.manga.sourceKey to it.manga.workId }.toSet()
+        comicFavorites().map { it.manga.sourceKey to it.manga.workId }.toSet()
+
+    private suspend fun comicFavorites() =
+        library.listEntries(LibraryQuery(includeHiddenCategories = true))
+            .filter { it.manga.kind == WorkKind.COMIC }
 }

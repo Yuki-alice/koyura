@@ -53,9 +53,7 @@ internal class VeneraReaderService(
             // No history store: keep the position-only writer for old callers.
             reading.saveProgress(sourceKey, workId, chapterId, pageKey, pageIndex)
         } else {
-            // Position and display metadata commit in one statement. A failed
-            // write reports the error and leaves the previous page/title/time
-            // intact for both the detail and history continue paths.
+            // HistoryStore commits progress, metadata and history visibility together.
             historyStore.save(
                 sourceKey = sourceKey,
                 workId = workId,
