@@ -89,6 +89,15 @@ class HistorySession(
         errorMessage = message
     }
 
+    /**
+     * Cover loader bound to this tab's browse service (null → placeholders).
+     *
+     * History rows resolve covers through the same pipeline as search/detail so all three
+     * surfaces share one cache and one fallback.
+     */
+    fun coverLoader(): app.koyura.designsystem.CoverImageLoader? =
+        app.koyura.app.browse.browseCoverLoader(browse)
+
     fun clearError() {
         errorMessage = null
     }

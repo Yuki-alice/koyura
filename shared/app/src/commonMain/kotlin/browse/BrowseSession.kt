@@ -113,6 +113,14 @@ class BrowseSession internal constructor(
     }
 
     /**
+     * Cover loader bound to this session's service (null service → null loader → placeholders).
+     *
+     * Screens derive the loader from the session (not the ambient service) so ui tests driving
+     * [AppScaffold] with an explicit service get the same pipeline as production.
+     */
+    fun coverLoader(): app.koyura.designsystem.CoverImageLoader? = browseCoverLoader(service)
+
+    /**
      * Runs a source search outside the snapshot machinery: results are per-query UI state, not
      * list state, so they never disturb the convergence bookkeeping above.
      */

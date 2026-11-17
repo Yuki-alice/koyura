@@ -39,6 +39,9 @@ import app.koyura.app.resources.extension_details_uninstall_confirm_body
 import app.koyura.app.resources.extension_details_uninstall_confirm_title
 import app.koyura.app.resources.extension_details_update
 import app.koyura.app.resources.extension_details_version_title
+import app.koyura.app.resources.extension_trust_confirm
+import app.koyura.app.resources.extension_trust_nsfw_body
+import app.koyura.app.resources.extension_trust_nsfw_title
 import app.koyura.app.resources.stores_cancel
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
@@ -60,6 +63,9 @@ fun ExtensionDetailsScreen(
     val extension = state.extensionByKey(extensionKey)
     val scope = rememberCoroutineScope()
     var confirmUninstall by remember { mutableStateOf(false) }
+    // NSFW extensions need an explicit trust tap before updating (Komikku's trust/confirm
+    // gating, text-only until the permission/trust panel lands with the platform installers).
+    var confirmTrust by remember { mutableStateOf(false) }
 
     if (extension == null) {
         Column(
@@ -146,7 +152,13 @@ fun ExtensionDetailsScreen(
             }
             if (extension.hasUpdate) {
                 Button(
-                    onClick = { scope.launch { session.update(extension.key) } },
+                    onClick = {
+                        if (extension.isNsfw) {
+                            confirmTrust = true
+                        } else {
+                            scope.launch { session.update(extension.key) }
+                        }
+                    },
                     enabled = status !is OperationStatus.Running,
                     modifier = Modifier.weight(1f).testTag(ExtensionDetailsUpdateTag),
                 ) {
@@ -187,6 +199,30 @@ fun ExtensionDetailsScreen(
                 HorizontalDivider()
             }
         }
+    }
+
+    if (confirmTrust) {
+        AlertDialog(
+            onDismissRequest = { confirmTrust = false },
+            title = {
+                Text(stringResource(Res.string.extension_trust_nsfw_title))
+            },
+            text = { Text(stringResource(Res.string.extension_trust_nsfw_body, extension.name)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmTrust = false
+                        scope.launch { session.update(extension.key) }
+                    },
+                    modifier = Modifier.testTag("extension-details-trust-confirm"),
+                ) { Text(stringResource(Res.string.extension_trust_confirm)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmTrust = false }) {
+                    Text(stringResource(Res.string.stores_cancel))
+                }
+            },
+        )
     }
 
     if (confirmUninstall) {
