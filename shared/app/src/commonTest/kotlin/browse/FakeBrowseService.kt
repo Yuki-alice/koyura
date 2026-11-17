@@ -153,6 +153,18 @@ class FakeBrowseService(
         return workDetails[workId] ?: throw BrowseServiceException("Unknown work: $workId")
     }
 
+    /**
+     * Canned cover bytes keyed by (sourceKey, coverUrl): present → decoded, absent → null
+     * (placeholder), matching the production single-attempt contract.
+     */
+    var coverBytes: Map<Pair<String, String>, ByteArray> = emptyMap()
+
+    override suspend fun loadCover(sourceKey: String, coverUrl: String): ByteArray? {
+        enter("cover:$sourceKey:$coverUrl")
+        if (coverUrl.isEmpty()) return null
+        return coverBytes[sourceKey to coverUrl]
+    }
+
     /** Canned search pages keyed by query, so UI tests can drive search without a runtime. */
     var searchPages: Map<String, WorkSearchPage> = emptyMap()
 

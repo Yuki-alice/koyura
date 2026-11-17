@@ -10,6 +10,18 @@ import app.koyura.domain.history.HistoryRecord
  */
 interface HistoryService {
     suspend fun loadHistory(): List<HistoryEntry>
+
+    /**
+     * Deletes one history entry. The default no-op keeps older implementors compiling; the
+     * session always hides the row locally, and persistence lands with the data-layer delete
+     * (see notes). Fakes override this to record calls.
+     */
+    suspend fun deleteEntry(sourceKey: String, workId: String) = Unit
+
+    /**
+     * Clears all history. Same default no-op contract as [deleteEntry].
+     */
+    suspend fun clearAll() = Unit
 }
 
 /** One row in the history list: the latest saved progress for a (sourceKey, workId) pair. */
@@ -22,6 +34,8 @@ data class HistoryEntry(
     val workTitle: String?,
     val chapterTitle: String?,
     val readAtMillis: Long?,
+    /** Work cover URL for the shared cover pipeline; blank until the store records covers. */
+    val cover: String = "",
 ) {
     /** Human-readable title, falling back to the work id when no title was recorded. */
     val displayTitle: String get() = workTitle?.takeIf { it.isNotBlank() } ?: workId

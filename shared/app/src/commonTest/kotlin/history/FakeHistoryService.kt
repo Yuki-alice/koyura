@@ -9,6 +9,12 @@ class FakeHistoryService(
     var loadCalls = 0
     var failNext: String? = null
 
+    /** (sourceKey, workId) pairs passed to [deleteEntry], in order. */
+    val deletedKeys = mutableListOf<Pair<String, String>>()
+
+    /** Number of [clearAll] calls. */
+    var clearCalls = 0
+
     override suspend fun loadHistory(): List<HistoryEntry> {
         loadCalls += 1
         failNext?.let {
@@ -16,6 +22,16 @@ class FakeHistoryService(
             throw BrowseServiceException(it)
         }
         return entries
+    }
+
+    override suspend fun deleteEntry(sourceKey: String, workId: String) {
+        deletedKeys += sourceKey to workId
+        entries = entries.filterNot { it.sourceKey == sourceKey && it.workId == workId }
+    }
+
+    override suspend fun clearAll() {
+        clearCalls += 1
+        entries = emptyList()
     }
 }
 
@@ -28,6 +44,7 @@ fun historyEntry(
     workTitle: String? = "星图",
     chapterTitle: String? = "第二章",
     readAtMillis: Long? = 1_794_916_800_000,
+    cover: String = "",
 ) = HistoryEntry(
     sourceKey = sourceKey,
     workId = workId,
@@ -37,4 +54,5 @@ fun historyEntry(
     workTitle = workTitle,
     chapterTitle = chapterTitle,
     readAtMillis = readAtMillis,
+    cover = cover,
 )
