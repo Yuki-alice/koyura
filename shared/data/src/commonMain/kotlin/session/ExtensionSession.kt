@@ -5,6 +5,7 @@ import app.cash.sqldelight.db.SqlDriver
 import app.koyura.data.extension.ExtensionDb
 import app.koyura.data.extension.ExtensionService
 import app.koyura.data.history.HistoryStore
+import app.koyura.data.history.ensureHistoryVisibilitySchema
 import app.koyura.data.extension.RestoreReport
 import app.koyura.data.library.LibraryStore
 import app.koyura.data.library.ensureLibrarySchema
@@ -167,4 +168,6 @@ private fun ensureSchema(driver: SqlDriver) {
     // 书架四表（第 4 版）：已存在 reading 时代的老库不会自动执行 .sqm，
     // 这里幂等补齐并播种默认分类；新库 Schema.create 已建表，此处只剩播种。
     ensureLibrarySchema(driver)
+    // 历史可见性表（第 5 版）：删除/清空只插隐藏标记，reading_progress 原样保留。
+    ensureHistoryVisibilitySchema(driver)
 }

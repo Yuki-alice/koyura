@@ -1,0 +1,8 @@
+-- 第 4 版（书架持久化）升级到第 5 版（历史可见性与阅读位置分离）。
+-- 全幂等：CREATE TABLE 带 IF NOT EXISTS；删除历史只插隐藏标记，
+-- reading_progress 原样保留，重新阅读保存时删标记恢复可见。
+CREATE TABLE IF NOT EXISTS history_hidden(
+  source_key TEXT NOT NULL,
+  work_id TEXT NOT NULL,
+  PRIMARY KEY (source_key, work_id)
+);

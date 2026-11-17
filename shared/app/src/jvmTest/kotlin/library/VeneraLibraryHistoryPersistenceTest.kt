@@ -1,15 +1,28 @@
 package app.koyura.app.library
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.isDisplayed
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.printToLog
 import androidx.compose.ui.test.v2.runComposeUiTest
+import androidx.compose.ui.unit.dp
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
+import app.koyura.app.history.HistoryScreen
+import app.koyura.app.history.HistorySession
 import app.koyura.app.history.VeneraHistoryService
+import app.koyura.app.history.historyDeleteTag
+import app.koyura.app.history.historyFavoriteTag
+import app.koyura.app.history.historyRowTag
 import app.koyura.app.reader.VeneraReaderService
+import app.koyura.data.extension.ExtensionDb
 import app.koyura.data.session.ExtensionSession
 import app.koyura.data.session.openExtensionSession
 import app.koyura.designsystem.KomikkuCoverImageTag
@@ -240,6 +253,243 @@ class VeneraLibraryHistoryPersistenceTest {
         } finally {
             profile.deleteRecursively()
         }
+    }
+
+    /**
+     * 同一会话交叉验证：书架取消收藏后历史刷新即不同步心态（以仓储提交为准），
+     * 历史取消后书架记录同步消失；仅收藏筛选随之同步。
+     */
+    @Test
+    fun unfavoriteSyncsBothWaysInSameSession() {
+        val profile = Files.createTempDirectory("library-history-unfavorite").toFile()
+        try {
+            val session = openProfile(profile)
+            try {
+                runBlocking {
+                    session.library.addToLibrary(
+                        SourceKey, WorkKind.COMIC, WorkId, WorkTitle, CoverUrl, "Example Source",
+                        addedAtMillis = 1000L,
+                    )
+                    VeneraReaderService(session.comicReading, session.history).saveProgress(
+                        SourceKey, WorkId, "ep_1", "p0", 0, WorkTitle, "第一话",
+                    )
+                }
+                var historySession: HistorySession? = null
+                runComposeUiTest {
+                    setContent {
+                        ReaderTheme {
+                            Box(Modifier.requiredSize(420.dp, 760.dp)) {
+                                val service = VeneraHistoryService(session.history, session.library)
+                                val owned = androidx.compose.runtime.remember {
+                                    HistorySession(service)
+                                }
+                                historySession = owned
+                                HistoryScreen(
+                                    session = owned,
+                                    onOpenWork = { _, _, _ -> },
+                                    onContinue = { _, _, _ -> },
+                                )
+                            }
+                        }
+                    }
+                    awaitHistoryRow()
+                    val owned = waitOwnedSession { historySession }
+                    assertTrue(owned.favoriteKeys.contains(SourceKey to WorkId), "heart must show after favorite")
+
+                    // 书架取消收藏 → 历史刷新后心态与筛选同步消失。
+                    runBlocking { session.library.removeFromLibrary(SourceKey, WorkKind.COMIC, WorkId) }
+                    runBlocking { owned.refresh() }
+                    assertTrue(!owned.favoriteKeys.contains(SourceKey to WorkId), "heart must clear after unfavorite")
+                    owned.setFavoritesOnly(true)
+                    runBlocking { owned.refresh() }
+                    waitUntil(timeoutMillis = 10_000) {
+                        onAllNodesWithTag(historyRowTag(SourceKey, WorkId))
+                            .fetchSemanticsNodes().isEmpty()
+                    }
+                    owned.setFavoritesOnly(false)
+
+                    // 历史取消收藏 → 书架记录同步消失（同一记录）。
+                    runBlocking {
+                        session.library.addToLibrary(
+                            SourceKey, WorkKind.COMIC, WorkId, WorkTitle, CoverUrl, "Example Source",
+                            addedAtMillis = 1000L,
+                        )
+                    }
+                    runBlocking { owned.refresh() }
+                    assertTrue(owned.favoriteKeys.contains(SourceKey to WorkId), "heart must return after re-favorite")
+                    onNodeWithTag(historyFavoriteTag(SourceKey, WorkId)).performClick()
+                    waitUntil(timeoutMillis = 10_000) { !owned.favoriteKeys.contains(SourceKey to WorkId) }
+                    assertTrue(
+                        runBlocking { session.library.listEntries() }.isEmpty(),
+                        "unfavorite from history must remove the shared library record",
+                    )
+                }
+            } finally {
+                runBlocking { session.close() }
+            }
+        } finally {
+            profile.deleteRecursively()
+        }
+    }
+
+    /**
+     * 同一会话删除后重新阅读：新记录立即回到历史列表（旧 hiddenKeys 不得过滤），
+     * 重启后仍然可见。
+     */
+    @Test
+    fun deleteThenRereadReappearsInSameSession() {
+        val profile = Files.createTempDirectory("library-history-reread").toFile()
+        try {
+            val session = openProfile(profile)
+            try {
+                val reader = VeneraReaderService(session.comicReading, session.history)
+                runBlocking {
+                    reader.saveProgress(SourceKey, WorkId, "ep_1", "p0", 0, WorkTitle, "第一话")
+                }
+                var historySession: HistorySession? = null
+                runComposeUiTest {
+                    setContent {
+                        ReaderTheme {
+                            Box(Modifier.requiredSize(420.dp, 760.dp)) {
+                                val service = VeneraHistoryService(session.history, session.library)
+                                val owned = androidx.compose.runtime.remember {
+                                    HistorySession(service)
+                                }
+                                historySession = owned
+                                HistoryScreen(
+                                    session = owned,
+                                    onOpenWork = { _, _, _ -> },
+                                    onContinue = { _, _, _ -> },
+                                )
+                            }
+                        }
+                    }
+                    awaitHistoryRow()
+                    onNodeWithTag(historyDeleteTag(SourceKey, WorkId)).performClick()
+                    waitUntil(timeoutMillis = 10_000) {
+                        onAllNodesWithTag(historyRowTag(SourceKey, WorkId))
+                            .fetchSemanticsNodes().isEmpty()
+                    }
+                    // 同一会话重新阅读并保存：新记录必须立即回到列表。
+                    runBlocking {
+                        reader.saveProgress(SourceKey, WorkId, "ep_1", "p1", 1, WorkTitle, "第一话")
+                    }
+                    runBlocking { waitOwnedSession { historySession }.refresh() }
+                    awaitHistoryRow()
+                }
+                runBlocking { session.close() }
+                val reopened = openProfile(profile)
+                try {
+                    val rows = runBlocking {
+                        VeneraHistoryService(reopened.history, reopened.library).loadHistory()
+                    }
+                    assertEquals(1, rows.size)
+                    assertEquals("p1", rows.single().pageKey)
+                } finally {
+                    runBlocking { reopened.close() }
+                }
+            } finally {
+                runBlocking { session.close() }
+            }
+        } finally {
+            profile.deleteRecursively()
+        }
+    }
+
+    /**
+     * 无 read_at 列的史前库：历史、漫画进度、收藏分类与已安装源均保留并可升级，
+     * 删除只藏不删，重启后仍生效。
+     */
+    @Test
+    fun legacyDatabaseWithoutReadAtKeepsHistoryAndUpgrades() {
+        val profile = Files.createTempDirectory("library-legacy-no-read-at").toFile()
+        try {
+            val dbFile = File(profile, "extensions.db").absolutePath
+            val legacy = JdbcSqliteDriver("jdbc:sqlite:$dbFile")
+            try {
+                execScript(legacy, TablesV1)
+                execScript(legacy, ReadingProgressV2)
+                legacy.execute(
+                    null,
+                    "INSERT INTO repositories(id, name, url, enabled) VALUES('r', 'Repo', 'https://example.invalid/index.json', 1)",
+                    0, null,
+                )
+                legacy.execute(
+                    null,
+                    "INSERT INTO extensions(source_key, name, version, file_name, origin_kind, origin_repository_id, origin_repository_name, origin_url) VALUES('example_source', 'Example', '1.0.0', 'example_source@1.0.0.js', 'repository', 'r', 'Repo', 'https://example.invalid/example.js')",
+                    0, null,
+                )
+                legacy.execute(
+                    null,
+                    "INSERT INTO reading_progress(source_key, work_id, chapter_id, page_key, page_index) VALUES('example_source', 'demo', 'ep_1', 'https://example.invalid/2.png', 2)",
+                    0, null,
+                )
+            } finally {
+                legacy.close()
+            }
+
+            var session = openProfile(profile)
+            try {
+                // 已安装源保留；无 read_at 的老记录照常展示为未知时间。
+                assertEquals(
+                    "example_source",
+                    session.service.listInstalled().single().sourceKey,
+                )
+                val rows = runBlocking {
+                    VeneraHistoryService(session.history, session.library).loadHistory()
+                }
+                assertEquals(1, rows.size)
+                assertEquals(null, rows.single().readAtMillis)
+                // 收藏分类可用；删除只藏不删，进度行原样保留。
+                runBlocking {
+                    session.library.addToLibrary(
+                        SourceKey, WorkKind.COMIC, WorkId, WorkTitle, "", "Example Source",
+                        addedAtMillis = 1000L,
+                    )
+                    session.library.createCategory("追更")
+                }
+                runBlocking { session.history.deleteEntry(SourceKey, WorkId) }
+                runBlocking { session.close() }
+                session = openProfile(profile)
+                val reopenedHistory = VeneraHistoryService(session.history, session.library)
+                assertTrue(runBlocking { reopenedHistory.loadHistory() }.isEmpty())
+                // 重新打开只读连接核对进度行仍在（连接即关，不干扰会话）。
+                JdbcSqliteDriver("jdbc:sqlite:$dbFile").use { probe ->
+                    val row = ExtensionDb(probe).extensionDbQueries
+                        .selectProgress(SourceKey, WorkId, "ep_1").executeAsOne()
+                    assertEquals(2L, row.page_index)
+                }
+                assertEquals(1, runBlocking { session.library.listEntries() }.size)
+                assertEquals(
+                    "追更",
+                    runBlocking { session.library.listCategories() }.single { !it.isDefault }.name,
+                )
+            } finally {
+                runBlocking { session.close() }
+            }
+        } finally {
+            profile.deleteRecursively()
+        }
+    }
+
+    private fun ComposeUiTest.awaitHistoryRow() {
+        waitUntil(timeoutMillis = 15_000, conditionDescription = "visible node: history row") {
+            onAllNodesWithTag(historyRowTag(SourceKey, WorkId)).fetchSemanticsNodes().size == 1 &&
+                onNodeWithTag(historyRowTag(SourceKey, WorkId)).isDisplayed()
+        }
+    }
+
+    private fun waitOwnedSession(get: () -> HistorySession?): HistorySession {
+        var owned: HistorySession? = null
+        val deadline = System.currentTimeMillis() + 15_000
+        while (owned == null) {
+            owned = get()
+            if (owned == null) {
+                if (System.currentTimeMillis() > deadline) error("history session never composed")
+                Thread.sleep(200)
+            }
+        }
+        return owned
     }
 
     private fun openProfile(profile: File): ExtensionSession = runBlocking {

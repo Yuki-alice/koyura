@@ -102,11 +102,27 @@ VALUES(?, ?, ?, ?, ?, ?, ?, ?);
 deleteProgress:
 DELETE FROM reading_progress WHERE source_key = ? AND work_id = ? AND chapter_id = ?;
 
-deleteHistoryEntry:
-DELETE FROM reading_progress WHERE source_key = ? AND work_id = ?;
+-- 历史可见性（与阅读位置分离）：删除只插隐藏标记，reading_progress 原样保留，
+-- 书架续读与历史恢复读的都是进度行；重新阅读保存时删标记恢复可见。
+-- 新库由 Schema.create 落地，老库由 ensureHistoryVisibilitySchema 补齐（见 5.sqm）。
+CREATE TABLE IF NOT EXISTS history_hidden(
+  source_key TEXT NOT NULL,
+  work_id TEXT NOT NULL,
+  PRIMARY KEY (source_key, work_id)
+);
 
-clearHistory:
-DELETE FROM reading_progress;
+hideHistoryEntry:
+INSERT OR IGNORE INTO history_hidden(source_key, work_id) VALUES(?, ?);
+
+hideAllHistory:
+INSERT OR IGNORE INTO history_hidden(source_key, work_id)
+SELECT DISTINCT source_key, work_id FROM reading_progress;
+
+unhideHistoryEntry:
+DELETE FROM history_hidden WHERE source_key = ? AND work_id = ?;
+
+selectHiddenHistory:
+SELECT * FROM history_hidden;
 
 selectHistoryLatest:
 SELECT * FROM reading_progress AS p
@@ -114,7 +130,18 @@ WHERE NOT EXISTS (
   SELECT 1 FROM reading_progress AS q
   WHERE q.source_key = p.source_key AND q.work_id = p.work_id AND q.rowid > p.rowid
 )
+AND NOT EXISTS (
+  SELECT 1 FROM history_hidden AS h
+  WHERE h.source_key = p.source_key AND h.work_id = p.work_id
+)
 ORDER BY p.read_at IS NULL, p.read_at DESC, p.rowid DESC;
+
+selectHistoryLatestAll:
+SELECT * FROM reading_progress AS p
+WHERE NOT EXISTS (
+  SELECT 1 FROM reading_progress AS q
+  WHERE q.source_key = p.source_key AND q.work_id = p.work_id AND q.rowid > p.rowid
+);
 
 selectProgressBySource:
 SELECT * FROM reading_progress WHERE source_key = ?;

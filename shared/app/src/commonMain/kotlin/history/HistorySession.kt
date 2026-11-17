@@ -191,9 +191,13 @@ class HistorySession(
         loadState = HistoryLoadState.Loading
         try {
             entries = current.loadHistory()
-            // Union, never replace: a heart set while the service lacked favorite support
-            // must survive until the persisted rows confirm it.
-            favoriteKeys = favoriteKeys + current.favoriteKeys()
+            // 生产以仓储提交为准：支持持久收藏的服务直接替换本地心态，
+            // 书架/详情取消收藏后刷新即同步；不支持的服务保留本地心态。
+            current.favoriteKeys()?.let { favoriteKeys = it }
+            // 同一会话内重新阅读的作品已回到列表：只保留仍不可见行的本地隐藏，
+            // 删除/清空的行继续隐藏直到重启或再次阅读。
+            val visible = entries.map { it.sourceKey to it.workId }.toSet()
+            hiddenKeys = hiddenKeys.filterNot { it in visible }.toSet()
             loadState = HistoryLoadState.Ready
         } catch (cancelled: kotlinx.coroutines.CancellationException) {
             throw cancelled

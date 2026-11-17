@@ -38,10 +38,12 @@ interface HistoryService {
     ): Boolean = false
 
     /**
-     * Persisted favorite keys shared with the library record. Default empty; production reads
-     * the committed library rows. The session unions this with its local state on refresh.
+     * Persisted favorite keys shared with the library record. Default null means
+     * "not supported": the session then keeps its local hearts (fakes and old
+     * implementors). Production returns the committed library rows and the session
+     * takes them as the source of truth on every refresh.
      */
-    suspend fun favoriteKeys(): Set<Pair<String, String>> = emptySet()
+    suspend fun favoriteKeys(): Set<Pair<String, String>>? = null
 }
 
 /** One row in the history list: the latest saved progress for a (sourceKey, workId) pair. */

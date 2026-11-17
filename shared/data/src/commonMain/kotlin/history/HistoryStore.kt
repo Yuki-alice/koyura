@@ -65,21 +65,44 @@ class HistoryStore(driver: SqlDriver) {
             work_title = workTitle,
             chapter_title = chapterTitle,
         )
+        // 重新阅读恢复可见：删掉此前删除/清空留下的隐藏标记，列表刷新即再现。
+        db.extensionDbQueries.unhideHistoryEntry(source_key = sourceKey, work_id = workId)
     }
 
     /**
-     * 删除一条历史（整部作品的全部进度行）。调用方刷新后列表即不再出现；
-     * 书架收藏行独立存放，不受影响。
+     * 全量最新进度（忽略隐藏标记）：书架继续阅读、详情继续按钮的派生依据。
+     * 历史列表展示用 [latestEntries]（尊重隐藏），位置恢复永远读这里，
+     * 删除/清空历史不影响任何一处的继续位置。
+     */
+    suspend fun latestProgress(): Map<Pair<String, String>, HistoryRecord> =
+        db.extensionDbQueries.selectHistoryLatestAll().executeAsList().associate { row ->
+            (row.source_key to row.work_id) to HistoryRecord(
+                sourceKey = row.source_key,
+                workId = row.work_id,
+                chapterId = row.chapter_id.ifEmpty { null },
+                pageKey = row.page_key,
+                pageIndex = row.page_index.toInt(),
+                workTitle = row.work_title,
+                chapterTitle = row.chapter_title,
+                readAtMillis = row.read_at,
+            )
+        }
+
+    /**
+     * 删除一条历史：只插隐藏标记，`reading_progress` 进度行原样保留。
+     * 调用方刷新后列表即不再出现；书架收藏行独立存放，不受影响；
+     * 书架续读与历史恢复读的都是进度行，位置不丢失。
      */
     suspend fun deleteEntry(sourceKey: String, workId: String) {
-        db.extensionDbQueries.deleteHistoryEntry(source_key = sourceKey, work_id = workId)
+        db.extensionDbQueries.hideHistoryEntry(source_key = sourceKey, work_id = workId)
     }
 
     /**
-     * 清空全部历史（`reading_progress` 全表）。书架 `library_manga` 与分类归属保留，
-     * 清空后仍可从书架续读，重新阅读后条目再次出现。
+     * 清空全部历史：为当前全部作品插隐藏标记，`reading_progress` 全表保留。
+     * 书架 `library_manga` 与分类归属保留，清空后仍可从书架续读，
+     * 重新阅读后条目再次出现。
      */
     suspend fun clearAll() {
-        db.extensionDbQueries.clearHistory()
+        db.extensionDbQueries.hideAllHistory()
     }
 }
