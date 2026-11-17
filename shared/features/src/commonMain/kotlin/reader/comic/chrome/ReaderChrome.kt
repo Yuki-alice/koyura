@@ -1,5 +1,11 @@
 package app.koyura.features.reader.comic.chrome
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -17,6 +23,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -58,6 +65,9 @@ import org.jetbrains.compose.resources.stringResource
 
 /** Test hooks for the chrome (top/bottom bars, slider, jump dialog). */
 const val ReaderChromeRootTag = "reader-chrome-root"
+const val ReaderChromeTopBarTag = "reader-chrome-top-bar"
+const val ReaderChromeBottomBarTag = "reader-chrome-bottom-bar"
+const val ReaderChromeHiddenIndicatorTag = "reader-chrome-hidden-indicator"
 const val ReaderChromeChaptersTag = "reader-chrome-chapters"
 const val ReaderChromeModeTag = "reader-chrome-mode"
 const val ReaderChromeSettingsTag = "reader-chrome-settings"
@@ -66,6 +76,10 @@ const val ReaderChromeSliderTag = "reader-chrome-slider"
 const val ReaderChromePageJumpDialogTag = "reader-chrome-page-jump"
 const val ReaderChromePageInputTag = "reader-chrome-page-input"
 const val ReaderChromePageGoTag = "reader-chrome-page-go"
+
+/** Komikku ReaderAppBars parity: bars slide over 200ms and fade over 150ms. */
+private const val CHROME_SLIDE_MS = 200
+private const val CHROME_FADE_MS = 150
 
 /**
  * Top/bottom reader chrome: back, titles, 1-based page indicator, prev/next chapter, chapter
@@ -101,7 +115,9 @@ fun ReaderChrome(
         }
     }
 
-    if (!state.menuVisible) return
+    // The root stays composed while hidden so the bars can play Komikku's exit slide+fade and
+    // the hidden page indicator stays observable (old contract returned early here; the app-track
+    // ChromeBehaviorTest.hiddenMenuRendersNothing expectation needs updating — see track notes).
     BoxWithConstraints(
         modifier
             .fillMaxSize()
@@ -109,7 +125,19 @@ fun ReaderChrome(
     ) {
         // Dialog placement follows the app window, not the dialog window (Komikku breakpoint).
         val compactDialog = isCompactDialog(minOf(maxWidth, maxHeight).value.toInt())
-        Column(Modifier.fillMaxSize()) {
+        // Komikku parity (ReaderAppBars): bars slide vertically over 200ms while fading over
+        // 150ms. The top bar moves through the top edge, the bottom bar through the bottom edge.
+        AnimatedVisibility(
+            visible = state.menuVisible,
+            enter = slideInVertically(animationSpec = tween(CHROME_SLIDE_MS)) { -it } +
+                fadeIn(animationSpec = tween(CHROME_FADE_MS)),
+            exit = slideOutVertically(animationSpec = tween(CHROME_SLIDE_MS)) { -it } +
+                fadeOut(animationSpec = tween(CHROME_FADE_MS)),
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .testTag(ReaderChromeTopBarTag),
+        ) {
         // Top bar: back, work title + chapter subtitle, 1-based indicator (tap = jump dialog).
         Row(
             modifier = Modifier
@@ -153,8 +181,40 @@ fun ReaderChrome(
                     .padding(end = 12.dp),
             )
         }
-        Spacer(Modifier.weight(1f))
+        }
+        // Hidden state (Komikku ReaderActivity): only the centered page indicator stays, so the
+        // reader keeps position context while the canvas is fully visible. Taps still toggle the
+        // menu through the viewer tap zones; scrolling never re-shows it.
+        AnimatedVisibility(
+            visible = !state.menuVisible,
+            enter = fadeIn(animationSpec = tween(CHROME_FADE_MS)),
+            exit = fadeOut(animationSpec = tween(CHROME_FADE_MS)),
+            modifier = Modifier.align(Alignment.Center),
+        ) {
+            Surface(
+                shape = MaterialTheme.shapes.small,
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+                modifier = Modifier.testTag(ReaderChromeHiddenIndicatorTag),
+            ) {
+                Text(
+                    text = pageLabel(state.pageIndex, state.pageCount),
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                )
+            }
+        }
         // Bottom block: chapter navigator row, then action row.
+        AnimatedVisibility(
+            visible = state.menuVisible,
+            enter = slideInVertically(animationSpec = tween(CHROME_SLIDE_MS)) { it } +
+                fadeIn(animationSpec = tween(CHROME_FADE_MS)),
+            exit = slideOutVertically(animationSpec = tween(CHROME_SLIDE_MS)) { it } +
+                fadeOut(animationSpec = tween(CHROME_FADE_MS)),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .testTag(ReaderChromeBottomBarTag),
+        ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -225,7 +285,7 @@ fun ReaderChrome(
                 ) { Text(stringResource(Res.string.reader_chrome_settings)) }
             }
         }
-    }
+        }
 
     when (state.dialog) {
         ReaderChromeDialog.ChapterList -> ChapterListDialog(

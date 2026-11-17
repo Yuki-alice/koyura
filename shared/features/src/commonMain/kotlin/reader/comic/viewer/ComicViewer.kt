@@ -87,6 +87,9 @@ fun comicPageTag(index: Int) = "reader-page-$index"
 fun comicPageImageTag(index: Int) = "reader-page-image-$index"
 fun comicPageRetryTag(pageKey: String) = "reader-page-retry-$pageKey"
 
+/** User-scroll distance that hides the menu on strips (Komikku WebtoonViewer parity). */
+private const val WEBTOON_HIDE_THRESHOLD_DP = 24
+
 /**
  * Komikku-style shared comic viewer.
  *
@@ -104,6 +107,10 @@ fun ComicViewer(
     onToggleMenu: () -> Unit,
     onChapterBoundary: (ComicChapterBoundary) -> Unit,
     modifier: Modifier = Modifier,
+    /** Whether the chrome is currently visible; strips auto-hide it on scroll (Komikku parity). */
+    menuVisible: Boolean = true,
+    /** Fires once when a strip scroll passes the hide threshold while the menu is visible. */
+    onHideMenu: () -> Unit = {},
 ) {
     when (options.mode) {
         ComicReadingMode.LEFT_TO_RIGHT,
@@ -129,6 +136,8 @@ fun ComicViewer(
             onToggleMenu = onToggleMenu,
             onChapterBoundary = onChapterBoundary,
             modifier = modifier.testTag(ComicViewerRootTag),
+            menuVisible = menuVisible,
+            onHideMenu = onHideMenu,
         )
     }
 }
@@ -438,8 +447,11 @@ private fun WebtoonComicViewer(
     onToggleMenu: () -> Unit,
     onChapterBoundary: (ComicChapterBoundary) -> Unit,
     modifier: Modifier = Modifier,
+    menuVisible: Boolean = true,
+    onHideMenu: () -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
+    val density = LocalDensity.current
     // Komikku: WEBTOON (isContinuous=true) has no inter-page gap; CONTINUOUS_VERTICAL
     // (isContinuous=false) separates pages with a 15dp gap and steps page-by-page on tap.
     val continuous = options.mode == ComicReadingMode.WEBTOON
@@ -521,6 +533,40 @@ private fun WebtoonComicViewer(
             } else {
                 listState.scrollToItem(target)
             }
+        }
+    }
+
+    // Komikku WebtoonViewer parity: a user scroll past a small threshold hides the menu once
+    // it is visible; scrolling never re-shows it (only taps toggle). Programmatic motion is
+    // excluded: jumps run while a jump target is pending, the initial settle scroll is absorbed
+    // by baselining the first observed position, and fling-free position reports re-baseline.
+    LaunchedEffect(listState, session.contentSeq, menuVisible) {
+        if (!menuVisible) return@LaunchedEffect
+        val thresholdPx = with(density) { WEBTOON_HIDE_THRESHOLD_DP.dp.toPx() }
+        var baseIndex = listState.firstVisibleItemIndex
+        var baseOffset = listState.firstVisibleItemScrollOffset
+        var settled = false
+        snapshotFlow {
+            Triple(
+                listState.firstVisibleItemIndex,
+                listState.firstVisibleItemScrollOffset,
+                listState.isScrollInProgress,
+            )
+        }.collect { (index, offset, inProgress) ->
+            if (pendingJumpTarget != null || !settled) {
+                baseIndex = index
+                baseOffset = offset
+                settled = true
+                return@collect
+            }
+            if (!inProgress) {
+                baseIndex = index
+                baseOffset = offset
+                return@collect
+            }
+            val moved = index != baseIndex ||
+                kotlin.math.abs(offset - baseOffset) > thresholdPx
+            if (moved) onHideMenu()
         }
     }
 
