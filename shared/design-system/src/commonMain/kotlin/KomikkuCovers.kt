@@ -5,7 +5,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -20,8 +19,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
 /**
@@ -105,8 +102,11 @@ fun coverDiskKey(sourceKey: String, coverUrl: String): String {
     return "cover/${safeSource.ifEmpty { "_" }}/$hash.img"
 }
 
-internal const val KomikkuCoverImageTag = "komikku-cover-image"
-internal const val KomikkuCoverPlaceholderTag = "komikku-cover-placeholder"
+/** Test tag of the loaded cover art (per-row disambiguation stays with the caller). */
+const val KomikkuCoverImageTag = "komikku-cover-image"
+
+/** Test tag of the letter placeholder shown while loading, empty or failed. */
+const val KomikkuCoverPlaceholderTag = "komikku-cover-placeholder"
 
 /**
  * 加载一封面的解码位图（单次尝试，可空）：头部大图与模糊背景共用同一结果，
@@ -114,12 +114,18 @@ internal const val KomikkuCoverPlaceholderTag = "komikku-cover-placeholder"
  */
 @Composable
 fun rememberCoverBitmap(sourceKey: String, coverUrl: String): ImageBitmap? {
+    // Remember slots always run so blank/non-blank transitions keep composition order stable.
+    var bytes by remember(sourceKey, coverUrl) { mutableStateOf<ByteArray?>(null) }
+    var primed by remember(sourceKey, coverUrl) { mutableStateOf(false) }
+    var failed by remember(sourceKey, coverUrl) { mutableStateOf(false) }
     val loader = LocalCoverImageLoader.current
     val decoder = LocalCoverDecoder.current
     val cache = LocalCoverMemoryCache.current
     if (coverUrl.isBlank() || loader == null || decoder == null) return null
-    var bytes by remember(sourceKey, coverUrl) { mutableStateOf(cache.get(sourceKey, coverUrl)) }
-    var failed by remember(sourceKey, coverUrl) { mutableStateOf(false) }
+    if (!primed) {
+        primed = true
+        bytes = cache.get(sourceKey, coverUrl)
+    }
     if (bytes == null && !failed) {
         LaunchedEffect(sourceKey, coverUrl) {
             val loaded = try {

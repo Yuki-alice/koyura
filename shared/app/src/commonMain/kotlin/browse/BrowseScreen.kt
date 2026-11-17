@@ -261,6 +261,7 @@ private fun SourcesPane(
                         pinned = view.pinnedIds.contains(source.id),
                         onOpenSource = onOpenSource,
                         onTogglePin = onTogglePin,
+                        rowTestTag = "recent-source-row-${source.id}",
                     )
                 }
             }
@@ -365,6 +366,7 @@ private fun SourceRow(
     pinned: Boolean,
     onOpenSource: (sourceKey: String, sourceName: String) -> Unit,
     onTogglePin: (String) -> Unit,
+    rowTestTag: String = "source-row-${source.id}",
 ) {
     // Komikku BaseSourceItem: 40 dp icon, bodyMedium title, secondary language/version line,
     // pin toggle and optional Latest action. The row keeps its test tag and opens the search
@@ -422,7 +424,7 @@ private fun SourceRow(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 56.dp)
-            .testTag("source-row-${source.id}"),
+            .testTag(rowTestTag),
     )
 }
 
