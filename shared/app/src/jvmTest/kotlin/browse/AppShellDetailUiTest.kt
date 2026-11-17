@@ -3,7 +3,6 @@ package app.koyura.app.browse
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -141,8 +140,8 @@ class AppShellDetailUiTest {
         onNodeWithTag("recent-source-row-src:en:manga").assertIsDisplayed()
         onNodeWithTag("source-row-src:en:manga").assertIsDisplayed()
         // 置顶为行级开关，点击后会话态更新。
-        onNodeWithTag("source-pin-src:en:manga").performClick()
-        onNodeWithTag("source-pin-src:en:manga").assertIsDisplayed()
+        onNodeWithTag("recent-source-pin-src:en:manga").performClick()
+        onNodeWithTag("recent-source-pin-src:en:manga").assertIsDisplayed()
         kotlin.test.assertEquals(setOf("src:en:manga"), session.state.pinnedSourceIds)
         // 全部行都带置顶键，无 Latest 恒无之外的回归。
         onAllNodesWithTag("source-pin-src:ja:manga").assertCountEquals(1)

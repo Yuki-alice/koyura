@@ -181,7 +181,16 @@ fun HistoryScreen(
                     if (session.entries.isEmpty()) {
                         EmptyState(stringResource(Res.string.history_empty), HistoryEmptyTag)
                     } else if (sections.isEmpty()) {
-                        EmptyState(stringResource(Res.string.history_no_results), HistoryNoResultsTag)
+                        // 本地删除/清空后可见行为空且无查询与筛选时，显示空态而非无结果，
+                        // 与刷新后（服务侧已空）一致。
+                        if (query.isBlank() &&
+                            session.filteredSourceKeys.isEmpty() &&
+                            !session.showFavoritesOnly
+                        ) {
+                            EmptyState(stringResource(Res.string.history_empty), HistoryEmptyTag)
+                        } else {
+                            EmptyState(stringResource(Res.string.history_no_results), HistoryNoResultsTag)
+                        }
                     } else {
                         val listState = rememberLazyListState()
                         LazyColumn(
@@ -293,7 +302,7 @@ private fun HistoryFilterDialog(
 ) {
     // Local draft so toggling sources does not reshuffle the list behind the dialog.
     var draftSources by remember(session.entries) { mutableStateOf(session.filteredSourceKeys) }
-    var draftFavorites by remember(session.favoritesOnly) { mutableStateOf(session.favoritesOnly) }
+    var draftFavorites by remember(session.showFavoritesOnly) { mutableStateOf(session.showFavoritesOnly) }
     AlertDialog(
         onDismissRequest = onDismiss,
         modifier = Modifier.testTag(HistoryFilterDialogTag),

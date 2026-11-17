@@ -83,14 +83,14 @@ class HistorySession(
         private set
 
     /** When true the list shows favorited entries only. */
-    var favoritesOnly: Boolean by mutableStateOf(false)
+    var showFavoritesOnly: Boolean by mutableStateOf(false)
         private set
 
     /** Entries after local hide/favorite/source filtering, before the query filter. */
     fun visibleEntries(): List<HistoryEntry> = entries.filter { entry ->
         val key = entry.sourceKey to entry.workId
         if (hiddenKeys.contains(key)) return@filter false
-        if (favoritesOnly && !favoriteKeys.contains(key)) return@filter false
+        if (showFavoritesOnly && !favoriteKeys.contains(key)) return@filter false
         if (filteredSourceKeys.isNotEmpty() && !filteredSourceKeys.contains(entry.sourceKey)) {
             return@filter false
         }
@@ -146,12 +146,12 @@ class HistorySession(
     }
 
     fun setFavoritesOnly(only: Boolean) {
-        favoritesOnly = only
+        showFavoritesOnly = only
     }
 
     fun clearFilters() {
         filteredSourceKeys = emptySet()
-        favoritesOnly = false
+        showFavoritesOnly = false
     }
 
     suspend fun refresh() {
