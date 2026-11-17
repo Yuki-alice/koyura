@@ -95,3 +95,19 @@ REF='/Users/kurisu/project x/reference/Venera-Next'
   字体排印 Expressive、封面取色主题与设置持久化由主 agent / C 接线。
 - 导航图标为静态 outline/selected 资源；原版为 `AnimatedImageVector`（选中态为动画终帧，视觉一致，
   切换无过渡动画）。标签重选仅透出事件（`onTabReselect`），未做原版式的重选滚动到顶/打开全局搜索。
+
+## 返修（宽屏导航轨纵向居中）
+
+- 现象：上一版把导航轨换成官方 Material 3 `NavigationRail` 容器后，五个入口在
+  1280×800 dp 下贴顶（独立测试测得入口组中心 y=162、导航轨中心 y=384）。
+- 对照：`reference/komikku/.../tachiyomi/ui/home/HomeScreen.kt` 使用的是
+  `presentation-core/.../material/NavigationRail.kt` 自定容器——Material 3 `Surface` +
+  全高 `Column`，以 `Arrangement.spacedBy(extraSmall, CenterVertically)` 纵向居中。
+- 修复：`ReaderNavigationRail` 恢复该居中列布局（`Surface` + `fillMaxHeight` +
+  `CenterVertically` + `minWidth 80dp` + `3dp`  tonal elevation），条目仍用官方
+  Material 3 `NavigationRailItem`，保留五栏顺序、角标、选中态、可见项与 Insets 行为。
+- 断言：新增 `NavigationRailCenteringTest`（全部五项与隐藏部分入口两种情况），
+  比较入口组与导航轨可用区域的垂直中心，容差 2px，均通过。
+- 截图：重拍 `screenshots/a-shell-1280-light.png` / `a-shell-1280-dark.png`
+ （导航轨居中），另以 `screenshots/a-shell-420-light.png`（底栏）作回归对照。
+  全部截图均为 JVM `ImageComposeScene` 离屏渲染（非实机/模拟器），视口见文件名。
