@@ -79,6 +79,13 @@ data class ComicViewerOptions(
     val scaleFit: ComicScaleFit = ComicScaleFit.FIT,
     val cropBorders: Boolean = false,
     val doubleTapZoom: Boolean = true,
+    /**
+     * Tap-zone layout (Komikku navigation modes). DEFAULT keeps the historical fixed thirds,
+     * so existing tap tags and gestures are unchanged until the settings surface sources this.
+     */
+    val tapZone: ComicTapZoneMode = ComicTapZoneMode.DEFAULT,
+    /** Komikku 反转档: swaps the PREV/NEXT tap zones, menu is unaffected. */
+    val invertTapZone: Boolean = false,
 )
 
 /** Chapter-boundary intent. The host owns the actual chapter switch. */

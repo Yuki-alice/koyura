@@ -1,5 +1,11 @@
 package app.koyura.features.reader.comic.chrome
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -12,14 +18,18 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -29,15 +39,25 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import app.koyura.domain.reader.preferences.OverrideField
+import app.koyura.domain.reader.preferences.ReaderLayout
+import app.koyura.domain.reader.preferences.ReadingMode
 import app.koyura.domain.reader.preferences.WorkReaderOverridePatch
 import app.koyura.features.reader.comic.ReaderBackTag
 import app.koyura.features.reader.comic.ReaderNextChapterTag
 import app.koyura.features.reader.comic.ReaderPageIndicatorTag
 import app.koyura.features.reader.comic.ReaderPrevChapterTag
+import app.koyura.features.reader.comic.viewer.ComicPagerLayout
+import app.koyura.features.reader.comic.viewer.ComicSpread
+import app.koyura.features.reader.comic.viewer.buildComicSpreads
 import app.koyura.features.resources.Res
 import app.koyura.features.resources.reader_back
 import app.koyura.features.resources.reader_chrome_cancel
@@ -45,10 +65,12 @@ import app.koyura.features.resources.reader_chrome_chapters
 import app.koyura.features.resources.reader_chrome_crop_borders
 import app.koyura.features.resources.reader_chrome_go
 import app.koyura.features.resources.reader_chrome_go_to_page
+import app.koyura.features.resources.reader_chrome_layout
 import app.koyura.features.resources.reader_chrome_no_chapters
 import app.koyura.features.resources.reader_chrome_page_number
 import app.koyura.features.resources.reader_chrome_page_out_of_range
 import app.koyura.features.resources.reader_chrome_page_of
+import app.koyura.features.resources.reader_chrome_page_range_of
 import app.koyura.features.resources.reader_chrome_reading_mode
 import app.koyura.features.resources.reader_chrome_settings
 import app.koyura.features.resources.reader_next_chapter
@@ -58,14 +80,31 @@ import org.jetbrains.compose.resources.stringResource
 
 /** Test hooks for the chrome (top/bottom bars, slider, jump dialog). */
 const val ReaderChromeRootTag = "reader-chrome-root"
+const val ReaderChromeTopBarTag = "reader-chrome-top-bar"
+const val ReaderChromeBottomBarTag = "reader-chrome-bottom-bar"
+const val ReaderChromeHiddenIndicatorTag = "reader-chrome-hidden-indicator"
 const val ReaderChromeChaptersTag = "reader-chrome-chapters"
 const val ReaderChromeModeTag = "reader-chrome-mode"
 const val ReaderChromeSettingsTag = "reader-chrome-settings"
 const val ReaderChromeCropTag = "reader-chrome-crop"
+const val ReaderChromeLayoutTag = "reader-chrome-layout"
 const val ReaderChromeSliderTag = "reader-chrome-slider"
+const val ReaderChromeVerticalSliderTag = "reader-chrome-vertical-slider"
 const val ReaderChromePageJumpDialogTag = "reader-chrome-page-jump"
 const val ReaderChromePageInputTag = "reader-chrome-page-input"
 const val ReaderChromePageGoTag = "reader-chrome-page-go"
+
+/** Komikku ReaderAppBars parity: bars slide over 200ms and fade over 150ms. */
+private const val CHROME_SLIDE_MS = 200
+private const val CHROME_FADE_MS = 150
+
+/**
+ * Length of the vertical strip slider (layout width before the 90-degree rotation turns it
+ * upright). The rail itself is 64dp wide; the bar does not clip so the rotated slider overflows
+ * symmetrically and lands centered.
+ */
+private const val VERTICAL_SLIDER_LENGTH_DP = 280
+private const val VERTICAL_SLIDER_RAIL_DP = 64
 
 /**
  * Top/bottom reader chrome: back, titles, 1-based page indicator, prev/next chapter, chapter
@@ -101,7 +140,9 @@ fun ReaderChrome(
         }
     }
 
-    if (!state.menuVisible) return
+    // The root stays composed while hidden so the bars can play Komikku's exit slide+fade and
+    // the hidden page indicator stays observable (old contract returned early here; the app-track
+    // ChromeBehaviorTest.hiddenMenuRendersNothing expectation needs updating — see track notes).
     BoxWithConstraints(
         modifier
             .fillMaxSize()
@@ -109,7 +150,38 @@ fun ReaderChrome(
     ) {
         // Dialog placement follows the app window, not the dialog window (Komikku breakpoint).
         val compactDialog = isCompactDialog(minOf(maxWidth, maxHeight).value.toInt())
-        Column(Modifier.fillMaxSize()) {
+        // Spread-aware slider labels (Komikku ChapterNavigator "4-5 / 190"): rebuild the pager
+        // spreads the same way the viewer does, minus runtime wide-page splits (unknown here).
+        val isLandscape = maxWidth > maxHeight
+        val isRtl = state.effective.mode == ReadingMode.RIGHT_TO_LEFT
+        val isStrip = state.effective.mode == ReadingMode.WEBTOON ||
+            state.effective.mode == ReadingMode.CONTINUOUS_VERTICAL
+        val pagerSpreads = remember(
+            state.pageCount,
+            state.effective.layout,
+            state.effective.firstPageSingle,
+            isLandscape,
+        ) {
+            buildComicSpreads(
+                pageCount = state.pageCount,
+                layout = ComicPagerLayout.fromId(state.effective.layout.name),
+                isLandscape = isLandscape,
+                firstPageSingle = state.effective.firstPageSingle,
+            )
+        }
+        // Komikku parity (ReaderAppBars): bars slide vertically over 200ms while fading over
+        // 150ms. The top bar moves through the top edge, the bottom bar through the bottom edge.
+        AnimatedVisibility(
+            visible = state.menuVisible,
+            enter = slideInVertically(animationSpec = tween(CHROME_SLIDE_MS)) { -it } +
+                fadeIn(animationSpec = tween(CHROME_FADE_MS)),
+            exit = slideOutVertically(animationSpec = tween(CHROME_SLIDE_MS)) { -it } +
+                fadeOut(animationSpec = tween(CHROME_FADE_MS)),
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .testTag(ReaderChromeTopBarTag),
+        ) {
         // Top bar: back, work title + chapter subtitle, 1-based indicator (tap = jump dialog).
         Row(
             modifier = Modifier
@@ -153,8 +225,40 @@ fun ReaderChrome(
                     .padding(end = 12.dp),
             )
         }
-        Spacer(Modifier.weight(1f))
+        }
+        // Hidden state (Komikku ReaderActivity): only the centered page indicator stays, so the
+        // reader keeps position context while the canvas is fully visible. Taps still toggle the
+        // menu through the viewer tap zones; scrolling never re-shows it.
+        AnimatedVisibility(
+            visible = !state.menuVisible,
+            enter = fadeIn(animationSpec = tween(CHROME_FADE_MS)),
+            exit = fadeOut(animationSpec = tween(CHROME_FADE_MS)),
+            modifier = Modifier.align(Alignment.Center),
+        ) {
+            Surface(
+                shape = MaterialTheme.shapes.small,
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+                modifier = Modifier.testTag(ReaderChromeHiddenIndicatorTag),
+            ) {
+                Text(
+                    text = pageLabel(state.pageIndex, state.pageCount),
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                )
+            }
+        }
         // Bottom block: chapter navigator row, then action row.
+        AnimatedVisibility(
+            visible = state.menuVisible,
+            enter = slideInVertically(animationSpec = tween(CHROME_SLIDE_MS)) { it } +
+                fadeIn(animationSpec = tween(CHROME_FADE_MS)),
+            exit = slideOutVertically(animationSpec = tween(CHROME_SLIDE_MS)) { it } +
+                fadeOut(animationSpec = tween(CHROME_FADE_MS)),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .testTag(ReaderChromeBottomBarTag),
+        ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -177,6 +281,8 @@ fun ReaderChrome(
                         pageCount = state.pageCount,
                         onJump = { onAction(ReaderChromeAction.JumpToPage(it)) },
                         modifier = Modifier.weight(1f),
+                        isRtl = isRtl,
+                        spreadEndFor = { spreadEndForPage(pagerSpreads, it) },
                     )
                 } else {
                     Spacer(Modifier.weight(1f))
@@ -205,6 +311,22 @@ fun ReaderChrome(
                         .testTag(ReaderChromeModeTag)
                         .focusRequester(modeFocus),
                 ) { Text(stringResource(Res.string.reader_chrome_reading_mode)) }
+                // Layout switcher (Komikku bottom bar shows it on pagers only): cycles the
+                // effective layout the same way the crop button flips the crop override.
+                if (!isStrip) {
+                    TextButton(
+                        onClick = {
+                            onAction(
+                                ReaderChromeAction.ChangeWorkOverride(
+                                    WorkReaderOverridePatch(
+                                        layout = OverrideField.Set(nextReaderLayout(state.effective.layout)),
+                                    ),
+                                ),
+                            )
+                        },
+                        modifier = Modifier.testTag(ReaderChromeLayoutTag),
+                    ) { Text(stringResource(Res.string.reader_chrome_layout)) }
+                }
                 TextButton(
                     onClick = {
                         onAction(
@@ -225,7 +347,28 @@ fun ReaderChrome(
                 ) { Text(stringResource(Res.string.reader_chrome_settings)) }
             }
         }
-    }
+        }
+        // Vertical strip slider (Komikku NavBarType.VerticalLeft/Right): a slim trailing rail
+        // for WEBTOON/CONTINUOUS_VERTICAL that drives the same jump as the bottom slider.
+        AnimatedVisibility(
+            visible = state.menuVisible && isStrip && state.pageCount > 1,
+            enter = fadeIn(animationSpec = tween(CHROME_FADE_MS)),
+            exit = fadeOut(animationSpec = tween(CHROME_FADE_MS)),
+            modifier = Modifier.align(Alignment.CenterEnd),
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(VERTICAL_SLIDER_RAIL_DP.dp)
+                    .height((VERTICAL_SLIDER_LENGTH_DP + 20).dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                VerticalPageSlider(
+                    pageIndex = state.pageIndex,
+                    pageCount = state.pageCount,
+                    onJump = { onAction(ReaderChromeAction.JumpToPage(it)) },
+                )
+            }
+        }
 
     when (state.dialog) {
         ReaderChromeDialog.ChapterList -> ChapterListDialog(
@@ -291,8 +434,35 @@ internal fun nextChapterId(state: ReaderChromeState): String? {
 }
 
 /**
+ * Second page of the spread holding [pageIndex] (0-based), or null for solo spreads and
+ * out-of-range pages. Powers the double-page "4-5 / 190" navigator text (Komikku ChapterNavigator).
+ */
+fun spreadEndForPage(spreads: List<ComicSpread>, pageIndex: Int): Int? {
+    val spread = spreads.firstOrNull { pageIndex in it.pageIndices } ?: return null
+    if (spread.pageIndices.size < 2) return null
+    return spread.pageIndices.firstOrNull { it != pageIndex }
+}
+
+/**
+ * 1-based range prefix for the navigator text: "4-5" for spreads, "4" for solo pages.
+ * Pure so the mapping stays unit-testable; the "/ total" suffix is applied by the composables.
+ */
+fun spreadRangePrefix(pageIndex: Int, spreadEnd: Int?): String =
+    if (spreadEnd == null || spreadEnd == pageIndex) "${pageIndex + 1}"
+    else "${pageIndex + 1}-${spreadEnd + 1}"
+
+/** Layout cycle for the pager-only switcher: SINGLE -> DOUBLE -> AUTO -> SINGLE. */
+fun nextReaderLayout(current: ReaderLayout): ReaderLayout = when (current) {
+    ReaderLayout.SINGLE_PAGE -> ReaderLayout.DOUBLE_PAGES
+    ReaderLayout.DOUBLE_PAGES -> ReaderLayout.AUTOMATIC
+    ReaderLayout.AUTOMATIC -> ReaderLayout.SINGLE_PAGE
+}
+
+/**
  * Chapter slider: dragging only previews the 1-based page, [onJump] fires once on release and
- * only when the page actually changed.
+ * only when the page actually changed. RTL mirrors the drag direction (Komikku ChapterNavigator
+ * LayoutDirection mirror); double-page spreads preview "4-5" instead of "4"; every drag tick
+ * plays a text-handle haptic (Komikku drag feedback).
  */
 @Composable
 private fun PageSlider(
@@ -300,26 +470,81 @@ private fun PageSlider(
     pageCount: Int,
     onJump: (Int) -> Unit,
     modifier: Modifier = Modifier,
+    isRtl: Boolean = false,
+    spreadEndFor: (Int) -> Int? = { null },
 ) {
     var preview by remember(pageIndex, pageCount) { mutableStateOf(pageIndex) }
-    Column(modifier) {
-        Slider(
-            value = (preview + 1).toFloat(),
-            onValueChange = { preview = (it.toInt() - 1).coerceIn(0, pageCount - 1) },
-            onValueChangeFinished = {
-                if (preview != pageIndex) onJump(preview)
-            },
-            valueRange = 1f..pageCount.toFloat(),
-            steps = (pageCount - 2).coerceAtLeast(0),
-            modifier = Modifier.testTag(ReaderChromeSliderTag),
-        )
-        Text(
-            text = pageLabel(preview, pageCount),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.align(Alignment.CenterHorizontally),
+    val haptic = LocalHapticFeedback.current
+    val direction = if (isRtl) LayoutDirection.Rtl else LayoutDirection.Ltr
+    CompositionLocalProvider(LocalLayoutDirection provides direction) {
+        Column(modifier) {
+            Slider(
+                value = (preview + 1).toFloat(),
+                onValueChange = {
+                    preview = (it.toInt() - 1).coerceIn(0, pageCount - 1)
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                },
+                onValueChangeFinished = {
+                    if (preview != pageIndex) onJump(preview)
+                },
+                valueRange = 1f..pageCount.toFloat(),
+                steps = (pageCount - 2).coerceAtLeast(0),
+                modifier = Modifier.testTag(ReaderChromeSliderTag),
+            )
+            Text(
+                text = pageRangeLabel(preview, spreadEndFor(preview), pageCount),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.align(Alignment.CenterHorizontally),
+            )
+        }
+    }
+}
+
+@Composable
+private fun pageRangeLabel(pageIndex: Int, spreadEnd: Int?, pageCount: Int): String =
+    if (spreadEnd == null || spreadEnd == pageIndex || pageCount <= 0) {
+        pageLabel(pageIndex, pageCount)
+    } else {
+        stringResource(
+            Res.string.reader_chrome_page_range_of,
+            spreadRangePrefix(pageIndex, spreadEnd),
+            pageCount,
         )
     }
+
+/**
+ * Vertical strip slider for WEBTOON/CONTINUOUS_VERTICAL (Komikku NavBarType.VerticalLeft/Right).
+ *
+ * A stock horizontal slider rotated 90 degrees clockwise: the minimum end lands at the top and
+ * the maximum at the bottom, so dragging down advances pages like a scrollbar. Touch handling
+ * rotates with the layer, no custom gesture math involved.
+ */
+@Composable
+private fun VerticalPageSlider(
+    pageIndex: Int,
+    pageCount: Int,
+    onJump: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var preview by remember(pageIndex, pageCount) { mutableStateOf(pageIndex) }
+    val haptic = LocalHapticFeedback.current
+    Slider(
+        value = (preview + 1).toFloat(),
+        onValueChange = {
+            preview = (it.toInt() - 1).coerceIn(0, pageCount - 1)
+            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+        },
+        onValueChangeFinished = {
+            if (preview != pageIndex) onJump(preview)
+        },
+        valueRange = 1f..pageCount.toFloat(),
+        steps = (pageCount - 2).coerceAtLeast(0),
+        modifier = modifier
+            .requiredWidth(VERTICAL_SLIDER_LENGTH_DP.dp)
+            .graphicsLayer { rotationZ = 90f }
+            .testTag(ReaderChromeVerticalSliderTag),
+    )
 }
 
 /** Page-number jump dialog with range validation; invalid input never emits. */

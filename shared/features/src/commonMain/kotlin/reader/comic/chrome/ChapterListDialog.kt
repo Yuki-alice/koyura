@@ -29,6 +29,7 @@ const val ReaderChromeChapterListTag = "reader-chrome-chapter-list"
 const val ReaderChromeChapterCurrentTag = "reader-chrome-chapter-current"
 const val ReaderChromeNoChaptersTag = "reader-chrome-no-chapters"
 fun readerChromeChapterTag(index: Int) = "reader-chrome-chapter-$index"
+fun readerChromeChapterPositionTag(index: Int) = "reader-chrome-chapter-position-$index"
 
 /**
  * Chapter list: scrolls to the current chapter on open, highlights it, and emits [OpenChapter]
@@ -75,6 +76,17 @@ fun ChapterListDialog(
                                 Text(
                                     text = chapter.title.ifEmpty { "–" },
                                     maxLines = 1,
+                                )
+                            },
+                            // Position within the work ("3 / 12"): the domain chapter model
+                            // carries no date/scanlator/download state yet (reader track notes),
+                            // so the list shows order + current highlight only.
+                            trailingContent = {
+                                Text(
+                                    text = "${index + 1} / ${state.chapters.size}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.testTag(readerChromeChapterPositionTag(index)),
                                 )
                             },
                             colors = if (selected) {

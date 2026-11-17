@@ -242,6 +242,8 @@ fun ComicReaderScreen(
                                 val neighbour = if (direction == ComicChapterBoundary.NEXT) next else previous
                                 neighbour?.let(::openChapter)
                             },
+                            menuVisible = menuVisible,
+                            onHideMenu = { menuVisible = false },
                         )
                     }
                 }
