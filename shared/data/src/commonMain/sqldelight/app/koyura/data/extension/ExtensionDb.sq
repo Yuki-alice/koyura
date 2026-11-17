@@ -109,3 +109,135 @@ WHERE NOT EXISTS (
   WHERE q.source_key = p.source_key AND q.work_id = p.work_id AND q.rowid > p.rowid
 )
 ORDER BY p.read_at IS NULL, p.read_at DESC, p.rowid DESC;
+
+selectProgressBySource:
+SELECT * FROM reading_progress WHERE source_key = ?;
+
+selectProgressByWork:
+SELECT * FROM reading_progress WHERE source_key = ? AND work_id = ?;
+
+-- 书架持久化（第 4 版 schema）：收藏身份为三元主键 (source_key, kind, work_id)，
+-- kind 取 COMIC 或 NOVEL；未读数/已下载数/继续阅读章为派生值，不存快照。
+CREATE TABLE IF NOT EXISTS library_manga(
+  source_key TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  work_id TEXT NOT NULL,
+  title TEXT NOT NULL DEFAULT '',
+  cover_url TEXT NOT NULL DEFAULT '',
+  source_name TEXT,
+  added_at INTEGER NOT NULL DEFAULT 0,
+  last_update_check INTEGER,
+  PRIMARY KEY (source_key, kind, work_id)
+);
+
+CREATE INDEX IF NOT EXISTS library_manga_title_idx ON library_manga(title);
+
+CREATE TABLE IF NOT EXISTS library_category(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  hidden INTEGER NOT NULL DEFAULT 0,
+  is_default INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS library_manga_category(
+  source_key TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  work_id TEXT NOT NULL,
+  category_id INTEGER NOT NULL,
+  PRIMARY KEY (source_key, kind, work_id, category_id)
+);
+
+CREATE INDEX IF NOT EXISTS library_manga_category_cat_idx ON library_manga_category(category_id);
+
+CREATE TABLE IF NOT EXISTS library_prefs(
+  pref_key TEXT PRIMARY KEY,
+  pref_value TEXT NOT NULL
+);
+
+selectLibraryAll:
+SELECT * FROM library_manga;
+
+selectLibraryByKey:
+SELECT * FROM library_manga WHERE source_key = ? AND kind = ? AND work_id = ?;
+
+selectLibraryBySource:
+SELECT * FROM library_manga WHERE source_key = ?;
+
+insertLibraryManga:
+INSERT OR IGNORE INTO library_manga(source_key, kind, work_id, title, cover_url, source_name, added_at, last_update_check)
+VALUES(?, ?, ?, ?, ?, ?, ?, ?);
+
+upsertLibraryManga:
+INSERT OR REPLACE INTO library_manga(source_key, kind, work_id, title, cover_url, source_name, added_at, last_update_check)
+VALUES(?, ?, ?, ?, ?, ?, ?, ?);
+
+updateLibrarySnapshot:
+UPDATE library_manga SET title = ?, cover_url = ?, source_name = ?, last_update_check = ? WHERE source_key = ? AND kind = ? AND work_id = ?;
+
+deleteLibraryManga:
+DELETE FROM library_manga WHERE source_key = ? AND kind = ? AND work_id = ?;
+
+selectCategoriesOrdered:
+SELECT * FROM library_category ORDER BY sort_order, id;
+
+selectCategoryById:
+SELECT * FROM library_category WHERE id = ?;
+
+insertCategory:
+INSERT INTO library_category(name, sort_order, hidden, is_default) VALUES(?, ?, ?, ?);
+
+updateCategoryName:
+UPDATE library_category SET name = ? WHERE id = ?;
+
+updateCategoryHidden:
+UPDATE library_category SET hidden = ? WHERE id = ?;
+
+updateCategoryOrder:
+UPDATE library_category SET sort_order = ? WHERE id = ?;
+
+deleteCategory:
+DELETE FROM library_category WHERE id = ?;
+
+countCategories:
+SELECT COUNT(*) FROM library_category;
+
+selectMappingsForWork:
+SELECT * FROM library_manga_category WHERE source_key = ? AND kind = ? AND work_id = ?;
+
+selectAllMappings:
+SELECT * FROM library_manga_category;
+
+selectMappingsForCategory:
+SELECT * FROM library_manga_category WHERE category_id = ?;
+
+selectMappingsBySource:
+SELECT * FROM library_manga_category WHERE source_key = ?;
+
+insertMapping:
+INSERT OR IGNORE INTO library_manga_category(source_key, kind, work_id, category_id) VALUES(?, ?, ?, ?);
+
+deleteMapping:
+DELETE FROM library_manga_category WHERE source_key = ? AND kind = ? AND work_id = ? AND category_id = ?;
+
+deleteMappingsForWork:
+DELETE FROM library_manga_category WHERE source_key = ? AND kind = ? AND work_id = ?;
+
+deleteMappingsForCategory:
+DELETE FROM library_manga_category WHERE category_id = ?;
+
+selectPref:
+SELECT * FROM library_prefs WHERE pref_key = ?;
+
+selectAllPrefs:
+SELECT * FROM library_prefs;
+
+upsertPref:
+INSERT OR REPLACE INTO library_prefs(pref_key, pref_value) VALUES(?, ?);
+
+deletePref:
+DELETE FROM library_prefs WHERE pref_key = ?;
+
+seedDefaultCategory:
+INSERT INTO library_category(name, sort_order, hidden, is_default)
+SELECT '默认', 0, 0, 1 WHERE NOT EXISTS (SELECT 1 FROM library_category);

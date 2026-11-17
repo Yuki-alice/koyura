@@ -6,6 +6,8 @@ import app.koyura.data.extension.ExtensionDb
 import app.koyura.data.extension.ExtensionService
 import app.koyura.data.history.HistoryStore
 import app.koyura.data.extension.RestoreReport
+import app.koyura.data.library.LibraryStore
+import app.koyura.data.library.ensureLibrarySchema
 import app.koyura.data.reading.ComicReadingService
 import app.koyura.data.reader.preferences.ReaderPreferencesStore
 import app.koyura.source.runtime.VeneraEnvironment
@@ -37,6 +39,7 @@ class ExtensionSession internal constructor(
 ) {
     val comicReading = ComicReadingService(driver, service, httpClient)
     val history = HistoryStore(driver)
+    val library = LibraryStore(driver)
 
     private val mutex = Mutex()
     private var closed = false
@@ -131,34 +134,37 @@ private fun ensureSchema(driver: SqlDriver) {
             ExtensionDb(driver).transaction {
                 ExtensionDb.Schema.migrate(driver, 1, target).value
             }
-            return
-        }
-        // Reading-era database without the display columns (the generated schema code
-        // never stamps PRAGMA user_version, so detection is structural, not stamp-based).
-        // ALTERs run in place and keep every committed row; already-migrated databases
-        // are untouched.
-        val columns = tableColumns(driver, "reading_progress")
-        if (!columns.containsAll(listOf("read_at", "work_title", "chapter_title"))) {
-            ExtensionDb(driver).transaction {
-                if ("read_at" !in columns) {
-                    driver.execute(null, "ALTER TABLE reading_progress ADD COLUMN read_at INTEGER", 0, null)
-                }
-                if ("work_title" !in columns) {
-                    driver.execute(null, "ALTER TABLE reading_progress ADD COLUMN work_title TEXT", 0, null)
-                }
-                if ("chapter_title" !in columns) {
-                    driver.execute(null, "ALTER TABLE reading_progress ADD COLUMN chapter_title TEXT", 0, null)
+        } else {
+            // Reading-era database without the display columns (the generated schema code
+            // never stamps PRAGMA user_version, so detection is structural, not stamp-based).
+            // ALTERs run in place and keep every committed row; already-migrated databases
+            // are untouched.
+            val columns = tableColumns(driver, "reading_progress")
+            if (!columns.containsAll(listOf("read_at", "work_title", "chapter_title"))) {
+                ExtensionDb(driver).transaction {
+                    if ("read_at" !in columns) {
+                        driver.execute(null, "ALTER TABLE reading_progress ADD COLUMN read_at INTEGER", 0, null)
+                    }
+                    if ("work_title" !in columns) {
+                        driver.execute(null, "ALTER TABLE reading_progress ADD COLUMN work_title TEXT", 0, null)
+                    }
+                    if ("chapter_title" !in columns) {
+                        driver.execute(null, "ALTER TABLE reading_progress ADD COLUMN chapter_title TEXT", 0, null)
+                    }
                 }
             }
         }
-        return
-    }
-    if (present.any { it in extensionTables }) {
-        for (table in extensionTables) {
-            if (table in present) {
-                driver.execute(null, "DROP TABLE IF EXISTS $table", 0, null)
+    } else {
+        if (present.any { it in extensionTables }) {
+            for (table in extensionTables) {
+                if (table in present) {
+                    driver.execute(null, "DROP TABLE IF EXISTS $table", 0, null)
+                }
             }
         }
+        ExtensionDb.Schema.create(driver)
     }
-    ExtensionDb.Schema.create(driver)
+    // 书架四表（第 4 版）：已存在 reading 时代的老库不会自动执行 .sqm，
+    // 这里幂等补齐并播种默认分类；新库 Schema.create 已建表，此处只剩播种。
+    ensureLibrarySchema(driver)
 }

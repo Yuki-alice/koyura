@@ -1,0 +1,42 @@
+-- 第 3 版（阅读进度 + 展示列）升级到第 4 版（书架持久化）。
+-- 全幂等：CREATE TABLE / INDEX 均带 IF NOT EXISTS，默认分类仅在表空时插入一次，
+-- 同版二次启动无 DDL 报错；老库升级后书架为空且 reading_progress 原样保留。
+CREATE TABLE IF NOT EXISTS library_manga(
+  source_key TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  work_id TEXT NOT NULL,
+  title TEXT NOT NULL DEFAULT '',
+  cover_url TEXT NOT NULL DEFAULT '',
+  source_name TEXT,
+  added_at INTEGER NOT NULL DEFAULT 0,
+  last_update_check INTEGER,
+  PRIMARY KEY (source_key, kind, work_id)
+);
+
+CREATE INDEX IF NOT EXISTS library_manga_title_idx ON library_manga(title);
+
+CREATE TABLE IF NOT EXISTS library_category(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  hidden INTEGER NOT NULL DEFAULT 0,
+  is_default INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS library_manga_category(
+  source_key TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  work_id TEXT NOT NULL,
+  category_id INTEGER NOT NULL,
+  PRIMARY KEY (source_key, kind, work_id, category_id)
+);
+
+CREATE INDEX IF NOT EXISTS library_manga_category_cat_idx ON library_manga_category(category_id);
+
+CREATE TABLE IF NOT EXISTS library_prefs(
+  pref_key TEXT PRIMARY KEY,
+  pref_value TEXT NOT NULL
+);
+
+INSERT INTO library_category(name, sort_order, hidden, is_default)
+SELECT '默认', 0, 0, 1 WHERE NOT EXISTS (SELECT 1 FROM library_category);
