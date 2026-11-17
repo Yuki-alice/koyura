@@ -36,12 +36,14 @@ import app.koyura.features.reader.comic.ReaderPrevChapterTag
 import app.koyura.features.reader.comic.chrome.ChapterEntry
 import app.koyura.features.reader.comic.chrome.ReaderChrome
 import app.koyura.features.reader.comic.chrome.ReaderChromeAction
+import app.koyura.features.reader.comic.chrome.ReaderChromeBottomBarTag
 import app.koyura.features.reader.comic.chrome.ReaderChromeChapterCurrentTag
 import app.koyura.features.reader.comic.chrome.ReaderChromeChapterDialogTag
 import app.koyura.features.reader.comic.chrome.ReaderChromeChapterListTag
 import app.koyura.features.reader.comic.chrome.ReaderChromeChaptersTag
 import app.koyura.features.reader.comic.chrome.ReaderChromeCropTag
 import app.koyura.features.reader.comic.chrome.ReaderChromeDialog
+import app.koyura.features.reader.comic.chrome.ReaderChromeHiddenIndicatorTag
 import app.koyura.features.reader.comic.chrome.ReaderChromeModeApplyTag
 import app.koyura.features.reader.comic.chrome.ReaderChromeModeDefaultTag
 import app.koyura.features.reader.comic.chrome.ReaderChromeModeDialogTag
@@ -55,6 +57,7 @@ import app.koyura.features.reader.comic.chrome.ReaderChromeRootTag
 import app.koyura.features.reader.comic.chrome.ReaderChromeSettingsDialogTag
 import app.koyura.features.reader.comic.chrome.ReaderChromeSliderTag
 import app.koyura.features.reader.comic.chrome.ReaderChromeState
+import app.koyura.features.reader.comic.chrome.ReaderChromeTopBarTag
 import app.koyura.features.reader.comic.chrome.readerChromeChapterTag
 import org.junit.Rule
 import kotlin.test.Test
@@ -127,10 +130,16 @@ class ChromeBehaviorTest {
         rule.onNodeWithTag(ReaderChromeRootTag).assertIsDisplayed()
 
         rule.onNodeWithTag("chrome-test-toggle").performClick()
-        rule.onNodeWithTag(ReaderChromeRootTag).assertDoesNotExist()
+        // The chrome root stays composed for the Komikku exit slide+fade; only the centered
+        // page indicator remains while the top/bottom bars leave the composition.
+        rule.onNodeWithTag(ReaderChromeRootTag).assertIsDisplayed()
+        rule.onNodeWithTag(ReaderChromeHiddenIndicatorTag).assertIsDisplayed()
+        rule.onNodeWithTag(ReaderChromeTopBarTag).assertDoesNotExist()
+        rule.onNodeWithTag(ReaderChromeBottomBarTag).assertDoesNotExist()
 
         rule.onNodeWithTag("chrome-test-toggle").performClick()
         rule.onNodeWithTag(ReaderChromeRootTag).assertIsDisplayed()
+        rule.onNodeWithTag(ReaderChromeHiddenIndicatorTag).assertDoesNotExist()
         // Top and bottom bars cover both edges at once.
         rule.onNodeWithTag(ReaderBackTag).assertIsDisplayed()
         rule.onNodeWithTag(ReaderChromeSliderTag).assertIsDisplayed()
