@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="reader_chrome_chapters">章节</string>
+    <string name="reader_chrome_no_chapters">暂无章节</string>
+    <string name="reader_chrome_reading_mode">阅读模式</string>
+    <string name="reader_chrome_settings">设置</string>
+    <string name="reader_chrome_crop_borders">裁边</string>
+    <string name="reader_chrome_page_of">%1$d / %2$d</string>
+    <string name="reader_chrome_go_to_page">跳页</string>
+    <string name="reader_chrome_page_number">页码</string>
+    <string name="reader_chrome_page_out_of_range">请输入 %1$d 到 %2$d 页</string>
+    <string name="reader_chrome_go">前往</string>
+    <string name="reader_chrome_apply">应用</string>
+    <string name="reader_chrome_cancel">取消</string>
+    <string name="reader_chrome_global_title">全局默认</string>
+    <string name="reader_chrome_override_title">本作品</string>
+    <string name="reader_chrome_reset_override">恢复全局设置</string>
+    <string name="reader_chrome_inherit">跟随全局</string>
+    <string name="reader_chrome_on">开</string>
+    <string name="reader_chrome_off">关</string>
+    <string name="reader_chrome_mode">阅读模式</string>
+    <string name="reader_chrome_layout">页面布局</string>
+    <string name="reader_chrome_fit">缩放适配</string>
+    <string name="reader_chrome_first_page_single">首页单独显示</string>
+    <string name="reader_chrome_dual_page_reversed">双页反序</string>
+    <string name="reader_chrome_double_tap_zoom">双击缩放</string>
+    <string name="reader_chrome_mode_ltr">从左到右</string>
+    <string name="reader_chrome_mode_rtl">从右到左</string>
+    <string name="reader_chrome_mode_vertical">竖向分页</string>
+    <string name="reader_chrome_mode_webtoon">条漫</string>
+    <string name="reader_chrome_mode_continuous">连续纵向</string>
+    <string name="reader_chrome_layout_single">单页</string>
+    <string name="reader_chrome_layout_double">双页</string>
+    <string name="reader_chrome_layout_auto">自动</string>
+    <string name="reader_chrome_fit_screen">适应屏幕</string>
+    <string name="reader_chrome_fit_width">适应宽度</string>
+    <string name="reader_chrome_fit_height">适应高度</string>
+    <string name="reader_chrome_fit_original">原始尺寸</string>
+</resources>
