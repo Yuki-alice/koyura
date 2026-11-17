@@ -196,6 +196,10 @@ data class BrowseState(
     val itemOperations: Map<String, OperationStatus> = emptyMap(),
     val storeOperations: Map<String, OperationStatus> = emptyMap(),
     val catalogStates: Map<String, CatalogState> = emptyMap(),
+    /** Most-recently opened source ids, newest first (in-memory, shell lifetime). */
+    val recentSourceIds: List<String> = emptyList(),
+    /** Pinned source ids (in-memory, shell lifetime; persistence follows with prefs). */
+    val pinnedSourceIds: Set<String> = emptySet(),
 ) {
     val updateCount: Int
         get() = extensions.count { it.hasUpdate }
@@ -231,22 +235,48 @@ fun List<ExtensionInfo>.groupedExtensions(query: String): List<ExtensionSection>
 }
 
 /** Groups sources by language, sorted by language code and then name. */
-fun List<SourceInfo>.groupedSources(query: String): List<SourceSection> {
+fun List<SourceInfo>.groupedSources(query: String): List<SourceSection> =
+    sourcesView(query).sections
+
+/**
+ * Source list with a leading "recently used" group (Komikku `SourcesScreen` stickyHeader).
+ *
+ * [recentIds] are newest-first open records; only ids still installed and matching [query]
+ * are shown (at most [MAX_RECENT_SOURCES]). Pinned ids are reported through [pinnedIds] so
+ * rows can render the pin state; pinning never reorders (stable language groups).
+ */
+fun List<SourceInfo>.sourcesView(
+    query: String,
+    recentIds: List<String> = emptyList(),
+    pinnedIds: Set<String> = emptySet(),
+): BrowseSourcesView {
     val needle = query.trim()
-    val filtered = if (needle.isEmpty()) {
-        this
-    } else {
-        filter {
+    val matches: (SourceInfo) -> Boolean = {
+        needle.isEmpty() ||
             it.name.contains(needle, ignoreCase = true) ||
-                it.language.contains(needle, ignoreCase = true)
-        }
+            it.language.contains(needle, ignoreCase = true)
     }
+    val byId = associateBy { it.id }
+    val recent = recentIds.mapNotNull { byId[it] }.filter(matches).distinctBy { it.id }
+        .take(MAX_RECENT_SOURCES)
+    val filtered = filter(matches)
     val byLanguage = filtered.groupBy { it.language }
-    return byLanguage.keys.sorted().map { language ->
+    val sections = byLanguage.keys.sorted().map { language ->
         val items = byLanguage.getValue(language)
         SourceSection(language, items.sortedBy { it.name.lowercase() })
     }
+    return BrowseSourcesView(recent = recent, sections = sections, pinnedIds = pinnedIds)
 }
+
+/** A source list split into the recent group plus per-language sections. */
+data class BrowseSourcesView(
+    val recent: List<SourceInfo>,
+    val sections: List<SourceSection>,
+    val pinnedIds: Set<String> = emptySet(),
+)
+
+/** Cap for the in-memory recently-used source group. */
+const val MAX_RECENT_SOURCES = 5
 
 /** Validation result for a store index URL, kept pure so both the dialog and tests can use it. */
 enum class StoreUrlError {
@@ -291,9 +321,22 @@ data class WorkSearchPage(
     val maxPage: Int,
 )
 
+/**
+ * One chapter row of a work detail (`comic.loadInfo` chapters map).
+ *
+ * Only [id] and [title] come from the source today; the remaining fields are optional display
+ * metadata filled when the source exposes them (日期/汉化组/已读页/下载态都依赖它们，
+ * 目录行、更新分组与缺章提示先渲染已有值，缺失即隐藏不断言）。
+ */
 data class WorkChapter(
     val id: String,
     val title: String,
+    /** Epoch millis of the chapter upload time, null when the source omits it. */
+    val dateMillis: Long? = null,
+    /** Scanlator/uploader label, null when the source omits it. */
+    val scanlator: String? = null,
+    /** Page count of the chapter, null when unknown (目录行显示 `N P` 需要它）。 */
+    val pageCount: Int? = null,
 )
 
 /**

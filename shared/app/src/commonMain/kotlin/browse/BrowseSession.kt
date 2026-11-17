@@ -90,6 +90,29 @@ class BrowseSession internal constructor(
     }
 
     /**
+     * Records a source open for the 最近使用 group (newest first, capped).
+     *
+     * Called when a source search page is entered; unknown ids are still recorded so a
+     * just-installed source appears immediately, and ids that later disappear are filtered
+     * at render time.
+     */
+    fun markSourceOpened(sourceKey: String) {
+        val trimmed = sourceKey.trim()
+        if (trimmed.isEmpty()) return
+        val next = (listOf(trimmed) + state.recentSourceIds.filterNot { it == trimmed })
+            .take(MAX_RECENT_SOURCES)
+        state = state.copy(recentSourceIds = next)
+    }
+
+    /** Toggles the pin state of one source row (in-memory; persistence follows with prefs). */
+    fun toggleSourcePinned(sourceKey: String) {
+        val current = state.pinnedSourceIds
+        state = state.copy(
+            pinnedSourceIds = if (current.contains(sourceKey)) current - sourceKey else current + sourceKey,
+        )
+    }
+
+    /**
      * Runs a source search outside the snapshot machinery: results are per-query UI state, not
      * list state, so they never disturb the convergence bookkeeping above.
      */

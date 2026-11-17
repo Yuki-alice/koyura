@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -100,7 +101,8 @@ fun KomikkuIconPlaceholder(
 
 /**
  * Rectangular cover placeholder for history/detail surfaces without loaded artwork: a
- * `surfaceVariant` box with the work's initial, sized by the caller.
+ * `surfaceVariant` box with the work's initial, sized by the caller. Corners are always 8 dp
+ * rounded so placeholders and loaded [KomikkuCover] art share one rhythm without layout shift.
  */
 @Composable
 fun KomikkuCoverPlaceholder(
@@ -109,7 +111,9 @@ fun KomikkuCoverPlaceholder(
 ) {
     val initial = label.trim().firstOrNull()?.uppercaseChar()?.toString().orEmpty().ifEmpty { "?" }
     Box(
-        modifier = modifier.background(MaterialTheme.colorScheme.surfaceVariant),
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant),
         contentAlignment = Alignment.Center,
     ) {
         Text(
