@@ -56,8 +56,11 @@ import app.koyura.app.resources.browse_search_sources
 import app.koyura.app.resources.browse_tab_extensions
 import app.koyura.app.resources.browse_tab_sources
 import app.koyura.app.resources.browse_title
+import app.koyura.app.resources.browse_pin
+import app.koyura.app.resources.browse_recent
 import app.koyura.app.resources.browse_unavailable_body
 import app.koyura.app.resources.browse_unavailable_title
+import app.koyura.app.resources.browse_unpin
 import app.koyura.app.resources.browse_update_all
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
@@ -155,7 +158,11 @@ fun BrowseScreen(
                     state = state,
                     listStateHolder = sourcesListState,
                     onQueryChange = session::searchSources,
-                    onOpenSource = onOpenSource,
+                    onOpenSource = { key, name ->
+                        session.markSourceOpened(key)
+                        onOpenSource(key, name)
+                    },
+                    onTogglePin = session::toggleSourcePinned,
                 )
                 BrowsePane.Extensions -> ExtensionsPane(
                     session = session,
@@ -211,8 +218,13 @@ private fun SourcesPane(
     listStateHolder: androidx.compose.foundation.lazy.LazyListState,
     onQueryChange: (String) -> Unit,
     onOpenSource: (sourceKey: String, sourceName: String) -> Unit,
+    onTogglePin: (String) -> Unit,
 ) {
-    val sections = state.sources.groupedSources(state.sourceQuery)
+    val view = state.sources.sourcesView(
+        query = state.sourceQuery,
+        recentIds = state.recentSourceIds,
+        pinnedIds = state.pinnedSourceIds,
+    )
     Column(Modifier.fillMaxSize()) {
         OutlinedTextField(
             value = state.sourceQuery,
@@ -230,7 +242,7 @@ private fun SourcesPane(
             },
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).testTag(BrowseSourceQueryTag),
         )
-        if (sections.isEmpty()) {
+        if (view.recent.isEmpty() && view.sections.isEmpty()) {
             EmptyState(stringResource(Res.string.browse_empty_sources))
             return@Column
         }
@@ -239,12 +251,32 @@ private fun SourcesPane(
             modifier = Modifier.fillMaxSize().testTag(BrowseSourcesListTag),
             contentPadding = PaddingValues(vertical = 8.dp),
         ) {
-            sections.forEach { section ->
+            if (view.recent.isNotEmpty()) {
+                item(key = "source-header-recent", contentType = "header") {
+                    SectionHeader(stringResource(Res.string.browse_recent))
+                }
+                items(view.recent, key = { "recent-${it.id}" }, contentType = { "source" }) { source ->
+                    SourceRow(
+                        source = source,
+                        pinned = view.pinnedIds.contains(source.id),
+                        onOpenSource = onOpenSource,
+                        onTogglePin = onTogglePin,
+                        rowTestTag = "recent-source-row-${source.id}",
+                        pinTestTag = "recent-source-pin-${source.id}",
+                    )
+                }
+            }
+            view.sections.forEach { section ->
                 item(key = "source-header-${section.language}", contentType = "header") {
                     SectionHeader(stringResource(Res.string.browse_language, section.language))
                 }
                 items(section.sources, key = { it.id }, contentType = { "source" }) { source ->
-                    SourceRow(source, onOpenSource)
+                    SourceRow(
+                        source = source,
+                        pinned = view.pinnedIds.contains(source.id),
+                        onOpenSource = onOpenSource,
+                        onTogglePin = onTogglePin,
+                    )
                 }
             }
         }
@@ -332,16 +364,34 @@ private fun ExtensionsPane(
 @Composable
 private fun SourceRow(
     source: SourceInfo,
+    pinned: Boolean,
     onOpenSource: (sourceKey: String, sourceName: String) -> Unit,
+    onTogglePin: (String) -> Unit,
+    rowTestTag: String = "source-row-${source.id}",
+    pinTestTag: String = "source-pin-${source.id}",
 ) {
     // Komikku BaseSourceItem: 40 dp icon, bodyMedium title, secondary language/version line,
-    // optional Latest action. The row keeps its test tag and opens the search page on tap.
+    // pin toggle and optional Latest action. The row keeps its test tag and opens the search
+    // page on tap.
     app.koyura.designsystem.KomikkuBrowseRow(
         onClick = { onOpenSource(source.id, source.name) },
         icon = {
             app.koyura.designsystem.KomikkuIconPlaceholder(label = source.name)
         },
         action = {
+            TextButton(
+                onClick = { onTogglePin(source.id) },
+                modifier = Modifier.testTag(pinTestTag),
+            ) {
+                Text(
+                    stringResource(if (pinned) Res.string.browse_unpin else Res.string.browse_pin),
+                    color = if (pinned) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                )
+            }
             if (source.supportsLatest) {
                 TextButton(onClick = { onOpenSource(source.id, source.name) }) {
                     Text(stringResource(Res.string.browse_latest))
@@ -376,7 +426,7 @@ private fun SourceRow(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 56.dp)
-            .testTag("source-row-${source.id}"),
+            .testTag(rowTestTag),
     )
 }
 

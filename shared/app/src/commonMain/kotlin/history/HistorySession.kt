@@ -66,6 +66,94 @@ class HistorySession(
     var errorMessage: String? by mutableStateOf(null)
         private set
 
+    /**
+     * Locally hidden entries (deleted rows). Applied on top of every refresh until the
+     * data-layer delete lands (see notes); survives tab switches and the bar/rail switch
+     * because the session outlives both.
+     */
+    var hiddenKeys: Set<Pair<String, String>> by mutableStateOf(emptySet())
+        private set
+
+    /** Locally favorited entries (heart state), same lifetime as [hiddenKeys]. */
+    var favoriteKeys: Set<Pair<String, String>> by mutableStateOf(emptySet())
+        private set
+
+    /** Source filter from the filter dialog; empty means all sources. */
+    var filteredSourceKeys: Set<String> by mutableStateOf(emptySet())
+        private set
+
+    /** When true the list shows favorited entries only. */
+    var showFavoritesOnly: Boolean by mutableStateOf(false)
+        private set
+
+    /** Entries after local hide/favorite/source filtering, before the query filter. */
+    fun visibleEntries(): List<HistoryEntry> = entries.filter { entry ->
+        val key = entry.sourceKey to entry.workId
+        if (hiddenKeys.contains(key)) return@filter false
+        if (showFavoritesOnly && !favoriteKeys.contains(key)) return@filter false
+        if (filteredSourceKeys.isNotEmpty() && !filteredSourceKeys.contains(entry.sourceKey)) {
+            return@filter false
+        }
+        true
+    }
+
+    /** Distinct source keys in the current snapshot, for the filter dialog. */
+    fun availableSources(): List<String> = entries.map { it.sourceKey }.distinct().sorted()
+
+    /** Deletes one row: asks the service first, then hides locally on success. */
+    suspend fun delete(entry: HistoryEntry) {
+        val current = service
+        if (current != null) {
+            try {
+                current.deleteEntry(entry.sourceKey, entry.workId)
+            } catch (failure: Exception) {
+                if (failure is kotlinx.coroutines.CancellationException) throw failure
+                reportError(failure.message ?: "Operation failed")
+                return
+            }
+        }
+        hiddenKeys = hiddenKeys + (entry.sourceKey to entry.workId)
+        favoriteKeys = favoriteKeys - (entry.sourceKey to entry.workId)
+    }
+
+    /** Clears the whole list: service first, then local hide-all on success. */
+    suspend fun clearAll() {
+        val current = service
+        if (current != null) {
+            try {
+                current.clearAll()
+            } catch (failure: Exception) {
+                if (failure is kotlinx.coroutines.CancellationException) throw failure
+                reportError(failure.message ?: "Operation failed")
+                return
+            }
+        }
+        hiddenKeys = entries.map { it.sourceKey to it.workId }.toSet()
+        favoriteKeys = emptySet()
+    }
+
+    /** Toggles the local heart state of one row (persistence follows with the store). */
+    fun toggleFavorite(entry: HistoryEntry) {
+        val key = entry.sourceKey to entry.workId
+        favoriteKeys = if (favoriteKeys.contains(key)) favoriteKeys - key else favoriteKeys + key
+    }
+
+    fun isFavorite(entry: HistoryEntry): Boolean =
+        favoriteKeys.contains(entry.sourceKey to entry.workId)
+
+    fun setSourceFilter(keys: Set<String>) {
+        filteredSourceKeys = keys
+    }
+
+    fun setFavoritesOnly(only: Boolean) {
+        showFavoritesOnly = only
+    }
+
+    fun clearFilters() {
+        filteredSourceKeys = emptySet()
+        showFavoritesOnly = false
+    }
+
     suspend fun refresh() {
         val current = service
         if (current == null) {
@@ -88,6 +176,15 @@ class HistorySession(
     fun reportError(message: String) {
         errorMessage = message
     }
+
+    /**
+     * Cover loader bound to this tab's browse service (null → placeholders).
+     *
+     * History rows resolve covers through the same pipeline as search/detail so all three
+     * surfaces share one cache and one fallback.
+     */
+    fun coverLoader(): app.koyura.designsystem.CoverImageLoader? =
+        app.koyura.app.browse.browseCoverLoader(browse)
 
     fun clearError() {
         errorMessage = null

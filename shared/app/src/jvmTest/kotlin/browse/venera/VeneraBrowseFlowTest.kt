@@ -186,9 +186,12 @@ class VeneraBrowseFlowTest {
             awaitVisible(sourceResultTag("demo"))
             onNodeWithTag(sourceResultTag("demo")).performClick()
 
-            // comic.loadInfo renders the real detail.
+            // comic.loadInfo renders the real detail. The fixture maps author to both the
+            // subtitle and a single-group tag chip, so 作者 appears twice by construction
+            // (header subtitle + detail-tags chip); assert the surfaces, not a unique text.
             onNodeWithTag("source-detail-heading").assertIsDisplayed()
-            onNodeWithText("作者").assertIsDisplayed()
+            onNodeWithTag("detail-tags").assertIsDisplayed()
+            onNodeWithTag("detail-chip-author-0").assertIsDisplayed()
             onNodeWithTag("source-detail-chapter-ep_2").assertIsDisplayed()
 
             // Back returns to the retained search results.

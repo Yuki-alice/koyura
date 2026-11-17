@@ -47,6 +47,17 @@ interface BrowseService {
      * Throws [BrowseServiceException] when the source is missing or its response is malformed.
      */
     suspend fun loadWorkDetail(sourceKey: String, workId: String): WorkDetail
+
+    /**
+     * Loads one cover's bytes through the installed source's `comic.onThumbnailLoad` callback
+     * (single attempt, no `onLoadFailed` retry, mirroring upstream), falling back to the source
+     * HTTP direct link with that source's cookies/headers when the callback is absent.
+     *
+     * Returns null when no cover is available so the UI falls back to the placeholder. The
+     * default implementation returns null: fakes override it with fixture bytes and the
+     * production override lands with the data-layer thumbnail wiring (see notes).
+     */
+    suspend fun loadCover(sourceKey: String, coverUrl: String): ByteArray? = null
 }
 
 class BrowseServiceException(message: String) : Exception(message)
