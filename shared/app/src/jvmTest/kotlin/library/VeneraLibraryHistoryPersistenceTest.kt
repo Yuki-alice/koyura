@@ -25,6 +25,7 @@ import app.koyura.app.reader.VeneraReaderService
 import app.koyura.data.extension.ExtensionDb
 import app.koyura.data.session.ExtensionSession
 import app.koyura.data.session.openExtensionSession
+import app.koyura.designsystem.DefaultCoverMemoryCache
 import app.koyura.designsystem.KomikkuCoverImageTag
 import app.koyura.designsystem.KomikkuCoverPlaceholderTag
 import app.koyura.designsystem.ReaderTheme
@@ -189,6 +190,8 @@ class VeneraLibraryHistoryPersistenceTest {
 
     @Test
     fun failedCoverFallsBackToPlaceholderThroughProductionStack() {
+        // 全局封面内存缓存跨测试共享：先清空，保证失败路径可复现。
+        DefaultCoverMemoryCache.clear()
         val profile = Files.createTempDirectory("library-cover-failure").toFile()
         try {
             val session = openProfile(profile)

@@ -53,6 +53,7 @@ import app.koyura.data.extension.ExtensionDb
 import app.koyura.data.reader.preferences.ReaderPreferencesStore
 import app.koyura.data.session.ExtensionSession
 import app.koyura.data.session.openExtensionSession
+import app.koyura.designsystem.DefaultCoverMemoryCache
 import app.koyura.designsystem.KomikkuCoverImageTag
 import app.koyura.domain.reader.preferences.ReadingMode
 import app.koyura.features.library.LibraryBottomChangeCategoriesTag
@@ -138,6 +139,8 @@ class VeneraLibraryProductionRestartTest {
     // region read：预览 → 安装 → 搜索 → 详情收藏 → 新建分类并归类 → 开第 2 章第 3 页
 
     private fun readAndClose(profile: File) {
+        // 全局封面内存缓存按源隔离但跨测试共享：冷启动断言前先清空，保证可复现。
+        DefaultCoverMemoryCache.clear()
         val storeId = seedRepository(profile)
         val requests = ConcurrentLinkedQueue<String>()
         runComposeUiTest {

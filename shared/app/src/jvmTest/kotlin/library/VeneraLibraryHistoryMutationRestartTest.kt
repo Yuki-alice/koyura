@@ -58,6 +58,7 @@ import app.koyura.data.extension.ExtensionDb
 import app.koyura.data.reader.preferences.ReaderPreferencesStore
 import app.koyura.data.session.ExtensionSession
 import app.koyura.data.session.openExtensionSession
+import app.koyura.designsystem.DefaultCoverMemoryCache
 import app.koyura.designsystem.KomikkuCoverImageTag
 import app.koyura.domain.reader.preferences.ReadingMode
 import app.koyura.features.library.LibraryBottomChangeCategoriesTag
@@ -149,6 +150,8 @@ class VeneraLibraryHistoryMutationRestartTest {
     // region read：准备收藏、分类、阅读位置与另一部作品的历史
 
     private fun readAndClose(profile: File, action: String) {
+        // 全局封面内存缓存按源隔离但跨测试共享：冷启动断言前先清空，保证可复现。
+        DefaultCoverMemoryCache.clear()
         val storeId = seedRepositoryAndOtherHistory(profile)
         val requests = ConcurrentLinkedQueue<String>()
         runComposeUiTest {
