@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="library_title">书架</string>
+    <string name="library_works_count">%1$d 部作品</string>
+    <string name="library_tab_all">全部</string>
+    <string name="library_search_hint">搜索书架</string>
+    <string name="library_search_clear">清除搜索</string>
+    <string name="library_filter">筛选</string>
+    <string name="library_sort">排序</string>
+    <string name="library_display">显示</string>
+    <string name="library_group">分组</string>
+    <string name="library_more">更多选项</string>
+    <string name="library_menu_refresh">刷新书架</string>
+    <string name="library_random_open">随机打开</string>
+    <string name="library_select_all">全选</string>
+    <string name="library_invert_selection">反选</string>
+    <string name="library_clear_selection">取消选择</string>
+    <string name="library_selected_count">已选 %1$d 部</string>
+
+    <string name="library_empty">书架是空的</string>
+    <string name="library_empty_body">去浏览页添加作品，开始你的书架。</string>
+    <string name="library_empty_browse">去浏览</string>
+    <string name="library_empty_guide">新手指南</string>
+    <string name="library_no_results">没有匹配的作品</string>
+    <string name="library_load_failed">书架加载失败：%1$s</string>
+    <string name="library_retry">重试</string>
+    <string name="library_global_search">全源搜索</string>
+    <string name="library_action_failed">%1$s</string>
+
+    <!-- 显示模式 -->
+    <string name="library_mode_compact">紧凑网格</string>
+    <string name="library_mode_comfortable">松散网格</string>
+    <string name="library_mode_panorama">全景</string>
+    <string name="library_mode_list">列表</string>
+    <string name="library_mode_cover_only">封面网格</string>
+    <string name="library_columns">每行列数</string>
+
+    <!-- 显示开关 -->
+    <string name="library_show_unread">未读徽标</string>
+    <string name="library_show_downloads">下载徽标</string>
+    <string name="library_show_language">语言徽标</string>
+    <string name="library_show_continue">继续按钮</string>
+    <string name="library_show_category_labels">分类标签</string>
+    <string name="library_show_hidden_categories">显示隐藏分类</string>
+    <string name="library_show_work_count">显示作品数</string>
+
+    <!-- 筛选行 -->
+    <string name="library_filter_downloaded">已下载</string>
+    <string name="library_filter_unread">未读</string>
+    <string name="library_filter_started">阅读过</string>
+    <string name="library_filter_bookmarked">书签</string>
+    <string name="library_filter_completed">已完结</string>
+    <string name="library_filter_lewd">色情</string>
+    <string name="library_filter_state_off">关闭</string>
+    <string name="library_filter_state_include">只看</string>
+    <string name="library_filter_state_exclude">排除</string>
+    <string name="library_edit_categories">编辑分类</string>
+
+    <!-- 排序行 -->
+    <string name="library_sort_alphabetical">名称</string>
+    <string name="library_sort_total_chapters">章节数</string>
+    <string name="library_sort_last_read">最近阅读</string>
+    <string name="library_sort_last_update_check">检查更新时间</string>
+    <string name="library_sort_unread_count">未读章数</string>
+    <string name="library_sort_latest_chapter">作品更新时间</string>
+    <string name="library_sort_chapter_fetch_date">章节获取时间</string>
+    <string name="library_sort_date_added">收藏日期</string>
+    <string name="library_sort_random">随机</string>
+    <string name="library_sort_ascending">升序</string>
+    <string name="library_sort_descending">降序</string>
+
+    <!-- 分组行 -->
+    <string name="library_group_by_category">分类</string>
+    <string name="library_group_by_source">图源</string>
+    <string name="library_group_by_status">状态</string>
+
+    <!-- 底部批量操作 -->
+    <string name="library_action_change_categories">更改分类</string>
+    <string name="library_action_mark_read">标为已读</string>
+    <string name="library_action_mark_unread">标为未读</string>
+    <string name="library_action_remove">移出书架</string>
+    <string name="library_action_download">下载</string>
+    <string name="library_action_migrate">迁移到其他源</string>
+    <string name="library_migrate_unavailable">跨源迁移在后续轮次提供</string>
+    <string name="library_download_unavailable">离线下载在后续轮次提供</string>
+    <string name="library_remove_title">移除 %1$d 部作品？</string>
+    <string name="library_remove_body">已移除作品的阅读进度保持不变。</string>
+    <string name="library_remove_confirm">移除</string>
+    <string name="library_cancel">取消</string>
+    <string name="library_close">关闭</string>
+    <string name="library_save">保存</string>
+
+    <!-- 分类管理 -->
+    <string name="library_categories_title">分类管理</string>
+    <string name="library_category_add">添加分类</string>
+    <string name="library_category_name">名称</string>
+    <string name="library_category_rename">重命名</string>
+    <string name="library_category_hide">隐藏</string>
+    <string name="library_category_unhide">取消隐藏</string>
+    <string name="library_category_delete">删除</string>
+    <string name="library_category_default">默认</string>
+    <string name="library_category_hidden">已隐藏</string>
+    <string name="library_category_empty">暂无分类</string>
+
+    <!-- 详情收藏复用 -->
+    <string name="library_favorite_add">加入书架</string>
+    <string name="library_favorite_added">已在书架</string>
+    <string name="library_favorite_choose">选择分类</string>
+
+    <!-- 继续阅读 -->
+    <string name="library_continue">继续</string>
+    <string name="library_start">开始</string>
+    <string name="library_unread_chapters">%1$d 未读</string>
+    <string name="library_downloaded_chapters">已下载 %1$d</string>
+</resources>

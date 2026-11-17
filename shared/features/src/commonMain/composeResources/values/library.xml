@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="library_title">Library</string>
+    <string name="library_works_count">%1$d works</string>
+    <string name="library_tab_all">All</string>
+    <string name="library_search_hint">Search library</string>
+    <string name="library_search_clear">Clear search</string>
+    <string name="library_filter">Filter</string>
+    <string name="library_sort">Sort</string>
+    <string name="library_display">Display</string>
+    <string name="library_group">Group</string>
+    <string name="library_more">More options</string>
+    <string name="library_menu_refresh">Refresh library</string>
+    <string name="library_random_open">Open random entry</string>
+    <string name="library_select_all">Select all</string>
+    <string name="library_invert_selection">Invert</string>
+    <string name="library_clear_selection">Clear selection</string>
+    <string name="library_selected_count">%1$d selected</string>
+
+    <string name="library_empty">Your library is empty</string>
+    <string name="library_empty_body">Add works from Browse to start your library.</string>
+    <string name="library_empty_browse">Go to Browse</string>
+    <string name="library_empty_guide">Beginner's guide</string>
+    <string name="library_no_results">No matching works</string>
+    <string name="library_load_failed">Could not load library: %1$s</string>
+    <string name="library_retry">Retry</string>
+    <string name="library_global_search">Search all sources</string>
+    <string name="library_action_failed">%1$s</string>
+
+    <!-- Display modes -->
+    <string name="library_mode_compact">Compact grid</string>
+    <string name="library_mode_comfortable">Loose grid</string>
+    <string name="library_mode_panorama">Panorama</string>
+    <string name="library_mode_list">List</string>
+    <string name="library_mode_cover_only">Cover grid</string>
+    <string name="library_columns">Columns per row</string>
+
+    <!-- Display toggles -->
+    <string name="library_show_unread">Unread badges</string>
+    <string name="library_show_downloads">Download badges</string>
+    <string name="library_show_language">Language badges</string>
+    <string name="library_show_continue">Continue button</string>
+    <string name="library_show_category_labels">Category labels</string>
+    <string name="library_show_hidden_categories">Show hidden categories</string>
+    <string name="library_show_work_count">Show work count</string>
+
+    <!-- Filter rows -->
+    <string name="library_filter_downloaded">Downloaded</string>
+    <string name="library_filter_unread">Unread</string>
+    <string name="library_filter_started">Started</string>
+    <string name="library_filter_bookmarked">Bookmarked</string>
+    <string name="library_filter_completed">Completed</string>
+    <string name="library_filter_lewd">Mature</string>
+    <string name="library_filter_state_off">Off</string>
+    <string name="library_filter_state_include">Only show</string>
+    <string name="library_filter_state_exclude">Hide</string>
+    <string name="library_edit_categories">Edit categories</string>
+
+    <!-- Sort rows -->
+    <string name="library_sort_alphabetical">Title</string>
+    <string name="library_sort_total_chapters">Chapters</string>
+    <string name="library_sort_last_read">Last read</string>
+    <string name="library_sort_last_update_check">Last update check</string>
+    <string name="library_sort_unread_count">Unread chapters</string>
+    <string name="library_sort_latest_chapter">Work updated</string>
+    <string name="library_sort_chapter_fetch_date">Chapter fetched</string>
+    <string name="library_sort_date_added">Date added</string>
+    <string name="library_sort_random">Random</string>
+    <string name="library_sort_ascending">Ascending</string>
+    <string name="library_sort_descending">Descending</string>
+
+    <!-- Group rows -->
+    <string name="library_group_by_category">By category</string>
+    <string name="library_group_by_source">By source</string>
+    <string name="library_group_by_status">By status</string>
+
+    <!-- Selection bottom menu -->
+    <string name="library_action_change_categories">Move to categories</string>
+    <string name="library_action_mark_read">Mark as read</string>
+    <string name="library_action_mark_unread">Mark as unread</string>
+    <string name="library_action_remove">Remove from library</string>
+    <string name="library_action_download">Download</string>
+    <string name="library_action_migrate">Migrate to another source</string>
+    <string name="library_migrate_unavailable">Migration lands in a later round</string>
+    <string name="library_download_unavailable">Offline downloads land in a later round</string>
+    <string name="library_remove_title">Remove %1$d work(s)?</string>
+    <string name="library_remove_body">Reading progress for removed works stays untouched.</string>
+    <string name="library_remove_confirm">Remove</string>
+    <string name="library_cancel">Cancel</string>
+    <string name="library_close">Close</string>
+    <string name="library_save">Save</string>
+
+    <!-- Category management -->
+    <string name="library_categories_title">Categories</string>
+    <string name="library_category_add">Add category</string>
+    <string name="library_category_name">Name</string>
+    <string name="library_category_rename">Rename</string>
+    <string name="library_category_hide">Hide</string>
+    <string name="library_category_unhide">Unhide</string>
+    <string name="library_category_delete">Delete</string>
+    <string name="library_category_default">Default</string>
+    <string name="library_category_hidden">Hidden</string>
+    <string name="library_category_empty">No categories yet</string>
+
+    <!-- Detail favorite reuse -->
+    <string name="library_favorite_add">Add to library</string>
+    <string name="library_favorite_added">In library</string>
+    <string name="library_favorite_choose">Choose categories</string>
+
+    <!-- Continue -->
+    <string name="library_continue">Continue</string>
+    <string name="library_start">Start</string>
+    <string name="library_unread_chapters">%1$d unread</string>
+    <string name="library_downloaded_chapters">%1$d downloaded</string>
+</resources>
