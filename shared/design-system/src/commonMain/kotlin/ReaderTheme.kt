@@ -15,7 +15,9 @@ import androidx.compose.ui.text.font.FontWeight
  *
  * Key colors mirror `eu.kanade.presentation.theme.colorscheme.TachiyomiColorScheme`:
  * primary #2979FF family, tertiary #47A84A family, neutral #919094. The optional [amoled]
- * flag reproduces Komikku's AMOLED dark backgrounds (pure black surfaces).
+ * flag reproduces Komikku's AMOLED override (`BaseColorScheme.getColorScheme`): pure black
+ * backgrounds/surfaces with white content, and `#0C0C0C/#131313/#1B1B1B` containers so the
+ * navigation bar stays distinguishable over scrolled content (whitepaper 02 §2.1/§2.4).
  */
 private val TachiyomiLightColors = lightColorScheme(
     primary = Color(0xFF0058CA),
@@ -104,25 +106,25 @@ private val AmoledDarkColors = darkColorScheme(
     tertiaryContainer = Color(0xFF005312),
     onTertiaryContainer = Color(0xFF95F990),
     background = Color.Black,
-    onBackground = Color(0xFFE3E2E6),
+    onBackground = Color.White,
     surface = Color.Black,
-    onSurface = Color(0xFFE3E2E6),
-    surfaceVariant = Color(0xFF000000),
+    onSurface = Color.White,
+    surfaceVariant = Color(0xFF0C0C0C),
     onSurfaceVariant = Color(0xFFC5C6D0),
     surfaceTint = Color(0xFFB0C6FF),
     inverseSurface = Color(0xFFE3E2E6),
-    inverseOnSurface = Color.Black,
+    inverseOnSurface = Color(0xFF1B1B1F),
     error = Color(0xFFFFB4AB),
     onError = Color(0xFF690005),
     errorContainer = Color(0xFF93000A),
     onErrorContainer = Color(0xFFFFDAD6),
     outline = Color(0xFF8F9099),
     outlineVariant = Color(0xFF44464F),
-    surfaceContainerLowest = Color.Black,
-    surfaceContainerLow = Color.Black,
-    surfaceContainer = Color.Black,
-    surfaceContainerHigh = Color(0xFF111111),
-    surfaceContainerHighest = Color(0xFF191919),
+    surfaceContainerLowest = Color(0xFF0C0C0C),
+    surfaceContainerLow = Color(0xFF0C0C0C),
+    surfaceContainer = Color(0xFF0C0C0C),
+    surfaceContainerHigh = Color(0xFF131313),
+    surfaceContainerHighest = Color(0xFF1B1B1B),
 )
 
 @Composable
