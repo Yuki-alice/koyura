@@ -46,7 +46,7 @@ import org.jetbrains.skia.EncodedImageFormat
  * `app/src/main/java/eu/kanade/` (HomeScreen, TachiyomiTheme, BrowseTab, Sources/Extensions/
  * BrowseSource/ExtensionDetails screens, MangaScreen + MangaChapterListItem, HistoryScreen).
  */
-class KomikkuShellScreenshotsTest {
+class ShellScreenshotsTest {
     private val outputDir = File(System.getProperty("reader.screenshotDir") ?: "build/screenshots").apply { mkdirs() }
 
     private fun render(name: String, width: Int, height: Int, dark: Boolean, content: @androidx.compose.runtime.Composable () -> Unit) {

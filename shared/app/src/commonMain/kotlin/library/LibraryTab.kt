@@ -40,18 +40,38 @@ fun LibraryTabContent(
         onOpenWork = { sourceKey, workId, title ->
             navigation.push(SourceDetailRoute(sourceKey, workId, title))
         },
+        onOpenBrowse = { navigation.select(NavTab.Browse) },
         onContinue = { entry ->
             scope.launch {
                 try {
                     val detail = browseSession.loadWorkDetail(entry.sourceKey, entry.workId)
                     val chapters = detail.chapters
                     if (chapters.isEmpty()) {
-                        session.noteError("No chapters listed for ${entry.displayTitle}")
+                        // 有效无分章目录：沿用 chapterId = null 契约直接进阅读器；
+                        // 请求失败走下面的 catch，原章节消失在下面按首章回退并保留旧进度提示。
+                        navigation.push(
+                            ComicReaderRoute(
+                                sourceKey = entry.sourceKey,
+                                workId = entry.workId,
+                                chapterId = null,
+                                title = entry.displayTitle,
+                                chapterIds = emptyList(),
+                                chapterTitles = emptyList(),
+                            ),
+                        )
                         return@launch
                     }
                     val ids = chapters.map { it.id }
                     val titles = chapters.map { it.title }
-                    val target = entry.continueChapterId?.takeIf { it in ids } ?: ids.first()
+                    val saved = entry.continueChapterId
+                    val target = when {
+                        saved == null -> ids.first()
+                        saved in ids -> saved
+                        else -> {
+                            session.noteError("Chapter ${saved} is gone; opened first chapter instead")
+                            ids.first()
+                        }
+                    }
                     navigation.push(
                         ComicReaderRoute(
                             sourceKey = entry.sourceKey,

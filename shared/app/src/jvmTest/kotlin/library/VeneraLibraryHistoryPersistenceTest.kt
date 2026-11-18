@@ -26,8 +26,8 @@ import app.koyura.data.extension.ExtensionDb
 import app.koyura.data.session.ExtensionSession
 import app.koyura.data.session.openExtensionSession
 import app.koyura.designsystem.DefaultCoverMemoryCache
-import app.koyura.designsystem.KomikkuCoverImageTag
-import app.koyura.designsystem.KomikkuCoverPlaceholderTag
+import app.koyura.designsystem.CoverImageTag
+import app.koyura.designsystem.CoverPlaceholderTag
 import app.koyura.designsystem.ReaderTheme
 import app.koyura.domain.library.LibraryQuery
 import app.koyura.domain.library.WorkKind
@@ -229,14 +229,14 @@ class VeneraLibraryHistoryPersistenceTest {
                     // 卡片自身的单次加载周期随后才收敛：等占位出现再断言。
                     try {
                         waitUntil(timeoutMillis = 15_000) {
-                            onAllNodesWithTag(KomikkuCoverPlaceholderTag, useUnmergedTree = true)
+                            onAllNodesWithTag(CoverPlaceholderTag, useUnmergedTree = true)
                                 .fetchSemanticsNodes().isNotEmpty()
                         }
                     } catch (e: Throwable) {
                         onRoot(useUnmergedTree = true).printToLog("COVER-FAILURE-TREE")
                         throw e
                     }
-                    onAllNodesWithTag(KomikkuCoverImageTag, useUnmergedTree = true).assertCountEquals(0)
+                    onAllNodesWithTag(CoverImageTag, useUnmergedTree = true).assertCountEquals(0)
                 }
 
                 // 偏好经生产栈落盘，同库新实例读回一致。

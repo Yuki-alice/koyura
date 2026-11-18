@@ -1,6 +1,16 @@
 package app.koyura.app.browse
 
+import app.koyura.app.resources.browse_clear_search
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.ui.text.style.TextAlign
+import app.koyura.designsystem.ActionIcon
+import app.koyura.designsystem.ActionIconButton
+import app.koyura.designsystem.SearchField
+
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -25,7 +35,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -63,6 +72,7 @@ import app.koyura.app.resources.source_detail_library_add
 import app.koyura.app.resources.source_detail_library_added
 import app.koyura.app.resources.source_detail_link
 import app.koyura.app.resources.source_detail_mark_read
+import app.koyura.app.resources.source_detail_mark_unread
 import app.koyura.app.resources.source_detail_no_description
 import app.koyura.app.resources.source_detail_progress
 import app.koyura.app.resources.source_detail_read
@@ -76,9 +86,8 @@ import app.koyura.app.resources.source_search_error
 import app.koyura.app.resources.source_search_hint
 import app.koyura.app.resources.source_search_no_results
 import app.koyura.app.resources.source_search_results
-import app.koyura.app.resources.source_search_title
-import app.koyura.designsystem.KomikkuCover
-import app.koyura.designsystem.KomikkuDetailBackdrop
+import app.koyura.designsystem.Cover
+import app.koyura.designsystem.DetailBackdrop
 import app.koyura.designsystem.LocalCoverDecoder
 import app.koyura.designsystem.LocalCoverImageLoader
 import app.koyura.features.library.LibraryEntryKey
@@ -86,7 +95,6 @@ import app.koyura.features.library.LibraryKind
 import app.koyura.features.library.LibrarySession
 import app.koyura.features.library.NewLibraryEntry
 import app.koyura.features.library.rememberLibrarySession
-import kotlinx.coroutines.launch
 import app.koyura.designsystem.rememberCoverBitmap
 import app.koyura.domain.reader.ReaderService
 import kotlinx.coroutines.launch
@@ -103,6 +111,7 @@ internal const val SourceSearchResultsTag = "source-search-results"
 internal fun sourceResultTag(workId: String) = "source-result-$workId"
 
 /** Search page for one installed source, backed by its `search.load` callback. */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SourceSearchScreen(
     session: BrowseSession,
@@ -167,35 +176,37 @@ fun SourceSearchScreen(
         LocalCoverDecoder provides AppCoverDecoder,
     ) {
         Column(modifier = modifier.fillMaxSize().testTag(SourceSearchTestTag)) {
-            if (onBack != null) {
-                Row(modifier = Modifier.fillMaxWidth()) {
-                    TextButton(
-                        onClick = onBack,
-                        modifier = Modifier.testTag("source-search-back"),
-                    ) { Text(stringResource(Res.string.source_detail_back)) }
-                }
-            }
-            Text(
-                text = stringResource(Res.string.source_search_title, sourceName),
-                style = MaterialTheme.typography.headlineMedium,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            TopAppBar(
+                title = { Text(sourceName, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                navigationIcon = {
+                    if (onBack != null) {
+                        ActionIconButton(
+                            icon = ActionIcon.Back,
+                            label = stringResource(Res.string.source_detail_back),
+                            onClick = onBack,
+                            modifier = Modifier.testTag("source-search-back"),
+                        )
+                    }
+                },
             )
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                OutlinedTextField(
+                SearchField(
                     value = query,
                     onValueChange = { query = it },
-                    placeholder = { Text(stringResource(Res.string.source_search_hint)) },
-                    singleLine = true,
+                    placeholder = stringResource(Res.string.source_search_hint),
+                    clearLabel = stringResource(Res.string.browse_clear_search),
                     modifier = Modifier.weight(1f).testTag(SourceSearchQueryTag),
                 )
-                Button(
+                ActionIconButton(
+                    icon = ActionIcon.Search,
+                    label = stringResource(Res.string.source_search_button),
                     onClick = { runSearch() },
                     enabled = !loading,
                     modifier = Modifier.testTag(SourceSearchSubmitTag),
-                ) { Text(stringResource(Res.string.source_search_button)) }
+                )
             }
             when {
                 loading -> {
@@ -241,7 +252,7 @@ fun SourceSearchScreen(
                         modifier = Modifier.fillMaxSize().testTag(SourceSearchResultsTag),
                     ) {
                         item(key = "search-header") {
-                            app.koyura.designsystem.KomikkuListGroupHeader(
+                            app.koyura.designsystem.ListGroupHeader(
                                 text = stringResource(Res.string.source_search_results, results.size, maxPage),
                             )
                         }
@@ -257,7 +268,7 @@ fun SourceSearchScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                             ) {
-                                KomikkuCover(
+                                Cover(
                                     sourceKey = sourceKey,
                                     coverUrl = work.cover,
                                     label = work.title,
@@ -278,7 +289,7 @@ fun SourceSearchScreen(
                                             work.subtitle,
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
-                                                alpha = app.koyura.designsystem.KomikkuSecondaryAlpha,
+                                                alpha = app.koyura.designsystem.DesignTokens.Alpha.Secondary,
                                             ),
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis,
@@ -289,7 +300,7 @@ fun SourceSearchScreen(
                                             work.tags.joinToString(" · "),
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
-                                                alpha = app.koyura.designsystem.KomikkuSecondaryAlpha,
+                                                alpha = app.koyura.designsystem.DesignTokens.Alpha.Secondary,
                                             ),
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis,
@@ -342,6 +353,7 @@ fun SourceDetailScreen(
         session.state.sources.firstOrNull { it.id == sourceKey }?.name.orEmpty()
     }
     var selectedIds by remember(sourceKey, workId) { mutableStateOf(setOf<String>()) }
+    var readStates by remember(sourceKey, workId) { mutableStateOf(mapOf<String, Boolean>()) }
 
     LaunchedEffect(sourceKey, workId, reloadTick) {
         loading = true
@@ -349,6 +361,12 @@ fun SourceDetailScreen(
         try {
             detail = session.loadWorkDetail(sourceKey, workId)
             progress = readerService?.readProgress(sourceKey, workId)
+            // 真实已读：书架目录同步后读同一状态；未收藏/无目录即空映射，回退到进度章标读。
+            readStates = try {
+                library?.chapterReadStates(libraryKey) ?: emptyMap()
+            } catch (_: Exception) {
+                emptyMap()
+            }
         } catch (cancelled: kotlin.coroutines.cancellation.CancellationException) {
             throw cancelled
         } catch (failure: Exception) {
@@ -409,10 +427,12 @@ fun SourceDetailScreen(
                             )
                         },
                         navigationIcon = {
-                            TextButton(
+                            ActionIconButton(
+                                icon = ActionIcon.Back,
+                                label = stringResource(Res.string.source_detail_back),
                                 onClick = onBack,
                                 modifier = Modifier.testTag(SourceDetailBackTag),
-                            ) { Text(stringResource(Res.string.source_detail_back)) }
+                            )
                         },
                         modifier = Modifier.testTag(SourceDetailToolbarTag),
                     )
@@ -446,6 +466,8 @@ fun SourceDetailScreen(
                                         detail = loaded,
                                         sourceKey = sourceKey,
                                         fallbackTitle = fallbackTitle,
+                                        sourceName = sourceName.ifBlank { sourceKey },
+                                        wide = true,
                                         inLibrary = inLibrary,
                                         onToggleLibrary = {
                                             val repo = library
@@ -494,7 +516,21 @@ fun SourceDetailScreen(
                                             }
                                         },
                                         onClearSelection = { selectedIds = emptySet() },
-                                        readChapterId = progress?.chapterId,
+                                        readStates = readStates,
+                                        fallbackReadChapterId = progress?.chapterId,
+                                        canMarkRead = inLibrary && library != null,
+                                        onMarkRead = { ids, read ->
+                                            val repo = library
+                                            if (repo != null) {
+                                                scope.launch {
+                                                    if (repo.markDetailChapters(libraryKey, ids, read)) {
+                                                        // 重读同一映射，保证“提交结果为准”。
+                                                        readStates = repo.chapterReadStates(libraryKey)
+                                                        selectedIds = emptySet()
+                                                    }
+                                                }
+                                            }
+                                        },
                                         onOpen = { chapter ->
                                             onOpenChapter(chapter.id, chapterIds, chapterTitles)
                                         },
@@ -509,6 +545,8 @@ fun SourceDetailScreen(
                                     detail = loaded,
                                     sourceKey = sourceKey,
                                     fallbackTitle = fallbackTitle,
+                                    sourceName = sourceName.ifBlank { sourceKey },
+                                    wide = false,
                                     inLibrary = inLibrary,
                                     onToggleLibrary = {
                                         val repo = library
@@ -555,7 +593,20 @@ fun SourceDetailScreen(
                                         }
                                     },
                                     onClearSelection = { selectedIds = emptySet() },
-                                    readChapterId = progress?.chapterId,
+                                    readStates = readStates,
+                                    fallbackReadChapterId = progress?.chapterId,
+                                    canMarkRead = inLibrary && library != null,
+                                    onMarkRead = { ids, read ->
+                                        val repo = library
+                                        if (repo != null) {
+                                            scope.launch {
+                                                if (repo.markDetailChapters(libraryKey, ids, read)) {
+                                                    readStates = repo.chapterReadStates(libraryKey)
+                                                    selectedIds = emptySet()
+                                                }
+                                            }
+                                        }
+                                    },
                                     onOpen = { chapter ->
                                         onOpenChapter(chapter.id, chapterIds, chapterTitles)
                                     },
@@ -580,12 +631,79 @@ fun SourceDetailScreen(
  * 96x144 shared cover, title, source/author line, expandable description, the four-key action
  * row (在书架中/追踪天数/进度记录/WebView), start/continue buttons, tag chips and metadata.
  */
+@Composable
+private fun DetailHeading(title: String, subtitle: String, sourceName: String, centered: Boolean) {
+    Column(
+        horizontalAlignment = if (centered) Alignment.CenterHorizontally else Alignment.Start,
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleLarge,
+            textAlign = if (centered) TextAlign.Center else TextAlign.Start,
+            modifier = Modifier.testTag("source-detail-heading"),
+        )
+        if (subtitle.isNotBlank()) {
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Text(
+            text = sourceName,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
+private fun DetailAction(
+    icon: ActionIcon,
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    active: Boolean = false,
+) {
+    TextButton(
+        onClick = onClick,
+        modifier = modifier,
+        enabled = enabled,
+        contentPadding = PaddingValues(horizontal = 2.dp, vertical = 8.dp),
+        colors = ButtonDefaults.textButtonColors(
+            contentColor = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+        ),
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            ActionIcon(icon, null, modifier = Modifier.size(24.dp))
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun DetailInfoColumn(
     detail: WorkDetail,
     sourceKey: String,
     fallbackTitle: String,
+    sourceName: String,
+    wide: Boolean,
     inLibrary: Boolean,
     onToggleLibrary: () -> Unit,
     canContinue: Boolean,
@@ -599,47 +717,37 @@ private fun DetailInfoColumn(
     var expanded by remember { mutableStateOf(false) }
     val title = detail.title.ifEmpty { fallbackTitle }
     val backdrop = rememberCoverBitmap(sourceKey, detail.cover)
-    Box(modifier = Modifier.fillMaxWidth()) {
-        KomikkuDetailBackdrop(cover = backdrop, modifier = Modifier.matchParentSize())
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            KomikkuCover(
-                sourceKey = sourceKey,
-                coverUrl = detail.cover,
-                label = title,
-                modifier = Modifier.size(96.dp, 144.dp),
-            )
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val coverWidth = (maxWidth * 0.62f).coerceIn(100.dp, 240.dp)
+        DetailBackdrop(cover = backdrop, modifier = Modifier.matchParentSize())
+        if (wide) {
             Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.testTag("source-detail-heading"),
+                Cover(
+                    sourceKey = sourceKey,
+                    coverUrl = detail.cover,
+                    label = title,
+                    modifier = Modifier.size(coverWidth, coverWidth * 1.5f),
                 )
-                if (detail.subtitle.isNotEmpty()) {
-                    Text(
-                        text = detail.subtitle,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = if (expanded) Int.MAX_VALUE else 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                DetailHeading(title, detail.subtitle, sourceName, centered = true)
+            }
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                Cover(
+                    sourceKey = sourceKey,
+                    coverUrl = detail.cover,
+                    label = title,
+                    modifier = Modifier.size(96.dp, 144.dp),
+                )
+                Column(Modifier.weight(1f)) {
+                    DetailHeading(title, detail.subtitle, sourceName, centered = false)
                 }
-                Text(
-                    text = sourceKey,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
-                        alpha = app.koyura.designsystem.KomikkuSecondaryAlpha,
-                    ),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
             }
         }
     }
@@ -652,36 +760,34 @@ private fun DetailInfoColumn(
             .padding(horizontal = 8.dp),
         horizontalArrangement = Arrangement.SpaceEvenly,
     ) {
-        TextButton(
+        DetailAction(
+            icon = if (inLibrary) ActionIcon.Favorite else ActionIcon.FavoriteBorder,
+            label = stringResource(if (inLibrary) Res.string.source_detail_library_added else Res.string.source_detail_library_add),
             onClick = onToggleLibrary,
-            modifier = Modifier.testTag("detail-favorite"),
-        ) {
-            Text(
-                stringResource(
-                    if (inLibrary) Res.string.source_detail_library_added else Res.string.source_detail_library_add,
-                ),
-                color = if (inLibrary) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.onSurface
-                },
-            )
-        }
-        TextButton(
+            modifier = Modifier.weight(1f).testTag("detail-favorite"),
+            active = inLibrary,
+        )
+        DetailAction(
+            icon = ActionIcon.Hourglass,
+            label = stringResource(Res.string.source_detail_tracking),
             onClick = {},
             enabled = false,
-            modifier = Modifier.testTag("detail-tracking"),
-        ) { Text(stringResource(Res.string.source_detail_tracking)) }
-        TextButton(
+            modifier = Modifier.weight(1f).testTag("detail-tracking"),
+        )
+        DetailAction(
+            icon = ActionIcon.Sync,
+            label = stringResource(Res.string.source_detail_progress),
             onClick = onContinue,
             enabled = canContinue,
-            modifier = Modifier.testTag("detail-progress"),
-        ) { Text(stringResource(Res.string.source_detail_progress)) }
-        TextButton(
+            modifier = Modifier.weight(1f).testTag("detail-progress"),
+        )
+        DetailAction(
+            icon = ActionIcon.Public,
+            label = stringResource(Res.string.source_detail_webview),
             onClick = {},
             enabled = false,
-            modifier = Modifier.testTag("detail-webview"),
-        ) { Text(stringResource(Res.string.source_detail_webview)) }
+            modifier = Modifier.weight(1f).testTag("detail-webview"),
+        )
     }
     val body = detail.description.ifEmpty { stringResource(Res.string.source_detail_no_description) }
     Column(
@@ -697,13 +803,12 @@ private fun DetailInfoColumn(
             overflow = TextOverflow.Ellipsis,
         )
         if (detail.description.isNotEmpty()) {
-            TextButton(onClick = { expanded = !expanded }) {
-                Text(
-                    stringResource(
-                        if (expanded) Res.string.browse_show_less else Res.string.browse_show_more,
-                    ),
-                )
-            }
+            ActionIconButton(
+                icon = if (expanded) ActionIcon.Collapse else ActionIcon.Expand,
+                label = stringResource(if (expanded) Res.string.browse_show_less else Res.string.browse_show_more),
+                onClick = { expanded = !expanded },
+                modifier = Modifier.align(Alignment.CenterHorizontally),
+            )
         }
     }
     if (readerService != null) {
@@ -786,9 +891,9 @@ private fun DetailInfoColumn(
 /**
  * Chapter-count header, optional multi-select bar, then one row per chapter.
  *
- * Long-press starts selection; while selecting, taps toggle. Batch mark-read/download are
- * disabled until the download/progress tracks land (see notes); selection, clear and direct
- * open work now. The row test tag is unchanged.
+ * Long-press starts selection; while selecting, taps toggle. Batch mark-read writes the
+ * production chapter table (`library_chapter.is_read`), download stays disabled
+ * (download track is a later round). The row test tag is unchanged.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -798,10 +903,13 @@ private fun DetailChapterList(
     selectedIds: Set<String>,
     onToggleSelect: (String) -> Unit,
     onClearSelection: () -> Unit,
-    readChapterId: String?,
+    readStates: Map<String, Boolean>,
+    fallbackReadChapterId: String?,
+    canMarkRead: Boolean,
+    onMarkRead: (Set<String>, Boolean) -> Unit,
     onOpen: (WorkChapter) -> Unit,
 ) {
-    app.koyura.designsystem.KomikkuListGroupHeader(
+    app.koyura.designsystem.ListGroupHeader(
         text = stringResource(Res.string.source_detail_chapters, chapters.size),
     )
     if (selectedIds.isNotEmpty()) {
@@ -823,20 +931,25 @@ private fun DetailChapterList(
                 onClick = onClearSelection,
                 modifier = Modifier.testTag("detail-clear-selection"),
             ) { Text(stringResource(Res.string.source_detail_clear_selection)) }
-            // Batch mark-read/download need the progress/download tracks (see notes).
             TextButton(
-                onClick = {},
-                enabled = false,
+                onClick = { onMarkRead(selectedIds, true) },
+                enabled = canMarkRead,
                 modifier = Modifier.testTag("detail-mark-read"),
             ) { Text(stringResource(Res.string.source_detail_mark_read)) }
+            TextButton(
+                onClick = { onMarkRead(selectedIds, false) },
+                enabled = canMarkRead,
+                modifier = Modifier.testTag("detail-mark-unread"),
+            ) { Text(stringResource(Res.string.source_detail_mark_unread)) }
         }
     }
     chapters.forEach { chapter ->
+        val read = readStates[chapter.id] ?: (fallbackReadChapterId == chapter.id)
         MangaChapterRow(
             chapter = chapter,
             enabled = enabled,
             selected = selectedIds.contains(chapter.id),
-            read = readChapterId == chapter.id,
+            read = read,
             onClick = {
                 if (selectedIds.isNotEmpty()) onToggleSelect(chapter.id) else onOpen(chapter)
             },
@@ -873,12 +986,22 @@ private fun MangaChapterRow(
             .padding(start = 16.dp, top = 12.dp, end = 8.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = "✓",
-            style = MaterialTheme.typography.bodyMedium,
-            color = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
-            modifier = Modifier.padding(end = 8.dp),
-        )
+        if (selected) {
+            ActionIcon(
+                ActionIcon.Checklist,
+                null,
+                modifier = Modifier.padding(end = 8.dp).size(16.dp),
+                tint = MaterialTheme.colorScheme.primary,
+            )
+        } else {
+            Box(
+                Modifier.padding(end = 8.dp).size(6.dp)
+                    .background(
+                        if (read) MaterialTheme.colorScheme.outlineVariant else MaterialTheme.colorScheme.primary,
+                        CircleShape,
+                    ),
+            )
+        }
         Column(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -898,7 +1021,7 @@ private fun MangaChapterRow(
                 text = chapterSecondaryLine(chapter),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
-                    alpha = app.koyura.designsystem.KomikkuSecondaryAlpha,
+                    alpha = app.koyura.designsystem.DesignTokens.Alpha.Secondary,
                 ),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -912,13 +1035,13 @@ private fun MangaChapterRow(
                 modifier = Modifier.padding(horizontal = 4.dp),
             )
         }
-        TextButton(
+        ActionIconButton(
+            icon = ActionIcon.Download,
+            label = stringResource(Res.string.source_detail_download),
             onClick = {},
             enabled = false,
             modifier = Modifier.testTag("detail-chapter-download-${chapter.id}"),
-        ) {
-            Text(stringResource(Res.string.source_detail_download))
-        }
+        )
     }
 }
 

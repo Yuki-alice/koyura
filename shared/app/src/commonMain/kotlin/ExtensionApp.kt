@@ -78,13 +78,6 @@ internal fun ExtensionApp(openSession: suspend () -> ExtensionSession) {
 
     val session = openedSession
     if (session != null) {
-        val browse = remember(session) {
-            VeneraBrowseService(session.service) { sourceKey, imageKey ->
-                session.comicReading.loadThumbnailBytes(sourceKey, imageKey)
-            }
-        }
-        val reader = remember(session) { VeneraReaderService(session.comicReading, session.history) }
-        val history = remember(session) { VeneraHistoryService(session.history, session.library) }
         val library = remember(session) {
             ProductionLibraryRepository(
                 store = session.library,
@@ -94,6 +87,30 @@ internal fun ExtensionApp(openSession: suspend () -> ExtensionSession) {
                 },
             )
         }
+        val browse = remember(session) {
+            VeneraBrowseService(
+                extensions = session.service,
+                thumbnails = { sourceKey, imageKey ->
+                    session.comicReading.loadThumbnailBytes(sourceKey, imageKey)
+                },
+                onDetailLoaded = { sourceKey, workId, chapters ->
+                    library.syncWorkDetail(
+                        sourceKey = sourceKey,
+                        kind = app.koyura.features.library.LibraryKind.COMIC,
+                        workId = workId,
+                        chapters = chapters,
+                    )
+                },
+            )
+        }
+        val reader = remember(session) {
+            VeneraReaderService(
+                reading = session.comicReading,
+                history = session.history,
+                library = session.library,
+            )
+        }
+        val history = remember(session) { VeneraHistoryService(session.history, session.library) }
         App(
             browseService = browse,
             readerService = reader,

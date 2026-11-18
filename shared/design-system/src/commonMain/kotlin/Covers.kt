@@ -103,17 +103,17 @@ fun coverDiskKey(sourceKey: String, coverUrl: String): String {
 }
 
 /** Test tag of the loaded cover art (per-row disambiguation stays with the caller). */
-const val KomikkuCoverImageTag = "komikku-cover-image"
+const val CoverImageTag = "komikku-cover-image"
 
 /** Test tag of the letter placeholder shown while loading, empty or failed. */
-const val KomikkuCoverPlaceholderTag = "komikku-cover-placeholder"
+const val CoverPlaceholderTag = "komikku-cover-placeholder"
 
 /**
  * 全仓封面统一圆角（网格 2:3、搜索行 48x72、历史行 56x80、详情头 96x144 均用此值）。
  *
  * 尺寸由调用方 modifier 决定，本常量只定圆角。
  */
-val KomikkuCoverCornerRadius = 8.dp
+val CoverCornerRadius = 8.dp
 
 /**
  * 加载一封面的解码位图（单次尝试，可空）：头部大图与模糊背景共用同一结果，
@@ -161,7 +161,7 @@ fun rememberCoverBitmap(sourceKey: String, coverUrl: String): ImageBitmap? {
  * 网格 2:3），组件内部不改尺寸以防布局跳动。
  */
 @Composable
-fun KomikkuCover(
+fun Cover(
     sourceKey: String,
     coverUrl: String,
     label: String,
@@ -175,13 +175,13 @@ fun KomikkuCover(
             contentDescription = contentDescription,
             contentScale = ContentScale.Crop,
             modifier = modifier
-                .clip(RoundedCornerShape(KomikkuCoverCornerRadius))
-                .testTag(KomikkuCoverImageTag),
+                .clip(RoundedCornerShape(CoverCornerRadius))
+                .testTag(CoverImageTag),
         )
     } else {
-        KomikkuCoverPlaceholder(
+        CoverPlaceholder(
             label = label,
-            modifier = modifier.testTag(KomikkuCoverPlaceholderTag),
+            modifier = modifier.testTag(CoverPlaceholderTag),
         )
     }
 }
@@ -191,7 +191,7 @@ fun KomikkuCover(
  * 缺图时直接使用主题 surface 色，不做任何取色计算（永不因取色崩溃）。
  */
 @Composable
-fun KomikkuDetailBackdrop(
+fun DetailBackdrop(
     cover: ImageBitmap?,
     modifier: Modifier = Modifier,
 ) {

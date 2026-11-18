@@ -12,7 +12,7 @@ import app.koyura.features.reader.comic.decodeToImageBitmap
 /**
  * 把 [BrowseService.loadCover] 接到共用封面组件的单次加载器。
  *
- * 单次无重试语义由调用方（`KomikkuCover`/`rememberCoverBitmap`）保证：同一
+ * 单次无重试语义由调用方（`Cover`/`rememberCoverBitmap`）保证：同一
  * `sourceKey|url` 在一次组合中只调一次，失败即占位；跨组合命中内存缓存不再调服务。
  */
 fun browseCoverLoader(service: BrowseService?): CoverImageLoader? {

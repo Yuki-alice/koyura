@@ -20,6 +20,7 @@ compose.desktop {
         mainClass = "app.koyura.desktop.MainKt"
 
         nativeDistributions {
+            modules("java.sql")
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "Koyura"
             packageVersion = libs.versions.app.get()

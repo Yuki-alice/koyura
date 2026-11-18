@@ -20,6 +20,8 @@ internal fun ensureLibrarySchema(driver: SqlDriver) {
     driver.execute(null, LibraryMangaCategoryDdl, 0, null)
     driver.execute(null, LibraryMangaCategoryCatIdxDdl, 0, null)
     driver.execute(null, LibraryPrefsDdl, 0, null)
+    driver.execute(null, LibraryChapterDdl, 0, null)
+    driver.execute(null, LibraryChapterWorkIdxDdl, 0, null)
     // 与 ExtensionDbQueries.seedDefaultCategory 同语义的原子播种（表空才插入）。
     ExtensionDb(driver).extensionDbQueries.seedDefaultCategory()
 }
@@ -70,3 +72,19 @@ CREATE TABLE IF NOT EXISTS library_prefs(
   pref_value TEXT NOT NULL
 )
 """
+
+private const val LibraryChapterDdl = """
+CREATE TABLE IF NOT EXISTS library_chapter(
+  source_key TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  work_id TEXT NOT NULL,
+  chapter_id TEXT NOT NULL,
+  title TEXT NOT NULL DEFAULT '',
+  sort_index INTEGER NOT NULL DEFAULT 0,
+  is_read INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (source_key, kind, work_id, chapter_id)
+)
+"""
+
+private const val LibraryChapterWorkIdxDdl =
+    "CREATE INDEX IF NOT EXISTS library_chapter_work_idx ON library_chapter(source_key, kind, work_id)"

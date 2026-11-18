@@ -1,5 +1,11 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
 package app.koyura.app.history
 
+import app.koyura.designsystem.ActionIconButton
+import app.koyura.designsystem.ActionIcon
+import app.koyura.designsystem.SearchField
+import androidx.compose.material3.TopAppBar
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -20,7 +26,6 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -42,6 +47,7 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
 import app.koyura.app.browse.AppCoverDecoder
 import app.koyura.app.resources.Res
+import app.koyura.app.resources.browse_clear_search
 import app.koyura.app.resources.browse_error_prefix
 import app.koyura.app.resources.browse_retry
 import app.koyura.app.resources.history_clear_all
@@ -66,13 +72,14 @@ import app.koyura.app.resources.history_title
 import app.koyura.app.resources.history_today
 import app.koyura.app.resources.history_unknown_time
 import app.koyura.app.resources.history_yesterday
-import app.koyura.designsystem.KomikkuCover
+import app.koyura.designsystem.Cover
 import app.koyura.designsystem.LocalCoverDecoder
 import app.koyura.designsystem.LocalCoverImageLoader
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 
 internal const val HistoryRootTestTag = "history-root"
+internal const val HistorySearchToggleTag = "history-search-toggle"
 internal const val HistorySearchTag = "history-search-query"
 internal const val HistoryListTag = "history-list"
 internal const val HistoryEmptyTag = "history-empty"
@@ -108,6 +115,7 @@ fun HistoryScreen(
 ) {
     val scope = rememberCoroutineScope()
     var query by rememberSaveable { mutableStateOf("") }
+    var searching by rememberSaveable { mutableStateOf(false) }
     var showFilter by rememberSaveable { mutableStateOf(false) }
     var confirmClear by rememberSaveable { mutableStateOf(false) }
 
@@ -123,34 +131,42 @@ fun HistoryScreen(
         LocalCoverDecoder provides AppCoverDecoder,
     ) {
         Column(modifier = modifier.fillMaxSize().testTag(HistoryRootTestTag)) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(end = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = stringResource(Res.string.history_title),
-                    style = MaterialTheme.typography.headlineMedium,
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(start = 16.dp, top = 8.dp, bottom = 8.dp),
-                )
-                TextButton(
-                    onClick = { showFilter = true },
-                    modifier = Modifier.testTag(HistoryFilterTag),
-                ) { Text(stringResource(Res.string.history_filter)) }
-                TextButton(
-                    onClick = { confirmClear = true },
-                    enabled = session.entries.isNotEmpty(),
-                    modifier = Modifier.testTag(HistoryClearAllTag),
-                ) { Text(stringResource(Res.string.history_clear_all)) }
-            }
-            OutlinedTextField(
-                value = query,
-                onValueChange = { query = it },
-                placeholder = { Text(stringResource(Res.string.history_search)) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).testTag(HistorySearchTag),
+            TopAppBar(
+                title = { Text(stringResource(Res.string.history_title)) },
+                actions = {
+                    ActionIconButton(
+                        icon = if (searching) ActionIcon.Close else ActionIcon.Search,
+                        label = stringResource(if (searching) Res.string.browse_clear_search else Res.string.history_search),
+                        onClick = {
+                            searching = !searching
+                            if (!searching) query = ""
+                        },
+                        modifier = Modifier.testTag(HistorySearchToggleTag),
+                    )
+                    ActionIconButton(
+                        icon = ActionIcon.Filter,
+                        label = stringResource(Res.string.history_filter),
+                        onClick = { showFilter = true },
+                        modifier = Modifier.testTag(HistoryFilterTag),
+                    )
+                    ActionIconButton(
+                        icon = ActionIcon.Checklist,
+                        label = stringResource(Res.string.history_clear_all),
+                        onClick = { confirmClear = true },
+                        enabled = session.entries.isNotEmpty(),
+                        modifier = Modifier.testTag(HistoryClearAllTag),
+                    )
+                },
             )
+            if (searching) {
+                SearchField(
+                    value = query,
+                    onValueChange = { query = it },
+                    placeholder = stringResource(Res.string.history_search),
+                    clearLabel = stringResource(Res.string.browse_clear_search),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).testTag(HistorySearchTag),
+                )
+            }
 
             when (val load = session.loadState) {
                 HistoryLoadState.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -291,7 +307,7 @@ private fun HistoryGroupHeader(date: kotlinx.datetime.LocalDate?, groupKey: Stri
     }
     // Komikku ListGroupHeader: semibold bodyMedium in onSurfaceVariant.
     Box(modifier = Modifier.testTag(historyGroupTag(groupKey))) {
-        app.koyura.designsystem.KomikkuListGroupHeader(text = text)
+        app.koyura.designsystem.ListGroupHeader(text = text)
     }
 }
 
@@ -407,7 +423,7 @@ private fun HistoryRow(
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        KomikkuCover(
+        Cover(
             sourceKey = entry.sourceKey,
             coverUrl = entry.cover,
             label = entry.displayTitle,
@@ -432,53 +448,32 @@ private fun HistoryRow(
                 text = "$chapterLabel · " + stringResource(Res.string.history_page, entry.pageIndex + 1),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
-                    alpha = app.koyura.designsystem.KomikkuSecondaryAlpha,
+                    alpha = app.koyura.designsystem.DesignTokens.Alpha.Secondary,
                 ),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.testTag(historyRowDetailTag(entry.sourceKey, entry.workId)),
             )
-            Text(
-                text = entry.sourceKey,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
-                    alpha = app.koyura.designsystem.KomikkuSecondaryAlpha,
-                ),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
         }
-        Column(horizontalAlignment = Alignment.End) {
-            TextButton(
-                onClick = onToggleFavorite,
-                modifier = Modifier.testTag(historyFavoriteTag(entry.sourceKey, entry.workId)),
-            ) {
-                Text(
-                    stringResource(
-                        if (favorited) Res.string.history_favorite_remove else Res.string.history_favorite_add,
-                    ),
-                    color = if (favorited) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
-                )
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                TextButton(
-                    onClick = onDelete,
-                    modifier = Modifier.testTag(historyDeleteTag(entry.sourceKey, entry.workId)),
-                ) {
-                    Text(stringResource(Res.string.history_delete))
-                }
-                TextButton(
-                    onClick = onContinue,
-                    modifier = Modifier.testTag(historyContinueTag(entry.sourceKey, entry.workId)),
-                ) {
-                    Text(stringResource(Res.string.history_continue))
-                }
-            }
-        }
+        ActionIconButton(
+            icon = if (favorited) ActionIcon.Favorite else ActionIcon.FavoriteBorder,
+            label = stringResource(if (favorited) Res.string.history_favorite_remove else Res.string.history_favorite_add),
+            onClick = onToggleFavorite,
+            modifier = Modifier.testTag(historyFavoriteTag(entry.sourceKey, entry.workId)),
+            contentColor = if (favorited) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+        )
+        ActionIconButton(
+            icon = ActionIcon.Delete,
+            label = stringResource(Res.string.history_delete),
+            onClick = onDelete,
+            modifier = Modifier.testTag(historyDeleteTag(entry.sourceKey, entry.workId)),
+        )
+        ActionIconButton(
+            icon = ActionIcon.Play,
+            label = stringResource(Res.string.history_continue),
+            onClick = onContinue,
+            modifier = Modifier.testTag(historyContinueTag(entry.sourceKey, entry.workId)),
+        )
     }
 }
 

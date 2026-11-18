@@ -105,6 +105,7 @@ class HistoryScreenStateTest {
         }
         onNodeWithTag(HistoryListTag).assertIsDisplayed()
 
+        onNodeWithTag(HistorySearchToggleTag).performClick()
         onNodeWithTag(HistorySearchTag).performTextInput("does-not-exist")
 
         onNodeWithTag(HistoryNoResultsTag).assertIsDisplayed()
@@ -140,6 +141,7 @@ class HistoryScreenStateTest {
             }
         }
         onNodeWithTag(HistoryListTag).assertIsDisplayed()
+        onNodeWithTag(HistorySearchToggleTag).performClick()
         onNodeWithTag(HistorySearchTag).performTextInput("第二章")
         onNodeWithTag(HistoryListTag).performSemanticsAction(SemanticsActions.ScrollToIndex) { it(9) }
         waitForIdle()
@@ -182,6 +184,7 @@ class HistoryScreenStateTest {
                 )
             }
         }
+        onNodeWithTag(HistorySearchToggleTag).performClick()
         onNodeWithTag(HistorySearchTag).performTextInput("星")
         onNodeWithTag(historyRowTag("source_a", "demo")).assertIsDisplayed()
 

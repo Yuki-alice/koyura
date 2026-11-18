@@ -27,7 +27,7 @@ import androidx.compose.ui.unit.dp
  * surface, used for source language groups, extension groups, history dates and chapter counts.
  */
 @Composable
-fun KomikkuListGroupHeader(
+fun ListGroupHeader(
     text: String,
     modifier: Modifier = Modifier,
     tonalElevation: Dp = 0.dp,
@@ -51,7 +51,7 @@ fun KomikkuListGroupHeader(
  * center-aligned row with 16 dp horizontal / 8 dp vertical padding.
  */
 @Composable
-fun KomikkuBrowseRow(
+fun BrowseRow(
     onClick: () -> Unit = {},
     onLongClick: () -> Unit = {},
     icon: @Composable RowScope.() -> Unit = {},
@@ -77,7 +77,7 @@ fun KomikkuBrowseRow(
  * `ExtensionIcon`/`SourceIcon` slot so rows keep the same rhythm.
  */
 @Composable
-fun KomikkuIconPlaceholder(
+fun IconPlaceholder(
     label: String,
     modifier: Modifier = Modifier,
 ) {
@@ -102,10 +102,10 @@ fun KomikkuIconPlaceholder(
 /**
  * Rectangular cover placeholder for history/detail surfaces without loaded artwork: a
  * `surfaceVariant` box with the work's initial, sized by the caller. Corners are always 8 dp
- * rounded so placeholders and loaded [KomikkuCover] art share one rhythm without layout shift.
+ * rounded so placeholders and loaded [Cover] art share one rhythm without layout shift.
  */
 @Composable
-fun KomikkuCoverPlaceholder(
+fun CoverPlaceholder(
     label: String,
     modifier: Modifier = Modifier,
 ) {

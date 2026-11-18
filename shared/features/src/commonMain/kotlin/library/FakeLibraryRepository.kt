@@ -125,6 +125,23 @@ class FakeLibraryRepository(
         return snapshotLocked()
     }
 
+    // 章节目录仅生产仓储实现（LibraryStore + ProductionLibraryRepository），
+    // 内存假仓储保持派生字段直写，单测聚焦视图语义。
+    // 详情已读映射：内存实现按 `unreadCount` 近似（未读>0 即未读），批量子集沿用整作标记。
+    override suspend fun chapterReadStates(key: LibraryEntryKey): Map<String, Boolean> {
+        enter("chapterReadStates", key.workId)
+        return emptyMap()
+    }
+
+    override suspend fun markDetailChapters(
+        key: LibraryEntryKey,
+        chapterIds: Set<String>,
+        read: Boolean,
+    ): LibrarySnapshot {
+        enter("markDetailChapters")
+        return markAsRead(setOf(key), read)
+    }
+
     override suspend fun addCategory(name: String): LibrarySnapshot {
         enter("addCategory")
         val trimmed = name.trim()

@@ -11,9 +11,9 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.v2.runComposeUiTest
 import app.koyura.designsystem.CoverImageLoader
 import app.koyura.designsystem.CoverMemoryCache
-import app.koyura.designsystem.KomikkuCover
-import app.koyura.designsystem.KomikkuCoverImageTag
-import app.koyura.designsystem.KomikkuCoverPlaceholderTag
+import app.koyura.designsystem.Cover
+import app.koyura.designsystem.CoverImageTag
+import app.koyura.designsystem.CoverPlaceholderTag
 import app.koyura.designsystem.LocalCoverDecoder
 import app.koyura.designsystem.LocalCoverImageLoader
 import app.koyura.designsystem.LocalCoverMemoryCache
@@ -56,7 +56,7 @@ class CoverFixtureUiTest {
             ) {
                 @Suppress("UNUSED_EXPRESSION")
                 tick
-                KomikkuCover(
+                Cover(
                     sourceKey = "src",
                     coverUrl = "https://example.invalid/ok.png",
                     label = "星图",
@@ -64,13 +64,13 @@ class CoverFixtureUiTest {
             }
         }
         waitForIdle()
-        onNodeWithTag(KomikkuCoverImageTag).assertIsDisplayed()
-        onAllNodesWithTag(KomikkuCoverPlaceholderTag).assertCountEquals(0)
+        onNodeWithTag(CoverImageTag).assertIsDisplayed()
+        onAllNodesWithTag(CoverPlaceholderTag).assertCountEquals(0)
 
         // 重组不得二次加载：缓存命中。
         tick = 1
         waitForIdle()
-        onNodeWithTag(KomikkuCoverImageTag).assertIsDisplayed()
+        onNodeWithTag(CoverImageTag).assertIsDisplayed()
         assertEquals(1, loader.calls.size)
     }
 
@@ -86,7 +86,7 @@ class CoverFixtureUiTest {
             ) {
                 @Suppress("UNUSED_EXPRESSION")
                 tick
-                KomikkuCover(
+                Cover(
                     sourceKey = "src",
                     coverUrl = "https://example.invalid/broken.png",
                     label = "星图",
@@ -94,8 +94,8 @@ class CoverFixtureUiTest {
             }
         }
         waitForIdle()
-        onNodeWithTag(KomikkuCoverPlaceholderTag).assertIsDisplayed()
-        onAllNodesWithTag(KomikkuCoverImageTag).assertCountEquals(0)
+        onNodeWithTag(CoverPlaceholderTag).assertIsDisplayed()
+        onAllNodesWithTag(CoverImageTag).assertCountEquals(0)
 
         tick = 1
         waitForIdle()
@@ -111,11 +111,11 @@ class CoverFixtureUiTest {
                 LocalCoverDecoder provides AppCoverDecoder,
                 LocalCoverMemoryCache provides CoverMemoryCache(),
             ) {
-                KomikkuCover(sourceKey = "src", coverUrl = "", label = "星图")
+                Cover(sourceKey = "src", coverUrl = "", label = "星图")
             }
         }
         waitForIdle()
-        onNodeWithTag(KomikkuCoverPlaceholderTag).assertIsDisplayed()
+        onNodeWithTag(CoverPlaceholderTag).assertIsDisplayed()
         assertEquals(0, loader.calls.size)
     }
 
@@ -129,14 +129,14 @@ class CoverFixtureUiTest {
                 LocalCoverDecoder provides AppCoverDecoder,
                 LocalCoverMemoryCache provides CoverMemoryCache(),
             ) {
-                KomikkuCover(sourceKey = "a", coverUrl = url, label = "甲")
-                KomikkuCover(sourceKey = "b", coverUrl = url, label = "乙")
+                Cover(sourceKey = "a", coverUrl = url, label = "甲")
+                Cover(sourceKey = "b", coverUrl = url, label = "乙")
             }
         }
         waitForIdle()
         // a 解码成功出一图，b 损坏回占位：按源隔离无串扰。
-        onAllNodesWithTag(KomikkuCoverImageTag).assertCountEquals(1)
-        onAllNodesWithTag(KomikkuCoverPlaceholderTag).assertCountEquals(1)
+        onAllNodesWithTag(CoverImageTag).assertCountEquals(1)
+        onAllNodesWithTag(CoverPlaceholderTag).assertCountEquals(1)
         assertEquals(2, loader.calls.size)
     }
 }

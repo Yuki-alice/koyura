@@ -167,6 +167,7 @@ class ReaderSession(
         val token = openToken
         saveMutex.withLock {
             if (token != openToken || index == lastSavedIndex) return
+            val isLast = ready.content.pageKeys.isNotEmpty() && index == ready.content.pageKeys.size - 1
             currentService.saveProgress(
                 boundSourceKey,
                 boundWorkId,
@@ -175,6 +176,7 @@ class ReaderSession(
                 index,
                 workTitle = boundWorkTitle,
                 chapterTitle = boundChapterTitles[ready.content.chapterId],
+                isLastPage = isLast,
             )
             if (token == openToken) lastSavedIndex = index
         }

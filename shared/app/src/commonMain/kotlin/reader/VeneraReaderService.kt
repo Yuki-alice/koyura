@@ -13,6 +13,7 @@ import kotlinx.coroutines.withContext
 internal class VeneraReaderService(
     private val reading: ComicReadingService,
     private val history: HistoryStore? = null,
+    private val library: app.koyura.data.library.LibraryStore? = null,
 ) : ReaderService {
     override suspend fun readProgress(sourceKey: String, workId: String): ReaderProgress? =
         withContext(Dispatchers.IO) {
@@ -47,6 +48,7 @@ internal class VeneraReaderService(
         pageIndex: Int,
         workTitle: String?,
         chapterTitle: String?,
+        isLastPage: Boolean,
     ): Unit = withContext(Dispatchers.IO) {
         val historyStore = history
         if (historyStore == null) {
@@ -64,6 +66,21 @@ internal class VeneraReaderService(
                 workTitle = workTitle?.takeIf { it.isNotBlank() },
                 chapterTitle = chapterTitle?.takeIf { it.isNotBlank() },
             )
+        }
+        // 读到末页时记录章节已读，中途页只更新进度；章节表缺失时不建行（目录同步负责建行）。
+        if (isLastPage) {
+            val store = library
+            if (store != null) {
+                try {
+                    val kind = app.koyura.domain.library.WorkKind.COMIC
+                    val existing = store.listChapters(sourceKey, kind, workId)
+                    if (existing.any { it.chapterId == (chapterId ?: "") }) {
+                        store.markChapterRead(sourceKey, kind, workId, chapterId ?: "", true)
+                    }
+                } catch (_: Exception) {
+                    // 已读标记失败不回滚进度，进度已提交为准。
+                }
+            }
         }
     }
 }

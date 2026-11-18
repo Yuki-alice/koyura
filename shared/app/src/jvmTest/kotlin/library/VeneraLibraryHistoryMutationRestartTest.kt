@@ -59,7 +59,7 @@ import app.koyura.data.reader.preferences.ReaderPreferencesStore
 import app.koyura.data.session.ExtensionSession
 import app.koyura.data.session.openExtensionSession
 import app.koyura.designsystem.DefaultCoverMemoryCache
-import app.koyura.designsystem.KomikkuCoverImageTag
+import app.koyura.designsystem.CoverImageTag
 import app.koyura.domain.reader.preferences.ReadingMode
 import app.koyura.features.library.LibraryBottomChangeCategoriesTag
 import app.koyura.features.library.LibraryBottomMenuTag
@@ -184,7 +184,7 @@ class VeneraLibraryHistoryMutationRestartTest {
             onNodeWithTag(SourceSearchSubmitTag).performClick()
             awaitTag(sourceResultTag(WorkId))
             waitUntil(timeoutMillis = 15_000) {
-                onAllNodesWithTag(KomikkuCoverImageTag, useUnmergedTree = true)
+                onAllNodesWithTag(CoverImageTag, useUnmergedTree = true)
                     .fetchSemanticsNodes().isNotEmpty()
             }
             onNodeWithTag(sourceResultTag(WorkId)).performClick()

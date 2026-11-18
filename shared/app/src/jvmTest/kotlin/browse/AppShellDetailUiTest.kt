@@ -10,7 +10,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
-import app.koyura.designsystem.KomikkuCoverImageTag
+import app.koyura.designsystem.CoverImageTag
 import app.koyura.designsystem.ReaderTheme
 import kotlin.test.Test
 
@@ -74,7 +74,7 @@ class AppShellDetailUiTest {
         onNodeWithTag(SourceDetailBackTag).assertIsDisplayed()
         onNodeWithTag("source-detail-heading").assertIsDisplayed()
         // 真实封面（非占位）。
-        onNodeWithTag(KomikkuCoverImageTag).assertIsDisplayed()
+        onNodeWithTag(CoverImageTag).assertIsDisplayed()
         // 四键行：收藏可点，追踪/网页禁用，进度无存档时禁用。
         onNodeWithTag("detail-favorite").assertIsDisplayed()
         onNodeWithTag("detail-tracking").assertIsDisplayed()

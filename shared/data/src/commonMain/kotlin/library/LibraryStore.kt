@@ -7,6 +7,7 @@ import app.koyura.data.extension.Library_manga
 import app.koyura.data.extension.Reading_progress
 import app.koyura.domain.extension.ReadingProgress
 import app.koyura.domain.library.LibraryCategory
+import app.koyura.domain.library.LibraryChapter
 import app.koyura.domain.library.LibraryEntry
 import app.koyura.domain.library.LibraryManga
 import app.koyura.domain.library.LibraryMigrationReport
@@ -75,6 +76,7 @@ class LibraryStore(driver: SqlDriver) : LibraryRepository {
         val q = seeded()
         db.transaction {
             q.deleteMappingsForWork(sourceKey, kind.name, workId)
+            q.deleteChaptersForWork(sourceKey, kind.name, workId)
             q.deleteLibraryManga(sourceKey, kind.name, workId)
         }
         // reading_progress 行保留：历史与“继续阅读”派生仍可读，禁止静默删库。
@@ -203,6 +205,84 @@ class LibraryStore(driver: SqlDriver) : LibraryRepository {
     suspend fun allPrefs(): Map<String, String> =
         seeded().selectAllPrefs().executeAsList().associate { it.pref_key to it.pref_value }
 
+    override suspend fun syncChapters(
+        sourceKey: String,
+        kind: WorkKind,
+        workId: String,
+        chapters: List<LibraryChapter>,
+    ) {
+        val q = seeded()
+        db.transaction {
+            val existing = q.selectChaptersForWork(sourceKey, kind.name, workId)
+                .executeAsList().associate { it.chapter_id to (it.is_read == 1L) }
+            // 全量同步：保留同 ID 已读态，新章默认未读；消失章节随目录移除，
+            // 阅读进度（reading_progress）与历史隐藏标记原样保留。
+            q.deleteChaptersForWork(sourceKey, kind.name, workId)
+            for ((index, chapter) in chapters.withIndex()) {
+                val kept = existing[chapter.chapterId] ?: false
+                q.upsertChapter(
+                    source_key = sourceKey,
+                    kind = kind.name,
+                    work_id = workId,
+                    chapter_id = chapter.chapterId,
+                    title = chapter.title,
+                    sort_index = index.toLong(),
+                    is_read = if (kept) 1 else 0,
+                )
+            }
+        }
+    }
+
+    override suspend fun listChapters(sourceKey: String, kind: WorkKind, workId: String): List<LibraryChapter> =
+        seeded().selectChaptersForWork(sourceKey, kind.name, workId).executeAsList().map { row ->
+            LibraryChapter(
+                sourceKey = row.source_key,
+                kind = WorkKind.valueOf(row.kind),
+                workId = row.work_id,
+                chapterId = row.chapter_id,
+                title = row.title,
+                sortIndex = row.sort_index.toInt(),
+                isRead = row.is_read == 1L,
+            )
+        }
+
+    override suspend fun markChaptersRead(
+        sourceKey: String,
+        kind: WorkKind,
+        workId: String,
+        chapterIds: List<String>,
+        read: Boolean,
+    ) {
+        val q = seeded()
+        db.transaction {
+            if (chapterIds.isEmpty()) {
+                q.updateChaptersReadForWork(if (read) 1 else 0, sourceKey, kind.name, workId)
+            } else {
+                for (chapterId in chapterIds.distinct()) {
+                    q.updateChapterRead(if (read) 1 else 0, sourceKey, kind.name, workId, chapterId)
+                }
+            }
+        }
+    }
+
+    override suspend fun markChapterRead(
+        sourceKey: String,
+        kind: WorkKind,
+        workId: String,
+        chapterId: String,
+        read: Boolean,
+    ) {
+        seeded().updateChapterRead(if (read) 1 else 0, sourceKey, kind.name, workId, chapterId)
+    }
+
+    /** 章节派生计数：总数与未读数（无目录时均为 0，调用方按章后备语义展示）。 */
+    suspend fun chapterCounts(sourceKey: String, kind: WorkKind, workId: String): Pair<Int, Int> {
+        val rows = seeded().selectChaptersForWork(sourceKey, kind.name, workId).executeAsList()
+        val total = rows.size
+        val unread = rows.count { it.is_read != 1L }
+        return total to unread
+    }
+
     /**
      * 同作品最新进度（派生“继续阅读”用）。
      *
@@ -258,6 +338,18 @@ class LibraryStore(driver: SqlDriver) : LibraryRepository {
                     mergedProgress++
                 }
             }
+            for (row in q.selectLibraryBySource(oldSourceKey).executeAsList()) {
+                for (chapter in q.selectChaptersForWork(oldSourceKey, row.kind, row.work_id).executeAsList()) {
+                    if (q.selectChapterById(newSourceKey, chapter.kind, chapter.work_id, chapter.chapter_id)
+                            .executeAsOneOrNull() == null
+                    ) {
+                        q.upsertChapter(
+                            newSourceKey, chapter.kind, chapter.work_id, chapter.chapter_id,
+                            chapter.title, chapter.sort_index, chapter.is_read,
+                        )
+                    }
+                }
+            }
             // 旧 key 的书架行、归属映射与进度行全部保留：用户确认清理前不删。
         }
         return LibraryMigrationReport(copiedEntries, copiedMappings, copiedProgress, mergedProgress)
@@ -311,6 +403,16 @@ class LibraryStore(driver: SqlDriver) : LibraryRepository {
                         progress.read_at, progress.work_title, progress.chapter_title,
                     )
                     mergedProgress++
+                }
+            }
+            for (chapter in q.selectChaptersForWork(fromSource, fromKind.name, fromWork).executeAsList()) {
+                if (q.selectChapterById(toSource, toKind.name, toWork, chapter.chapter_id)
+                        .executeAsOneOrNull() == null
+                ) {
+                    q.upsertChapter(
+                        toSource, toKind.name, toWork, chapter.chapter_id,
+                        chapter.title, chapter.sort_index, chapter.is_read,
+                    )
                 }
             }
             // 旧条目保留：失败回滚，已提交的合并也不删旧行。

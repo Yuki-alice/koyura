@@ -1,6 +1,8 @@
 # Komikku 对齐计划
 
-当前目标是先交付跨平台的 Komikku 漫画阅读体验。以本地 `reference/komikku` 的 `383ffaa81667f45fc6c2975edb1760a7606531d3` 为界面、交互和漫画功能基线，以当前 `main` 的 `96aefb5` 为实现基线（`dev.reader.*` → `app.koyura.*` 重命名已完成）。继续使用 KMP、Compose Multiplatform 和官方 Material 3。JS 扩展沿用 Venera-Next 协议，原版 Komikku 的扩展安装入口和用户操作仍用于界面对照。小说应用接入与差异化功能安排在漫画对齐之后。 [架构设计](architecture.md) · [技术栈选型](technology-stack.md)
+当前目标是先交付跨平台的 Komikku 漫画阅读体验。以本地 `reference/komikku` 的 `290267dd4c99f5b46812240fb0e4bc6b3ee8c562`（与设计白皮书同版）为界面、交互和漫画功能基线，以当前 `main` 的 `96aefb5` 为实现基线（`dev.reader.*` → `app.koyura.*` 重命名已完成）。继续使用 KMP、Compose Multiplatform 和官方 Material 3。JS 扩展沿用 Venera-Next 协议，原版 Komikku 的扩展安装入口和用户操作仍用于界面对照。小说应用接入与差异化功能安排在漫画对齐之后。 [架构设计](architecture.md) · [技术栈选型](technology-stack.md)
+
+2026-11-18：原版代码与白皮书统一至 `290267d`；下方历史验收保留其原有参考版本，后续任务按统一基线补充验证。
 
 ## 现状
 

@@ -2,7 +2,7 @@
 
 2026-11-15 · [技术栈选型](technology-stack.md)
 
-这是独立的跨平台漫画阅读器项目，当前工作以[Komikku 对齐计划](komikku-alignment.md)为准。本文同时记录漫画、离线内容与后续小说的架构设计，小说应用接入安排在漫画对齐之后。Komikku `383ffaa816` 定义要复刻的界面、交互和用户可见能力。JS 源完整兼容 Venera-Next `c0c4597` 的协议与生命周期，已有脚本和源仓库应能原样导入。书架、账号、内部数据和备份格式从新项目开始，作品换源和批量迁移在新客户端内实现。 [Komikku 功能说明](https://github.com/komikku-app/komikku/blob/383ffaa81667f45fc6c2975edb1760a7606531d3/README.md#features) · [Venera-Next 数据源文档](https://github.com/CyrilPeng/Venera-Next/blob/c0c45979d453c2a8740c45f08e95997c90717629/doc/api/comic_source.zh.md)
+这是独立的跨平台漫画阅读器项目，当前工作以[Komikku 对齐计划](komikku-alignment.md)为准。本文同时记录漫画、离线内容与后续小说的架构设计，小说应用接入安排在漫画对齐之后。Komikku `290267d`（与设计白皮书同版）定义要复刻的界面、交互和用户可见能力。JS 源完整兼容 Venera-Next `c0c4597` 的协议与生命周期，已有脚本和源仓库应能原样导入。书架、账号、内部数据和备份格式从新项目开始，作品换源和批量迁移在新客户端内实现。 [Komikku 功能说明](https://github.com/komikku-app/komikku/blob/290267dd4c99f5b46812240fb0e4bc6b3ee8c562/README.md#features) · [Venera-Next 数据源文档](https://github.com/CyrilPeng/Venera-Next/blob/c0c45979d453c2a8740c45f08e95997c90717629/doc/api/comic_source.zh.md)
 
 ## 目录结构
 
@@ -55,6 +55,7 @@
 
 - Kotlin 源码从各 source set 的 `kotlin/` 根目录开始，按功能增加必要子目录，不再逐段重复包名前缀。例如 `shared/app` 的 `commonMain/kotlin/browse/` 对应包 `app.koyura.app.browse`，根目录的 `App.kt` 对应包 `app.koyura.app`。本项目当前基线是 `app.koyura`，与应用安装标识同源。
 - 每个 source set 的 `kotlin/` 根目录放一个只声明基包的 `package.kt`（如 `package app.koyura.app`），锚定该源集的包前缀。
+- **标识符与文件名按功能命名，不携带产品名**（Komikku、Koyura 等）；`app.koyura` 基包与安装标识是产品身份、不受此限；注释与文档引用来源名不受限。对齐参考实现的组件用功能名（`ListGroupHeader`、`BrowseRow`），不加来源前缀。
 - **例外是 SQLDelight**：`.sq` / `.sqm` 文件必须放在与包名逐段对应的目录里，生成器按相对路径推导查询包。例如 `shared/data` 的 schema 在 `src/commonMain/sqldelight/app/koyura/data/extension/`，`packageName` 为 `app.koyura.data.extension`。
 - **Compose Resources** 按模块各自维护：`src/commonMain/composeResources/values/`（默认）与 `values-b+zh+CN/`（中文），各模块的 `packageOfResClass` 指向自己的 resources 包（如 `app.koyura.app.resources`）。阅读器字符串随阅读器迁入 `:shared:features`，共用文案继续由其现有归属模块维护。
 - **安装标识与模块包名是两回事**：Android `applicationId`、iOS `PRODUCT_BUNDLE_IDENTIFIER`、macOS `bundleID` 统一为 `app.koyura`；iOS framework（`ReaderShared`）的 bundleId 为 `app.koyura.app`，与应用标识区分。Kotlin 包名、Gradle `namespace` 与安装标识保持同源，但互不强制相等。

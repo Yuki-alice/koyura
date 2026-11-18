@@ -43,6 +43,16 @@ interface LibraryRepository {
      */
     suspend fun markAsRead(keys: Set<LibraryEntryKey>, read: Boolean): LibrarySnapshot
 
+    /** 详情章列表的已读映射（`chapterId = ""` 即无分章行）；未收藏或无目录时为空。 */
+    suspend fun chapterReadStates(key: LibraryEntryKey): Map<String, Boolean> = emptyMap()
+
+    /**
+     * 详情批量标已读/未读（子集）：只改 [chapterIds] 的 `is_read`，
+     * 空集表示该作全部章节；页键/页码/历史隐藏标记原样保留。
+     */
+    suspend fun markDetailChapters(key: LibraryEntryKey, chapterIds: Set<String>, read: Boolean): LibrarySnapshot =
+        markAsRead(setOf(key), read)
+
     suspend fun addCategory(name: String): LibrarySnapshot
     suspend fun renameCategory(id: Long, name: String): LibrarySnapshot
     suspend fun setCategoryHidden(id: Long, hidden: Boolean): LibrarySnapshot

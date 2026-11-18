@@ -90,7 +90,7 @@ class ReaderSessionTest {
         session.saveCurrent()
 
         assertEquals(
-            listOf(FakeReaderService.SaveCall("example_source", "demo", "ep_1", 4)),
+            listOf(FakeReaderService.SaveCall("example_source", "demo", "ep_1", 4, isLastPage = true)),
             service.saveCalls,
         )
     }

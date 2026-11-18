@@ -135,6 +135,7 @@
     <string name="source_detail_chapters_selected">已选 %1$d 项</string>
     <string name="source_detail_clear_selection">清除</string>
     <string name="source_detail_mark_read">标为已读</string>
+    <string name="source_detail_mark_unread">标为未读</string>
     <string name="source_detail_download">下载</string>
     <string name="source_detail_download_desc">下载章节（即将上线）</string>
     <string name="source_detail_read">已读</string>

@@ -1,4 +1,11 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
 package app.koyura.features.library
+
+import androidx.compose.ui.graphics.Color
+import app.koyura.designsystem.ActionIcon
+import app.koyura.designsystem.ActionIconButton
+import androidx.compose.material3.TopAppBar
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -56,11 +63,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.koyura.designsystem.CoverDecoder
 import app.koyura.designsystem.CoverImageLoader
-import app.koyura.designsystem.KomikkuCover
-import app.koyura.designsystem.KomikkuCoverCornerRadius
+import app.koyura.designsystem.Cover
+import app.koyura.designsystem.CoverCornerRadius
 import app.koyura.designsystem.LocalCoverDecoder
 import app.koyura.designsystem.LocalCoverImageLoader
-import app.koyura.designsystem.KomikkuListGroupHeader
+import app.koyura.designsystem.ListGroupHeader
 import app.koyura.features.resources.Res
 import app.koyura.features.resources.library_menu_refresh
 import app.koyura.features.resources.library_action_change_categories
@@ -92,7 +99,6 @@ import app.koyura.features.resources.library_retry
 import app.koyura.features.resources.library_search_clear
 import app.koyura.features.resources.library_search_hint
 import app.koyura.features.resources.library_select_all
-import app.koyura.features.resources.library_selected_count
 import app.koyura.features.resources.library_sort
 import app.koyura.features.resources.library_start
 import app.koyura.features.resources.library_tab_all
@@ -187,8 +193,8 @@ fun LibraryScreen(
     onOpenWork: (sourceKey: String, workId: String, title: String) -> Unit,
     onContinue: (entry: LibraryEntry) -> Unit,
     onOpenBrowse: () -> Unit = {},
-    onGlobalSearch: () -> Unit = {},
-    onGuide: () -> Unit = {},
+    onGlobalSearch: (() -> Unit)? = null,
+    onGuide: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
@@ -298,71 +304,75 @@ private fun LibraryToolbar(
     onToggleSearch: () -> Unit,
     onOpenSheet: (LibrarySheet) -> Unit,
     onRandomOpen: (LibraryEntry) -> Unit,
-    onGlobalSearch: () -> Unit,
+    onGlobalSearch: (() -> Unit)?,
 ) {
     var overflow by remember { mutableStateOf(false) }
-    Column(modifier = Modifier.fillMaxWidth()) {        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Text(
-                text = stringResource(Res.string.library_title),
-                style = MaterialTheme.typography.headlineMedium,
-                modifier = Modifier.testTag(LibraryTitleTag),
-            )
-            if (session.snapshot.prefs.showWorkCount) {
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    tonalElevation = 2.dp,
-                    modifier = Modifier.testTag(LibraryCountTag),
+    Column(modifier = Modifier.fillMaxWidth()) {
+        TopAppBar(
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     Text(
-                        text = stringResource(Res.string.library_works_count, session.snapshot.entries.size),
-                        style = MaterialTheme.typography.labelMedium,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        text = stringResource(Res.string.library_title),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false).testTag(LibraryTitleTag),
                     )
+                    if (session.snapshot.prefs.showWorkCount) {
+                        Surface(shape = MaterialTheme.shapes.small, tonalElevation = 2.dp) {
+                            Text(
+                                // 同一可见范围：隐藏关闭时仅归属隐藏分类的作品不计入总数。
+                                text = session.countForTab(null).toString(),
+                                style = MaterialTheme.typography.labelMedium,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                    .testTag(LibraryCountTag),
+                            )
+                        }
+                    }
                 }
-            }
-            Box(modifier = Modifier.weight(1f))
-            TextButton(
-                onClick = onToggleSearch,
-                modifier = Modifier.testTag(LibrarySearchToggleTag),
-            ) {
-                Text(stringResource(Res.string.library_search_hint))
-            }
-            TextButton(
-                onClick = { onOpenSheet(LibrarySheet.FILTER) },
-                modifier = Modifier.testTag(LibraryFilterButtonTag),
-            ) {
-                Text(stringResource(Res.string.library_filter))
-            }
-            Box {
-                TextButton(
+            },
+            actions = {
+                ActionIconButton(
+                    icon = if (searching) ActionIcon.Close else ActionIcon.Search,
+                    label = stringResource(if (searching) Res.string.library_search_clear else Res.string.library_search_hint),
+                    onClick = onToggleSearch,
+                    modifier = Modifier.testTag(LibrarySearchToggleTag),
+                )
+                ActionIconButton(
+                    icon = ActionIcon.Filter,
+                    label = stringResource(Res.string.library_filter),
+                    onClick = { onOpenSheet(LibrarySheet.FILTER) },
+                    modifier = Modifier.testTag(LibraryFilterButtonTag),
+                )
+                ActionIconButton(
+                    icon = ActionIcon.More,
+                    label = stringResource(Res.string.library_more),
                     onClick = { overflow = true },
                     modifier = Modifier.testTag(LibraryOverflowTag),
-                ) {
-                    Text(stringResource(Res.string.library_more))
-                }
-            }
-            if (overflow) {
-                LibraryOverflowDialog(
-                    session = session,
-                    onDismiss = { overflow = false },
-                    onOpenSheet = {
-                        overflow = false
-                        onOpenSheet(it)
-                    },
-                    onRandomOpen = {
-                        overflow = false
-                        onRandomOpen(it)
-                    },
-                    onGlobalSearch = {
-                        overflow = false
-                        onGlobalSearch()
-                    },
                 )
-            }
+            },
+        )
+        if (overflow) {
+            LibraryOverflowDialog(
+                session = session,
+                onDismiss = { overflow = false },
+                onOpenSheet = {
+                    overflow = false
+                    onOpenSheet(it)
+                },
+                onRandomOpen = {
+                    overflow = false
+                    onRandomOpen(it)
+                },
+                onGlobalSearch = onGlobalSearch?.let { global ->
+                    {
+                        overflow = false
+                        global()
+                    }
+                },
+            )
         }
         if (searching) {
             OutlinedTextField(
@@ -372,9 +382,11 @@ private fun LibraryToolbar(
                 singleLine = true,
                 trailingIcon = {
                     if (session.query.isNotEmpty()) {
-                        TextButton(onClick = { session.updateQuery("") }) {
-                            Text(stringResource(Res.string.library_search_clear))
-                        }
+                        ActionIconButton(
+                            icon = ActionIcon.Close,
+                            label = stringResource(Res.string.library_search_clear),
+                            onClick = { session.updateQuery("") },
+                        )
                     }
                 },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
@@ -393,7 +405,7 @@ private fun LibraryOverflowDialog(
     onDismiss: () -> Unit,
     onOpenSheet: (LibrarySheet) -> Unit,
     onRandomOpen: (LibraryEntry) -> Unit,
-    onGlobalSearch: () -> Unit,
+    onGlobalSearch: (() -> Unit)?,
 ) {
     val scope = rememberCoroutineScope()
     AlertDialog(
@@ -443,10 +455,12 @@ private fun LibraryOverflowDialog(
                         scope.launch { session.refresh() }
                     },
                 )
+                // 全局搜索暂无生产页面与路由：无回调时禁用（保留测试锚点，生产不响应）。
                 LibraryOverflowRow(
                     label = stringResource(Res.string.library_global_search),
                     tag = LibraryMenuGlobalSearchTag,
-                    onClick = { onGlobalSearch() },
+                    onClick = { onGlobalSearch?.invoke() },
+                    enabled = onGlobalSearch != null,
                 )
             }
         },
@@ -464,9 +478,11 @@ private fun LibraryOverflowRow(
     label: String,
     tag: String,
     onClick: () -> Unit,
+    enabled: Boolean = true,
 ) {
     TextButton(
         onClick = onClick,
+        enabled = enabled,
         modifier = Modifier.fillMaxWidth().testTag(tag),
     ) {
         Text(
@@ -478,37 +494,37 @@ private fun LibraryOverflowRow(
 
 @Composable
 private fun LibrarySelectionToolbar(session: LibrarySession) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
-            .testTag(LibrarySelectionBarTag),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        TextButton(
-            onClick = { session.clearSelection() },
-            modifier = Modifier.testTag(LibraryClearSelectionTag),
-        ) {
-            Text(stringResource(Res.string.library_cancel))
-        }
-        Text(
-            text = stringResource(Res.string.library_selected_count, session.selection.size),
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.testTag(LibrarySelectionCountTag),
-        )
-        Box(modifier = Modifier.weight(1f))
-        TextButton(
-            onClick = { session.selectAllVisible() },
-            modifier = Modifier.testTag(LibrarySelectAllTag),
-        ) {
-            Text(stringResource(Res.string.library_select_all))
-        }
-        TextButton(
-            onClick = { session.invertSelection() },
-            modifier = Modifier.testTag(LibraryInvertSelectionTag),
-        ) {
-            Text(stringResource(Res.string.library_invert_selection))
-        }
-    }
+    TopAppBar(
+        title = {
+            Text(
+                text = session.selection.size.toString(),
+                modifier = Modifier.testTag(LibrarySelectionCountTag),
+            )
+        },
+        navigationIcon = {
+            ActionIconButton(
+                icon = ActionIcon.Close,
+                label = stringResource(Res.string.library_cancel),
+                onClick = session::clearSelection,
+                modifier = Modifier.testTag(LibraryClearSelectionTag),
+            )
+        },
+        actions = {
+            ActionIconButton(
+                icon = ActionIcon.SelectAll,
+                label = stringResource(Res.string.library_select_all),
+                onClick = session::selectAllVisible,
+                modifier = Modifier.testTag(LibrarySelectAllTag),
+            )
+            ActionIconButton(
+                icon = ActionIcon.InvertSelection,
+                label = stringResource(Res.string.library_invert_selection),
+                onClick = session::invertSelection,
+                modifier = Modifier.testTag(LibraryInvertSelectionTag),
+            )
+        },
+        modifier = Modifier.testTag(LibrarySelectionBarTag),
+    )
 }
 
 // endregion
@@ -526,11 +542,8 @@ private fun LibraryCategoryTabs(session: LibrarySession) {
         edgePadding = 16.dp,
     ) {
         tabs.forEachIndexed { index, category ->
-            val count = if (category == null) {
-                session.snapshot.entries.size
-            } else {
-                session.snapshot.entriesIn(category.id).size
-            }
+            // 同一可见范围：页签计数按隐藏开关过滤，仅归属隐藏的在“全部”中不计。
+            val count = session.countForTab(category?.id)
             Tab(
                 selected = index == selected,
                 onClick = { session.selectCategory(category?.id) },
@@ -570,8 +583,8 @@ private fun LibraryContent(
     onOpenWork: (sourceKey: String, workId: String, title: String) -> Unit,
     onContinue: (entry: LibraryEntry) -> Unit,
     onOpenBrowse: () -> Unit,
-    onGlobalSearch: () -> Unit,
-    onGuide: () -> Unit,
+    onGlobalSearch: (() -> Unit)?,
+    onGuide: (() -> Unit)?,
 ) {
     if (session.snapshot.entries.isEmpty()) {
         LibraryEmptyState(
@@ -598,8 +611,10 @@ private fun LibraryContent(
                 ) {
                     Text(stringResource(Res.string.library_search_clear))
                 }
+                // 全局搜索暂无生产目的地：无回调时禁用（保留测试锚点，生产不响应）。
                 TextButton(
-                    onClick = onGlobalSearch,
+                    onClick = { onGlobalSearch?.invoke() },
+                    enabled = onGlobalSearch != null,
                     modifier = Modifier.testTag(LibraryGlobalSearchTag),
                 ) {
                     Text(stringResource(Res.string.library_global_search))
@@ -636,8 +651,8 @@ private fun LibraryContent(
 @Composable
 private fun LibraryEmptyState(
     onOpenBrowse: () -> Unit,
-    onGlobalSearch: () -> Unit,
-    onGuide: () -> Unit,
+    onGlobalSearch: (() -> Unit)?,
+    onGuide: (() -> Unit)?,
 ) {
     Column(
         modifier = Modifier.fillMaxSize().padding(24.dp).testTag(LibraryEmptyTag),
@@ -658,15 +673,18 @@ private fun LibraryEmptyState(
         ) {
             Text(stringResource(Res.string.library_empty_browse))
         }
+        // 指南与全局搜索暂无生产目的地：无回调时禁用（保留测试锚点），空书架浏览始终可用。
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             TextButton(
-                onClick = onGuide,
+                onClick = { onGuide?.invoke() },
+                enabled = onGuide != null,
                 modifier = Modifier.testTag(LibraryEmptyGuideTag),
             ) {
                 Text(stringResource(Res.string.library_empty_guide))
             }
             TextButton(
-                onClick = onGlobalSearch,
+                onClick = { onGlobalSearch?.invoke() },
+                enabled = onGlobalSearch != null,
                 modifier = Modifier.testTag(LibraryGlobalSearchTag),
             ) {
                 Text(stringResource(Res.string.library_global_search))
@@ -700,7 +718,7 @@ private fun LibraryGridContent(
             if (section.title.isNotEmpty()) {
                 item(key = "group-${section.title}", span = { androidx.compose.foundation.lazy.grid.GridItemSpan(columns) }) {
                     Box(modifier = Modifier.testTag(libraryGroupHeaderTag(section.title))) {
-                        KomikkuListGroupHeader(text = section.title)
+                        ListGroupHeader(text = section.title)
                     }
                 }
             }
@@ -785,7 +803,7 @@ private fun LibraryListContent(
             if (section.title.isNotEmpty()) {
                 stickyHeader(key = "group-${section.title}") {
                     Box(modifier = Modifier.testTag(libraryGroupHeaderTag(section.title))) {
-                        KomikkuListGroupHeader(text = section.title)
+                        ListGroupHeader(text = section.title)
                     }
                 }
             }
@@ -819,7 +837,7 @@ private fun LibraryPanoramaContent(
             if (section.title.isNotEmpty()) {
                 stickyHeader(key = "group-${section.title}") {
                     Box(modifier = Modifier.testTag(libraryGroupHeaderTag(section.title))) {
-                        KomikkuListGroupHeader(text = section.title)
+                        ListGroupHeader(text = section.title)
                     }
                 }
             }
@@ -878,7 +896,7 @@ private fun LibraryCoverImage(
         LocalCoverImageLoader provides loader,
         LocalCoverDecoder provides decoder,
     ) {
-        KomikkuCover(
+        Cover(
             sourceKey = entry.sourceKey,
             coverUrl = entry.coverUrl,
             label = entry.displayTitle,
@@ -951,23 +969,17 @@ private fun BoxScope.LibraryCoverBadges(
                 .background(MaterialTheme.colorScheme.primary),
             contentAlignment = Alignment.Center,
         ) {
-            Text(
-                text = "✓",
-                color = MaterialTheme.colorScheme.onPrimary,
-                style = MaterialTheme.typography.titleMedium,
-            )
+            ActionIcon(ActionIcon.Checklist, null, tint = MaterialTheme.colorScheme.onPrimary)
         }
     } else if (prefs.showContinueButton && entry.canContinue) {
-        TextButton(
+        ActionIconButton(
+            icon = ActionIcon.Play,
+            label = stringResource(if (entry.hasStarted) Res.string.library_continue else Res.string.library_start),
             onClick = { onContinue(entry) },
             modifier = Modifier.align(Alignment.BottomEnd).padding(4.dp)
                 .testTag(libraryContinueTag(entry.sourceKey, entry.workId)),
-        ) {
-            Text(
-                stringResource(if (entry.hasStarted) Res.string.library_continue else Res.string.library_start),
-                style = MaterialTheme.typography.labelMedium,
-            )
-        }
+            contentColor = Color.White,
+        )
     }
 }
 
@@ -1126,12 +1138,12 @@ private fun LibraryListRow(
             )
         }
         if (session.snapshot.prefs.showContinueButton && entry.canContinue) {
-            TextButton(
+            ActionIconButton(
+                icon = ActionIcon.Play,
+                label = stringResource(if (entry.hasStarted) Res.string.library_continue else Res.string.library_start),
                 onClick = { onContinue(entry) },
                 modifier = Modifier.testTag(libraryContinueTag(entry.sourceKey, entry.workId)),
-            ) {
-                Text(stringResource(if (entry.hasStarted) Res.string.library_continue else Res.string.library_start))
-            }
+            )
         }
     }
 }
@@ -1148,7 +1160,7 @@ private fun LibraryPanoramaCard(
         modifier = LibraryCardModifier(entry, session, onOpenWork)
             .fillMaxWidth()
             .height(160.dp)
-            .clip(RoundedCornerShape(KomikkuCoverCornerRadius)),
+            .clip(RoundedCornerShape(CoverCornerRadius)),
     ) {
         LibraryCoverImage(
             entry = entry,
@@ -1193,49 +1205,47 @@ private fun LibraryBottomMenu(
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            TextButton(
+            ActionIconButton(
+                icon = ActionIcon.Repository,
+                label = stringResource(Res.string.library_action_change_categories),
                 onClick = onChangeCategories,
                 modifier = Modifier.testTag(LibraryBottomChangeCategoriesTag),
-            ) {
-                Text(stringResource(Res.string.library_action_change_categories))
-            }
-            TextButton(
+            )
+            ActionIconButton(
+                icon = ActionIcon.Checklist,
+                label = stringResource(Res.string.library_action_mark_read),
                 onClick = { scope.launch { session.markSelectedAsRead(true) } },
                 modifier = Modifier.testTag(LibraryBottomMarkReadTag),
-            ) {
-                Text(stringResource(Res.string.library_action_mark_read))
-            }
-            TextButton(
+            )
+            ActionIconButton(
+                icon = ActionIcon.Schedule,
+                label = stringResource(Res.string.library_action_mark_unread),
                 onClick = { scope.launch { session.markSelectedAsRead(false) } },
                 modifier = Modifier.testTag(LibraryBottomMarkUnreadTag),
-            ) {
-                Text(stringResource(Res.string.library_action_mark_unread))
-            }
+            )
             // 离线下载在后续轮次（更新与离线轨）提供，本轮只留 disabled 入口。
-            TextButton(
+            ActionIconButton(
+                icon = ActionIcon.Download,
+                label = stringResource(Res.string.library_action_download),
                 onClick = {},
                 enabled = false,
                 modifier = Modifier.testTag(LibraryBottomDownloadTag),
-            ) {
-                Text(stringResource(Res.string.library_action_download))
-            }
+            )
             // 跨源迁移合并入口本轮只留 disabled 入口，不实现。
-            TextButton(
+            ActionIconButton(
+                icon = ActionIcon.Sync,
+                label = stringResource(Res.string.library_action_migrate),
                 onClick = {},
                 enabled = false,
                 modifier = Modifier.testTag(LibraryBottomMigrateTag),
-            ) {
-                Text(stringResource(Res.string.library_action_migrate))
-            }
-            TextButton(
+            )
+            ActionIconButton(
+                icon = ActionIcon.Delete,
+                label = stringResource(Res.string.library_action_remove),
                 onClick = onRemove,
                 modifier = Modifier.testTag(LibraryBottomRemoveTag),
-            ) {
-                Text(
-                    stringResource(Res.string.library_action_remove),
-                    color = MaterialTheme.colorScheme.error,
-                )
-            }
+                contentColor = MaterialTheme.colorScheme.error,
+            )
         }
     }
 }

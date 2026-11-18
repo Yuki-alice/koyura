@@ -100,7 +100,7 @@ fun ExtensionDetailsScreen(
                 .padding(top = 16.dp, bottom = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            app.koyura.designsystem.KomikkuIconPlaceholder(label = extension.name)
+            app.koyura.designsystem.IconPlaceholder(label = extension.name)
             Text(
                 extension.name,
                 style = MaterialTheme.typography.headlineSmall,
@@ -179,7 +179,7 @@ fun ExtensionDetailsScreen(
 
         HorizontalDivider(modifier = Modifier.padding(top = 8.dp))
 
-        app.koyura.designsystem.KomikkuListGroupHeader(
+        app.koyura.designsystem.ListGroupHeader(
             text = stringResource(Res.string.extension_details_sources),
         )
         if (extension.sources.isEmpty()) {

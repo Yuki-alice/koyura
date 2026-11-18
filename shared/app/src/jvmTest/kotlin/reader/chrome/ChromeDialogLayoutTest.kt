@@ -34,7 +34,7 @@ class ChromeDialogLayoutTest {
     val rule = createComposeRule()
 
     @Test
-    fun breakpointMatchesKomikkuTabletRule() {
+    fun breakpointMatchesTabletRule() {
         assertTrue(isCompactDialog(419))
         assertTrue(isCompactDialog(719))
         assertTrue(!isCompactDialog(720))

@@ -68,7 +68,14 @@ class LibrarySessionTest {
         session.updateQuery("zzz-no-match")
         assertTrue(session.visibleEntries.isEmpty())
         session.updateQuery("")
+        // 默认隐藏开关关闭：仅归属隐藏分类的 w6 不在“全部”与搜索中泄露。
+        assertEquals(6, session.visibleEntries.size)
+        assertFalse(session.visibleEntries.any { it.workId == "w6" })
+        // 打开开关后可查看隐藏分类作品，搜索同范围。
+        session.updatePrefs { it.copy(showHiddenCategories = true) }
         assertEquals(7, session.visibleEntries.size)
+        session.updateQuery("隐藏之作")
+        assertEquals(setOf("w6"), session.visibleEntries.map { it.workId }.toSet())
     }
 
     @Test
@@ -80,7 +87,14 @@ class LibrarySessionTest {
         session.selectCategory(3L)
         assertTrue(session.visibleEntries.isEmpty())
         session.selectCategory(null)
-        assertEquals(7, session.visibleEntries.size)
+        // 默认“全部”隐藏仅归属隐藏分类的 w6；混合归属与无分类仍可见由夹具保证。
+        assertEquals(6, session.visibleEntries.size)
+        assertEquals(6, session.countForTab(null))
+        assertEquals(5, session.countForTab(1L))
+        // 全选仅选中当前可见范围。
+        session.selectAllVisible()
+        assertEquals(6, session.selection.size)
+        assertFalse(session.selection.any { it.workId == "w6" })
     }
 
     @Test
@@ -116,14 +130,18 @@ class LibrarySessionTest {
             session.updatePrefs { it.copy(filters = transform(LibraryFilters())) }
             assertEquals(expected, session.visibleEntries.map { it.workId }.toSet())
         }
-        only({ it.copy(unread = LibraryTriState.INCLUDE) }, setOf("w1", "w3", "w5", "w6", "w7"))
+        // 默认隐藏关闭：w6 不参与未读/筛选计数；打开后才纳入同一可见范围。
+        only({ it.copy(unread = LibraryTriState.INCLUDE) }, setOf("w1", "w3", "w5", "w7"))
         only({ it.copy(unread = LibraryTriState.EXCLUDE) }, setOf("w2", "w4"))
         only({ it.copy(downloaded = LibraryTriState.INCLUDE) }, setOf("w1"))
         only({ it.copy(started = LibraryTriState.INCLUDE) }, setOf("w1", "w2", "w3", "w5"))
         only({ it.copy(bookmarked = LibraryTriState.INCLUDE) }, setOf("w2"))
         only({ it.copy(completed = LibraryTriState.INCLUDE) }, setOf("w2"))
         only({ it.copy(lewd = LibraryTriState.INCLUDE) }, setOf("w4"))
-        only({ it.copy(lewd = LibraryTriState.EXCLUDE) }, setOf("w1", "w2", "w3", "w5", "w6", "w7"))
+        only({ it.copy(lewd = LibraryTriState.EXCLUDE) }, setOf("w1", "w2", "w3", "w5", "w7"))
+        session.updatePrefs { it.copy(filters = LibraryFilters(), showHiddenCategories = true) }
+        session.updatePrefs { it.copy(filters = LibraryFilters(unread = LibraryTriState.INCLUDE)) }
+        assertTrue(session.visibleEntries.any { it.workId == "w6" })
     }
 
     @Test
@@ -132,25 +150,25 @@ class LibrarySessionTest {
         session.refresh()
         session.updatePrefs { it.copy(sortType = LibrarySortType.DATE_ADDED, ascending = true) }
         assertEquals(
-            listOf("w1", "w2", "w3", "w4", "w5", "w6", "w7"),
+            listOf("w1", "w2", "w3", "w4", "w5", "w7"),
             session.visibleEntries.map { it.workId },
         )
         session.updatePrefs { it.copy(ascending = false) }
         assertEquals(
-            listOf("w7", "w6", "w5", "w4", "w3", "w2", "w1"),
+            listOf("w7", "w5", "w4", "w3", "w2", "w1"),
             session.visibleEntries.map { it.workId },
         )
         session.updatePrefs { it.copy(sortType = LibrarySortType.ALPHABETICAL, ascending = true) }
         val titles = session.visibleEntries.map { it.displayTitle }
         assertEquals(titles.sorted(), titles)
-        // 随机排序：同一种子两次结果一致，且为全集排列。
+        // 随机排序：同一种子两次结果一致，且为可见全集排列。
         session.updatePrefs { it.copy(sortType = LibrarySortType.RANDOM, randomSeed = 42L) }
         val first = session.visibleEntries.map { it.workId }
         session.updatePrefs { it.copy(sortType = LibrarySortType.ALPHABETICAL) }
         session.updatePrefs { it.copy(sortType = LibrarySortType.RANDOM, randomSeed = 42L) }
         val second = session.visibleEntries.map { it.workId }
         assertEquals(first, second)
-        assertEquals(setOf("w1", "w2", "w3", "w4", "w5", "w6", "w7"), first.toSet())
+        assertEquals(setOf("w1", "w2", "w3", "w4", "w5", "w7"), first.toSet())
     }
 
     @Test
@@ -242,6 +260,34 @@ class LibrarySessionTest {
         assertTrue(session.snapshot.categories.first { it.id == added.id }.isHidden)
         assertTrue(session.removeCategory(3L))
         assertFalse(session.snapshot.categories.any { it.id == 3L })
+    }
+
+    @Test
+    fun hiddenTabHidesAndCleansSelection() = runTest {
+        val (session, _) = sessionOf()
+        session.refresh()
+        // 默认“全部”不含仅归属隐藏的 w6，选中它后关开关应被清理。
+        session.updatePrefs { it.copy(showHiddenCategories = true) }
+        session.toggleSelect(LibraryEntryKey("srcB", LibraryKind.COMIC, "w6"))
+        assertEquals(1, session.selection.size)
+        session.updatePrefs { it.copy(showHiddenCategories = false) }
+        assertTrue(session.selection.isEmpty())
+        assertFalse(session.visibleEntries.any { it.workId == "w6" })
+        // 当前页签被隐藏后回到“全部”。
+        session.updatePrefs { it.copy(showHiddenCategories = true) }
+        session.selectCategory(2L)
+        assertEquals(listOf("w6"), session.visibleEntries.map { it.workId })
+        session.updatePrefs { it.copy(showHiddenCategories = false) }
+        assertNull(session.activeCategoryId)
+        assertTrue(session.visibleEntries.none { it.workId == "w6" })
+        // 删除当前页签回到“全部”：作品转为无分类（仍可见），选中保留。
+        session.updatePrefs { it.copy(showHiddenCategories = true) }
+        session.selectCategory(2L)
+        session.toggleSelect(LibraryEntryKey("srcB", LibraryKind.COMIC, "w6"))
+        assertTrue(session.removeCategory(2L))
+        assertNull(session.activeCategoryId)
+        assertEquals(1, session.selection.size)
+        assertTrue(session.visibleEntries.any { it.workId == "w6" })
     }
 
     @Test

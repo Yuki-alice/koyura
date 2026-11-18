@@ -29,6 +29,8 @@ interface ReaderService {
      *
      * [workTitle] and [chapterTitle] are best-effort display metadata recorded alongside the
      * position; history UI falls back to IDs when they are absent.
+     * [isLastPage] 为 true 时调用方已翻到本章末页，生产实现据此记录章节已读，
+     * 中途页仅更新进度。
      */
     suspend fun saveProgress(
         sourceKey: String,
@@ -38,6 +40,7 @@ interface ReaderService {
         pageIndex: Int,
         workTitle: String? = null,
         chapterTitle: String? = null,
+        isLastPage: Boolean = false,
     )
 }
 

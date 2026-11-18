@@ -13,11 +13,10 @@ import androidx.compose.ui.text.font.FontWeight
 /**
  * Application theme aligned with Komikku's `TachiyomiTheme` default (`TachiyomiColorScheme`).
  *
- * Key colors mirror `eu.kanade.presentation.theme.colorscheme.TachiyomiColorScheme`:
- * primary #2979FF family, tertiary #47A84A family, neutral #919094. The optional [amoled]
- * flag reproduces Komikku's AMOLED override (`BaseColorScheme.getColorScheme`): pure black
- * backgrounds/surfaces with white content, and `#0C0C0C/#131313/#1B1B1B` containers so the
- * navigation bar stays distinguishable over scrolled content (whitepaper 02 §2.1/§2.4).
+ * 三套色板与 Komikku `TachiyomiColorScheme` 的浅色/深色及 AMOLED 覆写（`BaseColorScheme.getColorScheme`）
+ * 逐值一致，数值出处为白皮书 09.1 `tokens.css` 与 `assets/design-tokens.json`。AMOLED 用纯黑
+ * background/surface 配 `#0C0C0C/#131313/#1B1B1B` 容器分层，导航栏在滚动内容上仍可分辨
+ * （whitepaper 02 §2.1/§2.4）。
  */
 private val TachiyomiLightColors = lightColorScheme(
     primary = Color(0xFF0058CA),
@@ -110,7 +109,7 @@ private val AmoledDarkColors = darkColorScheme(
     surface = Color.Black,
     onSurface = Color.White,
     surfaceVariant = Color(0xFF0C0C0C),
-    onSurfaceVariant = Color(0xFFC5C6D0),
+    onSurfaceVariant = Color(0xFFC5C6C0),
     surfaceTint = Color(0xFFB0C6FF),
     inverseSurface = Color(0xFFE3E2E6),
     inverseOnSurface = Color(0xFF1B1B1F),
@@ -149,15 +148,9 @@ fun ReaderTheme(
  * `onSurfaceVariant`. Used for source language groups, extension groups, history dates and the
  * chapter count header so the four surfaces share one header voice.
  */
-val Typography.komikkuHeader: TextStyle
+val Typography.header: TextStyle
     @Composable
     get() = bodyMedium.copy(
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         fontWeight = FontWeight.SemiBold,
     )
-
-/** Disabled-content alpha matching Komikku's `DISABLED_ALPHA`. */
-const val KomikkuDisabledAlpha = 0.38f
-
-/** Secondary-row alpha matching Komikku's `secondaryItemAlpha`. */
-const val KomikkuSecondaryAlpha = 0.78f

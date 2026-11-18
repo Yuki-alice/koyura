@@ -21,7 +21,7 @@ class ShellWidthTest {
     }
 
     @Test
-    fun thresholdMatchesKomikkuTabletBaseline() {
+    fun thresholdMatchesTabletBaseline() {
         assertFalse(usesNavigationRail(RailWidthThreshold - 1.dp))
         assertTrue(usesNavigationRail(RailWidthThreshold))
     }

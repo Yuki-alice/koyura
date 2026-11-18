@@ -86,7 +86,25 @@ object LibraryPrefsKeys {
     const val FILTER_SPEC = "filter.spec"
     const val SORT_SPEC = "sort.spec"
     const val GROUP_SPEC = "group.spec"
+    const val SHOW_UNREAD_BADGES = "display.show_unread_badges"
+    const val SHOW_DOWNLOAD_BADGES = "display.show_download_badges"
+    const val SHOW_LANGUAGE_BADGES = "display.show_language_badges"
+    const val SHOW_CONTINUE_BUTTON = "display.show_continue_button"
+    const val SHOW_CATEGORY_LABELS = "display.show_category_labels"
+    const val SHOW_HIDDEN_CATEGORIES = "display.show_hidden_categories"
+    const val SHOW_WORK_COUNT = "display.show_work_count"
 }
+
+/** 书架章节目录行：按三元主键 + 章节 ID 隔离，`isRead` 为已读状态。 */
+data class LibraryChapter(
+    val sourceKey: String,
+    val kind: WorkKind,
+    val workId: String,
+    val chapterId: String,
+    val title: String = "",
+    val sortIndex: Int = 0,
+    val isRead: Boolean = false,
+)
 
 /**
  * SY / KMK 扩展的跨源迁移合并入口：本轮只留 disabled 入口，不实现。
@@ -153,6 +171,35 @@ interface LibraryRepository {
     suspend fun setPref(key: String, value: String)
 
     suspend fun deletePref(key: String)
+
+    /** 章节目录：成功取得源目录后同步（保留同 ID 已读态，新章默认未读）。 */
+    suspend fun syncChapters(
+        sourceKey: String,
+        kind: WorkKind,
+        workId: String,
+        chapters: List<LibraryChapter>,
+    )
+
+    /** 按作品读章节目录（`sortIndex` 升序）。 */
+    suspend fun listChapters(sourceKey: String, kind: WorkKind, workId: String): List<LibraryChapter>
+
+    /** 批量标已读/未读（单事务，保留页键/页码/历史隐藏标记，只改 `is_read`）。 */
+    suspend fun markChaptersRead(
+        sourceKey: String,
+        kind: WorkKind,
+        workId: String,
+        chapterIds: List<String>,
+        read: Boolean,
+    )
+
+    /** 单章已读标记（阅读到末页时调用，保留目录其余状态）。 */
+    suspend fun markChapterRead(
+        sourceKey: String,
+        kind: WorkKind,
+        workId: String,
+        chapterId: String,
+        read: Boolean,
+    )
 
     /** 同源换 key（源 key 变更/仓库变体/旧源卸载后重装）：复制条目、归属（取并集）与进度。 */
     suspend fun migrateSource(oldSourceKey: String, newSourceKey: String): LibraryMigrationReport

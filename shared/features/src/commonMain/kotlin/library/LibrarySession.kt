@@ -83,18 +83,42 @@ class LibrarySession(
     private val coverMutex = Mutex()
     private val coverInFlight = mutableSetOf<String>()
 
-    /** 当前视图（搜索 + 分类 + 筛选 + 排序已应用，分组未切分）。 */
+    /** 隐藏过滤后的全量（无分类/搜索）：页签计数与选中清理的同一基准。 */
+    private val hiddenFilteredEntries: List<LibraryEntry>
+        get() {
+            if (snapshot.prefs.showHiddenCategories) return snapshot.entries
+            val hiddenIds = snapshot.categories.filter { it.isHidden }.map { it.id }.toSet()
+            if (hiddenIds.isEmpty()) return snapshot.entries
+            return snapshot.entries.filter { entry ->
+                val ids = snapshot.links[entry.key] ?: emptySet()
+                ids.isEmpty() || ids.any { it !in hiddenIds }
+            }
+        }
+
+    /** 当前视图（隐藏 + 搜索 + 分类 + 筛选 + 排序已应用，分组未切分）。 */
     val visibleEntries: List<LibraryEntry>
-        get() = applyLibraryView(
-            entries = snapshot.entries,
-            links = snapshot.links,
-            query = query,
-            categoryId = activeCategoryId,
-            filters = snapshot.prefs.filters,
-            sortType = snapshot.prefs.sortType,
-            ascending = snapshot.prefs.ascending,
-            randomSeed = snapshot.prefs.randomSeed,
-        )
+        get() {
+            // 先缩到隐藏基准，再走同一视图函数，保证搜索/分组/计数/全选同一可见范围；
+            // 混合归属与无分类在基准中已保留，仅归属隐藏的在此消失。
+            val base = hiddenFilteredEntries
+            return applyLibraryView(
+                entries = base,
+                links = snapshot.links,
+                query = query,
+                categoryId = activeCategoryId,
+                filters = snapshot.prefs.filters,
+                sortType = snapshot.prefs.sortType,
+                ascending = snapshot.prefs.ascending,
+                randomSeed = snapshot.prefs.randomSeed,
+            )
+        }
+
+    /** 指定页签在当前隐藏开关下的计数基数（搜索外，隐藏已过滤）。 */
+    fun countForTab(categoryId: Long?): Int {
+        val base = hiddenFilteredEntries
+        if (categoryId == null) return base.size
+        return base.count { (snapshot.links[it.key] ?: emptySet()).contains(categoryId) }
+    }
 
     /** 分组后的视图（组头由 UI 渲染）。 */
     val visibleSections: List<LibrarySection>
@@ -121,18 +145,26 @@ class LibrarySession(
         loadState = LibraryLoadState.Loading
         try {
             snapshot = current.load()
-            activeCategoryId = activeCategoryId?.takeIf { id ->
-                snapshot.categories.any { it.id == id }
-            }
-            selection = selection.filter { key ->
-                snapshot.entries.any { it.key == key }
-            }.toSet()
+            normalizeAfterSnapshotChange()
             loadState = LibraryLoadState.Ready
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (failure: Exception) {
             loadState = LibraryLoadState.Failed(failure.userMessage())
         }
+    }
+
+    /**
+     * 快照变更后的收敛：当前页签被隐藏或删除时回“全部”，选中仅保留隐藏基准内仍可见者。
+     * 收藏身份、分类归属与历史收藏状态不受影响（仅页签与选中收敛）。
+     */
+    private fun normalizeAfterSnapshotChange() {
+        val allowedTabs = tabs.mapNotNull { it?.id }.toSet()
+        if (activeCategoryId != null && activeCategoryId !in allowedTabs) {
+            activeCategoryId = null
+        }
+        val visibleKeys = hiddenFilteredEntries.map { it.key }.toSet()
+        selection = selection.filter { it in visibleKeys }.toSet()
     }
 
     fun updateQuery(value: String) {
@@ -202,6 +234,7 @@ class LibrarySession(
         return try {
             snapshot = if (favorite) current.addToLibrary(entry) else
                 current.removeFromLibrary(setOf(LibraryEntryKey(entry.sourceKey, entry.kind, entry.workId)))
+            normalizeAfterSnapshotChange()
             actionError = null
             true
         } catch (cancelled: CancellationException) {
@@ -231,6 +264,7 @@ class LibrarySession(
                 next = current.setEntryCategories(key, categoryIds)
             }
             snapshot = next
+            normalizeAfterSnapshotChange()
             actionError = null
             true
         } catch (cancelled: CancellationException) {
@@ -245,11 +279,38 @@ class LibrarySession(
     suspend fun markSelectedAsRead(read: Boolean): Boolean =
         mutateSelected { repo, keys -> repo.markAsRead(keys, read) }
 
+    /** 详情章列表的已读映射（生产仓储读同一 `library_chapter` 表）。 */
+    suspend fun chapterReadStates(key: LibraryEntryKey): Map<String, Boolean> {
+        val current = repository ?: return emptyMap()
+        return try {
+            current.chapterReadStates(key)
+        } catch (_: Exception) {
+            emptyMap()
+        }
+    }
+
+    /** 详情批量标已读/未读（子集写入，成功即新快照，失败只记 `actionError`）。 */
+    suspend fun markDetailChapters(key: LibraryEntryKey, chapterIds: Set<String>, read: Boolean): Boolean {
+        val current = repository ?: return fail("Library is not connected")
+        return try {
+            snapshot = current.markDetailChapters(key, chapterIds, read)
+            normalizeAfterSnapshotChange()
+            actionError = null
+            true
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            fail(failure.userMessage())
+            false
+        }
+    }
+
     /** 单条目改分类（详情页选择分类用，一作多类落盘）。 */
     suspend fun setEntryCategories(key: LibraryEntryKey, categoryIds: Set<Long>): Boolean {
         val current = repository ?: return fail("Library is not connected")
         return try {
             snapshot = current.setEntryCategories(key, categoryIds)
+            normalizeAfterSnapshotChange()
             actionError = null
             true
         } catch (cancelled: CancellationException) {
@@ -268,6 +329,7 @@ class LibrarySession(
         if (keys.isEmpty()) return true
         return try {
             snapshot = block(current, keys)
+            normalizeAfterSnapshotChange()
             actionError = null
             true
         } catch (cancelled: CancellationException) {
@@ -304,6 +366,7 @@ class LibrarySession(
         val current = repository ?: return fail("Library is not connected")
         return try {
             snapshot = block(current)
+            normalizeAfterSnapshotChange()
             actionError = null
             true
         } catch (cancelled: CancellationException) {
@@ -322,6 +385,7 @@ class LibrarySession(
         val current = repository ?: return fail("Library is not connected")
         return try {
             snapshot = current.savePrefs(transform(snapshot.prefs))
+            normalizeAfterSnapshotChange()
             actionError = null
             true
         } catch (cancelled: CancellationException) {
@@ -377,7 +441,7 @@ class LibrarySession(
     }
 
     /**
-     * 供 [app.koyura.designsystem.KomikkuCover] 调用的单次取图：
+     * 供 [app.koyura.designsystem.Cover] 调用的单次取图：
      * 先走缓存/单飞 [ensureCover]，命中即返字节，未命中（失败或空图）即抛错，
      * 上层回退占位。本函数自身不重试。
      */

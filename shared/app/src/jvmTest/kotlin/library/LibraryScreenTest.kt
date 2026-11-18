@@ -16,8 +16,8 @@ import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.v2.runComposeUiTest
 import app.koyura.app.reader.pngBytes
-import app.koyura.designsystem.KomikkuCoverImageTag
-import app.koyura.designsystem.KomikkuCoverPlaceholderTag
+import app.koyura.designsystem.CoverImageTag
+import app.koyura.designsystem.CoverPlaceholderTag
 import app.koyura.designsystem.ReaderTheme
 import app.koyura.features.library.FakeLibraryRepository
 import app.koyura.features.library.LibraryBottomDownloadTag
@@ -381,11 +381,11 @@ class LibraryScreenTest {
         waitUntil { session.snapshot.entries.isNotEmpty() }
         // w1 正常 URL（有效 PNG）→ 真图；w2 损坏字节 → 占位；w4 空字符串 → 占位零网络。
         waitUntil(timeoutMillis = 10_000) {
-            allNodes(KomikkuCoverImageTag).fetchSemanticsNodes().size == 1
+            allNodes(CoverImageTag).fetchSemanticsNodes().size == 1
         }
         assertEquals(
             2,
-            allNodes(KomikkuCoverPlaceholderTag).fetchSemanticsNodes().size,
+            allNodes(CoverPlaceholderTag).fetchSemanticsNodes().size,
         )
         // 空封面条目零网络请求。
         assertTrue(session.covers[coverCacheKey("srcA", "")] is LibraryCoverState.Empty)

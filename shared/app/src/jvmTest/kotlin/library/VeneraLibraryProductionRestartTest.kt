@@ -54,7 +54,7 @@ import app.koyura.data.reader.preferences.ReaderPreferencesStore
 import app.koyura.data.session.ExtensionSession
 import app.koyura.data.session.openExtensionSession
 import app.koyura.designsystem.DefaultCoverMemoryCache
-import app.koyura.designsystem.KomikkuCoverImageTag
+import app.koyura.designsystem.CoverImageTag
 import app.koyura.domain.reader.preferences.ReadingMode
 import app.koyura.features.library.LibraryBottomChangeCategoriesTag
 import app.koyura.features.library.LibraryBottomMenuTag
@@ -176,14 +176,14 @@ class VeneraLibraryProductionRestartTest {
             awaitTag(sourceResultTag(WorkId))
             // 可点击行合并语义子树：行内封面节点只在未合并树可见。
             waitUntil(timeoutMillis = 15_000) {
-                onAllNodesWithTag(KomikkuCoverImageTag, useUnmergedTree = true)
+                onAllNodesWithTag(CoverImageTag, useUnmergedTree = true)
                     .fetchSemanticsNodes().isNotEmpty()
             }
             assertTrue("/cover.jpg" in requests, "cover must load through comic.onThumbnailLoad, got $requests")
             onNodeWithTag(sourceResultTag(WorkId)).performClick()
             awaitTag(DetailHeadingTag)
             waitUntil(timeoutMillis = 15_000) {
-                onAllNodesWithTag(KomikkuCoverImageTag, useUnmergedTree = true)
+                onAllNodesWithTag(CoverImageTag, useUnmergedTree = true)
                     .fetchSemanticsNodes().isNotEmpty()
             }
             capture("read-detail-cover")

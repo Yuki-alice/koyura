@@ -76,9 +76,15 @@ data class LibraryEntry(
     val hasStarted: Boolean
         get() = lastReadAtMillis != null || continueChapterId != null
 
-    /** 是否可继续阅读（派生：有可定位的继续章节）。 */
+    /**
+     * 是否可开始/继续阅读。
+     *
+     * 任何已收藏作品都可尝试打开详情再进阅读（无分章作品用 `chapterId = null` 契约）：
+     * 新收藏未读显示“开始”，有进度（含 `chapterId = null` 的无分章进度）显示“继续”。
+     * 标签区分仍看 [hasStarted]，此处恒为 true 以保证新作可开始、章后进度可续。
+     */
     val canContinue: Boolean
-        get() = continueChapterId != null || totalChapters > 0
+        get() = true
 }
 
 /** 书架分类。`id` 自增，`order` 决定页签顺序，`isHidden` 为隐藏分类。 */

@@ -1,5 +1,7 @@
 package app.koyura.features.reader.comic.chrome
 
+import app.koyura.designsystem.ActionIconButton
+import app.koyura.designsystem.ActionIcon
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -191,12 +193,12 @@ fun ReaderChrome(
                 .padding(horizontal = 4.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            TextButton(
+            ActionIconButton(
+                icon = ActionIcon.Back,
+                label = stringResource(Res.string.reader_back),
                 onClick = { onAction(ReaderChromeAction.Back) },
                 modifier = Modifier.testTag(ReaderBackTag),
-            ) {
-                Text(stringResource(Res.string.reader_back))
-            }
+            )
             Column(Modifier.weight(1f)) {
                 Text(
                     text = state.workTitle.ifEmpty { stringResource(Res.string.reader_title) },
@@ -270,11 +272,13 @@ fun ReaderChrome(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                TextButton(
+                ActionIconButton(
+                    icon = ActionIcon.Previous,
+                    label = stringResource(Res.string.reader_prev_chapter),
                     onClick = { prevChapterId(state)?.let { onAction(ReaderChromeAction.OpenChapter(it)) } },
                     enabled = state.hasPrevChapter,
                     modifier = Modifier.testTag(ReaderPrevChapterTag),
-                ) { Text(stringResource(Res.string.reader_prev_chapter)) }
+                )
                 if (state.pageCount > 1) {
                     PageSlider(
                         pageIndex = state.pageIndex,
@@ -287,11 +291,13 @@ fun ReaderChrome(
                 } else {
                     Spacer(Modifier.weight(1f))
                 }
-                TextButton(
+                ActionIconButton(
+                    icon = ActionIcon.Next,
+                    label = stringResource(Res.string.reader_next_chapter),
                     onClick = { nextChapterId(state)?.let { onAction(ReaderChromeAction.OpenChapter(it)) } },
                     enabled = state.hasNextChapter,
                     modifier = Modifier.testTag(ReaderNextChapterTag),
-                ) { Text(stringResource(Res.string.reader_next_chapter)) }
+                )
             }
             Spacer(Modifier.height(4.dp))
             Row(
@@ -299,22 +305,28 @@ fun ReaderChrome(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                TextButton(
+                ActionIconButton(
+                    icon = ActionIcon.Chapters,
+                    label = stringResource(Res.string.reader_chrome_chapters),
                     onClick = { openDialog(ReaderChromeDialog.ChapterList, chaptersFocus) },
                     modifier = Modifier
                         .testTag(ReaderChromeChaptersTag)
                         .focusRequester(chaptersFocus),
-                ) { Text(stringResource(Res.string.reader_chrome_chapters)) }
-                TextButton(
+                )
+                ActionIconButton(
+                    icon = modeIcon(state.effective.mode),
+                    label = stringResource(Res.string.reader_chrome_reading_mode),
                     onClick = { openDialog(ReaderChromeDialog.ReadingMode, modeFocus) },
                     modifier = Modifier
                         .testTag(ReaderChromeModeTag)
                         .focusRequester(modeFocus),
-                ) { Text(stringResource(Res.string.reader_chrome_reading_mode)) }
+                )
                 // Layout switcher (Komikku bottom bar shows it on pagers only): cycles the
                 // effective layout the same way the crop button flips the crop override.
                 if (!isStrip) {
-                    TextButton(
+                    ActionIconButton(
+                        icon = ActionIcon.Layout,
+                        label = stringResource(Res.string.reader_chrome_layout),
                         onClick = {
                             onAction(
                                 ReaderChromeAction.ChangeWorkOverride(
@@ -325,9 +337,11 @@ fun ReaderChrome(
                             )
                         },
                         modifier = Modifier.testTag(ReaderChromeLayoutTag),
-                    ) { Text(stringResource(Res.string.reader_chrome_layout)) }
+                    )
                 }
-                TextButton(
+                ActionIconButton(
+                    icon = if (state.effective.cropBorders) ActionIcon.Crop else ActionIcon.CropOff,
+                    label = stringResource(Res.string.reader_chrome_crop_borders),
                     onClick = {
                         onAction(
                             ReaderChromeAction.ChangeWorkOverride(
@@ -338,13 +352,15 @@ fun ReaderChrome(
                         )
                     },
                     modifier = Modifier.testTag(ReaderChromeCropTag),
-                ) { Text(stringResource(Res.string.reader_chrome_crop_borders)) }
-                TextButton(
+                )
+                ActionIconButton(
+                    icon = ActionIcon.Settings,
+                    label = stringResource(Res.string.reader_chrome_settings),
                     onClick = { openDialog(ReaderChromeDialog.Settings, settingsFocus) },
                     modifier = Modifier
                         .testTag(ReaderChromeSettingsTag)
                         .focusRequester(settingsFocus),
-                ) { Text(stringResource(Res.string.reader_chrome_settings)) }
+                )
             }
         }
         }
@@ -450,6 +466,14 @@ fun spreadEndForPage(spreads: List<ComicSpread>, pageIndex: Int): Int? {
 fun spreadRangePrefix(pageIndex: Int, spreadEnd: Int?): String =
     if (spreadEnd == null || spreadEnd == pageIndex) "${pageIndex + 1}"
     else "${pageIndex + 1}-${spreadEnd + 1}"
+
+private fun modeIcon(mode: ReadingMode): ActionIcon = when (mode) {
+    ReadingMode.LEFT_TO_RIGHT -> ActionIcon.ModeLeftToRight
+    ReadingMode.RIGHT_TO_LEFT -> ActionIcon.ModeRightToLeft
+    ReadingMode.VERTICAL -> ActionIcon.ModeVertical
+    ReadingMode.CONTINUOUS_VERTICAL -> ActionIcon.ModeContinuous
+    ReadingMode.WEBTOON -> ActionIcon.ModeWebtoon
+}
 
 /** Layout cycle for the pager-only switcher: SINGLE -> DOUBLE -> AUTO -> SINGLE. */
 fun nextReaderLayout(current: ReaderLayout): ReaderLayout = when (current) {

@@ -12,6 +12,7 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.v2.runComposeUiTest
@@ -125,6 +126,8 @@ class ReaderFlowTest {
         }
 
         // No progress yet: only Start is offered, and nothing has been saved.
+        // 宽屏两栏下开始按钮在左侧滚动列中，先滚到可见再断言（窄屏同语义）。
+        onNodeWithTag("reading-start").performScrollTo()
         onNodeWithTag("reading-start").assertIsDisplayed()
         assertTrue(onAllNodesWithTag("reading-continue").fetchSemanticsNodes().isEmpty())
         assertTrue(reader.saveCalls.isEmpty())
@@ -164,6 +167,7 @@ class ReaderFlowTest {
                 )
             }
         }
+        onNodeWithTag("reading-continue").performScrollTo()
         onNodeWithTag("reading-continue").assertIsDisplayed()
         onNodeWithTag("reading-continue").performClick()
         awaitIndicator("3 / 5")
@@ -222,7 +226,7 @@ class ReaderFlowTest {
 
         onNodeWithTag(ReaderBackTag).performClick()
         assertEquals(
-            FakeReaderService.SaveCall("example_source", "single", null, 1, "Single", null),
+            FakeReaderService.SaveCall("example_source", "single", null, 1, "Single", null, isLastPage = true),
             reader.saveCalls.last(),
         )
     }
@@ -256,6 +260,7 @@ class ReaderFlowTest {
             }
         }
 
+        onNodeWithTag("reading-start").performScrollTo()
         onNodeWithTag("reading-start").performClick()
         onNodeWithTag("reader-page-retry-p0").assertIsDisplayed()
         readerSession.retryPage("p0")
@@ -334,6 +339,7 @@ class ReaderFlowTest {
             }
         }
 
+        onNodeWithTag("reading-start").performScrollTo()
         onNodeWithTag("reading-start").performClick()
         awaitIndicator("1 / 5")
         onNodeWithTag(ComicViewerRootTag).performKeyInput {

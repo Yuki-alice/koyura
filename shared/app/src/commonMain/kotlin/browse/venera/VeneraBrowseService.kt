@@ -47,6 +47,11 @@ class VeneraBrowseService(
      * 页面其余部分不受影响。
      */
     private val thumbnails: (suspend (sourceKey: String, imageKey: String) -> ByteArray)? = null,
+    /**
+     * 详情目录同步钩：成功取得源目录后调用（保留同 ID 已读态，新章默认未读），
+     * 失败或取消不调用以保留上次有效目录；生产装配传入书架仓储的同步入口。
+     */
+    private val onDetailLoaded: (suspend (sourceKey: String, workId: String, chapters: List<WorkChapter>) -> Unit)? = null,
 ) : BrowseService {
     override suspend fun loadSnapshot(): BrowseSnapshot = runService {
         val installed = extensions.listInstalled()
@@ -241,30 +246,45 @@ class VeneraBrowseService(
             )
         }
 
-    override suspend fun loadWorkDetail(sourceKey: String, workId: String): WorkDetail = runService {        val detail = extensions
-            .call(sourceKey, VeneraCallback.LoadInfo, JsonArray(listOf(JsonPrimitive(workId))))
-            .jsonObject
-        WorkDetail(
-            id = workId,
-            title = detail.string("title"),
-            subtitle = detail.optionalString("subtitle"),
-            cover = detail.optionalString("cover"),
-            description = detail.optionalString("description"),
-            tags = detail["tags"]?.jsonObject?.mapValues { (_, value) ->
-                value.jsonArray.mapNotNull { textOrNull(it) }
-            }.orEmpty(),
-            chapters = (detail["chapters"] as? JsonObject)?.entries?.flatMap { (id, value) ->
-                if (value is JsonObject) {
-                    value.entries.mapNotNull { (chapterId, title) ->
-                        textOrNull(title)?.let { WorkChapter(chapterId, it) }
+    override suspend fun loadWorkDetail(sourceKey: String, workId: String): WorkDetail {
+        val loaded = runService {
+            val detail = extensions
+                .call(sourceKey, VeneraCallback.LoadInfo, JsonArray(listOf(JsonPrimitive(workId))))
+                .jsonObject
+            WorkDetail(
+                id = workId,
+                title = detail.string("title"),
+                subtitle = detail.optionalString("subtitle"),
+                cover = detail.optionalString("cover"),
+                description = detail.optionalString("description"),
+                tags = detail["tags"]?.jsonObject?.mapValues { (_, value) ->
+                    value.jsonArray.mapNotNull { textOrNull(it) }
+                }.orEmpty(),
+                chapters = (detail["chapters"] as? JsonObject)?.entries?.flatMap { (id, value) ->
+                    if (value is JsonObject) {
+                        value.entries.mapNotNull { (chapterId, title) ->
+                            textOrNull(title)?.let { WorkChapter(chapterId, it) }
+                        }
+                    } else {
+                        listOfNotNull(textOrNull(value)?.let { WorkChapter(id, it) })
                     }
-                } else {
-                    listOfNotNull(textOrNull(value)?.let { WorkChapter(id, it) })
-                }
-            }.orEmpty(),
-            updateTime = detail.optionalString("updateTime"),
-            url = detail.optionalString("url"),
-        )
+                }.orEmpty(),
+                updateTime = detail.optionalString("updateTime"),
+                url = detail.optionalString("url"),
+            )
+        }
+        // 成功才同步目录（保留同 ID 已读，新章默认未读）；失败/取消抛错，不碰上次有效目录。
+        val sink = onDetailLoaded
+        if (sink != null) {
+            try {
+                sink(sourceKey, workId, loaded.chapters)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                // 目录同步失败不遮挡详情展示，详情仍可阅读，书架计数下次刷新补齐。
+            }
+        }
+        return loaded
     }
 
     private fun installedSourceKey(extensionKey: String): String {

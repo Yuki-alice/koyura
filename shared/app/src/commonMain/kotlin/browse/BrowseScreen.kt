@@ -1,5 +1,12 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
 package app.koyura.app.browse
 
+import app.koyura.designsystem.ActionIcon
+import app.koyura.designsystem.ActionIconButton
+import app.koyura.designsystem.SearchField
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.Surface
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,7 +25,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
@@ -104,33 +110,26 @@ fun BrowseScreen(
     }
 
     Column(modifier = modifier.fillMaxSize().testTag(BrowseRootTestTag)) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = stringResource(Res.string.browse_title),
-                style = MaterialTheme.typography.headlineMedium,
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        TopAppBar(
+            title = { Text(stringResource(Res.string.browse_title)) },
+            actions = {
                 if (state.pane == BrowsePane.Extensions) {
-                    TextButton(
+                    ActionIconButton(
+                        icon = ActionIcon.Sync,
+                        label = stringResource(Res.string.browse_update_all),
                         onClick = { scope.launch { session.updateAll() } },
                         enabled = state.updateCount > 0 && !state.isBusy(),
                         modifier = Modifier.testTag("browse-update-all"),
-                    ) {
-                        Text(stringResource(Res.string.browse_update_all))
-                    }
+                    )
                 }
-                TextButton(
+                ActionIconButton(
+                    icon = ActionIcon.Repository,
+                    label = stringResource(Res.string.browse_manage_stores),
                     onClick = { onManageStores(null) },
                     modifier = Modifier.testTag(BrowseManageStoresTag),
-                ) {
-                    Text(stringResource(Res.string.browse_manage_stores))
-                }
-            }
-        }
+                )
+            },
+        )
 
         PrimaryTabRow(selectedTabIndex = if (state.pane == BrowsePane.Sources) 0 else 1) {
             Tab(
@@ -226,21 +225,13 @@ private fun SourcesPane(
         pinnedIds = state.pinnedSourceIds,
     )
     Column(Modifier.fillMaxSize()) {
-        OutlinedTextField(
+        SearchField(
             value = state.sourceQuery,
             onValueChange = onQueryChange,
-            placeholder = { Text(stringResource(Res.string.browse_search_sources)) },
-            singleLine = true,
-            trailingIcon = if (state.sourceQuery.isNotEmpty()) {
-                {
-                    TextButton(onClick = { onQueryChange("") }) {
-                        Text(stringResource(Res.string.browse_clear_search))
-                    }
-                }
-            } else {
-                null
-            },
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).testTag(BrowseSourceQueryTag),
+            placeholder = stringResource(Res.string.browse_search_sources),
+            clearLabel = stringResource(Res.string.browse_clear_search),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+                .testTag(BrowseSourceQueryTag),
         )
         if (view.recent.isEmpty() && view.sections.isEmpty()) {
             EmptyState(stringResource(Res.string.browse_empty_sources))
@@ -294,21 +285,13 @@ private fun ExtensionsPane(
 ) {
     val sections = state.extensions.groupedExtensions(state.extensionQuery)
     Column(Modifier.fillMaxSize()) {
-        OutlinedTextField(
+        SearchField(
             value = state.extensionQuery,
             onValueChange = session::searchExtensions,
-            placeholder = { Text(stringResource(Res.string.browse_search_extensions)) },
-            singleLine = true,
-            trailingIcon = if (state.extensionQuery.isNotEmpty()) {
-                {
-                    TextButton(onClick = { session.searchExtensions("") }) {
-                        Text(stringResource(Res.string.browse_clear_search))
-                    }
-                }
-            } else {
-                null
-            },
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).testTag(BrowseExtensionQueryTag),
+            placeholder = stringResource(Res.string.browse_search_extensions),
+            clearLabel = stringResource(Res.string.browse_clear_search),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+                .testTag(BrowseExtensionQueryTag),
         )
         if (state.isBusy()) {
             LinearProgressIndicator(modifier = Modifier.fillMaxWidth().testTag("browse-busy"))
@@ -373,25 +356,23 @@ private fun SourceRow(
     // Komikku BaseSourceItem: 40 dp icon, bodyMedium title, secondary language/version line,
     // pin toggle and optional Latest action. The row keeps its test tag and opens the search
     // page on tap.
-    app.koyura.designsystem.KomikkuBrowseRow(
+    app.koyura.designsystem.BrowseRow(
         onClick = { onOpenSource(source.id, source.name) },
         icon = {
-            app.koyura.designsystem.KomikkuIconPlaceholder(label = source.name)
+            Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+                Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+                    ActionIcon(ActionIcon.Source, null)
+                }
+            }
         },
         action = {
-            TextButton(
+            ActionIconButton(
+                icon = if (pinned) ActionIcon.Pinned else ActionIcon.Pin,
+                label = stringResource(if (pinned) Res.string.browse_unpin else Res.string.browse_pin),
                 onClick = { onTogglePin(source.id) },
                 modifier = Modifier.testTag(pinTestTag),
-            ) {
-                Text(
-                    stringResource(if (pinned) Res.string.browse_unpin else Res.string.browse_pin),
-                    color = if (pinned) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
-                )
-            }
+                contentColor = if (pinned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             if (source.supportsLatest) {
                 TextButton(onClick = { onOpenSource(source.id, source.name) }) {
                     Text(stringResource(Res.string.browse_latest))
@@ -418,7 +399,7 @@ private fun SourceRow(
                     overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
-                        alpha = app.koyura.designsystem.KomikkuSecondaryAlpha,
+                        alpha = app.koyura.designsystem.DesignTokens.Alpha.Secondary,
                     ),
                 )
             }
@@ -448,7 +429,7 @@ private fun ExtensionRow(
             .fillMaxWidth()
             .testTag(extensionRowTag(extension.key)),
     ) {
-        app.koyura.designsystem.KomikkuBrowseRow(
+        app.koyura.designsystem.BrowseRow(
             onClick = { if (extension.isInstalled) onOpen() },
             icon = {
                 androidx.compose.foundation.layout.Box(
@@ -461,7 +442,7 @@ private fun ExtensionRow(
                             strokeWidth = 2.dp,
                         )
                     }
-                    app.koyura.designsystem.KomikkuIconPlaceholder(label = extension.name)
+                    app.koyura.designsystem.IconPlaceholder(label = extension.name)
                 }
             },
             action = {
@@ -527,7 +508,7 @@ private fun ExtensionRow(
                             MaterialTheme.colorScheme.error
                         } else {
                             MaterialTheme.colorScheme.onSurfaceVariant.copy(
-                                alpha = app.koyura.designsystem.KomikkuSecondaryAlpha,
+                                alpha = app.koyura.designsystem.DesignTokens.Alpha.Secondary,
                             )
                         },
                         maxLines = 2,
@@ -570,7 +551,7 @@ internal fun OperationFeedback(status: OperationStatus?, target: String) {
 @Composable
 internal fun SectionHeader(text: String) {
     // Komikku ListGroupHeader: semibold bodyMedium in onSurfaceVariant.
-    app.koyura.designsystem.KomikkuListGroupHeader(text = text)
+    app.koyura.designsystem.ListGroupHeader(text = text)
 }
 
 @Composable

@@ -49,6 +49,7 @@ class FakeReaderService(
         val pageIndex: Int,
         val workTitle: String? = null,
         val chapterTitle: String? = null,
+        val isLastPage: Boolean = false,
     )
 
     class Gate {
@@ -115,9 +116,10 @@ class FakeReaderService(
         pageIndex: Int,
         workTitle: String?,
         chapterTitle: String?,
+        isLastPage: Boolean,
     ) {
         enter("save:$sourceKey:$workId:$chapterId:$pageIndex")
-        saveCalls += SaveCall(sourceKey, workId, chapterId, pageIndex, workTitle, chapterTitle)
+        saveCalls += SaveCall(sourceKey, workId, chapterId, pageIndex, workTitle, chapterTitle, isLastPage)
         savedProgress[sourceKey to workId] = ReaderProgress(chapterId, pageIndex)
     }
 }
