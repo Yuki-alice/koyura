@@ -62,10 +62,15 @@ class AppShellStateRetentionTest {
         val width = mutableStateOf<Dp>(719.dp)
         // 书架页签渲染真实书架屏：注入有数据的仓储，保证网格可滚动。
         val library = populatedLibrary()
+        // 直接驱动 AppScaffold 的 useRail 开关：窗口形态判定由 AppShellWidthUiTest 的
+        // AUTOMATIC 边界覆盖，这里只断言跨形态的滚动保留。
+        val navigation = createAppNavigationState()
         setContent {
             ReaderTheme {
                 CompositionLocalProvider(LocalLibraryRepository provides library) {
-                    Box(Modifier.size(width.value, 138.dp)) { AppShell() }
+                    Box(Modifier.size(width.value, 138.dp)) {
+                        AppScaffold(navigation = navigation, useRail = usesNavigationRail(width.value))
+                    }
                 }
             }
         }

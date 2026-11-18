@@ -54,3 +54,15 @@
   :shared:app:linkDebugFrameworkIosSimulatorArm64 \
   -PveneraReferenceDir="$PWD/reference/Venera-Next"
 ```
+
+### P1 外壳与形态切换（2026-11-18）
+
+对照 `reference/komikku`（`383ffaa816`）：`tachiyomi/ui/home/HomeScreen.kt`、
+`tachiyomi/util/system/DisplayExtensions.kt`、`presentation-core/.../material/NavigationBar.kt`、
+`NavigationRail.kt`、白皮书 03/04 章。落点：`AppScaffold.kt`、`App.kt`、
+`design-system/navigation/`、相关测试。形态改最小宽度判定 + AUTOMATIC（700 竖/600 横）
+四模式；Tab 切换 fadeThrough 200ms 先出后进；同 Tab 重按先回根再发射事件；Rail 常量收敛进
+`DesignTokens`；`updatesBadgeCount` 接线预留（数据源随更新页落地）。
+截图 `docs/alignment/p1-shell/screenshots/`（外壳四形态 + 浏览两页 × 窄/宽 × 浅/深 12 张，
+Browse 角标可见）；审阅 `docs/reviews/2026-11-18-visual-p1-shell.md`；
+`:shared:design-system`、`:shared:app`、`:shared:features` jvmTest 全绿。

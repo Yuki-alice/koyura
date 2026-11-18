@@ -47,15 +47,27 @@ class AppNavigationState internal constructor(
     fun stackOf(tab: NavTab): NavBackStack<NavKey> = stacks.getValue(tab)
 
     /**
-     * Selects [tab]. Tapping the already selected tab emits a single reselect event and leaves the
-     * stack untouched, so callers can distinguish switching from reselect without duplicate routes.
+     * Selects [tab]. Tapping the already selected destination pops its stack back to the root
+     * and then emits a single reselect event, so callers can distinguish switching from reselect
+     * (scroll to top, refresh) without duplicate routes. Mirrors Komikku `HomeScreen`
+     * reselect (`onReselect`): Library returns to its home, Updates refreshes, other tabs return
+     * to their list top.
      */
     fun select(tab: NavTab) {
         if (tab == selectedTab) {
+            popToRoot(tab)
             onTabReselect(tab)
             return
         }
         selectedTabState.value = tab
+    }
+
+    /** Pops [tab]'s stack back to its root route. No-op when already at the root. */
+    fun popToRoot(tab: NavTab = selectedTab) {
+        val stack = stacks.getValue(tab)
+        while (stack.size > 1) {
+            stack.removeAt(stack.lastIndex)
+        }
     }
 
     fun push(route: AppRoute) {

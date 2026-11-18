@@ -75,6 +75,23 @@ class AppShellUiTest {
     }
 
     @Test
+    fun reselectingTabPopsItsStackToRoot() {
+        val events = mutableListOf<NavTab>()
+        val navigation = createAppNavigationState(onTabReselect = { events += it })
+
+        navigation.push(DetailRoute(NavTab.Library, 1))
+        assertEquals(2, navigation.stackOf(NavTab.Library).size)
+
+        // Reselect pops back to the tab root (Komikku 04.1) and still emits the event so the
+        // visible page can scroll to top or refresh.
+        navigation.select(NavTab.Library)
+
+        assertEquals(1, navigation.stackOf(NavTab.Library).size)
+        assertEquals(listOf(NavTab.Library), events)
+        assertEquals(NavTab.Library, navigation.selectedTab)
+    }
+
+    @Test
     fun detailRoutePushesAndPopsInsideItsOwnTab() = runComposeUiTest {
         val navigation = createAppNavigationState()
         setContent {

@@ -15,13 +15,21 @@ import app.koyura.app.history.LocalHistoryService
 import app.koyura.domain.reader.ReaderService
 import app.koyura.domain.reader.preferences.ReaderPreferences
 import app.koyura.app.navigation.rememberAppNavigationState
+import app.koyura.app.navigation.TabletUiMode
+import app.koyura.app.navigation.usesNavigationRailForWindow
+import app.koyura.designsystem.DesignTokens
 import app.koyura.designsystem.ReaderTheme
 import app.koyura.designsystem.navigation.NavTab
 import app.koyura.features.library.LocalLibraryRepository
 import app.koyura.features.library.LibraryRepository as FeaturesLibraryRepository
 
-/** Width at or above which the shell switches from the bottom bar to the navigation rail. */
-internal val RailWidthThreshold = 720.dp
+/** Base tablet rule kept as a pure function so the 719/720 dp boundary is directly testable. */
+internal val RailWidthThreshold = DesignTokens.Breakpoints.TabletMinSmallestWidthDp.dp
+
+/**
+ * Base width rule (`isTabletUi`): smallest width at or above 720 dp uses the rail.
+ * Automatic portrait/landscape thresholds live in [usesNavigationRailForWindow].
+ */
 
 /**
  * Shared application shell used by Android, desktop JVM and iOS.
@@ -67,15 +75,18 @@ fun App(
 }
 
 @Composable
-internal fun AppShell(onTabReselect: (NavTab) -> Unit = {}) {
+internal fun AppShell(
+    onTabReselect: (NavTab) -> Unit = {},
+    tabletMode: TabletUiMode = TabletUiMode.AUTOMATIC,
+) {
     val navigation = rememberAppNavigationState(onTabReselect)
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         AppScaffold(
             navigation = navigation,
-            useRail = usesNavigationRail(maxWidth),
+            useRail = usesNavigationRailForWindow(maxWidth, maxHeight, tabletMode),
         )
     }
 }
 
-/** Width rule kept as a pure function so the 719/720 dp boundary is directly testable. */
+/** Base width rule kept as a pure function so the 719/720 dp boundary is directly testable. */
 internal fun usesNavigationRail(width: Dp): Boolean = width >= RailWidthThreshold

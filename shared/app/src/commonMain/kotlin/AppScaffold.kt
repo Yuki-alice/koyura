@@ -1,5 +1,10 @@
 package app.koyura.app
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -54,6 +59,7 @@ import app.koyura.app.navigation.ExtensionStoresRoute
 import app.koyura.app.navigation.TabRootRoute
 import app.koyura.app.ui.DetailScreen
 import app.koyura.app.ui.TabRootScreen
+import app.koyura.designsystem.DesignTokens
 import app.koyura.designsystem.navigation.NavTab
 import app.koyura.designsystem.navigation.ReaderNavigationBar
 import app.koyura.designsystem.navigation.ReaderNavigationRail
@@ -81,6 +87,8 @@ internal fun AppScaffold(
     readerSession: ReaderSession? = null,
     historyService: HistoryService? = LocalHistoryService.current,
     historySession: HistorySession? = null,
+    // Updates badge count has no data source until Updates lands (P7); 0 hides the badge.
+    updatesBadgeCount: Int = 0,
 ) {
     val activeBrowseSession = browseSession ?: rememberBrowseSession(browseService)
     val activeReaderSession = readerSession ?: rememberReaderSession(readerService)
@@ -120,6 +128,7 @@ internal fun AppScaffold(
                 onTabClick = navigation::select,
                 modifier = Modifier.fillMaxHeight().testTag(NavigationRailTestTag),
                 browseBadgeCount = activeBrowseSession.state.updateCount,
+                updatesBadgeCount = updatesBadgeCount,
             )
             Box(
                 modifier = Modifier
@@ -148,6 +157,7 @@ internal fun AppScaffold(
                 onTabClick = navigation::select,
                 modifier = Modifier.testTag(NavigationBarTestTag),
                 browseBadgeCount = activeBrowseSession.state.updateCount,
+                updatesBadgeCount = updatesBadgeCount,
             )
         }
     }
@@ -320,11 +330,29 @@ private fun AppNavigationContent(
         }
     }
 
-    saveableStateHolder.SaveableStateProvider(navigation.selectedTab.name) {        NavDisplay(
-            backStack = navigation.currentStack,
-            onBack = { navigation.handleBack() },
-            modifier = Modifier.fillMaxSize(),
-            entryProvider = entryProvider,
-        )
+    saveableStateHolder.SaveableStateProvider(navigation.selectedTab.name) {        AnimatedContent(
+            targetState = navigation.selectedTab,
+            transitionSpec = {
+                // Komikku fadeThrough (HomeScreen.TabFadeDuration): the outgoing tab fades out
+                // first, the incoming tab fades in after — never a crossfade. The delayed fade-in
+                // keeps the two 200 ms halves sequential while reusing the single token.
+                fadeIn(
+                    animationSpec = tween(
+                        durationMillis = DesignTokens.Motion.TabFadeThroughMs,
+                        delayMillis = DesignTokens.Motion.TabFadeThroughMs,
+                    ),
+                ) togetherWith fadeOut(
+                    animationSpec = tween(durationMillis = DesignTokens.Motion.TabFadeThroughMs),
+                )
+            },
+            label = "tabSwitch",
+        ) { tab ->
+            NavDisplay(
+                backStack = navigation.stackOf(tab),
+                onBack = { navigation.handleBack() },
+                modifier = Modifier.fillMaxSize(),
+                entryProvider = entryProvider,
+            )
+        }
     }
 }

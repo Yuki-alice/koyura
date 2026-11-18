@@ -16,7 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.unit.dp
+import app.koyura.designsystem.DesignTokens
 
 /**
  * Center-aligned navigation rail for wide windows.
@@ -94,6 +94,7 @@ fun ReaderNavigationRail(
 
 const val NavigationRailEntriesTag = "navigation-rail-entries"
 
-internal val NavigationRailMinWidth = 80.dp
-internal val NavigationRailVerticalPadding = 4.dp
-internal val NavigationRailElevation = 3.dp
+// Whitepaper 06 §6.2: min 80 dp wide, 4 dp vertical rhythm, tonal elevation 3 dp.
+internal val NavigationRailMinWidth = DesignTokens.Sizes.NavigationRailMinWidth
+internal val NavigationRailVerticalPadding = DesignTokens.Spacing.ExtraSmall
+internal val NavigationRailElevation = DesignTokens.Elevation.Rail
