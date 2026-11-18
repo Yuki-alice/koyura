@@ -1,0 +1,45 @@
+# V0-06 artifacts-sha256.txt · 三端构建产物清单 (复核附件)
+
+采集: 2026-11-18 (本轮 ask 实跑命令原文输出; 时间戳为本机本地时区, UTC+8)。
+构建命令见 build-probe.md §3 (三条均 `--console=plain -q`, 故无控制台任务日志留存;
+EXIT 码为当轮文本记录, 见本文件末尾声明)。
+
+## Android: apps/android/build/outputs/apk/debug/
+## $ ls -la
+total 39616
+drwxr-xr-x@ 4 kurisu  staff       128 Nov 17 01:12 .
+drwxr-xr-x@ 3 kurisu  staff        96 Nov 17 00:45 ..
+-rw-r--r--@ 1 kurisu  staff  19943478 Nov 18 23:39 android-debug.apk
+-rw-r--r--@ 1 kurisu  staff       398 Nov 18 23:39 output-metadata.json
+## $ shasum -a 256 android-debug.apk
+b48cf738107d959dde1e539999eb22b2bdca03314dea787e495792c6ba39d070  apps/android/build/outputs/apk/debug/android-debug.apk
+(结论: APK 为本轮构建新鲜产物, 可安装; 原版 APK SHA 仍 pending, 见 build-probe.md B1。)
+
+## iOS simulator: shared/app/build/bin/iosSimulatorArm64/debugFramework/
+## $ find ... -maxdepth 2
+shared/app/build/bin/iosSimulatorArm64/debugFramework
+shared/app/build/bin/iosSimulatorArm64/debugFramework/ReaderShared.framework
+shared/app/build/bin/iosSimulatorArm64/debugFramework/ReaderShared.framework/ReaderShared
+shared/app/build/bin/iosSimulatorArm64/debugFramework/ReaderShared.framework/Headers
+shared/app/build/bin/iosSimulatorArm64/debugFramework/ReaderShared.framework/Modules
+shared/app/build/bin/iosSimulatorArm64/debugFramework/ReaderShared.framework/Info.plist
+## $ ls -la ReaderShared.framework/
+-rw-r--r--@ 1 kurisu  staff        925 Nov 18 23:40 Info.plist
+-rw-r--r--@ 1 kurisu  staff  288250528 Nov 18 23:41 ReaderShared
+## $ shasum -a 256 ReaderShared.framework/ReaderShared
+3a0f867deaf446584e6310b14796651d33c48feee5b3dfd8fa0c256cc3a38d88  shared/app/build/bin/iosSimulatorArm64/debugFramework/ReaderShared.framework/ReaderShared
+(结论: framework 二进制为本轮 link 新鲜产物 (288,250,528 bytes); 仅为模拟器 link 产物, 非可发布/可安装应用。)
+
+## Desktop: apps/desktop/build/ (注意: 非新鲜产物)
+## $ ls -la apps/desktop/build/ / libs/ / classes/kotlin/
+build/ 顶层与 classes/kotlin/main、libs/desktop.jar (5511 bytes)、compose/ 全部 mtime Nov 17 00:45,
+早于本轮构建运行时刻 (Nov 18 23:4x)。结论: `:apps:desktop:classes` 本轮极可能为
+UP-TO-DATE (无重编、无新产物); `-q` 无输出, 无法区分“重编通过”与“up-to-date 跳过”,
+记为“目标通过 (是否重编待确认), 无可交付产物”。desktop 可运行产物 (assemble/package)
+未跑, 见 build-probe.md §3。
+
+## 证据完整性声明
+- 本文件 + env-probe.log 为后轮可复核附件 (SHA/尺寸/mtime/路径)。
+- 三条 gradle 命令的控制台日志未留存 (`-q` quiet 运行); `EXIT:0` 与 iOS warnings 清单
+  为当轮文本记录, 后轮无法从日志复核, 仅能以产物新鲜度 (本文件 mtime) 旁证第1/3条。
+  第2条 (desktop) 无新鲜产物旁证, 按上段记为待确认。

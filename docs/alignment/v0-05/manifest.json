@@ -1,0 +1,218 @@
+{
+ "taskId": "V0-05",
+ "archivedAt": "2026-11-18",
+ "archiveDir": "docs/alignment/v0-05/current",
+ "count": 20,
+ "baseline": {
+  "projectHead": "4f82b71ac4e95df00461f8d83060a5e977f5b96a",
+  "referenceKomikku": "290267d",
+  "referenceVenera": "c0c4597",
+  "worktreeAtCapture": "dirty (git status --porcelain: 105 lines before this ask's changes = task-pre-existing; 106 at generation (105 + ?? V005BaselineCanvasesTest.kt newly added by this ask))",
+  "worktreeAtArchive": "dirty (git status --porcelain 107 lines at archive = 106 + ?? docs/alignment/v0-05/; fix-up ask re-measured 107)",
+  "rerunStatus": "待干净基线重跑确认 — not claimed as final pass"
+ },
+ "generation": {
+  "canvasNarrowPx": "360x720",
+  "canvasWidePx": "1280x800",
+  "density": "Density(1f)",
+  "themeMapping": "light=ReaderTheme(darkTheme=false) over White; dark=ReaderTheme(darkTheme=true) over Black (reader page surface itself is the content image in both)",
+  "railMapping": "360→useRail=false (bottom bar); 1280→useRail=true (navigation rail)",
+  "gradleWiring": "shared/app/build.gradle.kts:76 — systemProperty reader.screenshotDir from -PreaderScreenshotDir (default build/screenshots); this batch produced with -PreaderScreenshotDir=$PWD/build/v0-05",
+  "outputDirAtCapture": "build/v0-05/ (repo-root; gitignored via .gitignore **/build/ — does not pollute git status)",
+  "renderPath": "ImageComposeScene offscreen (SwingUtilities.invokeAndWait, render + 800ms settle + render, PNG via Skia EncodedImageFormat.PNG)",
+  "sources": [
+   "shared/app/src/jvmTest/kotlin/V005BaselineCanvasesTest.kt"
+  ],
+  "testMethods": [
+   "libraryBaseline",
+   "browseBaseline",
+   "detailBaseline",
+   "historyBaseline",
+   "readerBaseline"
+  ],
+  "genCodeStatus": "V005BaselineCanvasesTest.kt newly added by this ask (additive; no existing test/assertion touched); existing canvas sizes (420/1100/1280, mostly light-only) left unchanged"
+ },
+ "provenance": "Copies of build/v0-05/*.png (20 files, PNG-header dimensions verified + 3 spot-viewed in-session (v005-library-360-light, v005-reader-360-light, v005-browse-1280-dark), byte-identical after copy — verified below).",
+ "files": [
+  {
+   "file": "v005-browse-1280-dark.png",
+   "sha256": "5813d0123e8542f988108c5eb0d055ffce760e246e4289a779b803ab89c16922",
+   "canvas": "1280x800",
+   "density": "Density(1f)",
+   "theme": "dark",
+   "generator": "V005BaselineCanvasesTest.browseBaseline",
+   "host": "AppScaffold(Tab=Browse, Sources pane ready) + LocalBrowseService=FakeBrowseService(demo searchPages/workDetails) + BrowseSession(refreshed)"
+  },
+  {
+   "file": "v005-browse-1280-light.png",
+   "sha256": "9603411c6906281c3fd128ee6756dd8d8e14168e5bfb62a34109ae54866271b4",
+   "canvas": "1280x800",
+   "density": "Density(1f)",
+   "theme": "light",
+   "generator": "V005BaselineCanvasesTest.browseBaseline",
+   "host": "AppScaffold(Tab=Browse, Sources pane ready) + LocalBrowseService=FakeBrowseService(demo searchPages/workDetails) + BrowseSession(refreshed)"
+  },
+  {
+   "file": "v005-browse-360-dark.png",
+   "sha256": "7abff5aa0777258c305aca47bc74e846c5732819c22fa6ba7ed5749b789b6bff",
+   "canvas": "360x720",
+   "density": "Density(1f)",
+   "theme": "dark",
+   "generator": "V005BaselineCanvasesTest.browseBaseline",
+   "host": "AppScaffold(Tab=Browse, Sources pane ready) + LocalBrowseService=FakeBrowseService(demo searchPages/workDetails) + BrowseSession(refreshed)"
+  },
+  {
+   "file": "v005-browse-360-light.png",
+   "sha256": "3e724d44e1e4bc6a4426268cf014df2ece52c33f952238a9f3fa702d926d2fad",
+   "canvas": "360x720",
+   "density": "Density(1f)",
+   "theme": "light",
+   "generator": "V005BaselineCanvasesTest.browseBaseline",
+   "host": "AppScaffold(Tab=Browse, Sources pane ready) + LocalBrowseService=FakeBrowseService(demo searchPages/workDetails) + BrowseSession(refreshed)"
+  },
+  {
+   "file": "v005-detail-1280-dark.png",
+   "sha256": "87c28aa1ad01ea9df41ae95ec158d464be4f25a7495ca54617d3e5cb6ef7e144",
+   "canvas": "1280x800",
+   "density": "Density(1f)",
+   "theme": "dark",
+   "generator": "V005BaselineCanvasesTest.detailBaseline",
+   "host": "AppScaffold(Browse stack + SourceDetailRoute example_source/demo) + FakeBrowseService demo detail + BrowseSession(refreshed)"
+  },
+  {
+   "file": "v005-detail-1280-light.png",
+   "sha256": "5d165e4146d167ca93fe9499cd4ab66c09d477535b39cc2711223c2ff12ef64d",
+   "canvas": "1280x800",
+   "density": "Density(1f)",
+   "theme": "light",
+   "generator": "V005BaselineCanvasesTest.detailBaseline",
+   "host": "AppScaffold(Browse stack + SourceDetailRoute example_source/demo) + FakeBrowseService demo detail + BrowseSession(refreshed)"
+  },
+  {
+   "file": "v005-detail-360-dark.png",
+   "sha256": "a88a717dadcc89eaa71725f367b9b209239582ce402cf2f8aa3db737a3c6fe06",
+   "canvas": "360x720",
+   "density": "Density(1f)",
+   "theme": "dark",
+   "generator": "V005BaselineCanvasesTest.detailBaseline",
+   "host": "AppScaffold(Browse stack + SourceDetailRoute example_source/demo) + FakeBrowseService demo detail + BrowseSession(refreshed)"
+  },
+  {
+   "file": "v005-detail-360-light.png",
+   "sha256": "aba1d5095dfbd8d2d8d3f9a34457e91ca0dcd88599febe3ea942d125512af142",
+   "canvas": "360x720",
+   "density": "Density(1f)",
+   "theme": "light",
+   "generator": "V005BaselineCanvasesTest.detailBaseline",
+   "host": "AppScaffold(Browse stack + SourceDetailRoute example_source/demo) + FakeBrowseService demo detail + BrowseSession(refreshed)"
+  },
+  {
+   "file": "v005-history-1280-dark.png",
+   "sha256": "e1472a0dab89e6463ce1d84adf80a9660739dcdf356fee343a0dd9da326d7ffb",
+   "canvas": "1280x800",
+   "density": "Density(1f)",
+   "theme": "dark",
+   "generator": "V005BaselineCanvasesTest.historyBaseline",
+   "host": "AppScaffold(Tab=History) + FakeHistoryService(3 rows) + HistorySession"
+  },
+  {
+   "file": "v005-history-1280-light.png",
+   "sha256": "42d8e445604a370c7420c1865a86b38f97769b4fe09869d25908d58e25bbc355",
+   "canvas": "1280x800",
+   "density": "Density(1f)",
+   "theme": "light",
+   "generator": "V005BaselineCanvasesTest.historyBaseline",
+   "host": "AppScaffold(Tab=History) + FakeHistoryService(3 rows) + HistorySession"
+  },
+  {
+   "file": "v005-history-360-dark.png",
+   "sha256": "b443136646e6f1439dbc792b9c9ea28255306967720702e31bd80a33082ef765",
+   "canvas": "360x720",
+   "density": "Density(1f)",
+   "theme": "dark",
+   "generator": "V005BaselineCanvasesTest.historyBaseline",
+   "host": "AppScaffold(Tab=History) + FakeHistoryService(3 rows) + HistorySession"
+  },
+  {
+   "file": "v005-history-360-light.png",
+   "sha256": "933232899ae437caaa09a7b69b7894495ff1466cc5b9195497f040b98b469002",
+   "canvas": "360x720",
+   "density": "Density(1f)",
+   "theme": "light",
+   "generator": "V005BaselineCanvasesTest.historyBaseline",
+   "host": "AppScaffold(Tab=History) + FakeHistoryService(3 rows) + HistorySession"
+  },
+  {
+   "file": "v005-library-1280-dark.png",
+   "sha256": "4d8d5785ac4382498efcfc81eff5910d68a93188cb5c9d3da4077f46d64a1460",
+   "canvas": "1280x800",
+   "density": "Density(1f)",
+   "theme": "dark",
+   "generator": "V005BaselineCanvasesTest.libraryBaseline",
+   "host": "AppScaffold(Tab=Library) + LocalLibraryRepository=FakeLibraryRepository(3 entries: valid/broken/empty covers) via rememberLibrarySession"
+  },
+  {
+   "file": "v005-library-1280-light.png",
+   "sha256": "20b80de2f3b33e506e413eae705e73fd3c3cb56c1b7d188a607001d2a613d6cd",
+   "canvas": "1280x800",
+   "density": "Density(1f)",
+   "theme": "light",
+   "generator": "V005BaselineCanvasesTest.libraryBaseline",
+   "host": "AppScaffold(Tab=Library) + LocalLibraryRepository=FakeLibraryRepository(3 entries: valid/broken/empty covers) via rememberLibrarySession"
+  },
+  {
+   "file": "v005-library-360-dark.png",
+   "sha256": "3bdcf91977914b656cee68c839bfa7d10fe0d1ce94d47be4219c976349538107",
+   "canvas": "360x720",
+   "density": "Density(1f)",
+   "theme": "dark",
+   "generator": "V005BaselineCanvasesTest.libraryBaseline",
+   "host": "AppScaffold(Tab=Library) + LocalLibraryRepository=FakeLibraryRepository(3 entries: valid/broken/empty covers) via rememberLibrarySession"
+  },
+  {
+   "file": "v005-library-360-light.png",
+   "sha256": "631ddd45951f5c3b336294596ebb0981559d53db5834e151141d390ab65da891",
+   "canvas": "360x720",
+   "density": "Density(1f)",
+   "theme": "light",
+   "generator": "V005BaselineCanvasesTest.libraryBaseline",
+   "host": "AppScaffold(Tab=Library) + LocalLibraryRepository=FakeLibraryRepository(3 entries: valid/broken/empty covers) via rememberLibrarySession"
+  },
+  {
+   "file": "v005-reader-1280-dark.png",
+   "sha256": "caf831abbaba6c8d91b02685c0da24bce5f4353c39bddabfafadb61667b4cae6",
+   "canvas": "1280x800",
+   "density": "Density(1f)",
+   "theme": "dark",
+   "generator": "V005BaselineCanvasesTest.readerBaseline",
+   "host": "AppScaffold(Browse stack + ComicReaderRoute ep_1) + FakeReaderService(3 pages pngBytes) + ReaderSession; page surface is content image, chrome follows ReaderTheme"
+  },
+  {
+   "file": "v005-reader-1280-light.png",
+   "sha256": "c9d6e617a42abd1f09562a3d53a9821f947c59749d81e8a8a2233a9265621a73",
+   "canvas": "1280x800",
+   "density": "Density(1f)",
+   "theme": "light",
+   "generator": "V005BaselineCanvasesTest.readerBaseline",
+   "host": "AppScaffold(Browse stack + ComicReaderRoute ep_1) + FakeReaderService(3 pages pngBytes) + ReaderSession; page surface is content image, chrome follows ReaderTheme"
+  },
+  {
+   "file": "v005-reader-360-dark.png",
+   "sha256": "8923fc530b864115382cc19979d42a28135846af08f7bd96efa55a0500a3621b",
+   "canvas": "360x720",
+   "density": "Density(1f)",
+   "theme": "dark",
+   "generator": "V005BaselineCanvasesTest.readerBaseline",
+   "host": "AppScaffold(Browse stack + ComicReaderRoute ep_1) + FakeReaderService(3 pages pngBytes) + ReaderSession; page surface is content image, chrome follows ReaderTheme"
+  },
+  {
+   "file": "v005-reader-360-light.png",
+   "sha256": "2eed00f68bcf5c64e03893f55492f92ebd5d9955ae2a3288e02d83a4dd29adc9",
+   "canvas": "360x720",
+   "density": "Density(1f)",
+   "theme": "light",
+   "generator": "V005BaselineCanvasesTest.readerBaseline",
+   "host": "AppScaffold(Browse stack + ComicReaderRoute ep_1) + FakeReaderService(3 pages pngBytes) + ReaderSession; page surface is content image, chrome follows ReaderTheme"
+  }
+ ]
+}
