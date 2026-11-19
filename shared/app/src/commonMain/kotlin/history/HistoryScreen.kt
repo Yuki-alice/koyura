@@ -1,4 +1,7 @@
-@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@file:OptIn(
+    androidx.compose.material3.ExperimentalMaterial3Api::class,
+    androidx.compose.foundation.ExperimentalFoundationApi::class,
+)
 
 package app.koyura.app.history
 
@@ -7,6 +10,7 @@ import app.koyura.designsystem.ActionIcon
 import app.koyura.designsystem.SearchField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,6 +30,7 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -90,6 +95,16 @@ internal const val HistoryFilterTag = "history-filter"
 internal const val HistoryFilterDialogTag = "history-filter-dialog"
 internal const val HistoryClearAllTag = "history-clear-all"
 internal const val HistoryClearConfirmTag = "history-clear-confirm"
+internal const val HistorySelectionBarTag = "history-selection-bar"
+internal const val HistorySelectionCountTag = "history-selection-count"
+internal const val HistorySelectionActionsTag = "history-selection-actions"
+internal const val HistorySelectionDeleteTag = "history-selection-delete"
+internal const val HistorySelectionInvertTag = "history-selection-invert"
+internal const val HistorySelectionClearTag = "history-selection-clear"
+internal const val HistoryBottomInvertTag = "history-bottom-invert"
+internal const val HistoryBottomClearTag = "history-bottom-clear"
+internal const val HistorySelectAllTag = "history-select-all"
+internal const val HistoryDeleteSelectedConfirmTag = "history-delete-selected-confirm"
 
 internal fun historyRowTag(sourceKey: String, workId: String) = "history-row-$sourceKey-$workId"
 internal fun historyRowTitleTag(sourceKey: String, workId: String) = "history-row-title-$sourceKey-$workId"
@@ -119,6 +134,7 @@ fun HistoryScreen(
     var searching by rememberSaveable { mutableStateOf(false) }
     var showFilter by rememberSaveable { mutableStateOf(false) }
     var confirmClear by rememberSaveable { mutableStateOf(false) }
+    var confirmDeleteSelected by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         session.refresh()
@@ -132,6 +148,14 @@ fun HistoryScreen(
         LocalCoverDecoder provides AppCoverDecoder,
     ) {
         Column(modifier = modifier.fillMaxSize().testTag(HistoryRootTestTag)) {
+            if (session.selection.isNotEmpty()) {
+                HistorySelectionToolbar(
+                    count = session.selection.size,
+                    onClear = session::clearSelection,
+                    onSelectAll = { session.selectAllVisible(filtered) },
+                    onInvert = { session.invertSelection(filtered) },
+                )
+            } else {
             TopAppBar(
                 title = { Text(stringResource(Res.string.history_title)) },
                 actions = {
@@ -159,6 +183,7 @@ fun HistoryScreen(
                     )
                 },
             )
+            }
             if (searching) {
                 SearchField(
                     value = query,
@@ -174,6 +199,7 @@ fun HistoryScreen(
                 )
             }
 
+            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
             when (val load = session.loadState) {
                 HistoryLoadState.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
@@ -229,6 +255,9 @@ fun HistoryScreen(
                                     HistoryRow(
                                         entry = entry,
                                         favorited = session.isFavorite(entry),
+                                        selecting = session.selection.isNotEmpty(),
+                                        selected = session.isSelected(entry),
+                                        onToggleSelect = { session.toggleSelect(entry) },
                                         onOpen = { onOpenWork(entry.sourceKey, entry.workId, entry.displayTitle) },
                                         onContinue = {
                                             scope.launch {
@@ -251,6 +280,14 @@ fun HistoryScreen(
                     }
                 }
             }
+            }
+            if (session.selection.isNotEmpty()) {
+                HistorySelectionActions(
+                    onDelete = { confirmDeleteSelected = true },
+                    onInvert = { session.invertSelection(filtered) },
+                    onClear = session::clearSelection,
+                )
+            }
         }
     }
 
@@ -258,6 +295,40 @@ fun HistoryScreen(
         HistoryFilterDialog(
             session = session,
             onDismiss = { showFilter = false },
+        )
+    }
+    if (confirmDeleteSelected) {
+        AlertDialog(
+            onDismissRequest = { confirmDeleteSelected = false },
+            modifier = Modifier.testTag(HistoryDeleteSelectedConfirmTag),
+            title = { Text(stringResource(Res.string.history_delete_selected_title)) },
+            text = {
+                Text(
+                    stringResource(
+                        Res.string.history_delete_selected_body,
+                        session.selection.size,
+                    ),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmDeleteSelected = false
+                        scope.launch { session.deleteSelected() }
+                    },
+                    modifier = Modifier.testTag("history-delete-selected-ok"),
+                ) {
+                    Text(
+                        text = stringResource(Res.string.history_delete_selected_confirm),
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDeleteSelected = false }) {
+                    Text(stringResource(Res.string.history_filter_clear))
+                }
+            },
         )
     }
     if (confirmClear) {
@@ -409,6 +480,9 @@ private fun HistoryFilterDialog(
 private fun HistoryRow(
     entry: HistoryEntry,
     favorited: Boolean,
+    selecting: Boolean,
+    selected: Boolean,
+    onToggleSelect: () -> Unit,
     onOpen: () -> Unit,
     onContinue: () -> Unit,
     onDelete: () -> Unit,
@@ -423,7 +497,11 @@ private fun HistoryRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onOpen)
+            .combinedClickable(
+                // 选择态下点击即切换勾选；平时点击打开作品、长按进入多选（照书架）。
+                onClick = { if (selecting) onToggleSelect() else onOpen() },
+                onLongClick = { if (!selecting) onToggleSelect() },
+            )
             .testTag(historyRowTag(entry.sourceKey, entry.workId))
             .height(DesignTokens.Sizes.HistoryItemHeight)
             .padding(
@@ -432,6 +510,9 @@ private fun HistoryRow(
             ),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        if (selecting) {
+            Checkbox(checked = selected, onCheckedChange = { onToggleSelect() })
+        }
         Cover(
             sourceKey = entry.sourceKey,
             coverUrl = entry.cover,
@@ -467,25 +548,114 @@ private fun HistoryRow(
                 modifier = Modifier.testTag(historyRowDetailTag(entry.sourceKey, entry.workId)),
             )
         }
-        ActionIconButton(
-            icon = if (favorited) ActionIcon.Favorite else ActionIcon.FavoriteBorder,
-            label = stringResource(if (favorited) Res.string.history_favorite_remove else Res.string.history_favorite_add),
-            onClick = onToggleFavorite,
-            modifier = Modifier.testTag(historyFavoriteTag(entry.sourceKey, entry.workId)),
-            contentColor = if (favorited) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        ActionIconButton(
-            icon = ActionIcon.Delete,
-            label = stringResource(Res.string.history_delete),
-            onClick = onDelete,
-            modifier = Modifier.testTag(historyDeleteTag(entry.sourceKey, entry.workId)),
-        )
-        ActionIconButton(
-            icon = ActionIcon.Play,
-            label = stringResource(Res.string.history_continue),
-            onClick = onContinue,
-            modifier = Modifier.testTag(historyContinueTag(entry.sourceKey, entry.workId)),
-        )
+        // 选择态只留勾选框：行级动作隐藏，避免与批量动作抢同一个点击区。
+        if (!selecting) {
+            ActionIconButton(
+                icon = if (favorited) ActionIcon.Favorite else ActionIcon.FavoriteBorder,
+                label = stringResource(
+                    if (favorited) Res.string.history_favorite_remove else Res.string.history_favorite_add,
+                ),
+                onClick = onToggleFavorite,
+                modifier = Modifier.testTag(historyFavoriteTag(entry.sourceKey, entry.workId)),
+                contentColor = if (favorited) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+            )
+            ActionIconButton(
+                icon = ActionIcon.Delete,
+                label = stringResource(Res.string.history_delete),
+                onClick = onDelete,
+                modifier = Modifier.testTag(historyDeleteTag(entry.sourceKey, entry.workId)),
+            )
+            ActionIconButton(
+                icon = ActionIcon.Play,
+                label = stringResource(Res.string.history_continue),
+                onClick = onContinue,
+                modifier = Modifier.testTag(historyContinueTag(entry.sourceKey, entry.workId)),
+            )
+        }
+    }
+}
+
+/** 选择态顶栏：计数 + 关闭 + 全选/反选（结构照书架 `LibrarySelectionToolbar`）。 */
+@Composable
+private fun HistorySelectionToolbar(
+    count: Int,
+    onClear: () -> Unit,
+    onSelectAll: () -> Unit,
+    onInvert: () -> Unit,
+) {
+    TopAppBar(
+        title = {
+            Text(
+                text = stringResource(Res.string.history_selection_count, count),
+                modifier = Modifier.testTag(HistorySelectionCountTag),
+            )
+        },
+        navigationIcon = {
+            ActionIconButton(
+                icon = ActionIcon.Close,
+                label = stringResource(Res.string.history_clear_selection),
+                onClick = onClear,
+                modifier = Modifier.testTag(HistorySelectionClearTag),
+            )
+        },
+        actions = {
+            ActionIconButton(
+                icon = ActionIcon.SelectAll,
+                label = stringResource(Res.string.history_select_all),
+                onClick = onSelectAll,
+                modifier = Modifier.testTag(HistorySelectAllTag),
+            )
+            ActionIconButton(
+                icon = ActionIcon.InvertSelection,
+                label = stringResource(Res.string.history_invert_selection),
+                onClick = onInvert,
+                modifier = Modifier.testTag(HistorySelectionInvertTag),
+            )
+        },
+        modifier = Modifier.testTag(HistorySelectionBarTag),
+    )
+}
+
+/** 选择态底部动作条：删除 / 反选 / 清除（Surface + 图标按钮，结构照书架底栏）。 */
+@Composable
+private fun HistorySelectionActions(
+    onDelete: () -> Unit,
+    onInvert: () -> Unit,
+    onClear: () -> Unit,
+) {
+    Surface(
+        tonalElevation = 3.dp,
+        modifier = Modifier.fillMaxWidth().testTag(HistorySelectionActionsTag),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            ActionIconButton(
+                icon = ActionIcon.Delete,
+                label = stringResource(Res.string.history_delete),
+                onClick = onDelete,
+                modifier = Modifier.testTag(HistorySelectionDeleteTag),
+                contentColor = MaterialTheme.colorScheme.error,
+            )
+            ActionIconButton(
+                icon = ActionIcon.InvertSelection,
+                label = stringResource(Res.string.history_invert_selection),
+                onClick = onInvert,
+                modifier = Modifier.testTag(HistoryBottomInvertTag),
+            )
+            ActionIconButton(
+                icon = ActionIcon.Close,
+                label = stringResource(Res.string.history_clear_selection),
+                onClick = onClear,
+                modifier = Modifier.testTag(HistoryBottomClearTag),
+            )
+        }
     }
 }
 
