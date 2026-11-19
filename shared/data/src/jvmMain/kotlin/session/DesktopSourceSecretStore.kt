@@ -60,32 +60,45 @@ private class LinuxSourceSecretStore(private val prefix: String) : SourceSecretS
     }
 }
 
+internal fun windowsSessionFilename(sourceKey: String): String =
+    MessageDigest.getInstance("SHA-256").digest(sourceKey.encodeToByteArray()).toHexString() + ".session"
+
 private class WindowsSourceSecretStore(private val directory: Path) : SourceSecretStore {
     private val files = FileSystem.SYSTEM
 
     override fun read(sourceKey: String): String? {
-        val path = directory / sourceKey
-        if (!files.exists(path)) return null
+        val path = directory / windowsSessionFilename(sourceKey)
+        if (!files.exists(path)) {
+            val legacy = legacyPath(sourceKey) ?: return null
+            if (!files.exists(legacy)) return null
+            files.atomicMove(legacy, path)
+        }
         val encrypted = files.read(path) { readUtf8() }
         return protect(encrypted, "Unprotect").trimEnd('\r', '\n')
     }
 
     override fun write(sourceKey: String, value: String?) {
-        val path = directory / sourceKey
+        val filename = windowsSessionFilename(sourceKey)
+        val path = directory / filename
         if (value == null) {
             files.delete(path, mustExist = false)
+            legacyPath(sourceKey)?.let { files.delete(it, mustExist = false) }
             return
         }
         val encrypted = protect(value, "Protect")
         files.createDirectories(directory)
-        val temporary = directory / "$sourceKey.new"
+        val temporary = directory / "$filename.new"
         try {
             files.write(temporary) { writeUtf8(encrypted) }
             files.atomicMove(temporary, path)
+            legacyPath(sourceKey)?.let { files.delete(it, mustExist = false) }
         } finally {
             files.delete(temporary, mustExist = false)
         }
     }
+
+    private fun legacyPath(sourceKey: String): Path? =
+        sourceKey.takeIf { it.matches(Regex("[A-Za-z_][A-Za-z0-9_]*")) }?.let { directory / it }
 
     private fun protect(value: String, operation: String): String {
         val readBytes = if (operation == "Protect") {
