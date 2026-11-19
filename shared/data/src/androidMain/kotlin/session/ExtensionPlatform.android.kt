@@ -6,6 +6,7 @@ import app.koyura.data.extension.ExtensionDb
 import app.koyura.data.extension.WebLoginBrowser
 import app.koyura.network.createDefaultHttpClient
 import app.koyura.source.runtime.VeneraEnvironment
+import app.koyura.source.runtime.VeneraUiHost
 import okio.FileSystem
 import okio.Path.Companion.toOkioPath
 import java.io.File
@@ -20,6 +21,7 @@ import java.io.File
  */
 suspend fun Context.openExtensionSession(environment: VeneraEnvironment,
     webLoginBrowser: WebLoginBrowser? = null,
+    sourceUi: VeneraUiHost = VeneraUiHost.Headless,
 ): ExtensionSession {
     val appDataDir = File(filesDir, "venera-ext").toOkioPath()
     val driver = AndroidSqliteDriver(ExtensionDb.Schema, this, "extensions.db")
@@ -30,6 +32,7 @@ suspend fun Context.openExtensionSession(environment: VeneraEnvironment,
         httpClient = createDefaultHttpClient(),
         environment = environment,
         webLoginBrowser = webLoginBrowser,
+        sourceUi = sourceUi,
         secrets = AndroidSourceSecretStore(this),
     )
 }

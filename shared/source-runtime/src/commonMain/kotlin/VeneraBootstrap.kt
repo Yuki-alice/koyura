@@ -136,6 +136,11 @@ internal val veneraBootstrap = """
             if (intervals.delete(id)) intervalHost(id + ":cancel");
         }
 
+        function releaseSource(source) {
+            sourceSessions.get(source)?.interaction.dispose();
+            releaseIntervals(source);
+        }
+
         function releaseIntervals(source) {
             for (const [id, timer] of intervals) if (timer.source === source) cancelInterval(id);
         }
@@ -209,6 +214,8 @@ internal val veneraBootstrap = """
                 let source = null;
                 let sourceKey = null;
                 const slot = { key: null, staged: true, changes: Object.create(null) };
+                const interaction = __readerInteractions.create(() => slot.key, () => slot.key !== null && sources[slot.key] === source);
+                slot.interaction = interaction;
                 const session = (operation, args) => {
                     if (!slot.key || sources[slot.key] !== source) throw new Error("Source instance is inactive");
                     return sessionRequest(slot.key, operation, args);
@@ -247,6 +254,22 @@ internal val veneraBootstrap = """
                         case "delete_data": return source.deleteData(message.data_key);
                         case "load_setting": return source?.loadSetting(message.setting_key) ?? null;
                         case "isLogged": return source?.isLogged ?? false;
+                        case "log": return interaction.log(message.level, message.title, message.content);
+                        case "setClipboard": return interaction.setClipboard(message.text);
+                        case "getClipboard": return interaction.getClipboard();
+                        case "UI": {
+                            const ui = interaction.UI;
+                            switch (message.function) {
+                                case "showMessage": return ui.showMessage(message.message);
+                                case "launchUrl": return ui.launchUrl(message.url);
+                                case "showDialog": return ui.showDialog(message.title, message.content, message.actions);
+                                case "showLoading": return ui.showLoading(message.onCancel);
+                                case "cancelLoading": return ui.cancelLoading(message.id);
+                                case "showInputDialog": return ui.showInputDialog(message.title, message.validator, message.image);
+                                case "showSelectDialog": return ui.showSelectDialog(message.title, message.options, message.initialIndex);
+                                default: throw new Error("Unknown source interaction");
+                            }
+                        }
                         case "getLocale": return APP.locale;
                         case "getPlatform": return APP.platform;
                         case "delay": return new Promise(resolve => setTimeout(resolve, message.time));
@@ -267,7 +290,8 @@ internal val veneraBootstrap = """
                     return { cancel: () => cancelInterval(id) };
                 }
                 const net = network(sendMessage, session);
-                source = construct(net, sendMessage, fetchWith(net), setInterval);
+                source = construct(net, sendMessage, fetchWith(net), setInterval,
+                    interaction.UI, interaction.setClipboard, interaction.getClipboard, interaction.log, interaction.console);
                 if (!(source instanceof ComicSource)) throw new TypeError("Expected a ComicSource instance");
                 seqBySource.set(source, ++sequence);
                 sourceSessions.set(source, slot);
@@ -329,7 +353,7 @@ internal val veneraBootstrap = """
             },
             repairDisplaced(key) {
                 if (!displaced.has(key)) return false;
-                releaseIntervals(sources[key]);
+                releaseSource(sources[key]);
                 const prev = displaced.get(key);
                 displaced.delete(key);
                 if (prev === undefined) delete sources[key];
@@ -342,25 +366,25 @@ internal val veneraBootstrap = """
                 pendingKey = null;
             },
             discard() {
-                releaseIntervals(pending);
+                releaseSource(pending);
                 pending = null;
                 pendingKey = null;
             },
             rollback() {
-                releaseIntervals(pending);
+                releaseSource(pending);
                 if (pendingKey !== null) delete sources[pendingKey];
                 pending = null;
                 pendingKey = null;
             },
             unregister(key) {
-                releaseIntervals(sources[key]);
-                releaseIntervals(displaced.get(key));
+                releaseSource(sources[key]);
+                releaseSource(displaced.get(key));
                 delete sources[key];
                 displaced.delete(key);
             },
             finishReplacement(key) {
                 if (displaced.has(key) && sources[key]) flushSourceData(sources[key]);
-                releaseIntervals(displaced.get(key));
+                releaseSource(displaced.get(key));
                 displaced.delete(key);
             },
             instanceSeq(key) {
@@ -379,6 +403,13 @@ internal val veneraBootstrap = """
                 if (source === undefined) throw new Error("Source is not registered: " + key);
                 const owner = field(source, section)?.[index];
                 return invokeCallback(owner, owner?.[member], args, synchronous, section + "." + member);
+            },
+            invokeSetting(key, name) {
+                const source = sources[key];
+                const settings = source?.settings;
+                const setting = settings && Object.hasOwn(settings, name) ? settings[name] : undefined;
+                if (setting?.type !== "callback") throw new Error("Source setting has no callback");
+                return invokeCallback(setting, setting.callback, [], false, "settings." + name);
             },
             describe(key, path) {
                 const source = sources[key];

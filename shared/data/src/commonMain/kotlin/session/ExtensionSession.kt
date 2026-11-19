@@ -17,6 +17,7 @@ import app.koyura.data.reading.ComicReadingService
 import app.koyura.data.updates.LibraryUpdateScanner
 import app.koyura.data.reader.preferences.ReaderPreferencesStore
 import app.koyura.source.runtime.VeneraEnvironment
+import app.koyura.source.runtime.VeneraUiHost
 import app.koyura.source.runtime.SourceSecretStore
 import app.koyura.source.runtime.SourceSessions
 import io.ktor.client.HttpClient
@@ -104,10 +105,11 @@ suspend fun openExtensionSession(
     secrets: SourceSecretStore? = null,
     isOnline: () -> Boolean = { true },
     webLoginBrowser: WebLoginBrowser? = null,
+    sourceUi: VeneraUiHost = VeneraUiHost.Headless,
 ): ExtensionSession {
     val scriptsDir = appDataDir / "scripts"
     val service = ExtensionService(
-        driver, fileSystem, scriptsDir, httpClient, environment, SourceSessions(secrets), webLoginBrowser,
+        driver, fileSystem, scriptsDir, httpClient, environment, SourceSessions(secrets), webLoginBrowser, sourceUi,
     )
     var session: ExtensionSession? = null
     try {
