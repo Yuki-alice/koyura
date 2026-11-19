@@ -38,6 +38,7 @@ import app.koyura.designsystem.resources.action_mode_vertical
 import app.koyura.designsystem.resources.action_mode_webtoon
 import app.koyura.designsystem.resources.action_more
 import app.koyura.designsystem.resources.action_next
+import app.koyura.designsystem.resources.action_pause
 import app.koyura.designsystem.resources.action_pin
 import app.koyura.designsystem.resources.action_pinned
 import app.koyura.designsystem.resources.action_play
@@ -91,6 +92,7 @@ enum class ActionIcon(internal val resource: DrawableResource) {
     Close(Res.drawable.action_close),
     Delete(Res.drawable.action_delete),
     Sync(Res.drawable.action_sync),
+    Pause(Res.drawable.action_pause),
     Play(Res.drawable.action_play),
     Download(Res.drawable.action_download),
     Chapters(Res.drawable.action_chapters),

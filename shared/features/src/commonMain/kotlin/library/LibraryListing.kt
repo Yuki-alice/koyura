@@ -134,15 +134,17 @@ fun groupLibraryEntries(
 }
 
 /**
- * 网格列数：列表与全景模式固定单列，其余网格模式取偏好列数并夹到 1..6。
- * 空闲列数滑杆（显示页）直接写偏好，本函数只做钳制。
+ * 自适应网格列数：列数完全由画布宽度决定（`GridCells.Adaptive(128.dp)`，
+ * 白皮书 07:56），与显示模式无关。公式复刻 Adaptive 的取整语义
+ * （`floor((可用宽 + 间距) / (最小格 + 间距))`），默认值对齐网格实现
+ * （内边距 8dp、间距 4dp）。
+ *
+ * 360dp 画布 2 列，1280dp 画布 9 列。
  */
-fun libraryColumnsFor(mode: LibraryDisplayMode, columnsPref: Int): Int = when (mode) {
-    LibraryDisplayMode.LIST,
-    LibraryDisplayMode.COMFORTABLE_GRID_PANORAMA,
-    -> 1
-    LibraryDisplayMode.COMPACT_GRID,
-    LibraryDisplayMode.COMFORTABLE_GRID,
-    LibraryDisplayMode.COVER_ONLY_GRID,
-    -> columnsPref.coerceIn(1, 6)
-}
+fun adaptiveGridColumns(
+    canvasWidthDp: Int,
+    minCellDp: Int = 128,
+    paddingDp: Int = 8,
+    spacingDp: Int = 4,
+): Int = ((canvasWidthDp - paddingDp * 2 + spacingDp) / (minCellDp + spacingDp)).coerceAtLeast(1)
+

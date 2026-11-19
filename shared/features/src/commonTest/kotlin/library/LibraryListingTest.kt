@@ -112,13 +112,11 @@ class LibraryListingTest {
     }
 
     @Test
-    fun columnsClampedAndListIsSingle() {
-        assertEquals(1, libraryColumnsFor(LibraryDisplayMode.LIST, 4))
-        assertEquals(1, libraryColumnsFor(LibraryDisplayMode.COMFORTABLE_GRID_PANORAMA, 4))
-        assertEquals(1, libraryColumnsFor(LibraryDisplayMode.COMPACT_GRID, 0))
-        assertEquals(6, libraryColumnsFor(LibraryDisplayMode.COMPACT_GRID, 99))
-        assertEquals(3, libraryColumnsFor(LibraryDisplayMode.COVER_ONLY_GRID, 3))
-        assertEquals(4, libraryColumnsFor(LibraryDisplayMode.COMFORTABLE_GRID, 4))
+    fun adaptiveGridColumnsFollowCanvasWidth() {
+        // 白皮书 07:56：360dp 画布 2 列量级、1280dp 画布 9 列量级（内边距 8dp、间距 4dp）。
+        assertEquals(2, adaptiveGridColumns(360))
+        assertEquals(9, adaptiveGridColumns(1280))
+        assertEquals(1, adaptiveGridColumns(100))
     }
 
     @Test

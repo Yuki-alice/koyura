@@ -33,7 +33,6 @@
     <string name="library_mode_panorama">全景</string>
     <string name="library_mode_list">列表</string>
     <string name="library_mode_cover_only">封面网格</string>
-    <string name="library_columns">每行列数</string>
 
     <!-- 显示开关 -->
     <string name="library_show_unread">未读徽标</string>

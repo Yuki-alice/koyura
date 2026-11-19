@@ -6,11 +6,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import app.koyura.designsystem.resources.Res
-import app.koyura.designsystem.resources.nav_library_selected
+import app.koyura.designsystem.resources.action_library_books
 import org.jetbrains.compose.resources.painterResource
 
 /**
- * 品牌占位字形：复用导航书架字形，64dp 下渲染，onSurface 染色。
+ * 品牌占位字形：Material Symbols library_books 官方路径，64dp 下渲染，onSurface 染色。
  *
  * 真实品牌视觉定稿前 More 页 Logo 区与启动位共用本占位；定稿后只改这一处。
  */
@@ -20,7 +20,7 @@ fun BrandPlaceholder(
     tint: Color = MaterialTheme.colorScheme.onSurface,
 ) {
     Icon(
-        painter = painterResource(Res.drawable.nav_library_selected),
+        painter = painterResource(Res.drawable.action_library_books),
         contentDescription = null,
         tint = tint,
         modifier = modifier,

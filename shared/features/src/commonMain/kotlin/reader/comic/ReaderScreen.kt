@@ -1,6 +1,7 @@
 package app.koyura.features.reader.comic
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,6 +25,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import app.koyura.domain.reader.preferences.ReaderLayout
@@ -193,7 +195,7 @@ fun ComicReaderScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(readerAutomaticBackground())
             .testTag(ReaderRootTestTag),
     ) {
         val currentSettings = settings
@@ -283,3 +285,18 @@ private fun ReaderSettings.viewerOptions() = ComicViewerOptions(
     cropBorders = cropBorders,
     doubleTapZoom = zoomOnDoubleTap,
 )
+
+/**
+ * Automatic 背景映射（默认阅读背景，白皮书 07 §7.5）：暗 #FF202125 / 亮 #FFFFFFFF。
+ *
+ * Code: ReaderActivity.kt:1432 `automaticBackgroundColor()`（暗走 `grayBackgroundColor` =
+ * `Color.rgb(0x20, 0x21, 0x25)`，亮走 `Color.WHITE`；偏好索引 3 即 Automatic）。
+ * 不用主题 token：Automatic 下根背景固定映射、chrome 跟随主题，现状即正确。
+ *
+ * 后置四档偏好（Black/Gray/Automatic/White）时注意：Black/Gray 档须用
+ * `ReaderTheme(darkTheme = true)` 包 chrome——原版 `ContextExtensions.kt:111-118`
+ * 对 Black/Gray 强制 night 上下文的耦合语义，勿丢。
+ */
+@Composable
+fun readerAutomaticBackground(dark: Boolean = isSystemInDarkTheme()): Color =
+    if (dark) Color(0xFF202125) else Color.White

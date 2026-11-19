@@ -216,7 +216,6 @@ class ProductionLibraryRepository(
     override suspend fun savePrefs(prefs: LibraryPrefs): LibrarySnapshot = runRepo {
         val serialized = serializePrefs(prefs)
         store.setPref(LibraryPrefsKeys.DISPLAY_MODE, serialized.mode)
-        store.setPref(LibraryPrefsKeys.DISPLAY_COLUMNS, serialized.columns)
         store.setPref(LibraryPrefsKeys.FILTER_SPEC, serialized.filters)
         store.setPref(LibraryPrefsKeys.SORT_SPEC, serialized.sort)
         store.setPref(LibraryPrefsKeys.GROUP_SPEC, serialized.group)
@@ -302,7 +301,6 @@ private fun DomainLibraryCategory.toFeature(): LibraryCategory = LibraryCategory
 
 internal data class SerializedPrefs(
     val mode: String,
-    val columns: String,
     val filters: String,
     val sort: String,
     val group: String,
@@ -315,10 +313,9 @@ internal data class SerializedPrefs(
     val showWorkCount: String,
 )
 
-/** 落盘格式（`library_prefs` 十二键）：filter 为六个三态 ordinal 逗号分隔，sort 为 `TYPE,asc,seed`，七开关为 `true/false`。 */
+/** 落盘格式（`library_prefs` 十一键）：filter 为六个三态 ordinal 逗号分隔，sort 为 `TYPE,asc,seed`，七开关为 `true/false`。列数键已退役：老库残留键不再读写，无害。 */
 internal fun serializePrefs(prefs: LibraryPrefs): SerializedPrefs = SerializedPrefs(
     mode = prefs.displayMode.serialize(),
-    columns = prefs.columns.toString(),
     filters = listOf(
         prefs.filters.downloaded,
         prefs.filters.unread,
@@ -342,19 +339,18 @@ internal suspend fun parsePrefs(get: suspend (String) -> String?): LibraryPrefs 
     val mode = get(LibraryPrefsKeys.DISPLAY_MODE)?.let {
         runCatching { LibraryDisplayMode.deserialize(it) }.getOrNull()
     } ?: LibraryDisplayMode.default
-    val columns = get(LibraryPrefsKeys.DISPLAY_COLUMNS)?.toIntOrNull()?.coerceIn(1, 6) ?: 2
     val filters = get(LibraryPrefsKeys.FILTER_SPEC)?.let(::parseFilters) ?: LibraryFilters()
     val (sortType, ascending, seed) = get(LibraryPrefsKeys.SORT_SPEC)?.let(::parseSort) ?: Triple(LibrarySortType.ALPHABETICAL, true, 0L)
     val groupBy = get(LibraryPrefsKeys.GROUP_SPEC)?.let {
         runCatching { LibraryGroupBy.valueOf(it) }.getOrNull()
     } ?: LibraryGroupBy.CATEGORY
-    // 逐键容错：旧库缺字段或单项非法值按默认值恢复，已有布局/列数/筛选/排序/分组不丢失。
+    // 逐键容错：旧库缺字段或单项非法值按默认值恢复，已有布局/筛选/排序/分组不丢失；
+    // 列数键退役：老数据残留的 DISPLAY_COLUMNS 不再读取无害，parse 侧不再引用。
     // 注意：每键单独读库，连续修改多个开关时调用方以完整快照写回，不互相覆盖。
     suspend fun bool(key: String, default: Boolean): Boolean =
         get(key)?.toBooleanStrictOrNull() ?: default
     return LibraryPrefs(
         displayMode = mode,
-        columns = columns,
         filters = filters,
         sortType = sortType,
         ascending = ascending,

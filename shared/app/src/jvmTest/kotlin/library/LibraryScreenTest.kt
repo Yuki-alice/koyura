@@ -7,11 +7,8 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.ComposeUiTest
-import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
-import androidx.compose.ui.test.performSemanticsAction
-import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.v2.runComposeUiTest
@@ -28,8 +25,6 @@ import app.koyura.features.library.LibraryCategoriesSheetTag
 import app.koyura.features.library.LibraryCategoryAddTag
 import app.koyura.features.library.LibraryCategoryNameTag
 import app.koyura.features.library.LibraryCountTag
-import app.koyura.features.library.LibraryColumnsSliderTag
-import app.koyura.features.library.LibraryColumnsValueTag
 import app.koyura.features.library.LibraryDetailFavoriteRow
 import app.koyura.features.library.LibraryDisplayMode
 import app.koyura.features.library.LibraryDisplaySheetTag
@@ -118,7 +113,7 @@ class LibraryScreenTest {
     private val realDecode: (ByteArray) -> ImageBitmap? =
         { bytes -> runCatching { bytes.decodeToImageBitmap() }.getOrNull() }
 
-    private fun triStateFixture(columns: Int = 2): FakeLibraryRepository {
+    private fun triStateFixture(): FakeLibraryRepository {
         val entries = listOf(
             LibraryEntry(
                 sourceKey = "srcA", workId = "w1", title = "同名作品",
@@ -148,13 +143,12 @@ class LibraryScreenTest {
             ),
             thumbnailBytes = mapOf("https://img.example/cover.png" to pngBytes(0x336699)),
             thumbnailFailures = mutableMapOf("https://img.example/broken.png" to "404"),
-            prefs = LibraryPrefs(columns = columns),
         )
     }
 
     @Test
     fun toolbarTabsAndBadgesOnRealData() = runComposeUiTest {
-        val session = LibrarySession(triStateFixture(columns = 4))
+        val session = LibrarySession(triStateFixture())
         var opened: Triple<String, String, String>? = null
         setContent {
             ReaderTheme {
@@ -367,7 +361,7 @@ class LibraryScreenTest {
 
     @Test
     fun coverTriStateImageBrokenAndEmpty() = runComposeUiTest {
-        val session = LibrarySession(triStateFixture(columns = 4))
+        val session = LibrarySession(triStateFixture())
         setContent {
             ReaderTheme {
                 LibraryScreen(
@@ -517,7 +511,7 @@ class LibraryScreenTest {
     }
 
     @Test
-    fun displayPageSliderAndTogglesActOnRealData() = runComposeUiTest {
+    fun displayPageTogglesActOnRealData() = runComposeUiTest {
         val fake = triStateFixture()
         val session = LibrarySession(fake)
         setContent {
@@ -534,11 +528,6 @@ class LibraryScreenTest {
         node(LibraryOverflowTag).performClick()
         scrollAndClick(LibraryMenuDisplayTag)
         node(LibraryDisplaySheetTag).assertIsDisplayed()
-        // 列数滑杆：语义动作精确置 5，偏好落盘且数值行同步。
-        node(LibraryColumnsValueTag).assertTextContains("2", substring = true)
-        node(LibraryColumnsSliderTag).performSemanticsAction(SemanticsActions.SetProgress) { it(5f) }
-        waitUntil { fake.prefs.columns == 5 }
-        node(LibraryColumnsValueTag).assertTextContains("5", substring = true)
         // 七个显示开关逐个翻转并落盘（前五个默认开，隐藏分类默认关）。
         scrollAndClick(libraryDisplayToggleTag("unread"))
         waitUntil { !fake.prefs.showUnreadBadges }
@@ -555,10 +544,9 @@ class LibraryScreenTest {
         scrollAndClick(libraryDisplayToggleTag("work-count"))
         waitUntil { !fake.prefs.showWorkCount }
         scrollAndClick(LibrarySheetCloseTag)
-        // 开关作用于真实渲染：未读徽标与继续按钮消失，列数保持 5。
+        // 开关作用于真实渲染：未读徽标与继续按钮消失。
         assertTrue(allNodes(libraryUnreadBadgeTag("srcA", "w1")).fetchSemanticsNodes().isEmpty())
         assertTrue(allNodes(libraryContinueTag("srcA", "w1")).fetchSemanticsNodes().isEmpty())
-        assertEquals(5, session.snapshot.prefs.columns)
         // 再打开并恢复两处，徽标重现。
         node(LibraryOverflowTag).performClick()
         scrollAndClick(LibraryMenuDisplayTag)
