@@ -12,6 +12,8 @@ import app.koyura.data.library.ensureLibrarySchema
 import app.koyura.data.reading.ComicReadingService
 import app.koyura.data.reader.preferences.ReaderPreferencesStore
 import app.koyura.source.runtime.VeneraEnvironment
+import app.koyura.source.runtime.SourceSecretStore
+import app.koyura.source.runtime.SourceSessions
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex
@@ -78,9 +80,10 @@ suspend fun openExtensionSession(
     appDataDir: Path,
     httpClient: HttpClient,
     environment: VeneraEnvironment,
+    secrets: SourceSecretStore? = null,
 ): ExtensionSession {
     val scriptsDir = appDataDir / "scripts"
-    val service = ExtensionService(driver, fileSystem, scriptsDir, httpClient, environment)
+    val service = ExtensionService(driver, fileSystem, scriptsDir, httpClient, environment, SourceSessions(secrets))
     try {
         ensureSchema(driver)
         service.open()

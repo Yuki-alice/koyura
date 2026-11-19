@@ -26,5 +26,6 @@ suspend fun Context.openExtensionSession(environment: VeneraEnvironment): Extens
         appDataDir = appDataDir,
         httpClient = createDefaultHttpClient(),
         environment = environment,
+        secrets = AndroidSourceSecretStore(this),
     )
 }

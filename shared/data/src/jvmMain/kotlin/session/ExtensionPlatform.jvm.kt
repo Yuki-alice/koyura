@@ -24,5 +24,6 @@ suspend fun openExtensionSession(appDataDir: Path, environment: VeneraEnvironmen
         appDataDir = appDataDir,
         httpClient = createDefaultHttpClient(),
         environment = environment,
+        secrets = desktopSourceSecretStore(appDataDir),
     )
 }

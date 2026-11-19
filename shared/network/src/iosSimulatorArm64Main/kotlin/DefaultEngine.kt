@@ -5,4 +5,10 @@ import io.ktor.client.engine.darwin.Darwin
 
 actual fun createDefaultHttpClient(): HttpClient = HttpClient(Darwin) {
     applyReaderDefaults()
+    engine {
+        configureSession {
+            HTTPCookieStorage = null
+            HTTPShouldSetCookies = false
+        }
+    }
 }

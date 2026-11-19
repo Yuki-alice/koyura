@@ -94,6 +94,13 @@ class VeneraSourceRuntime private constructor(
         }
     }
 
+    suspend fun webLoginUrl(key: String): String? = withContext(Dispatchers.Default) {
+        mutex.withLock {
+            checkOpen()
+            evaluate<String?>("__readerVenera.webLoginUrl(${JsonPrimitive(key)})", "account:url")
+        }
+    }
+
     suspend fun registeredSources(): List<VeneraSource> = mutex.withLock {
         checkOpen()
         sources.values.toList()
@@ -489,6 +496,12 @@ class VeneraSourceRuntime private constructor(
         suspend fun create(
             environment: VeneraEnvironment,
             transport: VeneraHttpTransport,
+        ): VeneraSourceRuntime = create(environment, SourceSessions(), transport)
+
+        suspend fun create(
+            environment: VeneraEnvironment,
+            sessions: SourceSessions,
+            transport: VeneraHttpTransport,
         ): VeneraSourceRuntime {
             val supportedVersion = VeneraVersion.parse(environment.compatibleAppVersion.substringBefore('-'))
             val engine = QuickJs.create(Dispatchers.Default)
@@ -508,6 +521,8 @@ class VeneraSourceRuntime private constructor(
                             JsonObject(mapOf("error" to message)).toString()
                         }
                     }
+                    val sessionHost = SessionHost(sessions)
+                    engine.function<String, String>("__readerSourceSession", sessionHost::dispatch)
                     val html = HtmlHost()
                     engine.function<String, String>("__readerHtml", html::dispatch)
                     val app = JsonObject(

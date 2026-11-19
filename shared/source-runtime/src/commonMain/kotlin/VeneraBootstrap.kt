@@ -11,8 +11,13 @@ internal val veneraBootstrap = """
         translation = {};
 
         loadSetting(key) {
-            return this.settings?.[key]?.default ?? null;
+            return __readerVenera.readSourceValue(this, "loadSetting", key) ?? this.settings?.[key]?.default ?? null;
         }
+
+        loadData(key) { return __readerVenera.readSourceValue(this, "loadData", key); }
+        saveData(key, value) { __readerVenera.writeSourceValue(this, key, { value }); }
+        deleteData(key) { __readerVenera.writeSourceValue(this, key, {}); }
+        get isLogged() { return this.loadData("account") != null; }
 
         translate(text) {
             return this.translation[APP.locale]?.[text] ?? text;
@@ -27,12 +32,25 @@ internal val veneraBootstrap = """
         Object.assign(this, fields, { subtitle: subtitle ?? subTitle });
     }
 
+    function Cookie(fields) {
+        Object.assign(this, fields);
+    }
+
     function ImageLoadingConfig(fields) {
         Object.assign(this, fields);
     }
 
     const __readerVenera = (() => {
         const requestText = __readerRequestText;
+        const dispatchSession = __readerSourceSession;
+        delete globalThis.__readerSourceSession;
+        const sourceSessions = new WeakMap();
+
+        function sessionRequest(key, operation, args) {
+            const response = JSON.parse(dispatchSession(serializeResult({ key, operation, ...args })));
+            if (response.error !== undefined) throw new Error(response.error);
+            return response.value;
+        }
         const sources = ComicSource.sources;
         let pending = null;
         let pendingKey = null;
@@ -43,8 +61,11 @@ internal val veneraBootstrap = """
         // candidate never settles, e.g. its init await was abandoned.
         const displaced = new Map();
 
-        function network(sendMessage) {
+        function network(sendMessage, session) {
             return {
+                setCookies(url, cookies) { session("setCookies", { url, cookies }); },
+                getCookies(url) { return session("getCookies", { url }); },
+                deleteCookies(url) { session("deleteCookies", { url }); },
                 async sendRequest(method, url, headers, data, extra) {
                     const result = await sendMessage({ method: "http", http_method: method, url, headers, data, extra });
                     if (result.error) throw result.error;
@@ -69,8 +90,9 @@ internal val veneraBootstrap = """
         }
 
         function callback(source, path) {
-            const [section, name] = path.split(".");
-            const owner = source[section];
+            const parts = path.split(".");
+            const name = parts.pop();
+            const owner = parts.reduce((parent, part) => parent?.[part], source);
             return [owner, owner?.[name]];
         }
 
@@ -83,12 +105,54 @@ internal val veneraBootstrap = """
             });
         }
 
+        function activate(source, key) {
+            const slot = sourceSessions.get(source);
+            slot.key = key;
+        }
+
+        function flushSourceData(source) {
+            const slot = sourceSessions.get(source);
+            if (Object.keys(slot.changes).length) sessionRequest(slot.key, "applyData", { changes: slot.changes });
+            slot.changes = Object.create(null);
+            slot.staged = false;
+        }
+
         return Object.freeze({
+            readSourceValue(source, operation, name) {
+                const slot = sourceSessions.get(source);
+                if (!slot?.key || sources[slot.key] !== source) return null;
+                if (operation === "loadData" && Object.hasOwn(slot.changes, name)) {
+                    return slot.changes[name].value ?? null;
+                }
+                if (operation !== "loadData" && operation !== "loadSetting") throw new Error("Invalid read operation");
+                return sessionRequest(slot.key, operation, { name });
+            },
+            writeSourceValue(source, name, change) {
+                const slot = sourceSessions.get(source);
+                if (!slot?.key || sources[slot.key] !== source) throw new Error("Source instance is inactive");
+                // Clone before retaining it so a later script mutation cannot rewrite saved data.
+                const entry = JSON.parse(serializeResult(change));
+                if (slot.staged) slot.changes[name] = entry;
+                else sessionRequest(slot.key, "applyData", { changes: { [name]: entry } });
+            },
+            webLoginUrl(key) {
+                const source = sources[key];
+                return source?.account?.loginWithWebview?.url ?? null;
+            },
             stage(construct, paths) {
+                let source = null;
                 let sourceKey = null;
+                const slot = { key: null, staged: true, changes: Object.create(null) };
+                const session = (operation, args) => {
+                    if (!slot.key || sources[slot.key] !== source) throw new Error("Source instance is inactive");
+                    return sessionRequest(slot.key, operation, args);
+                };
                 const sendMessage = async message => {
                     if (message.method !== "http" || message.bytes) {
                         throw new Error("Unsupported Venera host message: " + message.method);
+                    }
+                    if (sourceKey !== null && (!slot.key || sources[slot.key] !== source)) {
+                        throw new Error("Source instance is inactive");
                     }
                     return JSON.parse(await requestText(serializeResult({
                         sourceKey,
@@ -99,9 +163,10 @@ internal val veneraBootstrap = """
                         extra: message.extra,
                     })));
                 };
-                const source = construct(network(sendMessage), sendMessage);
+                source = construct(network(sendMessage, session), sendMessage);
                 if (!(source instanceof ComicSource)) throw new TypeError("Expected a ComicSource instance");
                 seqBySource.set(source, ++sequence);
+                sourceSessions.set(source, slot);
 
                 const { name, key, version, minAppVersion, url } = source;
                 sourceKey = key;
@@ -115,6 +180,7 @@ internal val veneraBootstrap = """
                 }
                 pendingKey = key;
                 sources[key] = pending;
+                activate(pending, key);
                 if (typeof pending.init === "function") await pending.init();
                 if (sources[key] !== pending) throw new Error("Source changed its registry entry during init: " + key);
                 return true;
@@ -127,6 +193,7 @@ internal val veneraBootstrap = """
                 displaced.set(key, prev);
                 pendingKey = key;
                 sources[key] = pending;
+                activate(pending, key);
                 try {
                     if (typeof pending.init === "function") await pending.init();
                 } catch (e) {
@@ -152,6 +219,7 @@ internal val veneraBootstrap = """
                 return true;
             },
             commit() {
+                if (pending && !displaced.has(pendingKey)) flushSourceData(pending);
                 pending = null;
                 pendingKey = null;
             },
@@ -169,6 +237,7 @@ internal val veneraBootstrap = """
                 displaced.delete(key);
             },
             finishReplacement(key) {
+                if (displaced.has(key) && sources[key]) flushSourceData(sources[key]);
                 displaced.delete(key);
             },
             instanceSeq(key) {

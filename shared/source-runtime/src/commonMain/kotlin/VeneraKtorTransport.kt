@@ -13,6 +13,7 @@ import io.ktor.client.statement.readRawBytes
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
+import io.ktor.http.Url
 import io.ktor.http.content.TextContent
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.JsonNull
@@ -60,10 +61,14 @@ import kotlinx.serialization.json.JsonPrimitive
 class KtorVeneraHttpTransport(
     private val client: HttpClient,
     private val ownsClient: Boolean = false,
+    private val sessions: SourceSessions? = null,
 ) : VeneraHttpTransport {
+    private val sessionClient = sessions?.let(client::withSourceSessions)
+    private val requestClient get() = sessionClient ?: client
+
     override suspend fun execute(request: VeneraHttpRequest): VeneraHttpResponse {
         try {
-            val response = client.request { applyVeneraRequest(request) }
+            val response = requestClient.request { applyVeneraRequest(request) }
             val headers = response.headers.entries()
                 .associate { (name, values) -> name to values.joinToString(",") }
             return VeneraHttpResponse(
@@ -94,7 +99,7 @@ class KtorVeneraHttpTransport(
      */
     suspend fun executeBytes(request: VeneraHttpRequest): VeneraBytesResponse {
         val response = try {
-            client.request { applyVeneraRequest(request) }
+            requestClient.request { applyVeneraRequest(request) }
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (failure: ResponseException) {
@@ -117,6 +122,10 @@ class KtorVeneraHttpTransport(
         val hasUserAgent = request.headers.keys.any { it.equals(HttpHeaders.UserAgent, ignoreCase = true) }
         method = HttpMethod.parse(request.method.uppercase())
         url(request.url)
+        if (sessions != null && request.sourceKey != null) {
+            val explicit = request.headers.entries.firstOrNull { it.key.equals(HttpHeaders.Cookie, ignoreCase = true) }?.value
+            attributes.put(sourceSessionRequest, SessionRequest(sessions.lease(request.sourceKey), Url(request.url), explicit))
+        }
         headers {
             for ((name, value) in request.headers) {
                 if (isHostControlHeader(name)) continue
@@ -149,6 +158,7 @@ class KtorVeneraHttpTransport(
      * No-op when the client was injected by the caller.
      */
     fun close() {
+        sessionClient?.close()
         if (ownsClient) client.close()
     }
 

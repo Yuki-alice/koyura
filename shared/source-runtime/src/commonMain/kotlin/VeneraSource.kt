@@ -28,6 +28,11 @@ enum class VeneraCallback(val path: String, internal val synchronous: Boolean = 
     LoadImage("comic.onImageLoad"),
     LoadThumbnail("comic.onThumbnailLoad"),
     ClickTag("comic.onClickTag", synchronous = true),
+    Login("account.login"),
+    Logout("account.logout"),
+    ValidateCookies("account.loginWithCookies.validate"),
+    CheckWebLogin("account.loginWithWebview.checkStatus", synchronous = true),
+    WebLoginSucceeded("account.loginWithWebview.onLoginSuccess"),
 }
 
 @Serializable

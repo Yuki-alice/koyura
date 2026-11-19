@@ -8,7 +8,6 @@ import app.koyura.domain.extension.ComicPage
 import app.koyura.domain.extension.OpenedChapter
 import app.koyura.domain.extension.ReadingFailure
 import app.koyura.domain.extension.ReadingProgress
-import app.koyura.source.runtime.KtorVeneraHttpTransport
 import app.koyura.source.runtime.ParsedImageConfig
 import app.koyura.source.runtime.VeneraCallback
 import app.koyura.source.runtime.VeneraHttpRequest
@@ -273,9 +272,8 @@ class ComicReadingService(
     }
 
     private suspend fun downloadImageBytes(request: VeneraHttpRequest): ByteArray {
-        val transport = KtorVeneraHttpTransport(httpClient)
         val response = try {
-            transport.executeBytes(request)
+            extensions.sourceTransport.executeBytes(request)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
