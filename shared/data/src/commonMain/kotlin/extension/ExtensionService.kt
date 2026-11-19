@@ -14,6 +14,7 @@ import app.koyura.source.runtime.VeneraCatalog
 import app.koyura.source.runtime.VeneraCatalogEntry
 import app.koyura.source.runtime.VeneraCatalogError
 import app.koyura.source.runtime.VeneraEnvironment
+import app.koyura.source.runtime.VeneraUiHost
 import app.koyura.source.runtime.VeneraSourceRuntime
 import app.koyura.source.runtime.isVeneraUpdateAvailable
 import app.koyura.source.runtime.loadVeneraCatalog
@@ -95,9 +96,11 @@ class ExtensionService(
     private val httpClient: HttpClient,
     private val environment: VeneraEnvironment,
     private val sourceSessions: SourceSessions = SourceSessions(),
+    webLoginBrowser: WebLoginBrowser? = null,
+    private val sourceUi: VeneraUiHost = VeneraUiHost.Headless,
 ) {
     internal val sourceTransport = KtorVeneraHttpTransport(httpClient, sessions = sourceSessions)
-    val accounts = SourceAccountService(this)
+    val accounts = SourceAccountService(this, webLoginBrowser)
     val browse = SourceBrowseService(this)
 
     private val db = ExtensionDb(driver)
@@ -222,7 +225,7 @@ class ExtensionService(
      */
     suspend fun restore(): RestoreReport {
         val failures = mutableListOf<RestoreFailure>()
-        val live = VeneraSourceRuntime.create(environment, sourceSessions, sourceTransport)
+        val live = VeneraSourceRuntime.create(environment, sourceSessions, sourceUi, sourceTransport)
         runtime?.close()
         runtime = live
         val rows = queries().selectAllExtensions().executeAsList()
@@ -479,6 +482,9 @@ class ExtensionService(
         runtime === owner.runtime && loginGeneration[owner.key] == owner.generation &&
             owner.runtime.liveInstanceSeq(owner.key) == owner.instance
 
+    suspend fun runSourceSetting(key: String, name: String): JsonElement =
+        (runtime ?: throw ExtensionFailure.MissingExtension(key)).runSetting(key, name)
+
     suspend fun setSourceSetting(key: String, name: String, value: JsonElement?) = mutex.withLock {
         if (runtime?.registeredSources()?.none { it.key == key } != false) throw ExtensionFailure.MissingExtension(key)
         withContext(Dispatchers.IO) { sourceSessions.setSetting(key, name, value) }
@@ -490,6 +496,7 @@ class ExtensionService(
         } finally {
             runtime = null
             sourceTransport.close()
+            withContext(NonCancellable + Dispatchers.IO) { sourceSessions.close() }
         }
     }
 

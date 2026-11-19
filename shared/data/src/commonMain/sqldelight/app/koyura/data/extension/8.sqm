@@ -1,0 +1,19 @@
+CREATE TABLE IF NOT EXISTS detected_chapter (
+    source_key TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    work_id TEXT NOT NULL,
+    chapter_id TEXT NOT NULL,
+    detected_at INTEGER NOT NULL,
+    PRIMARY KEY (source_key, kind, work_id, chapter_id)
+);
+
+CREATE INDEX IF NOT EXISTS detected_chapter_date ON detected_chapter(detected_at DESC);
+
+CREATE TABLE IF NOT EXISTS library_update_failure (
+    source_key TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    work_id TEXT NOT NULL,
+    checked_at INTEGER NOT NULL,
+    message TEXT NOT NULL,
+    PRIMARY KEY (source_key, kind, work_id)
+);

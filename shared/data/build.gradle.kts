@@ -75,3 +75,14 @@ tasks.named<Test>("jvmTest") {
     systemProperty("reader.venera.required", veneraReferenceDir.isPresent.toString())
     testLogging.showStandardStreams = true
 }
+
+tasks.named<Test>("jvmTest") {
+    providers.gradleProperty("veneraCommunityFixtureDir").orNull?.let { path ->
+        val directory = rootProject.file(path)
+        inputs.files(directory.resolve("manhuagui.js"), directory.resolve("komga.js"))
+        systemProperty("reader.venera.community.e2e", directory.absolutePath)
+    }
+    val live = providers.gradleProperty("veneraCommunityLive").orNull == "true"
+    systemProperty("reader.venera.community.live", live.toString())
+    if (live) outputs.upToDateWhen { false }
+}

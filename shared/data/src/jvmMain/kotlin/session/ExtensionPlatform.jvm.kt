@@ -4,6 +4,7 @@ import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import app.koyura.data.extension.ExtensionDb
 import app.koyura.network.createDefaultHttpClient
 import app.koyura.source.runtime.VeneraEnvironment
+import app.koyura.source.runtime.VeneraUiHost
 import okio.FileSystem
 import okio.Path
 
@@ -15,7 +16,11 @@ import okio.Path
  * session owns the driver, HTTP client and QuickJS runtime; release
  * everything with [ExtensionSession.close] (idempotent).
  */
-suspend fun openExtensionSession(appDataDir: Path, environment: VeneraEnvironment): ExtensionSession {
+suspend fun openExtensionSession(
+    appDataDir: Path,
+    environment: VeneraEnvironment,
+    sourceUi: VeneraUiHost = VeneraUiHost.Headless,
+): ExtensionSession {
     FileSystem.SYSTEM.createDirectories(appDataDir)
     val driver = JdbcSqliteDriver("jdbc:sqlite:${appDataDir / "extensions.db"}")
     return openExtensionSession(
@@ -24,6 +29,7 @@ suspend fun openExtensionSession(appDataDir: Path, environment: VeneraEnvironmen
         appDataDir = appDataDir,
         httpClient = createDefaultHttpClient(),
         environment = environment,
+        sourceUi = sourceUi,
         secrets = desktopSourceSecretStore(appDataDir),
     )
 }

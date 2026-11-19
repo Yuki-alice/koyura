@@ -27,3 +27,7 @@ VALUES (?, ?, ?, ?, 'QUEUED');
 
 updateDownload:
 UPDATE download_jobs SET status = ?, completed_pages = ?, total_pages = ? WHERE id = ?;
+
+
+countCompletedDownloads:
+SELECT COUNT(*) FROM download_jobs WHERE source_key = ? AND work_id = ? AND status = 'COMPLETE';

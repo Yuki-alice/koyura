@@ -2,8 +2,10 @@ package app.koyura.data.session
 
 import app.cash.sqldelight.driver.native.NativeSqliteDriver
 import app.koyura.data.extension.ExtensionDb
+import app.koyura.data.extension.WebLoginBrowser
 import app.koyura.network.createDefaultHttpClient
 import app.koyura.source.runtime.VeneraEnvironment
+import app.koyura.source.runtime.VeneraUiHost
 import kotlinx.cinterop.ExperimentalForeignApi
 import okio.FileSystem
 import okio.Path
@@ -41,6 +43,8 @@ fun defaultIosDataDir(): Path {
 suspend fun openExtensionSession(
     appDataDir: Path = defaultIosDataDir(),
     environment: VeneraEnvironment,
+    webLoginBrowser: WebLoginBrowser? = null,
+    sourceUi: VeneraUiHost = VeneraUiHost.Headless,
 ): ExtensionSession {
     FileSystem.SYSTEM.createDirectories(appDataDir)
     val driver = NativeSqliteDriver(ExtensionDb.Schema, "extensions.db")
@@ -50,6 +54,8 @@ suspend fun openExtensionSession(
         appDataDir = appDataDir,
         httpClient = createDefaultHttpClient(),
         environment = environment,
+        webLoginBrowser = webLoginBrowser,
+        sourceUi = sourceUi,
         secrets = IosSourceSecretStore(),
     )
 }

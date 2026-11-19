@@ -5,6 +5,16 @@ import io.ktor.http.CookieEncoding
 import io.ktor.http.URLProtocol
 import io.ktor.http.Url
 import io.ktor.http.renderCookieHeader
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.IO
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
@@ -46,102 +56,156 @@ internal data class SourceSessionState(
 )
 
 /** One session store is shared by script requests, image requests and WebView handoff. */
-class SourceSessions(private val secrets: SourceSecretStore? = null) {
+class SourceSessions(
+    private val secrets: SourceSecretStore? = null,
+    dispatcher: CoroutineDispatcher = Dispatchers.IO,
+) {
     internal data class Lease(val key: String, val generation: Long)
-    private val lock = SessionLock()
-    private val states = mutableMapOf<String, SourceSessionState>()
-    private val generations = mutableMapOf<String, Long>()
+    private class Entry(val key: String) {
+        val lock = SessionLock()
+        var state: SourceSessionState? = null
+        var generation = 0L
+        var dirty = false
+        var pending: Job? = null
+    }
 
-    internal fun lease(key: String): Lease = lock.locked { Lease(key, generations[key] ?: 0L) }
+    private val lock = SessionLock()
+    private val entries = mutableMapOf<String, Entry>()
+    private val writer = CoroutineScope(SupervisorJob() + dispatcher)
+    private var closed = false
+
+    private fun <T> access(key: String, operation: Entry.() -> T): T {
+        require(key.matches(SOURCE_KEY)) { "Invalid source key" }
+        val entry = lock.locked {
+            check(!closed) { "Source sessions are closed" }
+            entries.getOrPut(key) { Entry(key) }
+        }
+        return entry.lock.locked {
+            lock.locked { check(!closed) { "Source sessions are closed" } }
+            entry.operation()
+        }
+    }
+
+    internal fun lease(key: String): Lease = access(key) { Lease(key, generation) }
 
     internal fun cookies(key: String, url: String): List<SourceCookie> =
-        lock.locked { matching(state(key), sessionUrl(url)).map { it.cookie } }
+        access(key) { matching(load(this), sessionUrl(url)).map { it.cookie } }
 
-    internal fun requestHeader(lease: Lease, url: Url): String? = lock.locked {
-        if (!isCurrent(lease)) return@locked null
-        matching(state(lease.key), url).joinToString("; ") {
+    internal fun requestHeader(lease: Lease, url: Url): String? = access(lease.key) {
+        if (generation != lease.generation) return@access null
+        matching(load(this), url).joinToString("; ") {
             renderCookieHeader(Cookie(it.cookie.name, it.cookie.value, encoding = CookieEncoding.RAW))
         }.takeIf { it.isNotEmpty() }
     }
 
-    internal fun receive(lease: Lease, url: Url, cookies: List<Cookie>) = lock.locked {
-        if (cookies.isEmpty() || !isCurrent(lease)) return@locked
-        updateCookies(lease.key, url, cookies.map {
+    internal fun receive(lease: Lease, url: Url, cookies: List<Cookie>) = access(lease.key) {
+        if (cookies.isEmpty() || generation != lease.generation) return@access
+        val current = load(this)
+        val next = current.copy(cookies = mergeCookies(current, url, cookies.map {
             SourceCookie(it.name, it.value, it.domain, it.path, it.secure, it.httpOnly, it.expires?.timestamp, it.maxAge)
-        })
+        }))
+        if (next == current) return@access
+        state = next
+        if (secrets == null) return@access
+        dirty = true
+        pending?.cancel()
+        pending = writer.launch {
+            delay(COOKIE_DEBOUNCE_MILLIS)
+            this@access.lock.locked {
+                if (isActive && dirty) {
+                    // A vault failure leaves the latest snapshot dirty for the next save or close.
+                    runCatching { persist(this@access, load(this@access)) }
+                }
+            }
+        }
     }
 
-    internal fun setCookies(key: String, url: String, cookies: List<SourceCookie>) = lock.locked {
-        updateCookies(key, sessionUrl(url), cookies)
+    internal fun setCookies(key: String, url: String, cookies: List<SourceCookie>) = access(key) {
+        val current = load(this)
+        update(this, current.copy(cookies = mergeCookies(current, sessionUrl(url), cookies)))
     }
 
-    internal fun deleteCookies(key: String, url: String) = lock.locked {
+    internal fun deleteCookies(key: String, url: String) = access(key) {
         val host = sessionUrl(url).host.lowercase()
-        val state = state(key)
-        update(key, state.copy(cookies = state.cookies.filterNot { cookieHostMatches(it, host) }))
+        val current = load(this)
+        update(this, current.copy(cookies = current.cookies.filterNot { cookieHostMatches(it, host) }))
     }
 
-    fun clear(key: String) = lock.locked {
-        val settings = state(key).settings
-        update(key, SourceSessionState(settings = settings))
-        generations[key] = (generations[key] ?: 0L) + 1
+    fun clear(key: String) = access(key) {
+        update(this, SourceSessionState(settings = load(this).settings))
+        generation++
     }
 
-    fun forget(key: String) = lock.locked {
-        update(key, SourceSessionState())
-        generations[key] = (generations[key] ?: 0L) + 1
+    fun forget(key: String) = access(key) {
+        update(this, SourceSessionState())
+        generation++
     }
 
-    fun saveWebLogin(key: String, url: String, cookies: List<SourceCookie>, storage: JsonObject) = lock.locked {
-        val current = state(key)
-        val data = current.data + ("_localStorage" to storage) +
-            ("account" to JsonPrimitive("ok"))
-        val address = sessionUrl(url)
-        update(key, current.copy(data = data, cookies = mergeCookies(current, address, cookies)))
+    fun saveWebLogin(key: String, url: String, cookies: List<SourceCookie>, storage: JsonObject) = access(key) {
+        val current = load(this)
+        val data = current.data + ("_localStorage" to storage) + ("account" to JsonPrimitive("ok"))
+        update(this, current.copy(data = data, cookies = mergeCookies(current, sessionUrl(url), cookies)))
     }
 
     fun applyLoginMarker(key: String) = applyData(key, mapOf("account" to JsonPrimitive("ok")))
 
-    internal fun getData(key: String, name: String): JsonElement = lock.locked { state(key).data[name] ?: JsonNull }
+    internal fun getData(key: String, name: String): JsonElement = access(key) { load(this).data[name] ?: JsonNull }
 
-    internal fun applyData(key: String, changes: Map<String, JsonElement?>) = lock.locked {
-        if (changes.isEmpty()) return@locked
-        val current = state(key)
+    internal fun applyData(key: String, changes: Map<String, JsonElement?>) = access(key) {
+        if (changes.isEmpty()) return@access
+        val current = load(this)
         val data = current.data.toMutableMap()
         for ((name, value) in changes) {
             if (value == null) data.remove(name) else data[name] = value
         }
-        update(key, current.copy(data = data))
+        update(this, current.copy(data = data))
     }
 
-    internal fun getSetting(key: String, name: String): JsonElement = lock.locked {
-        state(key).settings[name] ?: JsonNull
+    internal fun getSetting(key: String, name: String): JsonElement = access(key) {
+        load(this).settings[name] ?: JsonNull
     }
 
-    fun setSetting(key: String, name: String, value: JsonElement?) = lock.locked {
-        val current = state(key)
+    fun setSetting(key: String, name: String, value: JsonElement?) = access(key) {
+        val current = load(this)
         val settings = if (value == null) current.settings - name else current.settings + (name to value)
-        update(key, current.copy(settings = settings))
+        update(this, current.copy(settings = settings))
     }
 
-    private fun isCurrent(lease: Lease) = lease.generation == (generations[lease.key] ?: 0L)
-
-    private fun state(key: String): SourceSessionState {
-        require(key.matches(SOURCE_KEY)) { "Invalid source key" }
-        return states.getOrPut(key) {
-            secrets?.read(key)?.let { Json.decodeFromString<SourceSessionState>(it) } ?: SourceSessionState()
+    /** Flushes the last cookie burst on graceful application shutdown. */
+    fun close() {
+        val active = lock.locked {
+            closed = true
+            entries.values.toList()
         }
+        writer.cancel()
+        var failure: Exception? = null
+        for (entry in active) {
+            entry.lock.locked {
+                try {
+                    if (entry.dirty) persist(entry, load(entry))
+                } catch (error: Exception) {
+                    if (failure == null) failure = error else failure?.addSuppressed(error)
+                }
+            }
+        }
+        failure?.let { throw it }
     }
 
-    private fun update(key: String, next: SourceSessionState) {
-        if (next == state(key)) return
-        secrets?.write(key, if (next == SourceSessionState()) null else Json.encodeToString(next))
-        states[key] = next
+    private fun load(entry: Entry): SourceSessionState = entry.state ?: (
+        secrets?.read(entry.key)?.let { Json.decodeFromString<SourceSessionState>(it) } ?: SourceSessionState()
+    ).also { entry.state = it }
+
+    private fun update(entry: Entry, next: SourceSessionState) {
+        if (next == load(entry) && !entry.dirty) return
+        persist(entry, next)
+        entry.pending?.cancel()
+        entry.pending = null
+        entry.state = next
     }
 
-    private fun updateCookies(key: String, url: Url, cookies: List<SourceCookie>) {
-        val current = state(key)
-        update(key, current.copy(cookies = mergeCookies(current, url, cookies)))
+    private fun persist(entry: Entry, next: SourceSessionState) {
+        secrets?.write(entry.key, if (next == SourceSessionState()) null else Json.encodeToString(next))
+        entry.dirty = false
     }
 
     private fun mergeCookies(state: SourceSessionState, url: Url, cookies: List<SourceCookie>): List<StoredCookie> {
@@ -184,6 +248,7 @@ class SourceSessions(private val secrets: SourceSecretStore? = null) {
     }
 
     private companion object {
+        const val COOKIE_DEBOUNCE_MILLIS = 250L
         val SOURCE_KEY = Regex("[A-Za-z_][A-Za-z0-9_]*")
         val COOKIE_NAME = Regex("[!#$%&'*+.^_`|~0-9A-Za-z-]+")
         val INVALID_COOKIE_VALUE = ('\u0000'..'\u001f').toSet() + setOf('\u007f', ';')

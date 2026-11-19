@@ -25,5 +25,8 @@ android {
 
 dependencies {
     implementation(project(":shared:app"))
+    implementation(project(":shared:data"))
+    implementation(libs.androidx.webkit)
+    implementation(libs.coroutines.core)
     implementation(libs.androidx.activity.compose)
 }

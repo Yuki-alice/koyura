@@ -3,8 +3,10 @@ package app.koyura.data.session
 import android.content.Context
 import app.cash.sqldelight.driver.android.AndroidSqliteDriver
 import app.koyura.data.extension.ExtensionDb
+import app.koyura.data.extension.WebLoginBrowser
 import app.koyura.network.createDefaultHttpClient
 import app.koyura.source.runtime.VeneraEnvironment
+import app.koyura.source.runtime.VeneraUiHost
 import okio.FileSystem
 import okio.Path.Companion.toOkioPath
 import java.io.File
@@ -17,7 +19,10 @@ import java.io.File
  * driver, HTTP client and QuickJS runtime; release everything with
  * [ExtensionSession.close] (idempotent).
  */
-suspend fun Context.openExtensionSession(environment: VeneraEnvironment): ExtensionSession {
+suspend fun Context.openExtensionSession(environment: VeneraEnvironment,
+    webLoginBrowser: WebLoginBrowser? = null,
+    sourceUi: VeneraUiHost = VeneraUiHost.Headless,
+): ExtensionSession {
     val appDataDir = File(filesDir, "venera-ext").toOkioPath()
     val driver = AndroidSqliteDriver(ExtensionDb.Schema, this, "extensions.db")
     return openExtensionSession(
@@ -26,6 +31,8 @@ suspend fun Context.openExtensionSession(environment: VeneraEnvironment): Extens
         appDataDir = appDataDir,
         httpClient = createDefaultHttpClient(),
         environment = environment,
+        webLoginBrowser = webLoginBrowser,
+        sourceUi = sourceUi,
         secrets = AndroidSourceSecretStore(this),
     )
 }

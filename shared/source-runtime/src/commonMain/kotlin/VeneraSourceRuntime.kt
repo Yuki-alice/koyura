@@ -44,6 +44,7 @@ class VeneraSourceRuntime private constructor(
     private val timerLock = SessionLock()
     private val timers = mutableMapOf<String, ScheduledInterval>()
     private var nextImageConfigId = 0L
+    private var interactionHost: InteractionHost? = null
     private val sources = linkedMapOf<String, VeneraSource>()
     private val displacedSources = mutableMapOf<String, VeneraSource?>()
 
@@ -63,7 +64,7 @@ class VeneraSourceRuntime private constructor(
                 val source = withTimeout(INITIALIZE_TIMEOUT_MILLIS) {
                     val result = evaluate<String>(
                         """
-                        __readerVenera.stage((Network, sendMessage, fetch, setInterval) => {
+                        __readerVenera.stage((Network, sendMessage, fetch, setInterval, UI, setClipboard, getClipboard, log, console) => {
                         $code
                         ;
                         return new $className();
@@ -189,6 +190,9 @@ class VeneraSourceRuntime private constructor(
             }
         }
     }
+
+    suspend fun runSetting(key: String, name: String): JsonElement =
+        evaluateSourceJson(key, "invokeSetting", JsonPrimitive(name).toString())
 
     suspend fun describe(key: String, field: SourceConfigField): JsonElement =
         evaluateSourceJson(key, "describe", JsonPrimitive(field.path).toString())
@@ -350,6 +354,7 @@ class VeneraSourceRuntime private constructor(
         timerScope.cancel()
         mutex.withLock {
             if (!engine.isClosed) engine.close()
+            interactionHost?.close()
             sources.clear()
             displacedSources.clear()
         }
@@ -399,7 +404,7 @@ class VeneraSourceRuntime private constructor(
             try {
                 val result = evaluate<String>(
                     """
-                    __readerVenera.stage((Network, sendMessage, fetch, setInterval) => {
+                    __readerVenera.stage((Network, sendMessage, fetch, setInterval, UI, setClipboard, getClipboard, log, console) => {
                     $code
                     ;
                     return new $className();
@@ -443,7 +448,7 @@ class VeneraSourceRuntime private constructor(
                 val source = withTimeout(INITIALIZE_TIMEOUT_MILLIS) {
                     val result = evaluate<String>(
                         """
-                        __readerVenera.stage((Network, sendMessage, fetch, setInterval) => {
+                        __readerVenera.stage((Network, sendMessage, fetch, setInterval, UI, setClipboard, getClipboard, log, console) => {
                         $code
                         ;
                         return new $className();
@@ -527,6 +532,18 @@ class VeneraSourceRuntime private constructor(
         val callbacks: List<String>,
     )
 
+    private fun cancelLoading(id: Int) {
+        timerScope.launch {
+            mutex.withLock {
+                if (!engine.isClosed) runCatching {
+                    withTimeout(CALLBACK_TIMEOUT_MILLIS) {
+                        evaluate<Any?>("await __readerInteractions.cancel($id)", "venera:loading-cancel")
+                    }
+                }
+            }
+        }
+    }
+
     private data class ScheduledInterval(val job: Job, var firing: Boolean = false)
 
     private fun scheduleInterval(specification: String): Boolean {
@@ -584,11 +601,18 @@ class VeneraSourceRuntime private constructor(
         suspend fun create(
             environment: VeneraEnvironment,
             transport: VeneraHttpTransport,
-        ): VeneraSourceRuntime = create(environment, SourceSessions(), transport)
+        ): VeneraSourceRuntime = create(environment, SourceSessions(), transport = transport)
 
         suspend fun create(
             environment: VeneraEnvironment,
             sessions: SourceSessions,
+            transport: VeneraHttpTransport,
+        ): VeneraSourceRuntime = create(environment, sessions, VeneraUiHost.Headless, transport)
+
+        suspend fun create(
+            environment: VeneraEnvironment,
+            sessions: SourceSessions,
+            ui: VeneraUiHost,
             transport: VeneraHttpTransport,
         ): VeneraSourceRuntime {
             val supportedVersion = VeneraVersion.parse(environment.compatibleAppVersion.substringBefore('-'))
@@ -633,8 +657,18 @@ class VeneraSourceRuntime private constructor(
                         true
                     }
                     engine.function<String, Boolean>("__readerInterval", runtime::scheduleInterval)
+                    val interactions = InteractionHost(ui, runtime::cancelLoading) { id, value ->
+                        val result = engine.evaluate<String>(
+                            "await __readerInteractions.callback($id, $value)",
+                            filename = "venera:interaction",
+                        )
+                        (Json.parseToJsonElement(result) as? JsonPrimitive)?.takeIf { it.isString }?.content
+                    }
+                    runtime.interactionHost = interactions
+                    engine.function<String, Boolean>("__readerUiPost", interactions::post)
+                    engine.asyncFunction<String, String>("__readerUiCall", interactions::interact)
                     runtime.evaluate<Any?>(
-                        "const APP = Object.freeze($app);\n$utilityBootstrap\n$mainAsyncBootstrap\n$htmlBootstrap\n$veneraBootstrap",
+                        "const APP = Object.freeze($app);\n$utilityBootstrap\n$mainAsyncBootstrap\n$htmlBootstrap\n$interactionBootstrap\n$veneraBootstrap",
                         "venera-host.js",
                     )
                 }

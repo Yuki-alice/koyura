@@ -77,6 +77,8 @@ class LibraryStore(driver: SqlDriver) : LibraryRepository {
         db.transaction {
             q.deleteMappingsForWork(sourceKey, kind.name, workId)
             q.deleteChaptersForWork(sourceKey, kind.name, workId)
+            db.libraryUpdatesQueries.deleteDetectedChapters(sourceKey, kind.name, workId)
+            db.libraryUpdatesQueries.clearUpdateFailure(sourceKey, kind.name, workId)
             q.deleteLibraryManga(sourceKey, kind.name, workId)
         }
         // reading_progress 行保留：历史与“继续阅读”派生仍可读，禁止静默删库。
@@ -211,25 +213,14 @@ class LibraryStore(driver: SqlDriver) : LibraryRepository {
         workId: String,
         chapters: List<LibraryChapter>,
     ) {
-        val q = seeded()
-        db.transaction {
-            val existing = q.selectChaptersForWork(sourceKey, kind.name, workId)
-                .executeAsList().associate { it.chapter_id to (it.is_read == 1L) }
-            // 全量同步：保留同 ID 已读态，新章默认未读；消失章节随目录移除，
-            // 阅读进度（reading_progress）与历史隐藏标记原样保留。
-            q.deleteChaptersForWork(sourceKey, kind.name, workId)
-            for ((index, chapter) in chapters.withIndex()) {
-                val kept = existing[chapter.chapterId] ?: false
-                q.upsertChapter(
-                    source_key = sourceKey,
-                    kind = kind.name,
-                    work_id = workId,
-                    chapter_id = chapter.chapterId,
-                    title = chapter.title,
-                    sort_index = index.toLong(),
-                    is_read = if (kept) 1 else 0,
-                )
-            }
+        db.transaction { mergeChapters(sourceKey, kind, workId, chapters) }
+    }
+
+    /** Used within the detail or update-scan transaction. Existing IDs keep their read state. */
+    internal fun mergeChapters(sourceKey: String, kind: WorkKind, workId: String, chapters: List<LibraryChapter>) {
+        for ((index, chapter) in chapters.distinctBy { it.chapterId }.withIndex()) {
+            queries.insertChapterIgnore(sourceKey, kind.name, workId, chapter.chapterId, chapter.title, index.toLong(), 0)
+            queries.updateChapterMeta(chapter.title, index.toLong(), sourceKey, kind.name, workId, chapter.chapterId)
         }
     }
 

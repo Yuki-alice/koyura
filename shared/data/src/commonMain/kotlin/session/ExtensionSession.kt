@@ -7,14 +7,17 @@ import app.koyura.data.downloads.ChapterDownloadStore
 import app.koyura.domain.downloads.ChapterDownloads
 import app.koyura.data.extension.ExtensionDb
 import app.koyura.data.extension.ExtensionService
+import app.koyura.data.extension.WebLoginBrowser
 import app.koyura.data.history.HistoryStore
 import app.koyura.data.history.ensureHistoryVisibilitySchema
 import app.koyura.data.extension.RestoreReport
 import app.koyura.data.library.LibraryStore
 import app.koyura.data.library.ensureLibrarySchema
 import app.koyura.data.reading.ComicReadingService
+import app.koyura.data.updates.LibraryUpdateScanner
 import app.koyura.data.reader.preferences.ReaderPreferencesStore
 import app.koyura.source.runtime.VeneraEnvironment
+import app.koyura.source.runtime.VeneraUiHost
 import app.koyura.source.runtime.SourceSecretStore
 import app.koyura.source.runtime.SourceSessions
 import io.ktor.client.HttpClient
@@ -60,6 +63,7 @@ class ExtensionSession internal constructor(
     internal suspend fun startDownloads() = queue.start()
     val history = HistoryStore(driver)
     val library = LibraryStore(driver)
+    val updates = LibraryUpdateScanner(driver, library, service)
 
     private val mutex = Mutex()
     private var closed = false
@@ -100,9 +104,13 @@ suspend fun openExtensionSession(
     environment: VeneraEnvironment,
     secrets: SourceSecretStore? = null,
     isOnline: () -> Boolean = { true },
+    webLoginBrowser: WebLoginBrowser? = null,
+    sourceUi: VeneraUiHost = VeneraUiHost.Headless,
 ): ExtensionSession {
     val scriptsDir = appDataDir / "scripts"
-    val service = ExtensionService(driver, fileSystem, scriptsDir, httpClient, environment, SourceSessions(secrets))
+    val service = ExtensionService(
+        driver, fileSystem, scriptsDir, httpClient, environment, SourceSessions(secrets), webLoginBrowser, sourceUi,
+    )
     var session: ExtensionSession? = null
     try {
         ensureSchema(driver)
@@ -201,9 +209,10 @@ private fun ensureSchema(driver: SqlDriver) {
     ensureLibrarySchema(driver)
     // 历史可见性表（第 5 版）：删除/清空只插隐藏标记，reading_progress 原样保留。
     ensureHistoryVisibilitySchema(driver)
-    if (tableColumns(driver, "download_jobs").isEmpty()) {
-        ExtensionDb(driver).transaction {
-            ExtensionDb.Schema.migrate(driver, target - 1, target).value
+    ExtensionDb(driver).transaction {
+        if (tableColumns(driver, "download_jobs").isEmpty()) ExtensionDb.Schema.migrate(driver, 7, 8).value
+        if (tableColumns(driver, "detected_chapter").isEmpty() || tableColumns(driver, "library_update_failure").isEmpty()) {
+            ExtensionDb.Schema.migrate(driver, 8, 9).value
         }
     }
 }
