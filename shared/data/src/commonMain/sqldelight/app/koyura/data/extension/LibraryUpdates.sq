@@ -1,0 +1,46 @@
+CREATE TABLE IF NOT EXISTS detected_chapter (
+    source_key TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    work_id TEXT NOT NULL,
+    chapter_id TEXT NOT NULL,
+    detected_at INTEGER NOT NULL,
+    PRIMARY KEY (source_key, kind, work_id, chapter_id)
+);
+
+CREATE INDEX IF NOT EXISTS detected_chapter_date ON detected_chapter(detected_at DESC);
+
+CREATE TABLE IF NOT EXISTS library_update_failure (
+    source_key TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    work_id TEXT NOT NULL,
+    checked_at INTEGER NOT NULL,
+    message TEXT NOT NULL,
+    PRIMARY KEY (source_key, kind, work_id)
+);
+
+recordDetectedChapter:
+INSERT OR IGNORE INTO detected_chapter(source_key, kind, work_id, chapter_id, detected_at)
+VALUES (?, ?, ?, ?, ?);
+
+recordUpdateFailure:
+INSERT OR REPLACE INTO library_update_failure(source_key, kind, work_id, checked_at, message)
+VALUES (?, ?, ?, ?, ?);
+
+clearUpdateFailure:
+DELETE FROM library_update_failure WHERE source_key = ? AND kind = ? AND work_id = ?;
+
+deleteDetectedChapters:
+DELETE FROM detected_chapter WHERE source_key = ? AND kind = ? AND work_id = ?;
+
+writeLastChecked:
+UPDATE library_manga SET last_update_check = ? WHERE source_key = ? AND kind = ? AND work_id = ?;
+
+selectDetectedChapters:
+SELECT dc.source_key, dc.kind, dc.work_id, dc.chapter_id, dc.detected_at, c.title, c.is_read
+FROM detected_chapter dc
+JOIN library_chapter c ON dc.source_key = c.source_key AND dc.kind = c.kind
+    AND dc.work_id = c.work_id AND dc.chapter_id = c.chapter_id
+ORDER BY dc.detected_at DESC, dc.source_key, dc.work_id, c.sort_index DESC, dc.chapter_id;
+
+selectUpdateFailures:
+SELECT * FROM library_update_failure ORDER BY checked_at DESC, source_key, work_id;
