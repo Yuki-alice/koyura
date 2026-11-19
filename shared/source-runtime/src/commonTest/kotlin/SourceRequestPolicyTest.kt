@@ -8,9 +8,11 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonPrimitive
@@ -95,6 +97,38 @@ class SourceRequestPolicyTest {
             repeat(2) { transport.execute(request.copy(headers = mapOf(HttpHeaders.Range to "bytes=0-1"))) }
             assertEquals(14, calls)
             assertEquals("2", sessions.cookies("alpha", request.url).single().value)
+        } finally {
+            transport.close()
+            sessions.close()
+            client.close()
+        }
+    }
+
+    @Test
+    fun queuedRequestCannotReadOrChangeANewerAccountSession() = runTest {
+        val cookies = Channel<String?>(Channel.UNLIMITED)
+        val release = CompletableDeferred<Unit>()
+        val client = HttpClient(MockEngine { request ->
+            cookies.send(request.headers[HttpHeaders.Cookie])
+            release.await()
+            respond("ok", headers = headersOf(HttpHeaders.SetCookie, "seen=old; Path=/"))
+        })
+        val sessions = SourceSessions()
+        val transport = KtorVeneraHttpTransport(client, sessions = sessions)
+        val request = VeneraHttpRequest("alpha", "GET", "https://example.test",
+            headers = mapOf("prevent-parallel" to "true"))
+        sessions.setCookies("alpha", request.url, listOf(SourceCookie("sid", "old")))
+        try {
+            val first = async { transport.execute(request) }
+            assertEquals("sid=old", cookies.receive())
+            val queued = async(start = CoroutineStart.UNDISPATCHED) { transport.execute(request) }
+            sessions.clear("alpha")
+            sessions.setCookies("alpha", request.url, listOf(SourceCookie("sid", "new")))
+            release.complete(Unit)
+            assertNull(cookies.receive())
+            first.await()
+            queued.await()
+            assertEquals(listOf(SourceCookie("sid", "new", path = "/")), sessions.cookies("alpha", request.url))
         } finally {
             transport.close()
             sessions.close()

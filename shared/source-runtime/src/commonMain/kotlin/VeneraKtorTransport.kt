@@ -85,9 +85,9 @@ class KtorVeneraHttpTransport(
         val explicit = request.headers.header(HttpHeaders.Cookie)
         val path = SourceRequestPolicy.Path(request.sourceKey, method, url.toString())
         val serialize = request.headers.header("prevent-parallel").equals("true", ignoreCase = true)
+        val lease = request.sourceKey?.let { sessions?.lease(it) }
+        val session = lease?.let { SessionRequest(it, url, explicit) }
         return requestPolicy.serialize(path, serialize) {
-            val lease = request.sourceKey?.let { sessions?.lease(it) }
-            val session = lease?.let { SessionRequest(it, url, explicit) }
             fun identity() = if (lease != null) sessions?.httpIdentity(lease, url, explicit)
                 else SourceSessions.HttpIdentity(0L, explicit)
 
