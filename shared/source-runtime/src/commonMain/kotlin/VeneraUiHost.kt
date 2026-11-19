@@ -2,6 +2,10 @@ package app.koyura.source.runtime
 
 import io.ktor.http.URLProtocol
 import io.ktor.http.Url
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
@@ -53,7 +57,8 @@ interface VeneraUiHost {
 
 internal class InteractionHost(
     private val host: VeneraUiHost,
-    private val onLoadingCancelled: (Int) -> Unit,
+    private val scheduleCancellation: (Int) -> Unit,
+    private val dispatchCancellation: suspend (Int) -> Unit,
     private val onCallback: suspend (Int, String) -> String?,
 ) {
     @Serializable
@@ -76,8 +81,59 @@ internal class InteractionHost(
         val actions: List<Action> = emptyList(),
     )
 
+    private class Loading(val owner: String, val cancellable: Boolean, var requested: Boolean = false)
+
     private val lock = SessionLock()
-    private val loading = mutableMapOf<Int, String>()
+    private val loading = mutableMapOf<Int, Loading>()
+    private val activeWaits = mutableMapOf<String, MutableSet<Channel<Int>>>()
+
+    // A host call already carries QuickJS's active evaluation context. Use it
+    // for cancellation callbacks while the source waits for HTTP or a delay.
+    suspend fun <T> whileAwaiting(sourceKey: String?, block: suspend () -> T): T {
+        if (sourceKey == null) return block()
+        val events = lock.locked {
+            if (loading.values.none { it.owner == sourceKey && it.cancellable }) return@locked null
+            Channel<Int>(Channel.UNLIMITED).also { activeWaits.getOrPut(sourceKey, ::linkedSetOf).add(it) }
+        } ?: return block()
+        return coroutineScope {
+            val watcher = launch {
+                for (id in events) {
+                    try {
+                        dispatchCancellation(id)
+                    } catch (cancelled: CancellationException) {
+                        scheduleCancellation(id)
+                        throw cancelled
+                    } catch (_: Exception) {
+                        // The script callback cannot fail the HTTP or delay it interrupted.
+                    }
+                }
+            }
+            try {
+                block()
+            } finally {
+                lock.locked {
+                    activeWaits[sourceKey]?.let { waits ->
+                        waits.remove(events)
+                        if (waits.isEmpty()) activeWaits.remove(sourceKey)
+                    }
+                    events.close()
+                }
+                watcher.invokeOnCompletion {
+                    while (true) scheduleCancellation(events.tryReceive().getOrNull() ?: break)
+                }
+            }
+        }
+    }
+
+    private fun requestCancellation(id: Int) {
+        val schedule = lock.locked {
+            val current = loading[id] ?: return@locked false
+            if (!current.cancellable || current.requested) return@locked false
+            current.requested = true
+            activeWaits[current.owner]?.lastOrNull()?.trySend(id)?.isSuccess != true
+        }
+        if (schedule) scheduleCancellation(id)
+    }
 
     fun post(payload: String): Boolean {
         val request = Json.decodeFromString<Request>(payload)
@@ -89,10 +145,10 @@ internal class InteractionHost(
             "loading" -> {
                 val id = checkNotNull(request.id)
                 val owner = checkNotNull(key)
-                lock.locked { loading[id] = owner }
+                lock.locked { loading[id] = Loading(owner, request.cancellable) }
                 try {
                     host.showLoading(owner, id, if (request.cancellable) {
-                        { onLoadingCancelled(id) }
+                        { requestCancellation(id) }
                     } else null)
                 } catch (error: Exception) {
                     lock.locked { loading.remove(id) }
@@ -101,7 +157,7 @@ internal class InteractionHost(
             }
             "cancelLoading" -> {
                 val id = checkNotNull(request.id)
-                val owner = lock.locked { loading[id]?.takeIf { it == key }?.also { loading.remove(id) } }
+                val owner = lock.locked { loading[id]?.owner?.takeIf { it == key }?.also { loading.remove(id) } }
                 if (owner != null) host.cancelLoading(owner, id)
             }
         }
@@ -143,7 +199,7 @@ internal class InteractionHost(
 
     fun close() {
         val active = lock.locked { loading.toMap().also { loading.clear() } }
-        active.forEach { (id, key) -> runCatching { host.cancelLoading(key, id) } }
+        active.forEach { (id, current) -> runCatching { host.cancelLoading(current.owner, id) } }
     }
 
     private fun requireHttpUrl(raw: String): String {

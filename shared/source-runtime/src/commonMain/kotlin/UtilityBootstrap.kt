@@ -107,11 +107,16 @@ internal val mainAsyncBootstrap = """
         };
     })();
 
-    const setTimeout = (() => {
+    const __readerWaitForDelay = (() => {
         const wait = __readerDelay;
         delete globalThis.__readerDelay;
-        return function setTimeout(callback, milliseconds) {
-            wait(String(Math.max(0, Math.floor(Number(milliseconds) || 0)))).then(callback);
+        return (key, delay) => {
+            const millis = Math.min(86400000, Math.max(0, Math.floor(Number(delay) || 0)));
+            return wait(JSON.stringify({ key, millis }));
         };
     })();
+
+    function setTimeout(callback, delay) {
+        __readerWaitForDelay(null, delay).then(() => callback());
+    }
 """.trimIndent()

@@ -272,11 +272,14 @@ internal val veneraBootstrap = """
                         }
                         case "getLocale": return APP.locale;
                         case "getPlatform": return APP.platform;
-                        case "delay": return new Promise(resolve => setTimeout(resolve, message.time));
+                        case "delay": return __readerWaitForDelay(sourceKey, message.time).then(() => undefined);
                         case "compute": return compute(message.function, ...(message.args ?? []));
                         default: throw new Error("Unsupported Venera host message: " + message.method);
                     }
                 };
+                function setTimeout(callback, milliseconds) {
+                    __readerWaitForDelay(sourceKey, milliseconds).then(() => callback());
+                }
                 function setInterval(callback, milliseconds) {
                     if (!slot.key || sources[slot.key] !== source) throw new Error("Source instance is inactive");
                     if (typeof callback !== "function") throw new TypeError("Interval callback is not a function");
@@ -290,7 +293,7 @@ internal val veneraBootstrap = """
                     return { cancel: () => cancelInterval(id) };
                 }
                 const net = network(sendMessage, session);
-                source = construct(net, sendMessage, fetchWith(net), setInterval,
+                source = construct(net, sendMessage, fetchWith(net), setInterval, setTimeout,
                     interaction.UI, interaction.setClipboard, interaction.getClipboard, interaction.log, interaction.console);
                 if (!(source instanceof ComicSource)) throw new TypeError("Expected a ComicSource instance");
                 seqBySource.set(source, ++sequence);
