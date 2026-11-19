@@ -45,7 +45,10 @@ internal val veneraBootstrap = """
     }
 
     const __readerVenera = (() => {
-        const requestText = __readerRequestText;
+        const request = __readerRequest;
+        const intervalHost = __readerInterval;
+        delete globalThis.__readerRequest;
+        delete globalThis.__readerInterval;
         const dispatchSession = __readerSourceSession;
         delete globalThis.__readerSourceSession;
         const sourceSessions = new WeakMap();
@@ -59,6 +62,8 @@ internal val veneraBootstrap = """
         let pending = null;
         let pendingKey = null;
         let sequence = 0;
+        let intervalSequence = 0;
+        const intervals = new Map();
         const seqBySource = new WeakMap();
         // Previous instance displaced by initializeReplace. Kept so a repair
         // can put the exact object (with its memory state) back when the
@@ -70,6 +75,11 @@ internal val veneraBootstrap = """
                 setCookies(url, cookies) { session("setCookies", { url, cookies }); },
                 getCookies(url) { return session("getCookies", { url }); },
                 deleteCookies(url) { session("deleteCookies", { url }); },
+                async fetchBytes(method, url, headers, data, extra) {
+                    const result = await sendMessage({ method: "http", http_method: method, url, headers, data, extra, bytes: true });
+                    if (result.error) throw result.error;
+                    return result;
+                },
                 async sendRequest(method, url, headers, data, extra) {
                     const result = await sendMessage({ method: "http", http_method: method, url, headers, data, extra });
                     if (result.error) throw result.error;
@@ -91,6 +101,43 @@ internal val veneraBootstrap = """
                     return this.sendRequest("PATCH", url, headers, data, extra);
                 },
             };
+        }
+
+        function fetchWith(net) {
+            return async (url, options) => {
+                const response = await net.fetchBytes(options?.method || "GET", url, options?.headers, options?.body);
+                async function text() {
+                    const decoded = Convert.decodeUtf8(response.body);
+                    if (decoded === null) throw new TypeError("Response body is not valid UTF-8");
+                    return decoded;
+                }
+                return {
+                    ok: response.status >= 200 && response.status < 300,
+                    status: response.status,
+                    statusText: "",
+                    headers: response.headers,
+                    arrayBuffer: async () => response.body,
+                    text,
+                    async json() {
+                        const value = await text();
+                        try { return JSON.parse(value); }
+                        catch (error) {
+                            const safeUrl = String(url).split(/[?#]/, 1)[0];
+                            const contentType = response.headers["content-type"] || "unknown";
+                            throw new SyntaxError("Invalid JSON response from " + safeUrl + " (HTTP " +
+                                response.status + ", Content-Type " + contentType + "): " + error.message);
+                        }
+                    },
+                };
+            };
+        }
+
+        function cancelInterval(id) {
+            if (intervals.delete(id)) intervalHost(id + ":cancel");
+        }
+
+        function releaseIntervals(source) {
+            for (const [id, timer] of intervals) if (timer.source === source) cancelInterval(id);
         }
 
         function field(source, path) {
@@ -148,6 +195,7 @@ internal val veneraBootstrap = """
             writeSourceValue(source, name, change) {
                 const slot = sourceSessions.get(source);
                 if (!slot?.key || sources[slot.key] !== source) throw new Error("Source instance is inactive");
+                if (name === "setting") throw new Error("Setting values belong to source configuration");
                 // Clone before retaining it so a later script mutation cannot rewrite saved data.
                 const entry = JSON.parse(serializeResult(change));
                 if (slot.staged) slot.changes[name] = entry;
@@ -165,23 +213,61 @@ internal val veneraBootstrap = """
                     if (!slot.key || sources[slot.key] !== source) throw new Error("Source instance is inactive");
                     return sessionRequest(slot.key, operation, args);
                 };
-                const sendMessage = async message => {
-                    if (message.method !== "http" || message.bytes) {
-                        throw new Error("Unsupported Venera host message: " + message.method);
-                    }
+                async function sendHttp(message) {
                     if (sourceKey !== null && (!slot.key || sources[slot.key] !== source)) {
                         throw new Error("Source instance is inactive");
                     }
-                    return JSON.parse(await requestText(serializeResult({
-                        sourceKey,
-                        method: message.http_method,
-                        url: message.url,
-                        headers: message.headers ?? {},
-                        data: message.data,
-                        extra: message.extra,
+                    const binary = __readerUtilities.isBytes(message.data);
+                    const response = JSON.parse(await request(serializeResult({
+                        bytes: message.bytes === true,
+                        request: {
+                            sourceKey,
+                            method: message.http_method,
+                            url: message.url,
+                            headers: message.headers ?? {},
+                            data: binary ? null : message.data,
+                            binaryData: binary ? __readerUtilities.toBase64(message.data) : null,
+                            extra: message.extra,
+                        },
                     })));
+                    if (response.error !== undefined) return response;
+                    if (message.bytes) response.body = __readerUtilities.fromBase64(response.body);
+                    return response;
+                }
+                const sendMessage = message => {
+                    switch (message.method) {
+                        case "http": return sendHttp(message);
+                        case "cookie": {
+                            const names = { get: "getCookies", set: "setCookies", delete: "deleteCookies" };
+                            if (!Object.hasOwn(names, message.function)) throw new Error("Unknown Cookie operation");
+                            return session(names[message.function], { url: message.url, cookies: message.cookies });
+                        }
+                        case "load_data": return source?.loadData(message.data_key) ?? null;
+                        case "save_data": return source.saveData(message.data_key, message.data);
+                        case "delete_data": return source.deleteData(message.data_key);
+                        case "load_setting": return source?.loadSetting(message.setting_key) ?? null;
+                        case "isLogged": return source?.isLogged ?? false;
+                        case "getLocale": return APP.locale;
+                        case "getPlatform": return APP.platform;
+                        case "delay": return new Promise(resolve => setTimeout(resolve, message.time));
+                        case "compute": return compute(message.function, ...(message.args ?? []));
+                        default: throw new Error("Unsupported Venera host message: " + message.method);
+                    }
                 };
-                source = construct(network(sendMessage, session), sendMessage);
+                function setInterval(callback, milliseconds) {
+                    if (!slot.key || sources[slot.key] !== source) throw new Error("Source instance is inactive");
+                    if (typeof callback !== "function") throw new TypeError("Interval callback is not a function");
+                    if (intervals.size >= 128) throw new Error("Too many live intervals");
+                    const id = String(++intervalSequence);
+                    const duration = Math.max(1, Math.floor(Number(milliseconds) || 1));
+                    intervals.set(id, { source, key: slot.key, callback });
+                    try { callback(); }
+                    catch (error) { cancelInterval(id); throw error; }
+                    intervalHost(id + ":" + duration);
+                    return { cancel: () => cancelInterval(id) };
+                }
+                const net = network(sendMessage, session);
+                source = construct(net, sendMessage, fetchWith(net), setInterval);
                 if (!(source instanceof ComicSource)) throw new TypeError("Expected a ComicSource instance");
                 seqBySource.set(source, ++sequence);
                 sourceSessions.set(source, slot);
@@ -228,8 +314,22 @@ internal val veneraBootstrap = """
                 // instance back via repairDisplaced; the next replace overwrites it.
                 return true;
             },
+            async fireInterval(id) {
+                const timer = intervals.get(id);
+                if (timer === undefined) return false;
+                if (sources[timer.key] !== timer.source) return displaced.get(timer.key) === timer.source;
+                if (sourceSessions.get(timer.source).staged) return true;
+                try {
+                    await timer.callback();
+                    return intervals.has(id);
+                } catch (error) {
+                    cancelInterval(id);
+                    return false;
+                }
+            },
             repairDisplaced(key) {
                 if (!displaced.has(key)) return false;
+                releaseIntervals(sources[key]);
                 const prev = displaced.get(key);
                 displaced.delete(key);
                 if (prev === undefined) delete sources[key];
@@ -242,20 +342,25 @@ internal val veneraBootstrap = """
                 pendingKey = null;
             },
             discard() {
+                releaseIntervals(pending);
                 pending = null;
                 pendingKey = null;
             },
             rollback() {
+                releaseIntervals(pending);
                 if (pendingKey !== null) delete sources[pendingKey];
                 pending = null;
                 pendingKey = null;
             },
             unregister(key) {
+                releaseIntervals(sources[key]);
+                releaseIntervals(displaced.get(key));
                 delete sources[key];
                 displaced.delete(key);
             },
             finishReplacement(key) {
                 if (displaced.has(key) && sources[key]) flushSourceData(sources[key]);
+                releaseIntervals(displaced.get(key));
                 displaced.delete(key);
             },
             instanceSeq(key) {

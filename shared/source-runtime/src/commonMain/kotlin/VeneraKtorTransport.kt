@@ -15,16 +15,18 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
 import io.ktor.http.Url
 import io.ktor.http.content.TextContent
+import io.ktor.http.content.ByteArrayContent
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonPrimitive
+import okio.ByteString.Companion.decodeBase64
 
 /**
- * Text-only [VeneraHttpTransport] backed by Ktor.
+ * Source HTTP transport backed by Ktor.
  *
- * Mapping (this round):
+ * Request and response mapping:
  * - Forwards HTTP method, full URL (including query string), request headers and
- *   text body. A `data` that is already a JSON string (scripts call
+ *   text or binary body. A `data` that is already a JSON string (scripts call
  *   `JSON.stringify` before `Network.post`) is sent as its raw text, not
  *   re-encoded with extra quotes. JSON numbers/booleans use their literal text;
  *   objects/arrays use their JSON encoding; null/absent means no body.
@@ -51,7 +53,8 @@ import kotlinx.serialization.json.JsonPrimitive
  *   binary bodies via [executeBytes] (same mapping, bytes preserved).
  * - Not implemented (stripped/ignored): short-term `cache-time` caching,
  *   `prevent-parallel` serialization, `http_client == "dart:io"` alternate
- *   client, `extra` interceptor options, cookies/session.
+ *   client and `extra` interceptor options. Supply [sessions] to share the
+ *   source cookie jar across script, image and browser login requests.
  *
  * Ownership: [VeneraSourceRuntime] never closes the transport. If [ownsClient]
  * is true, call [close] to close the underlying [HttpClient]; otherwise the
@@ -94,10 +97,9 @@ class KtorVeneraHttpTransport(
 
     /**
      * Same mapping as [execute], but preserves raw response bytes for image
-     * payloads. Used by the comic reader for `onImageLoad` configs and direct
-     * image URLs; script text APIs keep using [execute].
+     * payloads and binary script requests.
      */
-    suspend fun executeBytes(request: VeneraHttpRequest): VeneraBytesResponse {
+    override suspend fun executeBytes(request: VeneraHttpRequest): VeneraBytesResponse {
         val response = try {
             requestClient.request { applyVeneraRequest(request) }
         } catch (cancelled: CancellationException) {
@@ -116,6 +118,7 @@ class KtorVeneraHttpTransport(
 
     private fun HttpRequestBuilder.applyVeneraRequest(request: VeneraHttpRequest) {
         val text = textBody(request)
+        val bytes = request.binaryData?.let { requireNotNull(it.decodeBase64()).toByteArray() }
         val contentTypeHeader = request.headers.entries
             .firstOrNull { it.key.equals(HttpHeaders.ContentType, ignoreCase = true) }
             ?.value
@@ -129,16 +132,19 @@ class KtorVeneraHttpTransport(
         headers {
             for ((name, value) in request.headers) {
                 if (isHostControlHeader(name)) continue
-                // Content-Type with a text body travels on the body itself;
+                // Content-Type with a body travels on the content itself;
                 // without a body it is a plain header.
-                if (text != null && name.equals(HttpHeaders.ContentType, ignoreCase = true)) continue
+                if ((text != null || bytes != null) && name.equals(HttpHeaders.ContentType, ignoreCase = true)) continue
                 append(name, value)
             }
             if (!hasUserAgent) {
                 append(HttpHeaders.UserAgent, DEFAULT_BROWSER_USER_AGENT)
             }
         }
-        if (text != null) {
+        if (bytes != null) {
+            val contentType = contentTypeHeader?.let(ContentType::parse) ?: ContentType.Application.OctetStream
+            setBody(ByteArrayContent(bytes, contentType))
+        } else if (text != null) {
             if (contentTypeHeader != null) {
                 val contentType = runCatching { ContentType.parse(contentTypeHeader) }.getOrNull()
                 if (contentType != null) {

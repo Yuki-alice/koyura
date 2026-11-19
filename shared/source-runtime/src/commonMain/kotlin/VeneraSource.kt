@@ -65,6 +65,7 @@ data class VeneraHttpRequest(
     val headers: Map<String, String> = emptyMap(),
     val data: JsonElement? = null,
     val extra: JsonObject? = null,
+    val binaryData: String? = null,
 )
 
 @Serializable
@@ -76,6 +77,11 @@ data class VeneraHttpResponse(
 
 fun interface VeneraHttpTransport {
     suspend fun execute(request: VeneraHttpRequest): VeneraHttpResponse
+
+    suspend fun executeBytes(request: VeneraHttpRequest): VeneraBytesResponse {
+        val text = execute(request)
+        return VeneraBytesResponse(text.status, text.body.encodeToByteArray(), text.headers)
+    }
 }
 
 /**

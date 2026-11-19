@@ -29,6 +29,7 @@ kotlin {
             implementation(libs.coroutines.core)
             implementation(libs.quickjs)
             implementation(libs.ksoup)
+            implementation(libs.okio)
             api(project(":shared:network"))
             implementation(libs.ktor.client.core)
         }
