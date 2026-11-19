@@ -175,8 +175,6 @@ enum class LibraryGroupBy {
 /** 书架偏好（显示 / 筛选 / 排序 / 分组）。落盘字段，跨会话恢复。 */
 data class LibraryPrefs(
     val displayMode: LibraryDisplayMode = LibraryDisplayMode.COMPACT_GRID,
-    /** 网格每行列数（列表与全景模式忽略）。 */
-    val columns: Int = 2,
     val sortType: LibrarySortType = LibrarySortType.ALPHABETICAL,
     val ascending: Boolean = true,
     val filters: LibraryFilters = LibraryFilters(),

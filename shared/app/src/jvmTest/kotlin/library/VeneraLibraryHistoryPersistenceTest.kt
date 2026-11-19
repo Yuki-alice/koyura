@@ -239,9 +239,10 @@ class VeneraLibraryHistoryPersistenceTest {
                     onAllNodesWithTag(CoverImageTag, useUnmergedTree = true).assertCountEquals(0)
                 }
 
-                // 偏好经生产栈落盘，同库新实例读回一致。
+                // 偏好经生产栈落盘，同库新实例读回一致；老库残留的列数键不再读写无害
+                //（DisplayColumnsV3 仍在上方建表，但 parse 侧不再引用）。
                 runBlocking {
-                    librarySession.updatePrefs { it.copy(displayMode = LibraryDisplayMode.LIST, columns = 3) }
+                    librarySession.updatePrefs { it.copy(displayMode = LibraryDisplayMode.LIST) }
                 }
                 val reloaded = ProductionLibraryRepository(
                     store = session.library,
@@ -250,7 +251,6 @@ class VeneraLibraryHistoryPersistenceTest {
                 )
                 val prefs = runBlocking { reloaded.load() }.prefs
                 assertEquals(LibraryDisplayMode.LIST, prefs.displayMode)
-                assertEquals(3, prefs.columns)
             } finally {
                 runBlocking { session.close() }
             }

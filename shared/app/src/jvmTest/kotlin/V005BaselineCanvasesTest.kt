@@ -150,7 +150,6 @@ class V005BaselineCanvasesTest {
             ),
             thumbnailBytes = mapOf("https://img.example/cover.png" to pngBytes(0x336699)),
             thumbnailFailures = mutableMapOf("https://img.example/broken.png" to "404"),
-            prefs = LibraryPrefs(columns = 4),
         )
     }
 

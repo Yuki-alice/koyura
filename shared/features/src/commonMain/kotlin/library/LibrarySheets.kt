@@ -13,7 +13,6 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -41,7 +40,6 @@ import app.koyura.features.resources.library_category_hide
 import app.koyura.features.resources.library_category_name
 import app.koyura.features.resources.library_category_rename
 import app.koyura.features.resources.library_category_unhide
-import app.koyura.features.resources.library_columns
 import app.koyura.features.resources.library_display
 import app.koyura.features.resources.library_edit_categories
 import app.koyura.features.resources.library_favorite_choose
@@ -108,8 +106,6 @@ const val LibraryEditCategoriesTag = "library-edit-categories"
 const val LibraryCategoryAddTag = "library-category-add"
 const val LibraryCategoryNameTag = "library-category-name"
 const val LibrarySortDirectionTag = "library-sort-direction"
-const val LibraryColumnsSliderTag = "library-columns-slider"
-const val LibraryColumnsValueTag = "library-columns-value"
 
 fun libraryFilterRowTag(name: String) = "library-filter-$name"
 fun librarySortRowTag(type: LibrarySortType) = "library-sort-${type.name}"
@@ -324,20 +320,6 @@ fun LibraryDisplayPage(session: LibrarySession) {
             modeChip(LibraryDisplayMode.LIST, Res.string.library_mode_list)
             modeChip(LibraryDisplayMode.COVER_ONLY_GRID, Res.string.library_mode_cover_only)
         }
-        Text(
-            text = "${stringResource(Res.string.library_columns)}: ${prefs.columns}",
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.testTag(LibraryColumnsValueTag),
-        )
-        Slider(
-            value = prefs.columns.toFloat(),
-            onValueChange = { value ->
-                scope.launch { session.updatePrefs { it.copy(columns = value.toInt()) } }
-            },
-            valueRange = 1f..6f,
-            steps = 4,
-            modifier = Modifier.testTag(LibraryColumnsSliderTag),
-        )
         LibraryCheckRow(
             label = stringResource(Res.string.library_show_unread),
             checked = prefs.showUnreadBadges,

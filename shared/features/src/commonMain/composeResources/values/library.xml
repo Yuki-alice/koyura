@@ -33,7 +33,6 @@
     <string name="library_mode_panorama">Panorama</string>
     <string name="library_mode_list">List</string>
     <string name="library_mode_cover_only">Cover grid</string>
-    <string name="library_columns">Columns per row</string>
 
     <!-- Display toggles -->
     <string name="library_show_unread">Unread badges</string>

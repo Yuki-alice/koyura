@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
@@ -704,22 +705,23 @@ private fun LibraryGridContent(
     onContinue: (entry: LibraryEntry) -> Unit,
 ) {
     val mode = session.snapshot.prefs.displayMode
-    val columns = libraryColumnsFor(mode, session.snapshot.prefs.columns)
     val gridState = rememberLazyGridState()
     val sections = session.visibleSections
     val flat = remember(sections) { sections.flatMap { it.entries } }
     LibraryGridPrefetch(state = gridState, entries = flat, session = session)
+    // 自适应列（白皮书 07:56，Code: LazyLibraryGrid.kt:22 自适应档 128dp，
+    // 间距 CommonMangaItem.kt:55-56 各 4dp；列数偏好已移除）。
     LazyVerticalGrid(
-        columns = GridCells.Fixed(columns),
+        columns = GridCells.Adaptive(DesignTokens.Breakpoints.AdaptiveGridMinItemDp.dp),
         state = gridState,
         modifier = Modifier.fillMaxSize().testTag(LibraryGridTag),
-        contentPadding = PaddingValues(12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(DesignTokens.Spacing.Small),
+        verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.ExtraSmall),
+        horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.ExtraSmall),
     ) {
         sections.forEach { section ->
             if (section.title.isNotEmpty()) {
-                item(key = "group-${section.title}", span = { androidx.compose.foundation.lazy.grid.GridItemSpan(columns) }) {
+                item(key = "group-${section.title}", span = { GridItemSpan(maxLineSpan) }) {
                     Box(modifier = Modifier.testTag(libraryGroupHeaderTag(section.title))) {
                         ListGroupHeader(text = section.title)
                     }
