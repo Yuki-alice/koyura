@@ -47,7 +47,14 @@ class UpdatesSession(
     }
 }
 
+/**
+ * 页签级会话。不传仓储时用 remember 持稳默认 Fake：默认参数在每次重组
+ * 都会新建实例，会让 remember 的 key 失稳、会话随重组被重置。
+ */
 @Composable
 fun rememberUpdatesSession(
-    repository: UpdatesRepository = FakeUpdatesRepository(),
-): UpdatesSession = remember(repository) { UpdatesSession(repository) }
+    repository: UpdatesRepository? = null,
+): UpdatesSession {
+    val resolved = repository ?: remember { FakeUpdatesRepository() }
+    return remember(resolved) { UpdatesSession(resolved) }
+}
