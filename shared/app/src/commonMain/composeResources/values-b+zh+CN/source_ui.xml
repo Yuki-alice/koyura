@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="source_ui_cancel">取消</string>
+    <string name="source_ui_dialog_confirm">确定</string>
+    <string name="source_ui_input_hint">输入</string>
+</resources>

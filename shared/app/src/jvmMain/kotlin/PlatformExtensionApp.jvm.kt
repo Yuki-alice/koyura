@@ -2,6 +2,8 @@ package app.koyura.app
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import app.koyura.app.sourceui.JvmClipboard
+import app.koyura.app.sourceui.SourceUiHost
 import app.koyura.data.session.openExtensionSession
 import okio.Path.Companion.toPath
 
@@ -16,7 +18,8 @@ internal actual fun PlatformExtensionApp() {
         }
     }
     val environment = extensionEnvironment(platform)
-    ExtensionApp {
+    val uiHost = remember { SourceUiHost(JvmClipboard()) }
+    ExtensionApp(uiHost) { host ->
         val home = System.getProperty("user.home").toPath()
         val dataDir = when (platform) {
             "macos" -> home / "Library" / "Application Support" / "Reader"
@@ -31,6 +34,6 @@ internal actual fun PlatformExtensionApp() {
                 data / "reader"
             }
         }
-        openExtensionSession(dataDir / "venera-ext", environment)
+        openExtensionSession(dataDir / "venera-ext", environment, sourceUi = host)
     }
 }

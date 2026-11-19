@@ -28,6 +28,8 @@ import app.koyura.app.resources.Res
 import app.koyura.app.resources.extension_startup_failed
 import app.koyura.app.resources.extension_startup_loading
 import app.koyura.app.resources.extension_startup_retry
+import app.koyura.app.sourceui.FakeClipboard
+import app.koyura.app.sourceui.SourceUiHost
 import app.koyura.data.session.ExtensionSession
 import app.koyura.designsystem.ReaderTheme
 import app.koyura.source.runtime.VeneraEnvironment
@@ -54,7 +56,10 @@ internal fun extensionEnvironment(platform: String): VeneraEnvironment {
 }
 
 @Composable
-internal fun ExtensionApp(openSession: suspend () -> ExtensionSession) {
+internal fun ExtensionApp(
+    uiHost: SourceUiHost = SourceUiHost(FakeClipboard()),
+    openSession: suspend (SourceUiHost) -> ExtensionSession,
+) {
     var openedSession by remember { mutableStateOf<ExtensionSession?>(null) }
     var failed by remember { mutableStateOf(false) }
     var attempt by remember { mutableIntStateOf(0) }
@@ -63,7 +68,7 @@ internal fun ExtensionApp(openSession: suspend () -> ExtensionSession) {
         var session: ExtensionSession? = null
         try {
             // Capture ownership on the opening dispatcher before a cancelled caller can lose it.
-            withContext(Dispatchers.IO) { session = openSession() }
+            withContext(Dispatchers.IO) { session = openSession(uiHost) }
             openedSession = checkNotNull(session)
             awaitCancellation()
         } catch (cancelled: CancellationException) {
@@ -125,6 +130,7 @@ internal fun ExtensionApp(openSession: suspend () -> ExtensionSession) {
             readerPreferences = session.readerPreferences,
             libraryRepository = library,
             updatesRepository = updates,
+            sourceUiHost = uiHost,
         )
     } else {
         ReaderTheme {
