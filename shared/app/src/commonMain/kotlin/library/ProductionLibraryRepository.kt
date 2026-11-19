@@ -32,8 +32,10 @@ import kotlin.time.Clock
  * - 身份沿用 `(sourceKey, kind, workId)`：收藏/取消/归类全部调 domain 仓储并重读快照，
  *   以 SQLite 提交结果为准；重复收藏返回原行由 [DomainLibraryRepository] 保证。
  * - 继续阅读派生自 `reading_progress` 最新行（经 [HistoryStore.latestProgress]，
- *   忽略历史隐藏标记），章节表未落地前 `totalChapters`/`unreadCount`/`downloadedCount` 恒为 0；
- *   [markAsRead] 因此是无操作（返回当前快照），待章节表落地后再实现派生。
+ *   忽略历史隐藏标记）；总章数与未读数派生自 `library_chapter`（无目录的老收藏为 0），
+ *   下载计数待下载系统落地前恒为 0。
+ * - [markAsRead] 逐部校验目录后写入 `library_chapter.is_read`，缺目录抛可恢复错误
+ *   引导打开详情补齐；详情子集标记走 [markDetailChapters]。
  * - 偏好落 `library_prefs` 五键，格式见 [serializePrefs]/[parsePrefs]，缺键或坏值回退默认。
  * - 取图委托调用方注入的单次加载（生产为 `comic.onThumbnailLoad`），失败抛
  *   [LibraryRepositoryException]，空 URL 直接抛错以便调用方回退占位。
