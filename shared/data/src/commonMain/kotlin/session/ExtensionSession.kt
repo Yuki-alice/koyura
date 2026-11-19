@@ -7,6 +7,7 @@ import app.koyura.data.downloads.ChapterDownloadStore
 import app.koyura.domain.downloads.ChapterDownloads
 import app.koyura.data.extension.ExtensionDb
 import app.koyura.data.extension.ExtensionService
+import app.koyura.data.extension.WebLoginBrowser
 import app.koyura.data.history.HistoryStore
 import app.koyura.data.history.ensureHistoryVisibilitySchema
 import app.koyura.data.extension.RestoreReport
@@ -102,9 +103,12 @@ suspend fun openExtensionSession(
     environment: VeneraEnvironment,
     secrets: SourceSecretStore? = null,
     isOnline: () -> Boolean = { true },
+    webLoginBrowser: WebLoginBrowser? = null,
 ): ExtensionSession {
     val scriptsDir = appDataDir / "scripts"
-    val service = ExtensionService(driver, fileSystem, scriptsDir, httpClient, environment, SourceSessions(secrets))
+    val service = ExtensionService(
+        driver, fileSystem, scriptsDir, httpClient, environment, SourceSessions(secrets), webLoginBrowser,
+    )
     var session: ExtensionSession? = null
     try {
         ensureSchema(driver)

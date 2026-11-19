@@ -95,9 +95,10 @@ class ExtensionService(
     private val httpClient: HttpClient,
     private val environment: VeneraEnvironment,
     private val sourceSessions: SourceSessions = SourceSessions(),
+    webLoginBrowser: WebLoginBrowser? = null,
 ) {
     internal val sourceTransport = KtorVeneraHttpTransport(httpClient, sessions = sourceSessions)
-    val accounts = SourceAccountService(this)
+    val accounts = SourceAccountService(this, webLoginBrowser)
     val browse = SourceBrowseService(this)
 
     private val db = ExtensionDb(driver)

@@ -39,7 +39,15 @@ class PendingWebLogin internal constructor(private val save: suspend () -> Boole
     }
 }
 
-class SourceAccountService internal constructor(private val extensions: ExtensionService) {
+class SourceAccountService internal constructor(
+    private val extensions: ExtensionService,
+    private val browser: WebLoginBrowser? = null,
+) {
+    val supportsWebLogin: Boolean get() = browser != null
+
+    suspend fun captureWebLogin(sourceKey: String): PendingWebLogin? =
+        captureWebLogin(sourceKey, checkNotNull(browser) { "Web login is unavailable on this platform" })
+
     suspend fun login(sourceKey: String, username: String, password: String) =
         extensions.loginSource(sourceKey, strings(username, password))
 
