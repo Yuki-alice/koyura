@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="updates_title">更新</string>
+    <string name="updates_filter">筛选更新</string>
+    <string name="updates_calendar">更新计划</string>
+    <string name="updates_refresh">检查更新</string>
+    <string name="updates_empty">暂无更新</string>
+    <string name="updates_load_failed">更新列表加载失败：%1$s</string>
+    <string name="updates_retry">重试</string>
+    <string name="updates_chapters">%1$d 话</string>
+    <string name="updates_open">打开</string>
+</resources>
