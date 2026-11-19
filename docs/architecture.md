@@ -2,7 +2,7 @@
 
 2026-11-15 · [技术栈选型](technology-stack.md)
 
-这是独立的跨平台漫画阅读器项目，当前工作以[Komikku 对齐计划](komikku-alignment.md)为准。本文同时记录漫画、离线内容与后续小说的架构设计，小说应用接入安排在漫画对齐之后。Komikku `290267d`（与设计白皮书同版）定义要复刻的界面、交互和用户可见能力。JS 源完整兼容 Venera-Next `c0c4597` 的协议与生命周期，已有脚本和源仓库应能原样导入。书架、账号、内部数据和备份格式从新项目开始，作品换源和批量迁移在新客户端内实现。 [Komikku 功能说明](https://github.com/komikku-app/komikku/blob/290267dd4c99f5b46812240fb0e4bc6b3ee8c562/README.md#features) · [Venera-Next 数据源文档](https://github.com/CyrilPeng/Venera-Next/blob/c0c45979d453c2a8740c45f08e95997c90717629/doc/api/comic_source.zh.md)
+这是独立的跨平台漫画阅读器项目，验收按[验收基线](verification.md)执行。本文同时记录漫画、离线内容与后续小说的架构设计，小说应用接入安排在漫画对齐之后。Komikku `290267d`（与设计白皮书同版）定义要复刻的界面、交互和用户可见能力。JS 源完整兼容 Venera-Next `c0c4597` 的协议与生命周期，已有脚本和源仓库应能原样导入。书架、账号、内部数据和备份格式从新项目开始，作品换源和批量迁移在新客户端内实现。 [Komikku 功能说明](https://github.com/komikku-app/komikku/blob/290267dd4c99f5b46812240fb0e4bc6b3ee8c562/README.md#features) · [Venera-Next 数据源文档](https://github.com/CyrilPeng/Venera-Next/blob/c0c45979d453c2a8740c45f08e95997c90717629/doc/api/comic_source.zh.md)
 
 ## 目录结构
 
@@ -20,8 +20,8 @@
 │   │   ├── app/                     # 已接入：App()、导航、装配、启动与任务接线
 │   │   ├── design-system/           # 已接入：Material 3 主题、组件、字体、图标和字符串
 │   │   ├── features/                # 部分接入：共享页面、事件、预览与 UI 测试
-│   │   │   └── src/commonMain/kotlin/…/   # reader/comic 已接入，其余页面后续再迁
-│   │   │       ├── library/         # 规划：书架、分类、排序、搜索和批量操作
+│   │   │   └── src/commonMain/kotlin/…/   # library 与 reader/comic 已接入，其余页面后续再迁
+│   │   │       ├── library/         # 已接入：书架屏、会话、仓储接口、列表/弹层组件
 │   │   │       ├── updates/         # 规划：已更新、待更新、更新错误和任务状态
 │   │   │       ├── history/         # 规划：阅读历史与继续阅读
 │   │   │       ├── browse/          # 规划：源、扩展、Feed、全局搜索、保存搜索
@@ -141,4 +141,4 @@ SQLite 管理 `works`、`chapters`、`library_entries`、`categories`、`chapter
 | 阅读与下载 | 在线、离线和本地阅读，漫画各种阅读模式、手势、翻页和续读，下载队列、暂停、重试和重启恢复 |
 | 更新、追踪与数据管理 | 智能更新、待更新和错误列表、各追踪服务、双向进度、备份与恢复、WebDAV 同步、通知、平台小组件和应用更新机制 |
 
-具体工作顺序、Komikku 参考文件、截图与操作验收，以及首轮任务边界都记录在 [Komikku 对齐计划](komikku-alignment.md)。平台特有能力按可达操作和目标平台结果验收。
+构建、测试与视觉核对按 [验收基线](verification.md) 执行，开发顺序经讨论确定。平台特有能力按可达操作和目标平台结果验收。

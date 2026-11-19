@@ -4,11 +4,16 @@ Kotlin Multiplatform + Compose Multiplatform 漫画阅读器：视觉与功能�
 
 ## 构建与验收基线
 
-- 快速回归：受影响模块 `./gradlew :shared:<module>:jvmTest`；全量集成验收命令见 `docs/komikku-alignment.md`（含 `-PveneraReferenceDir="$PWD/reference/Venera-Next"`）。
-- 交付前测试不绿不算完成；提交信息用 conventional commits 加中文主题。
-- 代码标识符与文件名按功能命名，不含产品名（Komikku/Koyura）；`app.koyura` 基包与安装标识除外，注释引用来源不受限。
+- 验收按 `docs/verification.md` 执行：受影响模块快速回归、交付前全量 JVM 门、界面改动按需四态截图人工核对、阅读行为沿用夹具测试；不设阶段门禁，不建证据归档。
+- 交付前测试不绿不算完成。
 - 改动 `:shared:source-runtime`、`:shared:network` 会话桥或宿主回调后，必跑 Venera 原版脚本回归（SHA-256 + 全回调链）。
-- 对齐项完成按 `docs/komikku-alignment.md` 验收：成对截图（窄/宽 × 浅/深）、阅读夹具（编号页/横跨页/长图/损坏页/两章）、三端构建记录。
+- 代码标识符与文件名按功能命名，不含产品名（Komikku/Koyura）；`app.koyura` 基包与安装标识除外，注释引用来源不受限。
+
+## 提交规范
+
+- `type(scope): 中文主题`，conventional commits；scope 用模块或功能域（library、reader、shell、browse、source-runtime、design-system 等）。
+- 主题写真实改动内容与影响面，不看 diff 也能明白这个提交做了什么；禁止 `V0`/`P1`/`M2` 等阶段或轮次编号，禁止「保存当前进度」这类无信息主题。
+- 分逻辑组提交：一个提交对应一个内聚改动（一处行为修复及其测试、一组配套重构、一类文档调整）；跨域工作拆成多个提交，各自可独立描述与回滚；不把无关改动顺手捎进同一提交。
 
 ## 选型状态（以 docs/technology-stack.md 为准，勿凭通用 skill 想当然）
 
@@ -34,4 +39,4 @@ Kotlin Multiplatform + Compose Multiplatform 漫画阅读器：视觉与功能�
 - `README.md` — 本地运行与模块表
 - `docs/architecture.md` — 目录、包名与依赖方向
 - `docs/technology-stack.md` — 版本基线、选型与升级排期
-- `docs/komikku-alignment.md` — 对齐计划与验收记录
+- `docs/verification.md` — 验收基线：测试门、三端构建与视觉核对口径

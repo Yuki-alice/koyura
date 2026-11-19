@@ -1,6 +1,6 @@
 # Koyura
 
-使用 Kotlin Multiplatform 与 Compose Multiplatform 构建跨平台的 Komikku 漫画阅读体验。当前优先对齐 Komikku 的界面、交互和漫画阅读器，JS 源以 Venera-Next 兼容为目标。 [当前对齐计划](docs/komikku-alignment.md) · [技术栈选型](docs/technology-stack.md) · [项目架构与目录](docs/architecture.md)
+使用 Kotlin Multiplatform 与 Compose Multiplatform 构建跨平台的 Komikku 漫画阅读体验。当前优先对齐 Komikku 的界面、交互和漫画阅读器，JS 源以 Venera-Next 兼容为目标。 [验收基线](docs/verification.md) · [技术栈选型](docs/technology-stack.md) · [项目架构与目录](docs/architecture.md)
 
 ## 本地运行
 
@@ -39,7 +39,7 @@ Android 构建从 `ANDROID_HOME` 或 `local.properties` 解析 SDK 路径。iOS 
 | `:shared:features` | 漫画阅读器页面与共享测试替身（其余页面规划中） | 部分接入 |
 | `:shared:media` | 本地小说解析与阅读位置 | 独立构建，暂未接入 |
 
-Android、桌面和 iOS 从同一共享入口打开扩展会话并恢复已安装源。在「浏览 → 扩展仓库」添加 Venera 仓库索引，预览并安装条目，再从「来源」进入搜索、作品详情和章节阅读。应用重启后可从「历史」续读。`reference/` 放本地参考仓库，开发任务与验收按[当前对齐计划](docs/komikku-alignment.md)执行。
+Android、桌面和 iOS 从同一共享入口打开扩展会话并恢复已安装源。在「浏览 → 扩展仓库」添加 Venera 仓库索引，预览并安装条目，再从「来源」进入搜索、作品详情和章节阅读。应用重启后可从「历史」续读。`reference/` 放本地参考仓库，开发任务与验收按[验收基线](docs/verification.md)执行。
 
 ## Venera 脚本验证
 

@@ -45,10 +45,8 @@ import kotlin.test.Test
  * Operation storyboards for the three recorded flows, captured from the same
  * interactive host the UI tests drive (real taps, keys, drags and jumps).
  *
- * Each frame is written to `<readerScreenshotDir>/frames/` as PNG; the delivery
- * MP4s are stitched with ffmpeg (`-framerate 1`, one frame per step) into
- * `docs/alignment/b-viewer/rec/`. Frame capture uses semantics screenshots, so
- * what you see is exactly what the tests assert on.
+ * Each frame is written to `<readerScreenshotDir>/frames/` as PNG. Frame capture
+ * uses semantics screenshots, so what you see is exactly what the tests assert on.
  */
 class FlowFramesTest {
     private val outputDir = File(System.getProperty("reader.screenshotDir") ?: "build/screenshots")
