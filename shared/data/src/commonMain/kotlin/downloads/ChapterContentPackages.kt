@@ -90,9 +90,12 @@ internal class ChapterContentPackages(
     private fun verifies(packagePath: Path, index: Int, page: ContentPage): Boolean = runCatching {
         val path = packagePath / pageFile(index)
         if (files.metadata(path).size != page.size) return@runCatching false
-        HashingSource.sha256(files.source(path)).use { source ->
+        val source = HashingSource.sha256(files.source(path))
+        try {
             source.buffer().skip(page.size)
             source.hash.hex() == page.checksum
+        } finally {
+            source.close()
         }
     }.getOrDefault(false)
 
