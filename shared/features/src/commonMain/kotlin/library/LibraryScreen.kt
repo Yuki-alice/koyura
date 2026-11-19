@@ -2,7 +2,6 @@
 
 package app.koyura.features.library
 
-import androidx.compose.ui.graphics.Color
 import app.koyura.designsystem.ActionIcon
 import app.koyura.designsystem.ActionIconButton
 import androidx.compose.material3.TopAppBar
@@ -36,7 +35,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.ScrollableTabRow
@@ -56,12 +57,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.koyura.designsystem.CoverDecoder
+import app.koyura.designsystem.DesignTokens
 import app.koyura.designsystem.CoverImageLoader
 import app.koyura.designsystem.Cover
 import app.koyura.designsystem.CoverCornerRadius
@@ -914,50 +917,56 @@ private fun BoxScope.LibraryCoverBadges(
 ) {
     val prefs = session.snapshot.prefs
     Column(
-        modifier = Modifier.align(Alignment.TopStart).padding(6.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier.align(Alignment.TopStart).padding(DesignTokens.Spacing.ExtraSmall),
+        verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.ExtraSmall),
     ) {
         if (prefs.showUnreadBadges && entry.unreadCount > 0) {
             Surface(
-                shape = RoundedCornerShape(8.dp),
+                shape = RoundedCornerShape(DesignTokens.Radius.ExtraSmall),
                 color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.testTag(libraryUnreadBadgeTag(entry.sourceKey, entry.workId)),
+                modifier = Modifier.height(DesignTokens.Sizes.BadgeHeight)
+                    .testTag(libraryUnreadBadgeTag(entry.sourceKey, entry.workId)),
             ) {
                 Text(
                     text = stringResource(Res.string.library_unread_chapters, entry.unreadCount.toInt()),
-                    style = MaterialTheme.typography.labelSmall,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                    modifier = Modifier.padding(DesignTokens.Sizes.BadgeContentPadding),
                 )
             }
         }
         if (prefs.showDownloadBadges && entry.downloadedCount > 0) {
             Surface(
-                shape = RoundedCornerShape(8.dp),
+                shape = RoundedCornerShape(DesignTokens.Radius.ExtraSmall),
                 color = MaterialTheme.colorScheme.tertiary,
-                modifier = Modifier.testTag(libraryDownloadBadgeTag(entry.sourceKey, entry.workId)),
+                modifier = Modifier.height(DesignTokens.Sizes.BadgeHeight)
+                    .testTag(libraryDownloadBadgeTag(entry.sourceKey, entry.workId)),
             ) {
                 Text(
                     text = stringResource(Res.string.library_downloaded_chapters, entry.downloadedCount.toInt()),
-                    style = MaterialTheme.typography.labelSmall,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onTertiary,
-                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                    modifier = Modifier.padding(DesignTokens.Sizes.BadgeContentPadding),
                 )
             }
         }
     }
     if (prefs.showLanguageBadges && (entry.language.isNotBlank() || entry.sourceName.isNotBlank())) {
         Surface(
-            shape = RoundedCornerShape(8.dp),
+            shape = RoundedCornerShape(DesignTokens.Radius.ExtraSmall),
             color = MaterialTheme.colorScheme.surfaceVariant,
-            modifier = Modifier.align(Alignment.TopEnd).padding(6.dp)
+            modifier = Modifier.align(Alignment.TopEnd).padding(DesignTokens.Spacing.ExtraSmall)
+                .height(DesignTokens.Sizes.BadgeHeight)
                 .testTag(libraryLanguageBadgeTag(entry.sourceKey, entry.workId)),
         ) {
             Text(
                 text = entry.language.uppercase().ifBlank { entry.sourceName.take(2).uppercase() },
-                style = MaterialTheme.typography.labelSmall,
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                modifier = Modifier.padding(DesignTokens.Sizes.BadgeContentPadding),
             )
         }
     }
@@ -972,14 +981,29 @@ private fun BoxScope.LibraryCoverBadges(
             ActionIcon(ActionIcon.Checklist, null, tint = MaterialTheme.colorScheme.onPrimary)
         }
     } else if (prefs.showContinueButton && entry.canContinue) {
-        ActionIconButton(
-            icon = ActionIcon.Play,
-            label = stringResource(if (entry.hasStarted) Res.string.library_continue else Res.string.library_start),
+        // 白皮书 06 §6.6 Continue 钮：small 圆角、primaryContainer 90% 容器；
+        // 尺寸按 Code（CommonMangaItem.kt:62,65 小尺寸档 28dp 钮 / 16dp 图标）。
+        FilledIconButton(
             onClick = { onContinue(entry) },
-            modifier = Modifier.align(Alignment.BottomEnd).padding(4.dp)
+            shape = RoundedCornerShape(DesignTokens.Radius.Small),
+            colors = IconButtonDefaults.filledIconButtonColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(
+                    alpha = DesignTokens.Alpha.ContinueReading,
+                ),
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            ),
+            modifier = Modifier.align(Alignment.BottomEnd).padding(DesignTokens.Spacing.ExtraSmall)
+                .size(DesignTokens.Sizes.ContinueButtonSize)
                 .testTag(libraryContinueTag(entry.sourceKey, entry.workId)),
-            contentColor = Color.White,
-        )
+        ) {
+            ActionIcon(
+                icon = ActionIcon.Play,
+                contentDescription = stringResource(
+                    if (entry.hasStarted) Res.string.library_continue else Res.string.library_start,
+                ),
+                modifier = Modifier.size(DesignTokens.Sizes.ContinueButtonIconSize),
+            )
+        }
     }
 }
 
@@ -1092,12 +1116,18 @@ private fun LibraryListRow(
                 modifier = Modifier.size(width = 56.dp, height = 80.dp),
             )
             if (session.selection.contains(entry.key)) {
+                // 多选态：secondary 16–22% 行叠加（白皮书 02 §2.7 / 08 §8.2），亮暗按 surface 明度区分。
+                val selectedOverlay = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) {
+                    DesignTokens.Alpha.SelectedBackgroundDark
+                } else {
+                    DesignTokens.Alpha.SelectedBackgroundLight
+                }
                 Box(
                     modifier = Modifier.size(width = 56.dp, height = 80.dp)
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)),
+                        .background(MaterialTheme.colorScheme.secondary.copy(alpha = selectedOverlay)),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text("✓", color = MaterialTheme.colorScheme.onPrimary)
+                    Text("✓", color = MaterialTheme.colorScheme.onSecondary)
                 }
             }
         }
@@ -1138,12 +1168,26 @@ private fun LibraryListRow(
             )
         }
         if (session.snapshot.prefs.showContinueButton && entry.canContinue) {
-            ActionIconButton(
-                icon = ActionIcon.Play,
-                label = stringResource(if (entry.hasStarted) Res.string.library_continue else Res.string.library_start),
+            FilledIconButton(
                 onClick = { onContinue(entry) },
-                modifier = Modifier.testTag(libraryContinueTag(entry.sourceKey, entry.workId)),
-            )
+                shape = RoundedCornerShape(DesignTokens.Radius.Small),
+                colors = IconButtonDefaults.filledIconButtonColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(
+                        alpha = DesignTokens.Alpha.ContinueReading,
+                    ),
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                ),
+                modifier = Modifier.size(DesignTokens.Sizes.ContinueButtonSize)
+                    .testTag(libraryContinueTag(entry.sourceKey, entry.workId)),
+            ) {
+                ActionIcon(
+                    icon = ActionIcon.Play,
+                    contentDescription = stringResource(
+                        if (entry.hasStarted) Res.string.library_continue else Res.string.library_start,
+                    ),
+                    modifier = Modifier.size(DesignTokens.Sizes.ContinueButtonIconSize),
+                )
+            }
         }
     }
 }
