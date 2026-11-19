@@ -6,9 +6,10 @@
 
 | 提交 | 内容 |
 | --- | --- |
-| `feat(ui-host): Venera脚本UI的Compose宿主与剪贴板注入` | `SourceUiHost` 实现 `VeneraUiHost`（snackbar 消息、顶层加载态、三形态挂起对话框，取消释放槽位）；`SourceClipboard` + 三端实现；装配层创建宿主并注入 `openExtensionSession`、App 顶层渲染呈现层；对话框/输入校验/选择/snackbar/加载态与状态机单测覆盖（13 例） |
+| `feat(ui-host): Venera脚本UI的Compose宿主与剪贴板注入` | `SourceUiHost` 实现 `VeneraUiHost`（snackbar 消息、顶层加载态、三形态挂起对话框，取消释放槽位）；`SourceClipboard` + 三端实现；装配层创建宿主并注入 `openExtensionSession`、App 顶层渲染呈现层；对话框/输入校验/选择/snackbar/加载态/外链与状态机单测覆盖（14 例） |
 | `feat(account): 扩展详情按源账号区契约与 Fake 实现` | `features/account` 定义契约（`AccountState`/`AccountFieldConfig`/`AccountRepository`，与任务书字面一致）+ 五形态 Fake + 会话；详情页按源渲染账号区（未配置整块隐藏），登录表单/网页登录/注册外链/重登/注销确认；`ExtensionInfo.sources` 携带源 key；会话状态机与五形态 UI 回归覆盖 |
 | `fix(android): 剪贴板文本转换改用应用上下文` | `ClipboardManager` 无 `getContext`，改持应用上下文；三端构建全绿 |
+| `feat(ui-host): 外链打开走平台浏览器并可注入测试调度` | `launchUrl` 走三端浏览器打不开回退原文消息；宿主后台协程域可注入，UI 测试确定性执行 |
 | `feat(updates): 更新错误入口与失败重试` | `UpdatesRepository.failures`（默认空）+ 会话随快照加载失败集；Fake 自带失败样例且 `retryFailures` 清空之；顶栏溢出菜单切换错误视图（失败作品 + 错误信息 + 全部重试）；会话与 UI 展示/重试回归覆盖 |
 | `docs(ui): 第三轮交付说明覆盖写入` | 本报告 |
 
@@ -44,6 +45,6 @@ JAVA_HOME="$HOME/devtools/jdk-21" ./gradlew \
   -PveneraReferenceDir="/Users/kurisu/project x/reference/Venera-Next" --rerun-tasks
 ```
 
-结果：连续两遍全绿（第三遍终态确认亦绿）。末遍：design-system 无测试源集（NO-SOURCE），其余五模块 574 例全绿（domain 11 / features 90 / data 117 / source-runtime 57 / app 299）。本轮新增 25 例（账号会话 8 + 账号 UI 8 + 宿主 13 + 更新错误会话 2 + 更新错误 UI 1 − 有交叠计入各模块；features +12 / app +27 含引擎轨同期增量）。
+结果：连续两遍全绿（第三遍终态确认亦绿）。末遍：design-system 无测试源集（NO-SOURCE），其余五模块 574 例全绿（domain 11 / features 90 / data 117 / source-runtime 57 / app 299）。本轮新增 UI 轨用例 26 例（账号会话 8 + 账号 UI 8 + 宿主 14 + 更新错误会话 2 + 更新错误 UI 1；features +12 / app +14，其余增量为引擎轨同期交付）。
 
 三端构建（本轮平台粘合后必跑）：`:apps:android:assembleDebug` EXIT 0（中途修过一次 `ClipboardManager.getContext` 误用），`:apps:desktop:classes` EXIT 0，`:shared:app:linkDebugFrameworkIosSimulatorArm64` EXIT 0。
