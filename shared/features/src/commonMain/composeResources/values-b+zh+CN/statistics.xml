@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="statistics_title">统计</string>
+    <string name="statistics_overview">概览</string>
+    <string name="statistics_entries">条目</string>
+    <string name="statistics_chapters">章节</string>
+    <string name="statistics_trackers">追踪</string>
+    <string name="statistics_in_library">在书架</string>
+    <string name="statistics_read_duration">阅读时长</string>
+    <string name="statistics_completed_entries">已读完</string>
+    <string name="statistics_in_global_update">全局更新中</string>
+    <string name="statistics_started">已开始</string>
+    <string name="statistics_local">本地</string>
+    <string name="statistics_chapters_total">总数</string>
+    <string name="statistics_chapters_read">已读</string>
+    <string name="statistics_chapters_downloaded">已下载</string>
+    <string name="statistics_tracked_entries">追踪条目</string>
+    <string name="statistics_mean_score">平均分</string>
+    <string name="statistics_used">使用数</string>
+    <string name="statistics_refresh">刷新</string>
+    <string name="statistics_load_failed">统计加载失败：%1$s</string>
+    <string name="statistics_retry">重试</string>
+</resources>

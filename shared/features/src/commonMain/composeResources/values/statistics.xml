@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="statistics_title">Statistics</string>
+    <string name="statistics_overview">Overview</string>
+    <string name="statistics_entries">Entries</string>
+    <string name="statistics_chapters">Chapters</string>
+    <string name="statistics_trackers">Trackers</string>
+    <string name="statistics_in_library">In library</string>
+    <string name="statistics_read_duration">Read duration</string>
+    <string name="statistics_completed_entries">Completed entries</string>
+    <string name="statistics_in_global_update">In global update</string>
+    <string name="statistics_started">Started</string>
+    <string name="statistics_local">Local</string>
+    <string name="statistics_chapters_total">Total</string>
+    <string name="statistics_chapters_read">Read</string>
+    <string name="statistics_chapters_downloaded">Downloaded</string>
+    <string name="statistics_tracked_entries">Tracked entries</string>
+    <string name="statistics_mean_score">Mean score</string>
+    <string name="statistics_used">Used</string>
+    <string name="statistics_refresh">Refresh</string>
+    <string name="statistics_load_failed">Could not load statistics: %1$s</string>
+    <string name="statistics_retry">Retry</string>
+</resources>
