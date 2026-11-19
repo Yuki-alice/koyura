@@ -7,7 +7,11 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -44,11 +48,13 @@ sealed interface SourceUiDialog {
  *
  * 线程规则：引擎在 IO 线程调同步入口（只写 StateFlow，线程安全）；
  * 挂起对话框经互斥单槽排队，取消时释放占位（原生呈现即 Dialog 消失）。
- * `log`/`launchUrl` 无宿主动作（日志走引擎侧，链接打开超出本轮范围）。
+ * `log` 无宿主动作（日志走引擎侧）；`launchUrl` 走平台浏览器，打不开时回退原文消息。
  */
 open class SourceUiHost(
     private val clipboard: SourceClipboard,
+    private val urlOpener: SourceUrlOpener = FakeUrlOpener(),
     private val onMessage: ((String) -> Unit)? = null,
+    private val background: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
 ) : VeneraUiHost {
     private var messageSeq = 0L
     private val _message = MutableStateFlow<SourceUiMessage?>(null)
@@ -144,6 +150,16 @@ open class SourceUiHost(
     }
 
     override suspend fun getClipboard(sourceKey: String): String? = clipboard.getText()
+
+    override fun launchUrl(sourceKey: String, url: String) {
+        launchUrlAsync(sourceKey, url)
+    }
+
+    private fun launchUrlAsync(sourceKey: String, url: String) {
+        background.launch {
+            if (!urlOpener.open(url)) showMessage(sourceKey, url)
+        }
+    }
 
     private fun clearDialog() {
         _dialog.value = null

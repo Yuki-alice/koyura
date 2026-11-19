@@ -3,6 +3,7 @@ package app.koyura.app
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import app.koyura.app.sourceui.JvmClipboard
+import app.koyura.app.sourceui.JvmUrlOpener
 import app.koyura.app.sourceui.SourceUiHost
 import app.koyura.data.session.openExtensionSession
 import okio.Path.Companion.toPath
@@ -18,7 +19,7 @@ internal actual fun PlatformExtensionApp() {
         }
     }
     val environment = extensionEnvironment(platform)
-    val uiHost = remember { SourceUiHost(JvmClipboard()) }
+    val uiHost = remember { SourceUiHost(JvmClipboard(), JvmUrlOpener()) }
     ExtensionApp(uiHost) { host ->
         val home = System.getProperty("user.home").toPath()
         val dataDir = when (platform) {

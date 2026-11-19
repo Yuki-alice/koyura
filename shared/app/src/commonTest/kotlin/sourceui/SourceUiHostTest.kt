@@ -4,10 +4,10 @@ import app.koyura.source.runtime.SourceDialogAction
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -145,7 +145,7 @@ class SourceUiHostTest {
             override suspend fun setText(text: String): Boolean = false
         }
         val seen = mutableListOf<String>()
-        val host = SourceUiHost(failing) { seen += it }
+        val host = SourceUiHost(failing, onMessage = { seen += it })
         host.setClipboard("src", "fallback-text")
         advanceUntilIdle()
         assertEquals(listOf("fallback-text"), seen)
@@ -158,5 +158,27 @@ class SourceUiHostTest {
         job.join()
         assertEquals(listOf("m1"), host.messages)
         assertEquals("m1", host.message.value?.text)
+    }
+
+    @Test
+    fun launchUrlOpensOrFallsBackToMessage() = runTest {
+        val opener = FakeUrlOpener()
+        val seen = mutableListOf<String>()
+        val immediate = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+        try {
+            val host = SourceUiHost(FakeClipboard(), opener, { seen += it }, immediate)
+            host.launchUrl("src", "https://example.invalid/register")
+            advanceUntilIdle()
+            assertEquals(listOf("https://example.invalid/register"), opener.opened)
+            assertTrue(seen.isEmpty())
+
+            opener.result = false
+            host.launchUrl("src", "https://example.invalid/other")
+            advanceUntilIdle()
+            assertEquals(listOf("https://example.invalid/register"), opener.opened)
+            assertEquals(listOf("https://example.invalid/other"), seen)
+        } finally {
+            immediate.cancel()
+        }
     }
 }
