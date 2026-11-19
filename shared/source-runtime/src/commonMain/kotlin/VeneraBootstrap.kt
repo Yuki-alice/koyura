@@ -231,7 +231,7 @@ internal val veneraBootstrap = """
                             sourceKey,
                             method: message.http_method,
                             url: message.url,
-                            headers: message.headers ?? {},
+                            headers: Object.fromEntries(Object.entries(message.headers ?? {}).filter(([, value]) => value != null)),
                             data: binary ? null : message.data,
                             binaryData: binary ? __readerUtilities.toBase64(message.data) : null,
                             extra: message.extra,
