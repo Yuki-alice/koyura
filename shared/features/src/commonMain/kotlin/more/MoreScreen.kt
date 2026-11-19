@@ -155,7 +155,7 @@ private fun MoreLogoHeader() {
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        // 品牌占位：沿用导航书架字形（64dp + onSurface tint），待品牌视觉定稿后替换。
+        // 品牌占位：library_books 官方字形（64dp + onSurface tint），待品牌视觉定稿后替换。
         BrandPlaceholder(
             modifier = Modifier
                 // 上下 56dp 留白、图标 64dp（Code: LogoHeader.kt:27-29）。
