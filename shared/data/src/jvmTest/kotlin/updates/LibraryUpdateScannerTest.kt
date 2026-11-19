@@ -4,6 +4,7 @@ import app.koyura.data.extension.createFileBackedTestDriver
 import app.koyura.data.session.openExtensionSession
 import app.koyura.domain.library.LibraryChapter
 import app.koyura.domain.library.WorkKind
+import app.koyura.domain.updates.SmartUpdatePreferences
 import app.koyura.source.runtime.VeneraEnvironment
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
@@ -41,6 +42,7 @@ class LibraryUpdateScannerTest {
             val first = open()
             try {
                 first.service.installFromContent("updates.js", script)
+                first.updates.setPreferences(SmartUpdatePreferences(enabled = false))
                 for (id in listOf("normal", "broken")) {
                     first.library.addToLibrary("updates", WorkKind.COMIC, id, id, addedAtMillis = 10)
                 }

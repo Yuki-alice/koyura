@@ -214,5 +214,6 @@ private fun ensureSchema(driver: SqlDriver) {
         if (tableColumns(driver, "detected_chapter").isEmpty() || tableColumns(driver, "library_update_failure").isEmpty()) {
             ExtensionDb.Schema.migrate(driver, 8, 9).value
         }
+        if (tableColumns(driver, "library_update_metadata").isEmpty()) ExtensionDb.Schema.migrate(driver, 9, 10).value
     }
 }
