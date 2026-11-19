@@ -22,6 +22,10 @@ class UpdatesSession(
     var entries: List<UpdateWork> by mutableStateOf(emptyList())
         private set
 
+    /** 上次扫描失败的作品（更新错误入口的数据源）。 */
+    var failures: List<UpdateFailure> by mutableStateOf(emptyList())
+        private set
+
     var actionError: String? by mutableStateOf(null)
         private set
 
@@ -41,6 +45,7 @@ class UpdatesSession(
         loadState = UpdatesLoadState.Loading
         try {
             entries = source()
+            failures = repository.failures()
             actionError = null
             loadState = UpdatesLoadState.Ready
         } catch (cancelled: kotlinx.coroutines.CancellationException) {

@@ -16,15 +16,26 @@ data class UpdateWork(
     val chapters: List<UpdateChapter>,
 )
 
+/** 上次扫描失败的作品（引擎 `UpdateScan.failures` 的界面投影）。 */
+data class UpdateFailure(
+    val sourceKey: String,
+    val workId: String,
+    val title: String,
+    val message: String,
+)
+
 /**
- * 更新数据源。`loadUpdates` 读上次扫描的持久 feed；[checkNow] 触发一次真实扫描并返回
- * 新 feed；[retryFailures] 只重试上次失败的作品。默认实现把两者等同 `loadUpdates`，
+ * 更新数据源。`loadUpdates` 读上次扫描的持久 feed；`checkNow` 触发一次真实扫描并返回
+ * 新 feed；`retryFailures` 只重试上次失败的作品。默认实现把两者等同 `loadUpdates`，
  * Fake 与无引擎装配时行为不变。
  */
 interface UpdatesRepository {
     suspend fun loadUpdates(): List<UpdateWork>
     suspend fun checkNow(): List<UpdateWork> = loadUpdates()
     suspend fun retryFailures(): List<UpdateWork> = loadUpdates()
+
+    /** 上次扫描失败的作品；无引擎装配时为空。 */
+    suspend fun failures(): List<UpdateFailure> = emptyList()
 }
 
 /** 更新列表加载态（对齐 Library / History 的三态）。 */

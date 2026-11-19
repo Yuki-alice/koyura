@@ -15,7 +15,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -23,7 +26,12 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -41,10 +49,15 @@ import app.koyura.features.resources.Res
 import app.koyura.features.resources.updates_calendar
 import app.koyura.features.resources.updates_chapters
 import app.koyura.features.resources.updates_empty
+import app.koyura.features.resources.updates_errors_empty
+import app.koyura.features.resources.updates_errors_title
 import app.koyura.features.resources.updates_filter
 import app.koyura.features.resources.updates_load_failed
 import app.koyura.features.resources.updates_refresh
 import app.koyura.features.resources.updates_retry
+import app.koyura.features.resources.updates_retry_failures
+import app.koyura.features.resources.updates_show_errors
+import app.koyura.features.resources.updates_show_updates
 import app.koyura.features.resources.updates_title
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
@@ -54,10 +67,14 @@ const val UpdatesListTag = "updates-list"
 const val UpdatesEmptyTag = "updates-empty"
 const val UpdatesErrorTag = "updates-error"
 const val UpdatesRefreshTag = "updates-refresh"
+const val UpdatesOverflowTag = "updates-overflow"
+const val UpdatesErrorsListTag = "updates-errors-list"
+const val UpdatesRetryFailuresTag = "updates-retry-failures"
 
 fun updatesWorkTag(sourceKey: String, workId: String) = "updates-work-$sourceKey-$workId"
 fun updatesChapterTag(sourceKey: String, workId: String, chapterId: String) =
     "updates-chapter-$sourceKey-$workId-$chapterId"
+fun updatesFailureTag(sourceKey: String, workId: String) = "updates-failure-$sourceKey-$workId"
 
 /**
  * 更新页：按作品聚合的新章节组（白皮书 07 §7.7）。
@@ -79,6 +96,8 @@ fun UpdatesScreen(
     coverDecoder: CoverDecoder? = LocalCoverDecoder.current,
 ) {
     val scope = rememberCoroutineScope()
+    var showErrors by rememberSaveable { mutableStateOf(false) }
+    var overflowOpen by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         session.refresh()
@@ -111,6 +130,35 @@ fun UpdatesScreen(
                         onClick = { scope.launch { session.checkNow() } },
                         modifier = Modifier.testTag(UpdatesRefreshTag),
                     )
+                    ActionIconButton(
+                        icon = ActionIcon.More,
+                        label = stringResource(Res.string.updates_show_errors),
+                        onClick = { overflowOpen = true },
+                        modifier = Modifier.testTag(UpdatesOverflowTag),
+                    )
+                    DropdownMenu(
+                        expanded = overflowOpen,
+                        onDismissRequest = { overflowOpen = false },
+                    ) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    if (showErrors) {
+                                        stringResource(Res.string.updates_show_updates)
+                                    } else {
+                                        stringResource(
+                                            Res.string.updates_show_errors,
+                                        ) + " (${session.failures.size})"
+                                    },
+                                )
+                            },
+                            onClick = {
+                                overflowOpen = false
+                                showErrors = !showErrors
+                            },
+                            modifier = Modifier.testTag("updates-errors-toggle"),
+                        )
+                    }
                 },
             )
 
@@ -149,7 +197,12 @@ fun UpdatesScreen(
                                 .testTag("updates-action-error"),
                         )
                     }
-                    if (session.entries.isEmpty()) {
+                    if (showErrors) {
+                        UpdateFailuresView(
+                            failures = session.failures,
+                            onRetryAll = { scope.launch { session.retryFailures() } },
+                        )
+                    } else if (session.entries.isEmpty()) {
                         UpdatesEmptyState()
                     } else {
                         LazyColumn(
@@ -303,6 +356,82 @@ private fun UpdateChapterRow(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+            }
+        }
+    }
+}
+
+/** 更新错误视图：失败作品与错误信息 + 全部重试（调 `session.retryFailures`）。 */
+@Composable
+private fun UpdateFailuresView(
+    failures: List<UpdateFailure>,
+    onRetryAll: () -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxSize().testTag(UpdatesErrorsListTag)) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(
+                    horizontal = DesignTokens.Spacing.Medium,
+                    vertical = DesignTokens.Spacing.Small,
+                ),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = stringResource(Res.string.updates_errors_title),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(
+                onClick = onRetryAll,
+                enabled = failures.isNotEmpty(),
+                modifier = Modifier.testTag(UpdatesRetryFailuresTag),
+            ) {
+                Text(stringResource(Res.string.updates_retry_failures))
+            }
+        }
+        if (failures.isEmpty()) {
+            Box(
+                modifier = Modifier.fillMaxSize().padding(DesignTokens.Spacing.Large),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = stringResource(Res.string.updates_errors_empty),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        } else {
+            LazyColumn(modifier = Modifier.fillMaxSize()) {
+                items(failures, key = { "${it.sourceKey}-${it.workId}" }) { failure ->
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag(updatesFailureTag(failure.sourceKey, failure.workId))
+                            .padding(
+                                horizontal = DesignTokens.Spacing.Medium,
+                                vertical = DesignTokens.Spacing.Small,
+                            ),
+                        verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.ExtraSmall),
+                    ) {
+                        Text(
+                            text = failure.title,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            text = failure.message,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                            maxLines = 3,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    HorizontalDivider()
+                }
             }
         }
     }
