@@ -36,6 +36,7 @@ import app.koyura.app.browse.BrowseSession
 import app.koyura.app.browse.ProvideCoverPipeline
 import app.koyura.features.downloads.DownloadsScreen
 import app.koyura.features.downloads.rememberDownloadsSession
+import app.koyura.categories.CategoriesScreen
 import app.koyura.features.more.MoreScreen
 import app.koyura.features.more.rememberMoreSession
 import app.koyura.features.updates.UpdatesScreen
@@ -57,6 +58,7 @@ import app.koyura.features.reader.comic.ReaderSession
 import app.koyura.features.reader.comic.rememberReaderSession
 import app.koyura.app.browse.rememberBrowseSession
 import app.koyura.app.navigation.AppNavigationState
+import app.koyura.app.navigation.CategoriesRoute
 import app.koyura.app.navigation.DetailRoute
 import app.koyura.app.navigation.DownloadQueueRoute
 import app.koyura.app.navigation.ExtensionDetailsRoute
@@ -289,6 +291,9 @@ private fun AppNavigationContent(
                         onOpenDownloadQueue = {
                             navigation.push(DownloadQueueRoute)
                         },
+                        onOpenCategories = {
+                            navigation.push(CategoriesRoute)
+                        },
                     )
                 } else {
                     TabRootScreen(
@@ -307,6 +312,9 @@ private fun AppNavigationContent(
                     session = downloadsSession,
                     onBack = { navigation.popCurrentChild() },
                 )
+            }
+            entry<CategoriesRoute> {
+                CategoriesScreen(onBack = { navigation.popCurrentChild() })
             }
             entry<ExtensionDetailsRoute> { route ->
                 CompositionLocalProvider(LocalBrowseSession provides browseSession) {
