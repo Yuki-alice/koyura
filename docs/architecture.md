@@ -8,7 +8,7 @@
 
 以工作区根目录作为新项目根。`apps/` 放端入口，`shared/` 放 KMP 和 CMP 模块，`extension-sdk/` 放发布给源作者的契约与示例。参考仓库独立保存在 `reference/`，Gradle 构建只包含新项目的模块。
 
-初始化已接通三个应用入口，以及 `shared/app`、`shared/design-system`、`shared/domain`、`shared/data`、`shared/network`、`shared/source-runtime`。`shared/media` 独立构建、暂未接入 Gradle（见下文）。下方目录树包含后续开发的模块，标注为规划中。
+初始化已接通三个应用入口，以及 `shared/app`、`shared/design-system`、`shared/domain`、`shared/data`、`shared/network`、`shared/source-runtime`。`shared/features` 已接书架与漫画阅读器页面（`library/`、`reader/comic/`），其余页面后续实现。`shared/media` 独立构建、暂未接入 Gradle（见下文）。下方目录树包含后续开发的模块，标注为规划中。
 
 ```text
 .
@@ -26,7 +26,7 @@
 │   │   │       ├── history/         # 规划：阅读历史与继续阅读
 │   │   │       ├── browse/          # 规划：源、扩展、Feed、全局搜索、保存搜索
 │   │   │       ├── details/         # 规划：作品详情、目录、相关推荐、换源与合并入口
-│   │   │       ├── reader/          # comic/ 已接入；novel/、阅读菜单与设置规划中
+│   │   │       ├── reader/          # comic/ 已接入（Viewer、Chrome 菜单与设置、五种阅读模式）；novel/ 规划中
 │   │   │       ├── downloads/       # 规划：下载队列、离线查看与失败恢复交互
 │   │   │       └── settings/        # 规划：更多、追踪、备份、同步与偏好
 │   │   ├── domain/                  # 已接入：作品、章节、源能力、用例和仓储/平台接口
