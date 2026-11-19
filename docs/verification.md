@@ -40,6 +40,18 @@ JAVA_HOME="$HOME/devtools/jdk-21" ./gradlew \
 
 改动 `:shared:source-runtime`、`:shared:network` 会话桥或宿主回调后，必跑 Venera 原版脚本回归（命令见 README「Venera 脚本验证」），核对脚本 SHA-256 与全回调链。
 
+改动 HTML 解析、会话或图片路径时，另跑两条未修改社区源脚本（包子漫画、漫小肆）的回归；需先下载夹具并传 `-PveneraCommunityFixtureDir`：
+
+```bash
+community_dir=build/community-scripts && mkdir -p "$community_dir"
+for script in baozi mxs; do
+  curl -fsSL "https://raw.githubusercontent.com/venera-app/venera-configs/a04e05591f7832f7166d6660546613c114d6738a/$script.js" \
+    -o "$community_dir/$script.js"
+done
+```
+
+未传该参数时 `CommunityHtmlCompatibilityTest` 自动跳过，标准门保持轻量；传入参数但夹具缺失会如实失败。
+
 ## 视觉核对（按需，不留档案）
 
 改动哪个页面就核对哪个页面，不整轮铺开：
