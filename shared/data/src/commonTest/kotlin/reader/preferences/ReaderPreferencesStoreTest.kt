@@ -42,6 +42,31 @@ class ReaderPreferencesStoreTest {
     }
 
     @Test
+    fun backgroundPreferenceRoundTripsAndOldConfigsKeepAutomatic() = runTest {
+        val dir = "chrome-prefs-${randomSuffix()}"
+        val store = store(dir)
+        store.writeGlobal(ReaderSettings(background = app.koyura.domain.reader.preferences.ReaderBackground.BLACK))
+        val reopened = store(dir)
+        assertEquals(
+            app.koyura.domain.reader.preferences.ReaderBackground.BLACK,
+            reopened.readGlobal().background,
+        )
+        // 旧配置文件没有 background 字段（老版本写入），解码后保持 Automatic 默认。
+        val legacyDir = "chrome-prefs-${randomSuffix()}"
+        val legacyDirectory = FileSystem.SYSTEM_TEMPORARY_DIRECTORY.resolve(legacyDir)
+        FileSystem.SYSTEM.createDirectories(legacyDirectory)
+        FileSystem.SYSTEM.write(legacyDirectory / "reader_global.json") {
+            writeUtf8("""{"mode":"WEBTOON","layout":"AUTOMATIC","fit":"FIT"}""")
+        }
+        val legacy = store(legacyDir)
+        assertEquals(
+            app.koyura.domain.reader.preferences.ReaderBackground.AUTOMATIC,
+            legacy.readGlobal().background,
+        )
+        assertEquals(ReadingMode.WEBTOON, legacy.readGlobal().mode)
+    }
+
+    @Test
     fun newInstanceOnSameDirectorySeesWrites() = runTest {
         val dir = "chrome-prefs-${randomSuffix()}"
         store(dir).writeGlobal(ReaderSettings(mode = ReadingMode.RIGHT_TO_LEFT))

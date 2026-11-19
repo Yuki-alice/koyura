@@ -76,4 +76,20 @@ class ReaderPreferencesTest {
         assertEquals(ReaderFit.ORIGINAL, withOverride.fit)
         assertEquals(global, global.withOverride(null))
     }
+
+    @Test
+    fun backgroundDefaultsToAutomaticAndMergesLikeOtherFields() {
+        assertEquals(ReaderBackground.AUTOMATIC, ReaderSettings().background)
+        // Override wins, untouched fields inherit.
+        val effective = ReaderSettings().withOverride(
+            WorkReaderOverride(background = ReaderBackground.BLACK),
+        )
+        assertEquals(ReaderBackground.BLACK, effective.background)
+        // Patch set/clear round-trip.
+        val cleared = WorkReaderOverride(background = ReaderBackground.GRAY).patchedWith(
+            WorkReaderOverridePatch(background = OverrideField.Clear),
+        )
+        assertEquals(null, cleared.background)
+        assertEquals(ReaderBackground.AUTOMATIC, ReaderSettings().withOverride(cleared).background)
+    }
 }

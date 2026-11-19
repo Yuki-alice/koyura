@@ -27,6 +27,18 @@ enum class ReaderFit {
 }
 
 /**
+ * Reader background around the pages (Komikku `pref_reader_theme_key` semantics):
+ * Automatic follows the app theme (dark -> #202125 gray, light -> white);
+ * Black/Gray force a dark surface regardless of theme, White forces a light one.
+ */
+enum class ReaderBackground {
+    AUTOMATIC,
+    BLACK,
+    GRAY,
+    WHITE,
+}
+
+/**
  * Global reader defaults. Unknown JSON fields are ignored and missing fields fall back to these
  * defaults so old configs keep working.
  */
@@ -35,6 +47,8 @@ data class ReaderSettings(
     val mode: ReadingMode = ReadingMode.LEFT_TO_RIGHT,
     val layout: ReaderLayout = ReaderLayout.AUTOMATIC,
     val fit: ReaderFit = ReaderFit.FIT,
+    /** Background around the pages; Automatic follows the app theme. */
+    val background: ReaderBackground = ReaderBackground.AUTOMATIC,
     /** First page is always shown alone, even in double-page layout. */
     val firstPageSingle: Boolean = true,
     /** Pair pages right-to-left in double-page layout. */
@@ -54,13 +68,15 @@ data class WorkReaderOverride(
     val mode: ReadingMode? = null,
     val layout: ReaderLayout? = null,
     val fit: ReaderFit? = null,
+    val background: ReaderBackground? = null,
     val firstPageSingle: Boolean? = null,
     val dualPageReversed: Boolean? = null,
     val cropBorders: Boolean? = null,
     val zoomOnDoubleTap: Boolean? = null,
 ) {
     fun isEmpty(): Boolean =
-        mode == null && layout == null && fit == null && firstPageSingle == null &&
+        mode == null && layout == null && fit == null && background == null &&
+            firstPageSingle == null &&
             dualPageReversed == null && cropBorders == null && zoomOnDoubleTap == null
 
     /** Resolves the effective settings against [base]. */
@@ -69,6 +85,7 @@ data class WorkReaderOverride(
             mode = mode ?: base.mode,
             layout = layout ?: base.layout,
             fit = fit ?: base.fit,
+            background = background ?: base.background,
             firstPageSingle = firstPageSingle ?: base.firstPageSingle,
             dualPageReversed = dualPageReversed ?: base.dualPageReversed,
             cropBorders = cropBorders ?: base.cropBorders,
@@ -99,6 +116,7 @@ data class WorkReaderOverridePatch(
     val mode: OverrideField<ReadingMode> = OverrideField.Keep,
     val layout: OverrideField<ReaderLayout> = OverrideField.Keep,
     val fit: OverrideField<ReaderFit> = OverrideField.Keep,
+    val background: OverrideField<ReaderBackground> = OverrideField.Keep,
     val firstPageSingle: OverrideField<Boolean> = OverrideField.Keep,
     val dualPageReversed: OverrideField<Boolean> = OverrideField.Keep,
     val cropBorders: OverrideField<Boolean> = OverrideField.Keep,
@@ -106,6 +124,7 @@ data class WorkReaderOverridePatch(
 ) {
     fun isEmpty(): Boolean =
         mode is OverrideField.Keep && layout is OverrideField.Keep && fit is OverrideField.Keep &&
+            background is OverrideField.Keep &&
             firstPageSingle is OverrideField.Keep && dualPageReversed is OverrideField.Keep &&
             cropBorders is OverrideField.Keep && zoomOnDoubleTap is OverrideField.Keep
 }
@@ -122,6 +141,7 @@ fun WorkReaderOverride.patchedWith(patch: WorkReaderOverridePatch): WorkReaderOv
         mode = currentOr(mode, patch.mode),
         layout = currentOr(layout, patch.layout),
         fit = currentOr(fit, patch.fit),
+        background = currentOr(background, patch.background),
         firstPageSingle = currentOr(firstPageSingle, patch.firstPageSingle),
         dualPageReversed = currentOr(dualPageReversed, patch.dualPageReversed),
         cropBorders = currentOr(cropBorders, patch.cropBorders),
