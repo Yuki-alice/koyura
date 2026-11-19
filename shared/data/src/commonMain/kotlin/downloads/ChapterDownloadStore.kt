@@ -93,6 +93,10 @@ internal class ChapterDownloadStore(
         values.firstOrNull { it.chapter == chapter }
     }.distinctUntilChanged()
 
+    override suspend fun countCompleted(sourceKey: String, workId: String): Int = withContext(Dispatchers.IO) {
+        queries.countCompletedDownloads(sourceKey, workId).executeAsOne().toInt()
+    }
+
     override suspend fun enqueue(chapter: DownloadChapter): DownloadJob = mutate {
         require(chapter.sourceKey.isNotBlank() && chapter.workId.isNotBlank())
         queries.insertDownload(Uuid.random().toString(), chapter.sourceKey, chapter.workId, chapter.chapterId.orEmpty())

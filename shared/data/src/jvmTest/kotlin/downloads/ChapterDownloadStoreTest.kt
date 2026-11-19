@@ -53,6 +53,7 @@ class ChapterDownloadStoreTest {
             withContext(Dispatchers.Default) { withTimeout(10_000) { entered.await() } }
             first.downloads.pause(id)
             assertEquals(DownloadStatus.PAUSED, await(first, DownloadStatus.PAUSED).status)
+            assertEquals(0, first.downloads.countCompleted("download", "work"))
             first.downloads.cancel(id)
             assertEquals(id, await(first, DownloadStatus.CANCELLED).id)
             assertFalse(files.exists(root / "app/downloads/$id.partial"))
@@ -74,6 +75,9 @@ class ChapterDownloadStoreTest {
             assertEquals(id, completed.id)
             assertEquals(2, completed.downloadedPages)
             assertEquals(2, completed.totalPages)
+            assertEquals(1, second.downloads.countCompleted("download", "work"))
+            assertEquals(0, second.downloads.countCompleted("different", "work"))
+            assertEquals(0, second.downloads.countCompleted("download", "different"))
             assertEquals(3, calls.get())
             assertEquals(id, second.downloads.enqueue(chapter).id)
             assertTrue(files.exists(root / "app/downloads/$id/chapter.json"))
@@ -144,6 +148,7 @@ class ChapterDownloadStoreTest {
         val third = open(root, MockEngine { error("Unreadable content should be reconciled on open") }, online = false)
         try {
             assertEquals(id, await(third, DownloadStatus.FAILED).id)
+            assertEquals(0, third.downloads.countCompleted("download", "work"))
             assertFalse(files.exists(root / "app/downloads/$id"))
         } finally {
             third.close()

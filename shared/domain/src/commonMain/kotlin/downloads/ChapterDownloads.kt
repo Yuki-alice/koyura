@@ -18,6 +18,7 @@ data class DownloadJob(
 interface ChapterDownloads {
     val jobs: StateFlow<List<DownloadJob>>
     fun observe(chapter: DownloadChapter): Flow<DownloadJob?>
+    suspend fun countCompleted(sourceKey: String, workId: String): Int
     suspend fun enqueue(chapter: DownloadChapter): DownloadJob
     suspend fun pause(id: String)
     suspend fun cancel(id: String)
