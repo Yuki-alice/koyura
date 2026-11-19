@@ -4,6 +4,7 @@ import app.koyura.domain.reader.preferences.ReaderSettings
 import app.koyura.domain.reader.preferences.WorkReaderOverride
 import app.koyura.domain.reader.preferences.WorkReaderOverridePatch
 import app.koyura.domain.reader.preferences.withOverride
+import app.koyura.features.reader.comic.viewer.ComicTapZoneMode
 
 /** One chapter in the chapter list. */
 data class ChapterEntry(
@@ -42,6 +43,13 @@ data class ReaderChromeState(
     val override: WorkReaderOverride?,
     /** Which dialog is open, if any. */
     val dialog: ReaderChromeDialog = ReaderChromeDialog.None,
+    /**
+     * 点击区布局（Komikku navigation mode 选择）。契约暂无持久化字段，由宿主持有；
+     * 默认 DEFAULT 即既有三分区行为。
+     */
+    val tapZone: ComicTapZoneMode = ComicTapZoneMode.DEFAULT,
+    /** 点击区反转：交换上一页/下一页区域（菜单区不受影响）。 */
+    val invertTapZone: Boolean = false,
 ) {
     /** Effective settings: the override merged over the global defaults. */
     val effective: ReaderSettings get() = global.withOverride(override)
@@ -88,4 +96,10 @@ sealed interface ReaderChromeAction {
 
     /** Open or close a dialog. */
     data class SetDialog(val dialog: ReaderChromeDialog) : ReaderChromeAction
+
+    /** 切换点击区布局（点击区契约未进 ReaderSettings，由宿主持有，见交付报告）。 */
+    data class SetTapZone(val zone: ComicTapZoneMode) : ReaderChromeAction
+
+    /** 切换点击区反转。 */
+    data class SetInvertTapZone(val invert: Boolean) : ReaderChromeAction
 }
