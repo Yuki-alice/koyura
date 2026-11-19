@@ -177,6 +177,37 @@ class VeneraSourceRuntime private constructor(
         }
     }
 
+    suspend fun describe(key: String, field: SourceConfigField): JsonElement =
+        evaluateSourceJson(key, "describe", JsonPrimitive(field.path).toString())
+
+    suspend fun callIndexed(
+        key: String,
+        callback: SourceIndexedCallback,
+        index: Int,
+        arguments: JsonArray = JsonArray(emptyList()),
+    ): JsonElement {
+        require(index >= 0)
+        val args = JsonPrimitive(arguments.toString())
+        return evaluateSourceJson(
+            key, "invokeIndexed",
+            "${JsonPrimitive(callback.section)}, $index, ${JsonPrimitive(callback.member)}, JSON.parse($args), ${callback.synchronous}",
+        )
+    }
+
+    private suspend fun evaluateSourceJson(key: String, operation: String, args: String): JsonElement =
+        withContext(Dispatchers.Default) {
+            mutex.withLock {
+                checkOpen()
+                require(key in sources) { "Source '$key' is not registered" }
+                withTimeout(CALLBACK_TIMEOUT_MILLIS) {
+                    Json.parseToJsonElement(evaluate<String>(
+                        "await __readerVenera.$operation(${JsonPrimitive(key)}, $args)",
+                        "$key:$operation",
+                    ))
+                }
+            }
+        }
+
     val isClosed: Boolean
         get() = engine.isClosed
 

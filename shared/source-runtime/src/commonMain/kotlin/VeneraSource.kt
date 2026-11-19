@@ -33,6 +33,28 @@ enum class VeneraCallback(val path: String, internal val synchronous: Boolean = 
     ValidateCookies("account.loginWithCookies.validate"),
     CheckWebLogin("account.loginWithWebview.checkStatus", synchronous = true),
     WebLoginSucceeded("account.loginWithWebview.onLoginSuccess"),
+    CategoryComics("categoryComics.load"),
+    CategoryOptions("categoryComics.optionLoader"),
+    RankingPage("categoryComics.ranking.load"),
+    RankingNext("categoryComics.ranking.loadWithNext"),
+    SearchTagSuggestion("search.onTagSuggestionSelected", synchronous = true),
+    FavoritePage("favorites.loadComics"),
+    FavoriteNext("favorites.loadNext"),
+    FavoriteFolders("favorites.loadFolders"),
+    ChangeFavorite("favorites.addOrDelFavorite"),
+    AddFavoriteFolder("favorites.addFolder"),
+    DeleteFavoriteFolder("favorites.deleteFolder"),
+    Comments("comic.loadComments"),
+    SendComment("comic.sendComment"),
+    ChapterComments("comic.loadChapterComments"),
+    SendChapterComment("comic.sendChapterComment"),
+    LikeComic("comic.likeComic"),
+    LikeComment("comic.likeComment"),
+    VoteComment("comic.voteComment"),
+    StarRating("comic.starRating"),
+    ComicLink("comic.link.linkToId", synchronous = true),
+    Archives("comic.archive.getArchives"),
+    ArchiveDownload("comic.archive.getDownloadUrl"),
 }
 
 @Serializable
@@ -80,3 +102,25 @@ data class VeneraBytesResponse(
 }
 
 class VeneraScriptException(message: String, cause: Throwable? = null) : IllegalStateException(message, cause)
+
+enum class SourceIndexedCallback(internal val section: String, internal val member: String, internal val synchronous: Boolean = false) {
+    ExplorePage("explore", "load"),
+    ExploreNext("explore", "loadNext"),
+    CategoryPart("category.parts", "loader", synchronous = true),
+}
+
+enum class SourceConfigField(internal val path: String) {
+    Explore("explore"),
+    Category("category"),
+    CategoryOptions("categoryComics.optionList"),
+    RankingOptions("categoryComics.ranking.options"),
+    SearchOptions("search.optionList"),
+    SearchTagSuggestions("search.enableTagsSuggestions"),
+    Settings("settings"),
+    AccountRegistration("account.registerWebsite"),
+    AccountCookieFields("account.loginWithCookies.fields"),
+    AccountLoggedIn("isLogged"),
+    FavoriteMultiFolder("favorites.multiFolder"),
+    FavoriteOldToNewSort("favorites.isOldToNewSort"),
+    FavoriteSingleFolderForComic("favorites.singleFolderForSingleComic"),
+}

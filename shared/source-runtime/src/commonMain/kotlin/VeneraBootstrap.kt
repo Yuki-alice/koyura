@@ -32,6 +32,10 @@ internal val veneraBootstrap = """
         Object.assign(this, fields, { subtitle: subtitle ?? subTitle });
     }
 
+    function Comment(fields) {
+        Object.assign(this, fields);
+    }
+
     function Cookie(fields) {
         Object.assign(this, fields);
     }
@@ -89,11 +93,25 @@ internal val veneraBootstrap = """
             };
         }
 
+        function field(source, path) {
+            return path.split(".").reduce((parent, part) => parent?.[part], source);
+        }
+
         function callback(source, path) {
             const parts = path.split(".");
             const name = parts.pop();
             const owner = parts.reduce((parent, part) => parent?.[part], source);
             return [owner, owner?.[name]];
+        }
+
+        function invokeCallback(owner, invoke, args, synchronous, path) {
+            if (typeof invoke !== "function") throw new TypeError("Source callback is unavailable: " + path);
+            const result = Reflect.apply(invoke, owner, args);
+            if (synchronous) {
+                if (typeof result?.then === "function") throw new TypeError(path + " must return synchronously");
+                return serializeResult(result);
+            }
+            return Promise.resolve(result).then(serializeResult);
         }
 
         function serializeResult(result) {
@@ -249,15 +267,26 @@ internal val veneraBootstrap = """
                 const source = sources[key];
                 if (source === undefined) throw new Error("Source is not registered: " + key);
                 const [owner, invoke] = callback(source, path);
-                if (typeof invoke !== "function") throw new TypeError("Source callback is unavailable: " + path);
-                const result = Reflect.apply(invoke, owner, args);
-                if (synchronous) {
-                    if (typeof result?.then === "function") {
-                        throw new TypeError(path + " must return synchronously");
-                    }
-                    return serializeResult(result);
+                return invokeCallback(owner, invoke, args, synchronous, path);
+            },
+            invokeIndexed(key, section, index, member, args, synchronous) {
+                const source = sources[key];
+                if (source === undefined) throw new Error("Source is not registered: " + key);
+                const owner = field(source, section)?.[index];
+                return invokeCallback(owner, owner?.[member], args, synchronous, section + "." + member);
+            },
+            describe(key, path) {
+                const source = sources[key];
+                if (source === undefined) throw new Error("Source is not registered: " + key);
+                const value = field(source, path);
+                if (path === "explore") {
+                    return serializeResult((value ?? []).map((page, index) => ({
+                        index, title: page.title, type: page.type,
+                        numbered: typeof page.load === "function",
+                        cursor: typeof page.loadNext === "function",
+                    })));
                 }
-                return Promise.resolve(result).then(serializeResult);
+                return JSON.stringify(value ?? null, (_, item) => typeof item === "function" ? undefined : item);
             },
             invokeImage(configId, key, path, args, capturable) {
                 const source = sources[key];

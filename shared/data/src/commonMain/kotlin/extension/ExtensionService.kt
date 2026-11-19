@@ -98,6 +98,7 @@ class ExtensionService(
 ) {
     internal val sourceTransport = KtorVeneraHttpTransport(httpClient, sessions = sourceSessions)
     val accounts = SourceAccountService(this)
+    val browse = SourceBrowseService(this)
 
     private val db = ExtensionDb(driver)
     private val mutex = Mutex()
