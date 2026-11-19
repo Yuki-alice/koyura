@@ -273,14 +273,14 @@ class VeneraImageCallbacksTest {
     }
 
     @Test
-    fun modifyImageIsAnExplicitCapabilityError() = runTest {
+    fun modifyImageRejectsFunctionInsteadOfScriptString() = runTest {
         withImageRuntime(
-            imageScript("""(key) => ({ url: key, modifyImage: "return image;" })"""),
+            imageScript("""(key) => ({ url: key, modifyImage: image => image })"""),
         ) { runtime ->
             val failure = assertFailsWith<VeneraScriptException> {
                 runtime.parseImageConfig("image_source", VeneraCallback.LoadImage, imageCallbackArgs("u", "w"))
             }
-            assertTrue(failure.message.orEmpty().contains("Unsupported image capability: modifyImage"))
+            assertTrue(failure.message.orEmpty().contains("Image config field is not a string: modifyImage"))
             assertEquals(0, runtime.imageCallbackCount())
         }
     }

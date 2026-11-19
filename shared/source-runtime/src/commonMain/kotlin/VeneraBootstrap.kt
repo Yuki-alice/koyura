@@ -341,8 +341,8 @@ internal val veneraBootstrap = """
                     if (result === null || typeof result !== "object" || Array.isArray(result)) {
                         throw new TypeError("Image config must be an object");
                     }
-                    if (result.modifyImage != null) {
-                        throw new Error("Unsupported image capability: modifyImage");
+                    if (result.modifyImage != null && typeof result.modifyImage !== "string") {
+                        throw new TypeError("Image config field is not a string: modifyImage");
                     }
                     if (result.url !== undefined && result.url !== null && typeof result.url !== "string") {
                         throw new TypeError("Image config field is not a string: url");

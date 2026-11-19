@@ -11,6 +11,7 @@ import app.koyura.domain.extension.ReadingProgress
 import app.koyura.source.runtime.ParsedImageConfig
 import app.koyura.source.runtime.VeneraCallback
 import app.koyura.source.runtime.VeneraHttpRequest
+import app.koyura.source.runtime.modifyImageWithScript
 import app.koyura.source.runtime.normalizeVeneraUrl
 import app.koyura.source.runtime.VeneraSourceRuntime
 import io.ktor.client.HttpClient
@@ -235,7 +236,9 @@ class ComicReadingService(
                     throw mapEngineError(e)
                 }
                 try {
-                    return applyOnResponse(live, tracked, config.onResponse, bytes)
+                    val transformed = applyOnResponse(live, config.onResponse, bytes)
+                    val script = config.modifyImage
+                    return if (supportsRetry && script != null) modifyImageWithScript(transformed, script) else transformed
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: ReadingFailure.RuntimeClosed) {
@@ -244,7 +247,8 @@ class ComicReadingService(
                     config = replaceOrRethrow(e)
                     continue
                 } catch (e: Exception) {
-                    throw mapEngineError(e, ReadingFailure::InvalidTransform)
+                    config = replaceOrRethrow(ReadingFailure.InvalidTransform(e))
+                    continue
                 }
             }
         } finally {
@@ -285,7 +289,6 @@ class ComicReadingService(
 
     private suspend fun applyOnResponse(
         live: VeneraSourceRuntime,
-        tracked: MutableSet<Int>,
         handle: Int?,
         bytes: ByteArray,
     ): ByteArray {
@@ -326,13 +329,6 @@ class ComicReadingService(
     ): ReadingFailure {
         val message = error.message.orEmpty()
         if (message.contains("closed", ignoreCase = true)) return ReadingFailure.RuntimeClosed()
-        // Thrown by the bootstrap before any config is adopted (`<file>: ...` prefix included).
-        val marker = "Unsupported image capability: "
-        val markerAt = message.indexOf(marker)
-        if (markerAt >= 0) {
-            val kind = message.substring(markerAt + marker.length).lineSequence().firstOrNull()?.trim().orEmpty()
-            return ReadingFailure.TransformUnsupported(kind)
-        }
         return wrap(error)
     }
 

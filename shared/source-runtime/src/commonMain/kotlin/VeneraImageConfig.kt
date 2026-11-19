@@ -23,6 +23,7 @@ data class ParsedImageConfig(
     val onResponse: Int?,
     val onLoadFailed: Int?,
     val liveHandles: Set<Int>,
+    val modifyImage: String? = null,
 ) {
     companion object {
         fun decode(element: JsonElement): ParsedImageConfig {
@@ -57,6 +58,7 @@ data class ParsedImageConfig(
                 data = body["data"]?.takeIf { it !is JsonNull },
                 onResponse = handle("onResponse"),
                 onLoadFailed = handle("onLoadFailed"),
+                modifyImage = optionalString("modifyImage"),
                 liveHandles = handles.values.mapNotNullTo(linkedSetOf()) {
                     (it as? JsonPrimitive)?.content?.toIntOrNull()
                 },
