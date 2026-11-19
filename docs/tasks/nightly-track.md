@@ -1,80 +1,109 @@
-# 夜间轨任务书：独立 UI 批次（DeepSeek 4.1 Flash / 云端）
+# 夜间轨任务书：满载独立批次（DeepSeek 4.1 Flash / 云端）
 
-你负责 Koyura 漫画阅读器的一个独立 UI 交付批次。这是一条夜间单轨：主 agent 不在线，无人回答问题。任务全部有仓库内现成模式可照抄；**任何一步卡住或与任务书描述不符，就停在当前完成点、如实写报告、继续下一个任务，不要发明新机制、不要绕过障碍。**
+你负责 Koyura 漫画阅读器一个完整的夜间交付批次：**七个任务按难度递进排列，每个独立可交付，做不完就停在完成点**。主 agent 不在线；每一步都有仓库内模板或克隆来的原版源码可对照，**卡住就如实登记并跳到下一任务，不要发明机制**。
 
 ## 工作区与产出
 
-- 仓库：`git clone https://github.com/Yuki-alice/koyura.git`，克隆后先通读根目录 `AGENTS.md`（选型红线与提交规范）与 `docs/verification.md`（验收基线）。
-- 在新分支 `feat/nightly-batch` 上工作（从 `origin/main` 拉）。`main` 只读：禁止向 `main` 推送、禁止 force push。
-- 结束时把 `feat/nightly-batch` 推到 origin，并覆盖写交付报告 `docs/tasks/nightly-report-latest.md`（见文末格式）。
-- 本环境没有 `reference/` 参考仓库（未入库），不要试图找它；所需规格已内嵌在本任务书。
+```bash
+git clone https://github.com/Yuki-alice/koyura.git && cd koyura
+git checkout -b feat/nightly-batch origin/main
+# 参考仓库（只读，不提交、不入库；钉死与本项目文档同版）：
+git clone https://github.com/komikku-app/komikku reference/komikku
+git -C reference/komikku checkout 290267dd4c99f5b46812240fb0e4bc6b3ee8c562
+git clone https://github.com/CyrilPeng/Venera-Next reference/Venera-Next
+git -C reference/Venera-Next checkout c0c45979d453c2a8740c45f08e95997c90717629
+```
+
+- 开场先读根目录 `AGENTS.md`（红线与提交规范）与 `docs/verification.md`（验收基线）。
+- **设计白皮书已入库**：`docs/design-whitepaper/`（74 张实机截图 + 令牌规格；`07-页面规格.md` 按页编号给骨架，`assets/phone|tablet/` 截图同名对应）。
+- 全部提交落在 `feat/nightly-batch`；结束时推该分支到 origin 并覆盖写 `docs/tasks/nightly-report-latest.md`。`main` 只读。
 
 ## 执行守则
 
-1. **照抄优先**：每个任务都列了模板文件，先读模板再动手，结构与命名跟随模板，不要另起风格。
-2. **小步提交**：每完成一个子步骤就按 `AGENTS.md` 的提交规范提交（`type(scope): 中文主题`，主题如实描述改动；禁止「保存进度」类主题）。
-3. **不越界**：可以改 `shared/features`、`shared/app` 的屏幕、`shared/design-system`；禁止改 `shared/source-runtime`、`shared/network`、`shared/data`、`shared/domain`、`gradle/`、`docs/`（交付报告除外）。
+1. **照抄优先**：每任务列了模板路径，先读模板再动手；结构与命名跟随模板。
+2. **小步提交**：每完成一个子步骤按 `AGENTS.md` 规范提交（`type(scope): 中文主题`，如实描述）。
+3. **地盘**：可改 `shared/features`、`shared/app`（屏幕与装配）、`shared/design-system`；禁改 `shared/domain`、`shared/data`、`shared/source-runtime`、`shared/network`、`gradle/`、`docs/`（交付报告与新增资源文件除外）。
 4. **禁库**：不引入 Koin / MVIKotlin / androidx ViewModel / Multiplatform Settings / Kermit / Turbine / Coil 3 / ZoomImage / Voyager / Decompose / Room / Retrofit / Paging 3。DI 维持手动构造器注入 + `CompositionLocal`。
-5. **不确定就保守**：与现状对不上时保留现状、在报告登记，等主 agent 裁决。
+5. 不重构无关代码；与现状不符时保留现状、报告登记。
 
-## 环境验证（先做一次）
+## 环境验证
 
-本批次的改动全部是 commonMain 的 UI 与测试，**不要求跑三端构建**（主 agent 晨间统一验证）。验证方式：
+不要求三端构建（主 agent 晨间统一跑）。每任务交付前跑新增测试类（全部 Fake 驱动，不依赖外部夹具）：
 
 ```bash
-# 环境有 JDK 21 时（JAVA_HOME 指向它）：
-./gradlew :shared:features:jvmTest --tests '<你的新增测试类>'
-./gradlew :shared:app:jvmTest --tests '<你的新增测试类>'
+./gradlew :shared:features:jvmTest --tests '<新增类>'   # JAVA_HOME 指向 JDK 21
+./gradlew :shared:app:jvmTest --tests '<新增类>'
 ```
 
-- 只跑你新增的测试类（全部设计为 Fake 驱动、不依赖外部夹具）。仓库里部分既有 `Venera*` 测试需要本地夹具目录，云端缺失时它们失败属**环境限制**，不要修它们，报告里注明即可。
-- 环境完全无法构建时：写清「未验证」，照常交付，主 agent 晨间统一跑门。
+仓库部分既有 `Venera*` 测试需要本地夹具，云端缺失时失败属环境限制，不要修它们；完全无法构建就写明「未验证」。
 
-## 任务一：统计页（More 导航行 → 独立页面，热身任务）
+---
 
-现状：More 页（`shared/features/src/commonMain/kotlin/more/MoreScreen.kt`）的导航行有「统计」入口但目标页未落地。视觉规格（白皮书 7.10）：四张 SectionCard——Overview、Entries、Chapters、Trackers；卡片间距 8dp，标题在卡片外；数值行 titleLarge Bold，说明 bodyMedium 透明度 0.78，图标用 primary 色放卡片底部。
+## 任务一：分类管理页（More → 独立页面，接真实书架契约）
 
-步骤：
+白皮书 `docs/design-whitepaper/07-页面规格.md` §7.11 + 截图 `assets/phone/31_categories.jpg`。现状：书架已有分类 CRUD 全套——`shared/features/src/commonMain/kotlin/library/LibrarySheets.kt:456` 起的「分类管理」弹层与 `LibrarySession` 的 `addCategory/renameCategory/setCategoryHidden/setCategoryOrder/removeCategory`（含测试）。
 
-1. `shared/design-system` 新增 `SectionCard` 组件：卡片容器（surfaceContainer、圆角走 `DesignTokens`）+ 卡片外标题 + 内部数值行（label：bodyMedium 0.78 alpha；value：titleLarge Bold）。数值行字段清单本任务**不定稿**：每张卡放 2–3 行占位（Fake 提供），报告里登记「字段清单待主 agent 对照原版源码裁决」。
-2. `shared/features` 新增 `statistics/`：`StatisticsModels.kt`（不可变 `UiState`：四组卡片的标题与数值行）、`FakeStatisticsRepository.kt`（返回样例数据）、`StatisticsSession.kt`（照抄 `updates/UpdatesSession.kt` 的三态加载模式）、`StatisticsScreen.kt`（照抄 `more/MoreScreen.kt` 的页面骨架与 `updates/UpdatesScreen.kt` 的 TopAppBar 模式）。
-3. More 页接线：照抄 `MoreScreen.kt` 中 `onOpenDownloadQueue` 行的回调模式加 `onOpenStatistics`，装配层（`shared/app` 的 More 挂载处）推子路由——照抄下载队列页的子路由接线方式（在 `shared/app` 中找 `DownloadQueue` 的路由键与挂载分支，依样新增）。
-4. 双语资源：`values/` 英文默认 + `values-b+zh+CN/` 中文，照抄 `more.xml` 的写法。
-5. 测试：`StatisticsSessionTest`（三态 + 数值映射，照抄 `UpdatesSessionTest`）+ app 层 UI 测试一例（照抄 `updates/UpdatesMoreUiTest.kt` 的结构断言模式）。
+1. `shared/features/categories/CategoriesScreen.kt`：56dp 行（名称 bodyMedium + 隐藏/默认标记），新建/重命名/删除对话框照抄 `LibrarySheets` 分类区的既有实现。
+2. 排序用行尾上移/下移按钮调 `setCategoryOrder`（拖拽不做，报告登记）。
+3. 数据走 `LocalLibraryRepository.current`（真实契约，不建 Fake）；空态照抄 `updates/UpdatesScreen.kt` 的 EmptyScreen。
+4. More 接线照抄 `MoreScreen.kt` 的 `onOpenDownloadQueue` 行回调模式 + app 层子路由（照下载队列的挂载分支依样新增）；双语资源照 `more.xml`。
+5. UI 测试覆盖：空态/列表/新建/重命名/删除确认/上下移，照 `UpdatesMoreUiTest.kt` 驱动方式。
 
-## 任务二：分类管理页（More 导航行 → 独立页面，接真实书架契约）
+## 任务二：统计页（More → 独立页面，对 Fake）
 
-现状：书架已有完整分类 CRUD——`shared/features/src/commonMain/kotlin/library/LibrarySheets.kt:456` 起是「分类管理」弹层（新增/重命名/隐藏/删除/排序），`LibrarySession` 有 `addCategory/renameCategory/setCategoryHidden/setCategoryOrder/removeCategory` 全套方法且有测试。本任务把这套能力提升为 More 导航行进入的独立页面（白皮书 7.11：56dp 标准行、删除确认 AlertDialog 280–560dp 宽）。
+白皮书 §7.10 + `assets/phone/30_statistics.jpg`：四张 SectionCard——Overview、Entries、Chapters、Trackers；卡片间距 8dp，标题在卡片外；数值 titleLarge Bold、说明 bodyMedium 0.78 alpha、图标 primary 置底。
 
-步骤：
-
-1. `shared/features` 新增 `categories/CategoriesScreen.kt`：列表行 56dp（名称 bodyMedium + 隐藏/默认小标记 chip），底部/顶栏新增动作照抄 `LibrarySheets` 分类区的对话框模式（新建文本框、重命名、删除确认）。
-2. 排序：白皮书为拖动手柄，本批次**不做拖拽**，用行尾上移/下移图标按钮调 `setCategoryOrder`（报告登记「拖拽待后续手势轮次」）。
-3. 数据走真实契约：页面直接消费 `LocalLibraryRepository.current`（`shared/features/.../library/AccountLocals 同目录的 LibrarySession 模式`），不再另建 Fake；空态照抄 `updates/UpdatesScreen.kt` 的 EmptyScreen 模式（颜文字 + 引导）。
+1. **先看原版**：在 `reference/komikku` 里定位统计页实现（`grep -r "StatisticsScreen" app/src/main/java`），按它的四张卡字段清单提炼 Fake 数据形状（原版字段直接沿用，不要自造）。
+2. `shared/design-system` 新增 `SectionCard` 组件（surfaceContainer 容器 + 圆角走 DesignTokens）。
+3. `shared/features/statistics/`：Models + Fake + Session（照抄 `updates/UpdatesSession.kt` 三态模式）+ Screen（骨架抄 `more/MoreScreen.kt`、顶栏抄 `updates/UpdatesScreen.kt`）。
 4. More 接线与双语资源同任务一模式。
-5. 测试：app 层 UI 测试覆盖（空态/列表/新建/重命名/删除确认/上下移），照抄既有书架分类测试 + `UpdatesMoreUiTest` 的驱动方式。
+5. 测试：Session 三态 + UI 结构各一例。
 
 ## 任务三：历史页多选与批量删除
 
-现状：历史页（`shared/app/src/commonMain/kotlin/history/`）已有单条删除（`HistorySession.delete`）与清空（`clearAll`），无多选。书架有完整多选范式：`shared/features/src/commonMain/kotlin/library/LibraryScreen.kt`（`selection` 状态、`LibrarySelectionBarTag` 底部动作条、计数、反选、清选、返回键消费——全部照抄这套结构）。
+模板：`shared/features/src/commonMain/kotlin/library/LibraryScreen.kt` 的完整多选（`selection`、底部动作条 `LibrarySelectionBarTag`、计数/反选/清除、返回键消费）；历史现状在 `shared/app/src/commonMain/kotlin/history/`（已有 `delete(entry)` 与 `clearAll`，无多选）。
 
-步骤：
+1. `HistorySession` 加 `selection: Set<Pair<String, String>>`（键 `(sourceKey, workId)`）+ `toggleSelect/selectAllVisible/clearSelection/consumeBack`（顺序照 `LibrarySession.consumeBack`）+ `deleteSelected()`（循环 `delete`，单项失败记 `actionError` 不中断整批）。
+2. `HistoryScreen`：长按进入多选（照书架）、选择态顶栏计数、底部动作条（删除/反选/清除，结构照书架）、删除 AlertDialog 确认；选择态隐藏外壳在 `AppScaffold.kt` 照书架 `selection` 的同一处逻辑接入。
+3. 测试：Session 选择/批量/失败续删/返回键 + UI 多选一例（照书架多选测试驱动）。
 
-1. `HistorySession` 增加多选状态（`selection: Set<Pair<String, String>>`，键用 `(sourceKey, workId)`）、`toggleSelect`、`selectAllVisible`、`clearSelection`、`consumeBack`（选择态优先于搜索/过滤器，照 `LibrarySession.consumeBack` 的顺序模式）与 `suspend fun deleteSelected()`（循环调 `delete`，任一失败记 `actionError` 不中断整批，完成后重读快照）。
-2. `HistoryScreen` 增加多选 UI：长按条目进入（照书架长按模式）、选择态顶栏计数替换标题、底部动作条（删除 + 反选 + 清除，照书架 `LibrarySelectionBar` 的结构、间距与按钮图标）、删除带 AlertDialog 确认（照任务二的确认模式）、选择态下隐藏底栏由装配层读取——在 `shared/app` 的 `AppScaffold.kt` 找书架 `selection` 隐藏外壳的同一处逻辑并接入历史会话。
-3. 测试：`HistorySessionTest` 补选择/批量删除/失败续删/返回键消费；UI 测试一例照书架多选测试驱动方式（在 `shared/app/src/jvmTest` 搜索书架多选测试类）。
+## 任务四：智能更新设置（契约先行，对照原版）
 
-## 弹性任务四：全局搜索页（对 Fake，时间不足可整任务跳过）
+引擎已交付更新扫描的跳过规则偏好（读 `shared/domain/src/commonMain/kotlin/updates/LibraryUpdates.kt` 与 `shared/data/.../updates/LibraryUpdateScanner.kt`——`preferences()/setPreferences()` 的偏好模型即契约），**UI 尚未接入**。
 
-现状：书架空态与浏览顶栏的「全局搜索」按钮已存在但禁用（`onGlobalSearch = null` 即禁用）。目标：独立搜索页，对已装源逐一搜索并按源分组展示（真实聚合引擎由主 agent 后续接入）。
+1. 对照原版：`reference/komikku` 的书架设置更新区（`grep -rn "skip" app/src/main/java/eu/kanade/presentation/library/LibrarySettingsDialog.kt` 一带）确认开关组语义（跳过已完结/未读积压/只取一次/标题排除等）。
+2. `shared/features/updates/` 新增 `UpdatePolicyRepository` 契约（`policy(): UpdatePolicy` + `apply(policy: UpdatePolicy)`，字段按引擎偏好模型逐字对齐）+ `FakeUpdatePolicyRepository`；`UpdatePolicy` 数据类含全部开关与排除词列表。
+3. UI：Updates 页顶栏溢出菜单加「智能更新设置」入口（照更新错误入口的溢出模式），设置对话框开关组 + 标题排除多行输入。
+4. 测试：Session/策略映射 + 对话框 UI 各一例。生产桥接由主 agent 晨间完成（同账号区模式）。
 
-步骤（全部对 Fake）：`shared/features` 新增 `globalsearch/`——搜索框（照 `design-system` 的 `SearchField`）+ 按源分组结果（组头为源名 + 状态（加载/失败/空/结果数），作品行照浏览搜索行的 `BrowseRow` 模式）+ Fake（两源返回样例、一源失败、一源空）。UI 测试覆盖分组与失败展示。**不要**改动聚合并发语义、不要接真实 BrowseService。
+## 任务五：全局搜索（真实聚合，接通全应用禁用入口）
 
-## 交付报告（结束时覆盖写）
+现状：书架空态与浏览顶栏的「全局搜索」按钮已存在但 `onGlobalSearch = null` 即禁用。对照原版：`reference/komikku` 的 `GlobalSearchScreen` 与其 ScreenModel（`grep -rl "GlobalSearch" app/src/main/java/eu/kanade/presentation`）——按源并行搜索、部分失败展示、空态。
 
-`docs/tasks/nightly-report-latest.md`，包含四节，全部如实：
+1. `shared/app` 新增 `browse/globalsearch/`：`GlobalSearchService`（对**真实** `BrowseService` 做扇出：`coroutineScope { sources.map { async { ... } } }` 逐源调既有搜索，返回每源结果或异常）+ `GlobalSearchSession`（照 BrowseSession 模式）+ `GlobalSearchScreen`（搜索框照 `SearchField`、按源分组、组头为源名+状态、作品行照 `BrowseRow`）。
+2. 结果行点击进既有作品详情路由；进行中显示每源加载态，失败源显示错误行与重试该源。
+3. 装配层接通：书架空态与浏览顶栏的 `onGlobalSearch` 回调推新路由（`AppScaffold`/`LibraryTab` 现有接线处照详情路由模式）。
+4. 测试：Session 并发扇出/部分失败/空结果（用 Fake BrowseService 注入）+ UI 分组一例。
 
-1. 逐任务的完成状态（完成/部分完成/跳过）与提交清单（SHA + 主题）。
-2. 验证情况：跑过哪些命令、结果；环境限制（夹具缺失/无 JDK）如实列出。
-3. 与任务书描述不符的现状偏差（每条：文件、现象、你的处置）。
-4. 待主 agent 裁决项（统计字段清单、分类拖拽、任务四取舍等）。
+## 任务六：阅读器背景四档 + 点击区设置（契约已就位）
+
+契约：`shared/domain/.../reader/preferences/ReaderPreferences.kt` 的 `ReaderBackground`（AUTOMATIC 默认/BLACK/GRAY/WHITE），主 agent 已扩展好 `ReaderSettings/Override/Patch` 全链（含旧配置兼容测试）。根背景现状：`shared/features/src/commonMain/kotlin/reader/comic/ReaderScreen.kt` 用 Automatic 固定映射并**留有四档耦合注释**（Black/Gray 须用 `ReaderTheme(darkTheme = true)` 包 chrome——原版语义见 `reference/komikku` 的 `util/system/ContextExtensions.kt:111-118`）。
+
+1. 根背景改读解析后的 `settings.background`：AUTOMATIC 维持现映射（暗 `#FF202125`/亮白）；BLACK 纯黑；GRAY `#FF202125`（两档同时用暗色 `ReaderTheme` 包 chrome，注释已指路）；WHITE 纯白（chrome 跟随主题）。
+2. 阅读设置对话框（`reader/comic/chrome/ReaderSettingsDialog.kt`）加背景四档选择段（照对话框内既有选项段的样式）。
+3. 点击区自定义：`ComicViewerOptions` 已有点击区类型与逻辑，但未暴露到设置——对照 `reference/komikku` 的阅读设置 tap-zone 段（`presentation/reader/settings/` 下搜索 tap），在设置对话框加点击区选择（默认维持现行为）。
+4. 全局/作品覆盖两条写路径照设置对话框既有的 `writeGlobal/writeOverride` 用法（对话框里已有模式）。
+5. 测试：背景映射四档像素/色值断言 + 设置对话框选项读写一例。
+
+## 弹性任务七：详情页章节批量下载（时间不足整任务跳过）
+
+详情页章列表（`shared/app/src/commonMain/kotlin/browse/SourceScreens.kt`）加长按多选 + 底部「下载所选」动作，逐章调 `ExtensionSession.downloads.enqueue`（装配注入，照任务五的接线模式）。下载按钮状态流照下载队列页既有消费方式。UI 测试一例。
+
+---
+
+## 交付报告（结束时覆盖写 `docs/tasks/nightly-report-latest.md`）
+
+1. 逐任务完成状态与提交清单（SHA + 主题）。
+2. 验证情况：跑过的命令与结果；环境限制如实列出。
+3. 与任务书不符的现状偏差（文件、现象、处置）。
+4. 待主 agent 裁决项（生产桥接清单：任务四的策略仓储、任务七的下载装配；分类拖拽；统计字段如与原版有出入等）。
