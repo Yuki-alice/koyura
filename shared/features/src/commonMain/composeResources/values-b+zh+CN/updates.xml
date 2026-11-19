@@ -14,4 +14,18 @@
     <string name="updates_errors_title">更新错误</string>
     <string name="updates_errors_empty">暂无失败的更新</string>
     <string name="updates_retry_failures">全部重试</string>
+    <string name="updates_smart_settings">智能更新设置</string>
+    <string name="updates_policy_enabled">智能更新</string>
+    <string name="updates_policy_enabled_subtitle">跳过不需要检查新章节的作品</string>
+    <string name="updates_policy_skip_completed">跳过已完结作品</string>
+    <string name="updates_policy_skip_completed_subtitle">标记完结后不再检查新章节</string>
+    <string name="updates_policy_skip_unread">跳过有未读章节的作品</string>
+    <string name="updates_policy_skip_unread_subtitle">先补读未读章节，再追新章节</string>
+    <string name="updates_policy_skip_not_started">跳过尚未开始的作品</string>
+    <string name="updates_policy_skip_not_started_subtitle">只检查已经打开过的作品</string>
+    <string name="updates_policy_skip_outside_window">跳过未到发布窗口的作品</string>
+    <string name="updates_policy_skip_outside_window_subtitle">按来源给出的下次更新时间判断</string>
+    <string name="updates_policy_excluded_title">标题排除词</string>
+    <string name="updates_policy_excluded_hint">每行一个关键词；标题包含任一关键词即跳过</string>
+    <string name="updates_policy_save">保存</string>
 </resources>

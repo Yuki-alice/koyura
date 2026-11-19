@@ -58,6 +58,7 @@ import app.koyura.features.resources.updates_retry
 import app.koyura.features.resources.updates_retry_failures
 import app.koyura.features.resources.updates_show_errors
 import app.koyura.features.resources.updates_show_updates
+import app.koyura.features.resources.updates_smart_settings
 import app.koyura.features.resources.updates_title
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
@@ -70,6 +71,7 @@ const val UpdatesRefreshTag = "updates-refresh"
 const val UpdatesOverflowTag = "updates-overflow"
 const val UpdatesErrorsListTag = "updates-errors-list"
 const val UpdatesRetryFailuresTag = "updates-retry-failures"
+const val UpdatesSmartSettingsTag = "updates-smart-settings"
 
 fun updatesWorkTag(sourceKey: String, workId: String) = "updates-work-$sourceKey-$workId"
 fun updatesChapterTag(sourceKey: String, workId: String, chapterId: String) =
@@ -94,10 +96,17 @@ fun UpdatesScreen(
     modifier: Modifier = Modifier,
     coverLoader: CoverImageLoader? = LocalCoverImageLoader.current,
     coverDecoder: CoverDecoder? = LocalCoverDecoder.current,
+    policySession: UpdatePolicySession = rememberUpdatePolicySession(),
 ) {
     val scope = rememberCoroutineScope()
     var showErrors by rememberSaveable { mutableStateOf(false) }
     var overflowOpen by remember { mutableStateOf(false) }
+    var showPolicy by remember { mutableStateOf(false) }
+
+    LaunchedEffect(showPolicy) {
+        // 每次打开对话框都重读一次仓储，避免展示过期策略。
+        if (showPolicy) policySession.refresh()
+    }
 
     LaunchedEffect(Unit) {
         session.refresh()
@@ -157,6 +166,14 @@ fun UpdatesScreen(
                                 showErrors = !showErrors
                             },
                             modifier = Modifier.testTag("updates-errors-toggle"),
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(Res.string.updates_smart_settings)) },
+                            onClick = {
+                                overflowOpen = false
+                                showPolicy = true
+                            },
+                            modifier = Modifier.testTag(UpdatesSmartSettingsTag),
                         )
                     }
                 },
@@ -225,6 +242,9 @@ fun UpdatesScreen(
                     }
                 }
             }
+        }
+        if (showPolicy) {
+            UpdatePolicyDialog(session = policySession, onDismiss = { showPolicy = false })
         }
     }
 }
