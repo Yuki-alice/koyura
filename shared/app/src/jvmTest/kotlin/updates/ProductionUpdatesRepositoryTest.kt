@@ -82,6 +82,13 @@ class ProductionUpdatesRepositoryTest {
         assertEquals(1, checked.size)
         assertEquals("ch-9", checked.single().chapters.single().id)
         assertEquals(1, repository.retryFailures().size)
+        // 失败列表映射为更新错误入口的数据形状。
+        val failures = repository.failures()
+        assertEquals(1, failures.size)
+        assertEquals("example_source", failures.single().sourceKey)
+        assertEquals("broken", failures.single().workId)
+        assertEquals("Demo broken", failures.single().title)
+        assertEquals("source offline", failures.single().message)
     }
 
     @Test

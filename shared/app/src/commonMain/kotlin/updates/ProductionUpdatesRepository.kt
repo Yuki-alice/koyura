@@ -3,9 +3,11 @@ package app.koyura.app.updates
 import app.koyura.domain.updates.DetectedChapter
 import app.koyura.domain.updates.LibraryUpdates
 import app.koyura.domain.updates.WorkUpdate
+import app.koyura.domain.updates.UpdateFailure as DomainUpdateFailure
 import app.koyura.features.updates.UpdateChapter
 import app.koyura.features.updates.UpdateWork
 import app.koyura.features.updates.UpdatesRepository
+import app.koyura.features.updates.UpdateFailure
 import kotlin.time.Clock
 
 /**
@@ -29,6 +31,16 @@ class ProductionUpdatesRepository(
 
     override suspend fun retryFailures(): List<UpdateWork> =
         updates.retryFailures().updates.map { it.toFeature(nowMillis()) }
+
+    override suspend fun failures(): List<UpdateFailure> =
+        updates.failures().map { failure ->
+            UpdateFailure(
+                sourceKey = failure.work.sourceKey,
+                workId = failure.work.workId,
+                title = failure.work.title,
+                message = failure.message,
+            )
+        }
 
     private fun WorkUpdate.toFeature(now: Long): UpdateWork = UpdateWork(
         sourceKey = work.sourceKey,
