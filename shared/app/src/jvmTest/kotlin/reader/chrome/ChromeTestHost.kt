@@ -54,6 +54,8 @@ class ChromeTestHost(
             }
             ReaderChromeAction.ResetWorkOverride -> previous.copy(override = null)
             is ReaderChromeAction.SetDialog -> previous.copy(dialog = action.dialog)
+            is ReaderChromeAction.SetTapZone -> previous.copy(tapZone = action.zone)
+            is ReaderChromeAction.SetInvertTapZone -> previous.copy(invertTapZone = action.invert)
         }
 
     private fun persist(action: ReaderChromeAction) {
