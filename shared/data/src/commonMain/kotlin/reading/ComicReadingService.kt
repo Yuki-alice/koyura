@@ -335,7 +335,7 @@ class ComicReadingService(
 
     private suspend fun downloadImageBytes(request: VeneraHttpRequest): ByteArray {
         val response = try {
-            extensions.sourceTransport.executeBytes(request)
+            extensions.sourceTransport.executeImage(request)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

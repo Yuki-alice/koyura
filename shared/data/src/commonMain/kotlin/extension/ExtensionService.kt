@@ -524,8 +524,13 @@ class ExtensionService(
         (marker as? JsonArray)?.takeIf { values -> values.all { (it as? JsonPrimitive)?.isString == true } }
 
     private suspend fun authenticateForm(live: VeneraSourceRuntime, key: String, arguments: JsonArray) {
-        live.call(key, VeneraCallback.Login, arguments)
-        withContext(Dispatchers.IO) { sourceSessions.saveFormLogin(key, arguments) }
+        sourceSessions.invalidateHttpCache(key)
+        try {
+            live.call(key, VeneraCallback.Login, arguments)
+            withContext(Dispatchers.IO) { sourceSessions.saveFormLogin(key, arguments) }
+        } finally {
+            sourceSessions.invalidateHttpCache(key)
+        }
         invalidateWebLogin(key)
     }
 
@@ -535,7 +540,12 @@ class ExtensionService(
     }
 
     private suspend fun authenticateCookies(live: VeneraSourceRuntime, key: String, values: JsonArray): Boolean {
-        val accepted = live.call(key, VeneraCallback.ValidateCookies, values) == JsonPrimitive(true)
+        sourceSessions.invalidateHttpCache(key)
+        val accepted = try {
+            live.call(key, VeneraCallback.ValidateCookies, values) == JsonPrimitive(true)
+        } finally {
+            sourceSessions.invalidateHttpCache(key)
+        }
         if (accepted) {
             withContext(Dispatchers.IO) { sourceSessions.applyLoginMarker(key) }
             invalidateWebLogin(key)
@@ -724,6 +734,7 @@ class ExtensionService(
         // observed before that point (file, old rows, old instance) is a
         // complete revision, so an exit at any moment restarts consistently.
         try {
+            sourceSessions.invalidateHttpCache(key)
             live.replace(key, script, fileName, expectedKey = key)
         } catch (e: Exception) {
             if (fileName != oldFileName) runCatching { fileSystem.delete(target, mustExist = false) }
