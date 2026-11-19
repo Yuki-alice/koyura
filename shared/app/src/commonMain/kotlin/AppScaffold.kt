@@ -133,6 +133,7 @@ internal fun AppScaffold(
                     activeMoreSession,
                     activeDownloadsSession,
                     statisticsSession,
+                    browseService,
                 )
             }
         }
@@ -244,6 +245,7 @@ private fun AppNavigationContent(
     moreSession: app.koyura.features.more.MoreSession,
     downloadsSession: app.koyura.features.downloads.DownloadsSession,
     statisticsSession: app.koyura.features.statistics.StatisticsSession,
+    browseService: BrowseService?,
 ) {
     val entryProvider = remember(
         navigation,
@@ -255,6 +257,7 @@ private fun AppNavigationContent(
         moreSession,
         downloadsSession,
         statisticsSession,
+        browseService,
     ) {
         entryProvider<NavKey> {
             entry<TabRootRoute> { route ->
@@ -341,7 +344,7 @@ private fun AppNavigationContent(
             }
             entry<GlobalSearchRoute> {
                 // 每次进入重新开一次会话：结果页是独立子路由，返回即弃。
-                val globalSearchSession = remember(browseSession) { GlobalSearchSession(browseSession) }
+                val globalSearchSession = remember(browseService) { GlobalSearchSession(browseService) }
                 CompositionLocalProvider(LocalBrowseSession provides browseSession) {
                     GlobalSearchScreen(
                         session = globalSearchSession,
