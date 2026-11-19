@@ -17,7 +17,7 @@ internal class AndroidSourceSecretStore(context: Context) : SourceSecretStore {
 
     override fun read(sourceKey: String): String? {
         val file = file(sourceKey)
-        if (!file.exists()) return null
+        if (!file.baseFile.exists()) return null
         val encoded = file.readFully()
         require(encoded.size >= 28) { "Invalid encrypted source session" }
         return Cipher.getInstance(TRANSFORMATION).run {
@@ -31,7 +31,7 @@ internal class AndroidSourceSecretStore(context: Context) : SourceSecretStore {
         val file = file(sourceKey)
         if (value == null) {
             file.delete()
-            check(!file.exists()) { "Could not remove encrypted source session" }
+            check(!file.baseFile.exists()) { "Could not remove encrypted source session" }
             return
         }
         val encrypted = Cipher.getInstance(TRANSFORMATION).run {
