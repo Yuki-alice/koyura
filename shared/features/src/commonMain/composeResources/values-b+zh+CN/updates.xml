@@ -9,4 +9,9 @@
     <string name="updates_retry">重试</string>
     <string name="updates_chapters">%1$d 话</string>
     <string name="updates_open">打开</string>
+    <string name="updates_show_errors">更新错误</string>
+    <string name="updates_show_updates">更新</string>
+    <string name="updates_errors_title">更新错误</string>
+    <string name="updates_errors_empty">暂无失败的更新</string>
+    <string name="updates_retry_failures">全部重试</string>
 </resources>

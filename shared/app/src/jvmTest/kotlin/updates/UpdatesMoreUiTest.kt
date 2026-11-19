@@ -1,6 +1,8 @@
 package app.koyura.app.updates
 
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -14,7 +16,10 @@ import app.koyura.features.more.moreSwitchTag
 import app.koyura.features.updates.FakeUpdatesRepository
 import app.koyura.features.updates.UpdatesEmptyTag
 import app.koyura.features.updates.UpdatesListTag
+import app.koyura.features.updates.UpdatesErrorsListTag
+import app.koyura.features.updates.UpdatesRetryFailuresTag
 import app.koyura.features.updates.UpdatesRootTestTag
+import app.koyura.features.updates.updatesFailureTag
 import app.koyura.features.updates.UpdatesScreen
 import app.koyura.features.updates.UpdatesSession
 import app.koyura.features.updates.updatesChapterTag
@@ -100,5 +105,36 @@ class UpdatesMoreUiTest {
         assertFalse(session.incognito)
         onNodeWithTag(moreSwitchTag("incognito")).performClick()
         assertTrue(session.incognito)
+    }
+
+    @Test
+    fun updateErrorsViewShowsFailuresAndRetryClears() = runComposeUiTest {
+        val session = UpdatesSession(
+            FakeUpdatesRepository(
+                FakeUpdatesRepository.sampleEntries(),
+                failed = FakeUpdatesRepository.sampleFailures(),
+            ),
+        )
+        setContent {
+            ReaderTheme {
+                UpdatesScreen(
+                    session = session,
+                    onOpenWork = { _, _, _ -> },
+                )
+            }
+        }
+        waitForIdle()
+
+        onNodeWithTag("updates-overflow").performClick()
+        waitForIdle()
+        onNodeWithTag("updates-errors-toggle").performClick()
+        waitForIdle()
+
+        onNodeWithTag(UpdatesErrorsListTag).assertIsDisplayed()
+        onNodeWithTag(updatesFailureTag("demo-source", "midnight-ramen")).assertIsDisplayed()
+
+        onNodeWithTag(UpdatesRetryFailuresTag).performClick()
+        waitForIdle()
+        onAllNodesWithTag(updatesFailureTag("demo-source", "midnight-ramen")).assertCountEquals(0)
     }
 }

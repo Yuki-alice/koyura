@@ -58,4 +58,29 @@ class UpdatesSessionTest {
         assertIs<UpdatesLoadState.Ready>(session.loadState)
         assertEquals(3, session.unreadCount)
     }
+
+    @Test
+    fun failuresLoadWithSnapshotAndRetryClearsThem() = runTest {
+        val session = UpdatesSession(
+            FakeUpdatesRepository(
+                FakeUpdatesRepository.sampleEntries(),
+                failed = FakeUpdatesRepository.sampleFailures(),
+            ),
+        )
+        session.refresh()
+        assertIs<UpdatesLoadState.Ready>(session.loadState)
+        assertEquals(2, session.failures.size)
+
+        session.retryFailures()
+        assertIs<UpdatesLoadState.Ready>(session.loadState)
+        assertTrue(session.failures.isEmpty())
+        assertEquals(2, session.entries.size)
+    }
+
+    @Test
+    fun defaultContractHasNoFailures() = runTest {
+        val session = UpdatesSession(FakeUpdatesRepository(FakeUpdatesRepository.sampleEntries()))
+        session.refresh()
+        assertTrue(session.failures.isEmpty())
+    }
 }

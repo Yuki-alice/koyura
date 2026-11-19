@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="account_section_title">Account</string>
+    <string name="account_login">Log in</string>
+    <string name="account_login_title">Log in to %1$s</string>
+    <string name="account_username">Username</string>
+    <string name="account_password">Password</string>
+    <string name="account_continue">Continue</string>
+    <string name="account_password_login_disabled">Login with password is disabled</string>
+    <string name="account_web_login">Login with webview</string>
+    <string name="account_web_login_running">Opening web login…</string>
+    <string name="account_web_login_failed">Web login failed or was cancelled</string>
+    <string name="account_web_login_unsupported">Web login is not available here</string>
+    <string name="account_create">Create Account</string>
+    <string name="account_relogin">Re-login</string>
+    <string name="account_relogin_subtitle">Click if login expired</string>
+    <string name="account_logout">Log out</string>
+    <string name="account_logout_confirm_title">Log out of %1$s?</string>
+    <string name="account_logout_confirm_body">Saved login state for this source will be removed.</string>
+    <string name="account_login_failed">Login failed, check your input and try again</string>
+</resources>

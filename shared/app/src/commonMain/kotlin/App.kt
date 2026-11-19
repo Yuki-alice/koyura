@@ -10,6 +10,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.koyura.app.browse.BrowseService
 import app.koyura.app.browse.LocalBrowseService
+import app.koyura.app.sourceui.LocalSourceUiHost
+import app.koyura.app.sourceui.SourceUiHost
+import app.koyura.app.sourceui.SourceUiOverlay
 import app.koyura.app.history.HistoryService
 import app.koyura.app.history.LocalHistoryService
 import app.koyura.domain.reader.ReaderService
@@ -61,6 +64,7 @@ fun App(
     readerPreferences: ReaderPreferences? = null,
     libraryRepository: FeaturesLibraryRepository? = null,
     updatesRepository: UpdatesRepository? = null,
+    sourceUiHost: SourceUiHost? = null,
 ) {
     ReaderTheme {
         CompositionLocalProvider(
@@ -70,9 +74,14 @@ fun App(
             LocalHistoryService provides historyService,
             LocalLibraryRepository provides libraryRepository,
             LocalUpdatesRepository provides updatesRepository,
+            LocalSourceUiHost provides sourceUiHost,
         ) {
             Surface(modifier = Modifier.fillMaxSize()) {
                 AppShell()
+                val host = sourceUiHost
+                if (host != null) {
+                    SourceUiOverlay(host = host)
+                }
             }
         }
     }

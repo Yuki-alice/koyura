@@ -232,7 +232,7 @@ fun defaultExtensions(): List<ExtensionInfo> = listOf(
         storeId = "store:1",
         storeName = "Example",
         isInstalled = true,
-        sources = listOf("Example Source"),
+        sources = listOf(ExtensionSource(key = "src:en:manga", name = "Example Source")),
     ),
     ExtensionInfo(
         key = "store:1::com.example.installed",

@@ -19,6 +19,12 @@ enum class ExtensionGroup {
     Available,
 }
 
+/** 扩展提供的单个来源：账号区按 key 取状态，行内展示 name。 */
+data class ExtensionSource(
+    val key: String,
+    val name: String,
+)
+
 data class ExtensionInfo(
     /** Stable identity: the same package served by two stores must stay distinguishable. */
     val key: String,
@@ -31,7 +37,7 @@ data class ExtensionInfo(
     val isInstalled: Boolean = false,
     val availableVersionName: String? = null,
     val isNsfw: Boolean = false,
-    val sources: List<String> = emptyList(),
+    val sources: List<ExtensionSource> = emptyList(),
     val summary: String = "",
 ) {
     val hasUpdate: Boolean

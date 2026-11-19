@@ -6,6 +6,7 @@ import app.koyura.app.browse.BrowseSnapshot
 import app.koyura.app.browse.CatalogVariantId
 import app.koyura.app.browse.ExtensionGroup
 import app.koyura.app.browse.ExtensionInfo
+import app.koyura.app.browse.ExtensionSource
 import app.koyura.app.browse.ExtensionStoreInfo
 import app.koyura.app.browse.SourceInfo
 import app.koyura.app.browse.StoreCatalog
@@ -90,6 +91,8 @@ class VeneraBrowseService(
                     storeName = origin?.repositoryName ?: origin?.kind.orEmpty(),
                     isInstalled = true,
                     availableVersionName = updates[record.sourceKey],
+                    // Venera 模型一脚本一源：详情账号区按该 key 取状态。
+                    sources = listOf(ExtensionSource(key = record.sourceKey, name = record.name)),
                 )
             },
             stores = extensions.listRepositories().map { repo ->

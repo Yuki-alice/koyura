@@ -9,4 +9,9 @@
     <string name="updates_retry">Retry</string>
     <string name="updates_chapters">%1$d chapters</string>
     <string name="updates_open">Open</string>
+    <string name="updates_show_errors">Update errors</string>
+    <string name="updates_show_updates">Updates</string>
+    <string name="updates_errors_title">Update errors</string>
+    <string name="updates_errors_empty">No failed updates</string>
+    <string name="updates_retry_failures">Retry all</string>
 </resources>

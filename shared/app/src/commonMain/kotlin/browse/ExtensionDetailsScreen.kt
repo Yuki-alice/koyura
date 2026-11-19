@@ -17,6 +17,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -59,6 +60,8 @@ fun ExtensionDetailsScreen(
     extensionKey: String,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    accountRepository: app.koyura.features.account.AccountRepository? =
+        app.koyura.features.account.LocalAccountRepository.current,
 ) {
     val state = session.state
     val extension = state.extensionByKey(extensionKey)
@@ -193,9 +196,39 @@ fun ExtensionDetailsScreen(
         } else {
             extension.sources.forEach { source ->
                 Text(
-                    source,
+                    source.name,
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+                HorizontalDivider()
+            }
+        }
+
+        // 按源账号区：未配置的源整块不出现（Venera `_buildAccount` 同）。
+        // 网页进行中/失败提示与注册外链走反馈宿主（SourceUiHost）。
+        val accountRepo = accountRepository
+            ?: remember { app.koyura.features.account.FakeAccountRepository() }
+        val uiHost = app.koyura.app.sourceui.LocalSourceUiHost.current
+        extension.sources.forEach { source ->
+            key(source.key) {
+                app.koyura.features.account.AccountSection(
+                    sourceKey = source.key,
+                    sourceName = source.name,
+                    repository = accountRepo,
+                    onMessage = { message ->
+                        uiHost?.showMessage(source.key, message)
+                    },
+                    onLoadingChange = { running ->
+                        val id = source.key.hashCode()
+                        if (running) {
+                            uiHost?.showLoading(source.key, id, onCancel = null)
+                        } else {
+                            uiHost?.cancelLoading(source.key, id)
+                        }
+                    },
+                    onOpenUrl = { url ->
+                        uiHost?.launchUrl(source.key, url)
+                    },
                 )
                 HorizontalDivider()
             }
