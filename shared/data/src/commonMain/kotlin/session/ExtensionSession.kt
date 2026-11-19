@@ -2,6 +2,9 @@ package app.koyura.data.session
 
 import app.cash.sqldelight.db.QueryResult
 import app.cash.sqldelight.db.SqlDriver
+import app.koyura.data.downloads.ChapterContentPackages
+import app.koyura.data.downloads.ChapterDownloadStore
+import app.koyura.domain.downloads.ChapterDownloads
 import app.koyura.data.extension.ExtensionDb
 import app.koyura.data.extension.ExtensionService
 import app.koyura.data.history.HistoryStore
@@ -39,8 +42,22 @@ class ExtensionSession internal constructor(
     private val driver: SqlDriver,
     private val httpClient: HttpClient,
     val readerPreferences: ReaderPreferencesStore,
+    packages: ChapterContentPackages,
+    isOnline: () -> Boolean,
 ) {
-    val comicReading = ComicReadingService(driver, service, httpClient)
+    val comicReading = ComicReadingService(driver, service, httpClient).apply {
+        attachLocalContent(packages, isOnline)
+    }
+    private val queue = ChapterDownloadStore(
+        driver, packages,
+        openChapter = { chapter -> comicReading.openOnlineChapter(chapter.sourceKey, chapter.workId, chapter.chapterId) },
+        loadPage = { chapter, page ->
+            comicReading.loadOnlineImageBytes(chapter.sourceKey, chapter.workId, chapter.chapterId, page.imageKey)
+        },
+    )
+    val downloads: ChapterDownloads get() = queue
+
+    internal suspend fun startDownloads() = queue.start()
     val history = HistoryStore(driver)
     val library = LibraryStore(driver)
 
@@ -58,6 +75,7 @@ class ExtensionSession internal constructor(
         }
         if (!doClose) return
         withContext(NonCancellable) {
+            runCatching { queue.close() }
             runCatching { service.close() }
             runCatching { httpClient.close() }
             runCatching { driver.close() }
@@ -81,22 +99,32 @@ suspend fun openExtensionSession(
     httpClient: HttpClient,
     environment: VeneraEnvironment,
     secrets: SourceSecretStore? = null,
+    isOnline: () -> Boolean = { true },
 ): ExtensionSession {
     val scriptsDir = appDataDir / "scripts"
     val service = ExtensionService(driver, fileSystem, scriptsDir, httpClient, environment, SourceSessions(secrets))
+    var session: ExtensionSession? = null
     try {
         ensureSchema(driver)
         service.open()
         val report = service.restore()
         val readerPreferences = ReaderPreferencesStore(appDataDir, fileSystem)
-        return ExtensionSession(service, report, driver, httpClient, readerPreferences)
+        val packages = ChapterContentPackages(fileSystem, appDataDir / "downloads")
+        val opened = ExtensionSession(service, report, driver, httpClient, readerPreferences, packages, isOnline)
+        session = opened
+        opened.startDownloads()
+        return opened
     } catch (e: Throwable) {
         // Release everything created for this attempt, even when the failure
         // is a cancellation.
         withContext(NonCancellable) {
-            runCatching { service.close() }
-            runCatching { httpClient.close() }
-            runCatching { driver.close() }
+            if (session != null) {
+                session.close()
+            } else {
+                runCatching { service.close() }
+                runCatching { httpClient.close() }
+                runCatching { driver.close() }
+            }
         }
         throw e
     }
@@ -173,4 +201,9 @@ private fun ensureSchema(driver: SqlDriver) {
     ensureLibrarySchema(driver)
     // 历史可见性表（第 5 版）：删除/清空只插隐藏标记，reading_progress 原样保留。
     ensureHistoryVisibilitySchema(driver)
+    if (tableColumns(driver, "download_jobs").isEmpty()) {
+        ExtensionDb(driver).transaction {
+            ExtensionDb.Schema.migrate(driver, target - 1, target).value
+        }
+    }
 }

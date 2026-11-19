@@ -42,5 +42,6 @@ sealed class ReadingFailure(message: String, cause: Throwable? = null) : Illegal
     class PageNotFound(val pageKey: String) : ReadingFailure("Page is no longer listed: $pageKey")
     class HttpError(val status: Int) : ReadingFailure("Image server returned HTTP $status")
     class TransportFailed(cause: Throwable) : ReadingFailure("Image request failed: ${cause.message}", cause)
+    class OfflineUnavailable : ReadingFailure("The chapter content is unavailable offline")
     class RuntimeClosed : ReadingFailure("Image runtime is closed")
 }
