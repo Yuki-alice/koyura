@@ -58,6 +58,10 @@ data object DownloadQueueRoute : AppRoute
 @Serializable
 data object CategoriesRoute : AppRoute
 
+/** Statistics page, pushed from the More tab. Fake-driven until the data layer aggregates it. */
+@Serializable
+data object StatisticsRoute : AppRoute
+
 /**
  * Saved-state configuration registering every [AppRoute] subtype for open polymorphism.
  *
@@ -75,6 +79,7 @@ val ReaderSavedStateConfiguration: SavedStateConfiguration = SavedStateConfigura
             subclass(ComicReaderRoute::class, ComicReaderRoute.serializer())
             subclass(DownloadQueueRoute::class, DownloadQueueRoute.serializer())
             subclass(CategoriesRoute::class, CategoriesRoute.serializer())
+            subclass(StatisticsRoute::class, StatisticsRoute.serializer())
         }
     }
 }

@@ -39,6 +39,8 @@ import app.koyura.features.downloads.rememberDownloadsSession
 import app.koyura.categories.CategoriesScreen
 import app.koyura.features.more.MoreScreen
 import app.koyura.features.more.rememberMoreSession
+import app.koyura.features.statistics.StatisticsScreen
+import app.koyura.features.statistics.rememberStatisticsSession
 import app.koyura.features.updates.UpdatesScreen
 import app.koyura.features.updates.rememberUpdatesSession
 import app.koyura.app.browse.ExtensionDetailsScreen
@@ -64,6 +66,7 @@ import app.koyura.app.navigation.DownloadQueueRoute
 import app.koyura.app.navigation.ExtensionDetailsRoute
 import app.koyura.app.navigation.ComicReaderRoute
 import app.koyura.app.navigation.SourceDetailRoute
+import app.koyura.app.navigation.StatisticsRoute
 import app.koyura.app.navigation.SourceSearchRoute
 import app.koyura.app.navigation.ExtensionStoresRoute
 import app.koyura.app.navigation.TabRootRoute
@@ -102,6 +105,7 @@ internal fun AppScaffold(
     val activeReaderSession = readerSession ?: rememberReaderSession(readerService)
     val activeHistorySession = historySession ?: rememberHistorySession(historyService, browseService)
     val activeUpdatesSession = rememberUpdatesSession()
+    val statisticsSession = rememberStatisticsSession()
     val activeMoreSession = rememberMoreSession()
     val activeDownloadsSession = rememberDownloadsSession()
     val librarySession = rememberLibrarySession()
@@ -125,6 +129,7 @@ internal fun AppScaffold(
                     activeUpdatesSession,
                     activeMoreSession,
                     activeDownloadsSession,
+                    statisticsSession,
                 )
             }
         }
@@ -227,6 +232,7 @@ private fun AppNavigationContent(
     updatesSession: app.koyura.features.updates.UpdatesSession,
     moreSession: app.koyura.features.more.MoreSession,
     downloadsSession: app.koyura.features.downloads.DownloadsSession,
+    statisticsSession: app.koyura.features.statistics.StatisticsSession,
 ) {
     val entryProvider = remember(
         navigation,
@@ -237,6 +243,7 @@ private fun AppNavigationContent(
         updatesSession,
         moreSession,
         downloadsSession,
+        statisticsSession,
     ) {
         entryProvider<NavKey> {
             entry<TabRootRoute> { route ->
@@ -294,6 +301,9 @@ private fun AppNavigationContent(
                         onOpenCategories = {
                             navigation.push(CategoriesRoute)
                         },
+                        onOpenStatistics = {
+                            navigation.push(StatisticsRoute)
+                        },
                     )
                 } else {
                     TabRootScreen(
@@ -315,6 +325,12 @@ private fun AppNavigationContent(
             }
             entry<CategoriesRoute> {
                 CategoriesScreen(onBack = { navigation.popCurrentChild() })
+            }
+            entry<StatisticsRoute> {
+                StatisticsScreen(
+                    session = statisticsSession,
+                    onBack = { navigation.popCurrentChild() },
+                )
             }
             entry<ExtensionDetailsRoute> { route ->
                 CompositionLocalProvider(LocalBrowseSession provides browseSession) {

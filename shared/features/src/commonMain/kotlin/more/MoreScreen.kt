@@ -65,6 +65,7 @@ fun MoreScreen(
     modifier: Modifier = Modifier,
     onOpenDownloadQueue: (() -> Unit)? = null,
     onOpenCategories: (() -> Unit)? = null,
+    onOpenStatistics: (() -> Unit)? = null,
 ) {
     Column(
         modifier = modifier
@@ -103,7 +104,12 @@ fun MoreScreen(
             title = stringResource(Res.string.more_categories),
             onClick = onOpenCategories,
         )
-        MoreNavRow(key = "statistics", icon = ActionIcon.Statistics, title = stringResource(Res.string.more_statistics))
+        MoreNavRow(
+            key = "statistics",
+            icon = ActionIcon.Statistics,
+            title = stringResource(Res.string.more_statistics),
+            onClick = onOpenStatistics,
+        )
         MoreNavRow(
             key = "update-errors",
             icon = ActionIcon.UpdateErrors,
