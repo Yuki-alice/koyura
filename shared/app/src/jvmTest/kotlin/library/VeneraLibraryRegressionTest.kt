@@ -385,6 +385,42 @@ class VeneraLibraryRegressionTest {
         }
     }
 
+    @Test
+    fun downloadedCountsFlowIntoSnapshotEntriesAndFailuresFallBackToZero() {
+        val harness = VeneraHarness()
+        try {
+            runBlocking {
+                harness.service.open()
+                harness.service.restore()
+            }
+            val store = LibraryStore(harness.driver)
+            val history = HistoryStore(harness.driver)
+            val repo = ProductionLibraryRepository(
+                store = store,
+                history = history,
+                thumbnails = { _, _ -> ByteArray(0) },
+                downloadedCounts = { _, workId ->
+                    when (workId) {
+                        "demo" -> 2L
+                        "broken" -> error("download queue unavailable")
+                        else -> 0L
+                    }
+                },
+            )
+            runBlocking {
+                repo.addToLibrary(NewLibraryEntry("example_source", LibraryKind.COMIC, "demo", title = "Demo"))
+                repo.addToLibrary(NewLibraryEntry("example_source", LibraryKind.COMIC, "other", title = "Other"))
+                repo.addToLibrary(NewLibraryEntry("example_source", LibraryKind.COMIC, "broken", title = "Broken"))
+                val snapshot = repo.load()
+                assertEquals(2L, snapshot.entries.first { it.workId == "demo" }.downloadedCount)
+                assertEquals(0L, snapshot.entries.first { it.workId == "other" }.downloadedCount)
+                assertEquals(0L, snapshot.entries.first { it.workId == "broken" }.downloadedCount)
+            }
+        } finally {
+            harness.close()
+        }
+    }
+
     private fun d1Id(): String = "ep_2"
 
     companion object {

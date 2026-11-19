@@ -32,8 +32,9 @@ import kotlin.time.Clock
  * - 身份沿用 `(sourceKey, kind, workId)`：收藏/取消/归类全部调 domain 仓储并重读快照，
  *   以 SQLite 提交结果为准；重复收藏返回原行由 [DomainLibraryRepository] 保证。
  * - 继续阅读派生自 `reading_progress` 最新行（经 [HistoryStore.latestProgress]，
- *   忽略历史隐藏标记）；总章数与未读数派生自 `library_chapter`（无目录的老收藏为 0），
- *   下载计数待下载系统落地前恒为 0。
+ *   忽略历史隐藏标记）；总章数与未读数派生自 `library_chapter`（无目录的老收藏为 0）；
+ *   下载计数经调用方注入的 `downloadedCounts` 派生（生产为下载队列的按作统计），
+ *   查询失败按 0 呈现，不阻断书架快照。
  * - [markAsRead] 逐部校验目录后写入 `library_chapter.is_read`，缺目录抛可恢复错误
  *   引导打开详情补齐；详情子集标记走 [markDetailChapters]。
  * - 偏好落 `library_prefs` 五键，格式见 [serializePrefs]/[parsePrefs]，缺键或坏值回退默认。
@@ -44,6 +45,7 @@ class ProductionLibraryRepository(
     private val store: DomainLibraryRepository,
     private val history: HistoryStore,
     private val thumbnails: suspend (sourceKey: String, coverUrl: String) -> ByteArray,
+    private val downloadedCounts: (suspend (sourceKey: String, workId: String) -> Long)? = null,
     private val nowMillis: () -> Long = { Clock.System.now().toEpochMilliseconds() },
 ) : FeaturesLibraryRepository {
 
@@ -55,8 +57,13 @@ class ProductionLibraryRepository(
         val progress = history.latestProgress()
         LibrarySnapshot(
             entries = entries.map { domain ->
-                val (total, unread) = chapterCountsFor(domain)
-                domain.toFeature(progress[domain.manga.sourceKey to domain.manga.workId], total, unread)
+                val counts = chapterCountsFor(domain)
+                domain.toFeature(
+                    progress[domain.manga.sourceKey to domain.manga.workId],
+                    counts.total,
+                    counts.unread,
+                    counts.downloaded,
+                )
             },
             categories = categories.map { it.toFeature() },
             links = entries.associate { entry ->
@@ -66,16 +73,23 @@ class ProductionLibraryRepository(
         )
     }
 
-    private suspend fun chapterCountsFor(domain: DomainLibraryEntry): Pair<Int, Long> {
+    private suspend fun chapterCountsFor(domain: DomainLibraryEntry): EntryCounts {
         val chapters = try {
             store.listChapters(domain.manga.sourceKey, domain.manga.kind, domain.manga.workId)
         } catch (_: Exception) {
             emptyList()
         }
-        if (chapters.isEmpty()) return 0 to 0L
         val unread = chapters.count { !it.isRead }.toLong()
-        return chapters.size to unread
+        return EntryCounts(chapters.size, unread, downloadedCountFor(domain))
     }
+
+    private suspend fun downloadedCountFor(domain: DomainLibraryEntry): Long = try {
+        downloadedCounts?.invoke(domain.manga.sourceKey, domain.manga.workId) ?: 0L
+    } catch (_: Exception) {
+        0L
+    }
+
+    private data class EntryCounts(val total: Int, val unread: Long, val downloaded: Long)
 
     /**
      * 详情目录同步：成功取得源目录后调用，保留同 ID 已读态，新章默认未读，
@@ -271,6 +285,7 @@ private fun DomainLibraryEntry.toFeature(
     progress: HistoryRecord?,
     totalChapters: Int = 0,
     unreadCount: Long = 0L,
+    downloadedCount: Long = 0L,
 ): LibraryEntry = LibraryEntry(
     sourceKey = manga.sourceKey,
     kind = when (manga.kind) {
@@ -285,6 +300,7 @@ private fun DomainLibraryEntry.toFeature(
     lastUpdateCheckMillis = manga.lastUpdateCheckMillis,
     totalChapters = totalChapters,
     unreadCount = unreadCount,
+    downloadedCount = downloadedCount,
     lastReadAtMillis = progress?.readAtMillis,
     continueChapterId = progress?.chapterId,
     continueChapterTitle = progress?.chapterTitle,

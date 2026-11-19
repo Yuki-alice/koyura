@@ -86,6 +86,9 @@ internal fun ExtensionApp(openSession: suspend () -> ExtensionSession) {
                 thumbnails = { sourceKey, imageKey ->
                     session.comicReading.loadThumbnailBytes(sourceKey, imageKey)
                 },
+                downloadedCounts = { sourceKey, workId ->
+                    session.downloads.countCompleted(sourceKey, workId).toLong()
+                },
             )
         }
         val updates = remember(session) {
