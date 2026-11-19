@@ -44,6 +44,8 @@ import app.koyura.features.statistics.rememberStatisticsSession
 import app.koyura.features.updates.UpdatesScreen
 import app.koyura.features.updates.rememberUpdatesSession
 import app.koyura.app.browse.ExtensionDetailsScreen
+import app.koyura.app.browse.globalsearch.GlobalSearchScreen
+import app.koyura.app.browse.globalsearch.GlobalSearchSession
 import app.koyura.app.browse.ExtensionStoresScreen
 import app.koyura.app.browse.LocalBrowseSession
 import app.koyura.app.browse.SourceDetailScreen
@@ -64,6 +66,7 @@ import app.koyura.app.navigation.CategoriesRoute
 import app.koyura.app.navigation.DetailRoute
 import app.koyura.app.navigation.DownloadQueueRoute
 import app.koyura.app.navigation.ExtensionDetailsRoute
+import app.koyura.app.navigation.GlobalSearchRoute
 import app.koyura.app.navigation.ComicReaderRoute
 import app.koyura.app.navigation.SourceDetailRoute
 import app.koyura.app.navigation.StatisticsRoute
@@ -264,6 +267,7 @@ private fun AppNavigationContent(
                             onOpenSource = { sourceKey, sourceName ->
                                 navigation.push(SourceSearchRoute(sourceKey))
                             },
+                            onGlobalSearch = { navigation.push(GlobalSearchRoute) },
                         )
                     }
                 } else if (route.tab == NavTab.Library) {
@@ -271,6 +275,7 @@ private fun AppNavigationContent(
                         navigation = navigation,
                         session = librarySession,
                         browseSession = browseSession,
+                        onGlobalSearch = { navigation.push(GlobalSearchRoute) },
                     )
                 } else if (route.tab == NavTab.History) {
                     HistoryScreen(
@@ -333,6 +338,19 @@ private fun AppNavigationContent(
             }
             entry<CategoriesRoute> {
                 CategoriesScreen(onBack = { navigation.popCurrentChild() })
+            }
+            entry<GlobalSearchRoute> {
+                // 每次进入重新开一次会话：结果页是独立子路由，返回即弃。
+                val globalSearchSession = remember(browseSession) { GlobalSearchSession(browseSession) }
+                CompositionLocalProvider(LocalBrowseSession provides browseSession) {
+                    GlobalSearchScreen(
+                        session = globalSearchSession,
+                        onBack = { navigation.popCurrentChild() },
+                        onOpenWork = { sourceKey, workId, title ->
+                            navigation.push(SourceDetailRoute(sourceKey, workId, title))
+                        },
+                    )
+                }
             }
             entry<StatisticsRoute> {
                 StatisticsScreen(

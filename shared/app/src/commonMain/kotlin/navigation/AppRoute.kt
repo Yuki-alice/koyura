@@ -58,6 +58,10 @@ data object DownloadQueueRoute : AppRoute
 @Serializable
 data object CategoriesRoute : AppRoute
 
+/** Global search across every installed source, pushed from the Library empty state or Browse bar. */
+@Serializable
+data object GlobalSearchRoute : AppRoute
+
 /** Statistics page, pushed from the More tab. Fake-driven until the data layer aggregates it. */
 @Serializable
 data object StatisticsRoute : AppRoute
@@ -80,6 +84,7 @@ val ReaderSavedStateConfiguration: SavedStateConfiguration = SavedStateConfigura
             subclass(DownloadQueueRoute::class, DownloadQueueRoute.serializer())
             subclass(CategoriesRoute::class, CategoriesRoute.serializer())
             subclass(StatisticsRoute::class, StatisticsRoute.serializer())
+            subclass(GlobalSearchRoute::class, GlobalSearchRoute.serializer())
         }
     }
 }
