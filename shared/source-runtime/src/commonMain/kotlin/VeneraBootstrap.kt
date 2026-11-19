@@ -272,11 +272,14 @@ internal val veneraBootstrap = """
                         }
                         case "getLocale": return APP.locale;
                         case "getPlatform": return APP.platform;
-                        case "delay": return new Promise(resolve => setTimeout(resolve, message.time));
+                        case "delay": return __readerWaitForDelay(sourceKey, message.time).then(() => undefined);
                         case "compute": return compute(message.function, ...(message.args ?? []));
                         default: throw new Error("Unsupported Venera host message: " + message.method);
                     }
                 };
+                function setTimeout(callback, milliseconds) {
+                    __readerWaitForDelay(sourceKey, milliseconds).then(() => callback());
+                }
                 function setInterval(callback, milliseconds) {
                     if (!slot.key || sources[slot.key] !== source) throw new Error("Source instance is inactive");
                     if (typeof callback !== "function") throw new TypeError("Interval callback is not a function");
@@ -290,7 +293,7 @@ internal val veneraBootstrap = """
                     return { cancel: () => cancelInterval(id) };
                 }
                 const net = network(sendMessage, session);
-                source = construct(net, sendMessage, fetchWith(net), setInterval,
+                source = construct(net, sendMessage, fetchWith(net), setInterval, setTimeout,
                     interaction.UI, interaction.setClipboard, interaction.getClipboard, interaction.log, interaction.console);
                 if (!(source instanceof ComicSource)) throw new TypeError("Expected a ComicSource instance");
                 seqBySource.set(source, ++sequence);
@@ -410,6 +413,36 @@ internal val veneraBootstrap = """
                 const setting = settings && Object.hasOwn(settings, name) ? settings[name] : undefined;
                 if (setting?.type !== "callback") throw new Error("Source setting has no callback");
                 return invokeCallback(setting, setting.callback, [], false, "settings." + name);
+            },
+            describeAccount(key) {
+                const account = sources[key]?.account;
+                if (account == null || typeof account !== "object") return "null";
+                const form = typeof account.login === "function";
+                const cookieFields = account.loginWithCookies?.fields;
+                return serializeResult({
+                    form,
+                    fields: form ? account.login.fields ?? account.loginFields ?? null
+                        : typeof account.loginWithCookies?.validate === "function" && Array.isArray(cookieFields)
+                            ? cookieFields.map(label => ({ label, type: "cookies" })) : [],
+                    registerWebsite: typeof account.registerWebsite === "string" ? account.registerWebsite : null,
+                    declaresWebLogin: typeof account.loginWithWebview?.url === "string",
+                    infoItems: Array.isArray(account.infoItems) ? account.infoItems
+                        .filter(item => typeof item?.title === "string")
+                        .map(item => ({ title: item.title, hasValue: "data" in item })) : [],
+                });
+            },
+            async accountInfo(key) {
+                const items = sources[key]?.account?.infoItems;
+                if (!Array.isArray(items)) return "[]";
+                const result = [];
+                for (const item of items) {
+                    if (typeof item?.title !== "string") continue;
+                    const data = item.data;
+                    const current = typeof data === "function" ? await Reflect.apply(data, item, []) : data;
+                    const value = current == null ? null : String(current);
+                    result.push({ title: item.title, value });
+                }
+                return serializeResult(result);
             },
             describe(key, path) {
                 const source = sources[key];

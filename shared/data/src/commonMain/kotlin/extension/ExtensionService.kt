@@ -2,6 +2,12 @@ package app.koyura.data.extension
 
 import app.cash.sqldelight.db.SqlDriver
 import app.koyura.data.extension.ExtensionDb
+import app.koyura.domain.extension.SourceAccountConfig
+import app.koyura.domain.extension.SourceAccountField
+import app.koyura.domain.extension.SourceAccountFieldType
+import app.koyura.domain.extension.SourceAccountInfo
+import app.koyura.domain.extension.SourceAccountInfoConfig
+import app.koyura.domain.extension.SourceLoginState
 import app.koyura.domain.extension.ExtensionFailure
 import app.koyura.domain.extension.InstalledExtensionRecord
 import app.koyura.domain.extension.OriginRecord
@@ -37,7 +43,12 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import okio.FileSystem
 import okio.HashingSink
 import okio.Path
@@ -426,17 +437,120 @@ class ExtensionService(
         }
     }
 
+    suspend fun sourceAccountConfig(key: String): SourceAccountConfig? = mutex.withLock {
+        val live = runtime ?: return@withLock null
+        if (live.liveInstanceSeq(key) == null) return@withLock null
+        accountConfig(live, key)?.config
+    }
+
+    suspend fun sourceLoginState(key: String): SourceLoginState = mutex.withLock {
+        if (runtime?.liveInstanceSeq(key) == null) return@withLock SourceLoginState.LOGGED_OUT
+        val marker = withContext(Dispatchers.IO) { sourceSessions.accountMarker(key) }
+        when {
+            savedForm(marker) != null -> SourceLoginState.FORM
+            marker == JsonPrimitive("ok") -> SourceLoginState.WEB
+            else -> SourceLoginState.LOGGED_OUT
+        }
+    }
+
+    suspend fun sourceAccountInfo(key: String): List<SourceAccountInfo> = mutex.withLock {
+        val live = runtime ?: return@withLock emptyList()
+        if (live.liveInstanceSeq(key) == null) return@withLock emptyList()
+        (live.accountInfo(key) as JsonArray).map { item ->
+            val row = item.jsonObject
+            SourceAccountInfo(row.getValue("title").jsonPrimitive.content, row["value"]?.jsonPrimitive?.contentOrNull)
+        }
+    }
+
+    private data class AccountForm(val config: SourceAccountConfig, val usesLogin: Boolean)
+
+    private suspend fun accountConfig(live: VeneraSourceRuntime, key: String): AccountForm? {
+        val value = live.describeAccount(key) as? JsonObject ?: return null
+        val form = value["form"] == JsonPrimitive(true)
+        val fields = when (val declared = value["fields"]) {
+            is JsonArray -> declared.map { item ->
+                val field = item.jsonObject
+                val label = field.getValue("label").jsonPrimitive.content
+                val type = when (field.getValue("type").jsonPrimitive.content.lowercase()) {
+                    "username", "text" -> SourceAccountFieldType.TEXT
+                    "password" -> SourceAccountFieldType.PASSWORD
+                    "cookies" -> SourceAccountFieldType.COOKIES
+                    else -> error("Unsupported source account field type")
+                }
+                SourceAccountField(label, type)
+            }
+            JsonNull, null -> if (form) listOf(
+                SourceAccountField("Username", SourceAccountFieldType.TEXT),
+                SourceAccountField("Password", SourceAccountFieldType.PASSWORD),
+            ) else emptyList()
+            else -> error("Invalid source account fields")
+        }
+        val info = (value.getValue("infoItems") as JsonArray).map {
+            SourceAccountInfoConfig(it.jsonObject.getValue("title").jsonPrimitive.content, it.jsonObject["hasValue"] == JsonPrimitive(true))
+        }
+        val register = value["registerWebsite"]?.jsonPrimitive?.contentOrNull?.takeIf(WebLoginMonitor::allowedUrl)
+        val config = SourceAccountConfig(fields, register, value["declaresWebLogin"] == JsonPrimitive(true), info)
+        return AccountForm(config, form)
+    }
+
     internal suspend fun loginSource(key: String, arguments: JsonArray) = mutex.withLock {
         val live = runtime ?: throw ExtensionFailure.MissingExtension(key)
-        live.call(key, VeneraCallback.Login, arguments)
-        withContext(Dispatchers.IO) { sourceSessions.applyLoginMarker(key) }
+        authenticateForm(live, key, arguments)
+    }
+
+    internal suspend fun loginSourceForm(key: String, values: JsonArray): Boolean = mutex.withLock {
+        val live = runtime ?: throw ExtensionFailure.MissingExtension(key)
+        val form = accountConfig(live, key) ?: return@withLock false
+        require(values.size == form.config.fields.size) { "Incorrect number of source account fields" }
+        if (form.usesLogin) {
+            authenticateForm(live, key, values)
+            true
+        } else {
+            if (form.config.fields.isEmpty()) return@withLock false
+            authenticateCookies(live, key, JsonArray(listOf(values)))
+        }
+    }
+
+    internal suspend fun reLoginSource(key: String): Boolean = mutex.withLock {
+        val live = runtime ?: return@withLock false
+        if (live.registeredSources().none { it.key == key && VeneraCallback.Login in it.callbacks }) return@withLock false
+        val marker = withContext(Dispatchers.IO) { sourceSessions.accountMarker(key) }
+        val args = savedForm(marker) ?: return@withLock false
+        authenticateForm(live, key, args)
+        true
+    }
+
+    private fun savedForm(marker: JsonElement): JsonArray? =
+        (marker as? JsonArray)?.takeIf { values -> values.all { (it as? JsonPrimitive)?.isString == true } }
+
+    private suspend fun authenticateForm(live: VeneraSourceRuntime, key: String, arguments: JsonArray) {
+        sourceSessions.invalidateHttpCache(key)
+        try {
+            live.call(key, VeneraCallback.Login, arguments)
+            withContext(Dispatchers.IO) { sourceSessions.saveFormLogin(key, arguments) }
+        } finally {
+            sourceSessions.invalidateHttpCache(key)
+        }
+        invalidateWebLogin(key)
     }
 
     internal suspend fun validateSourceCookies(key: String, values: JsonArray): Boolean = mutex.withLock {
         val live = runtime ?: throw ExtensionFailure.MissingExtension(key)
-        val accepted = live.call(key, VeneraCallback.ValidateCookies, values) == JsonPrimitive(true)
-        if (accepted) withContext(Dispatchers.IO) { sourceSessions.applyLoginMarker(key) }
-        accepted
+        authenticateCookies(live, key, values)
+    }
+
+    private suspend fun authenticateCookies(live: VeneraSourceRuntime, key: String, values: JsonArray): Boolean {
+        sourceSessions.invalidateHttpCache(key)
+        val accepted = try {
+            live.call(key, VeneraCallback.ValidateCookies, values) == JsonPrimitive(true)
+        } finally {
+            sourceSessions.invalidateHttpCache(key)
+        }
+        if (accepted) {
+            withContext(Dispatchers.IO) { sourceSessions.applyLoginMarker(key) }
+            invalidateWebLogin(key)
+        }
+        return accepted
     }
 
     internal suspend fun logoutSource(key: String) = mutex.withLock {
@@ -620,6 +734,7 @@ class ExtensionService(
         // observed before that point (file, old rows, old instance) is a
         // complete revision, so an exit at any moment restarts consistently.
         try {
+            sourceSessions.invalidateHttpCache(key)
             live.replace(key, script, fileName, expectedKey = key)
         } catch (e: Exception) {
             if (fileName != oldFileName) runCatching { fileSystem.delete(target, mustExist = false) }

@@ -8,6 +8,7 @@ import io.ktor.client.request.headers
 import io.ktor.client.request.request
 import io.ktor.client.request.setBody
 import io.ktor.client.request.url
+import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import io.ktor.client.statement.readRawBytes
 import io.ktor.http.ContentType
@@ -16,9 +17,9 @@ import io.ktor.http.HttpMethod
 import io.ktor.http.Url
 import io.ktor.http.content.TextContent
 import io.ktor.http.content.ByteArrayContent
-import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonPrimitive
+import okio.Buffer
 import okio.ByteString.Companion.decodeBase64
 
 /**
@@ -46,15 +47,9 @@ import okio.ByteString.Companion.decodeBase64
  * Host control fields stripped before sending (case-insensitive, never sent to
  * the site): `cache-time`, `prevent-parallel`, `http_client`.
  *
- * Options implemented this round:
- * - Implemented: method/URL/headers/text-body forwarding, default browser UA,
- *   4xx/5xx passthrough (request-level [ResponseException] mapping),
- *   transport-error throw, cancellation propagation, `,` header join,
- *   binary bodies via [executeBytes] (same mapping, bytes preserved).
- * - Not implemented (stripped/ignored): short-term `cache-time` caching,
- *   `prevent-parallel` serialization, `http_client == "dart:io"` alternate
- *   client and `extra` interceptor options. Supply [sessions] to share the
- *   source cookie jar across script, image and browser login requests.
+ * Source GET caching and opt-in request serialization run around the Ktor call.
+ * Ktor continues to handle redirects and apply the source Cookie jar to each
+ * actual exchange. Dio-specific `http_client` and `extra` are ignored.
  *
  * Ownership: [VeneraSourceRuntime] never closes the transport. If [ownsClient]
  * is true, call [close] to close the underlying [HttpClient]; otherwise the
@@ -69,54 +64,89 @@ class KtorVeneraHttpTransport(
     private val sessionClient = sessions?.let(client::withSourceSessions)
     private val requestClient get() = sessionClient ?: client
 
-    override suspend fun execute(request: VeneraHttpRequest): VeneraHttpResponse {
-        try {
-            val response = requestClient.request { applyVeneraRequest(request) }
-            val headers = response.headers.entries()
-                .associate { (name, values) -> name to values.joinToString(",") }
-            return VeneraHttpResponse(
-                status = response.status.value,
-                body = response.bodyAsText(),
-                headers = headers,
-            )
-        } catch (cancelled: CancellationException) {
-            throw cancelled
-        } catch (failure: ResponseException) {
-            // Request-level guarantee: an injected client with expectSuccess = true
-            // must still surface 4xx/5xx to the script instead of throwing.
-            val failed = failure.response
-            val headers = failed.headers.entries()
-                .associate { (name, values) -> name to values.joinToString(",") }
-            return VeneraHttpResponse(
-                status = failed.status.value,
-                body = failed.bodyAsText(),
-                headers = headers,
-            )
+    private val requestPolicy = SourceRequestPolicy()
+
+    override suspend fun execute(request: VeneraHttpRequest): VeneraHttpResponse =
+        (exchange(request, binary = false) as SourceRequestPolicy.Response.Text).value
+
+    override suspend fun executeBytes(request: VeneraHttpRequest): VeneraBytesResponse =
+        (exchange(request, binary = true) as SourceRequestPolicy.Response.Bytes).value
+
+    suspend fun executeImage(request: VeneraHttpRequest): VeneraBytesResponse =
+        (exchange(request, binary = true, allowCache = false) as SourceRequestPolicy.Response.Bytes).value
+
+    private suspend fun exchange(
+        request: VeneraHttpRequest,
+        binary: Boolean,
+        allowCache: Boolean = true,
+    ): SourceRequestPolicy.Response {
+        val url = Url(request.url)
+        val method = request.method.uppercase()
+        val explicit = request.headers.header(HttpHeaders.Cookie)
+        val path = SourceRequestPolicy.Path(request.sourceKey, method, url.toString())
+        val serialize = request.headers.header("prevent-parallel").equals("true", ignoreCase = true)
+        val lease = request.sourceKey?.let { sessions?.lease(it) }
+        val session = lease?.let { SessionRequest(it, url, explicit) }
+        return requestPolicy.serialize(path, serialize) {
+            fun identity() = if (lease != null) sessions?.httpIdentity(lease, url, explicit)
+                else SourceSessions.HttpIdentity(0L, explicit)
+
+            val eligible = allowCache && request.sourceKey != null && method == "GET" &&
+                textBody(request) == null && request.binaryData == null && request.headers.header(HttpHeaders.Range) == null
+            val identity = if (eligible) identity() else null
+            val key = identity?.let { cacheKey(path, request.headers, it, binary) }
+            val bypass = request.headers.header(HttpHeaders.CacheControl).orEmpty().split(',').any {
+                it.trim().lowercase() in setOf("no-cache", "no-store", "max-age=0")
+            }
+            val control = if (bypass) "no" else request.headers.header("cache-time")?.trim()?.lowercase()
+            if (key != null) requestPolicy.lookup(key, control)?.let { return@serialize it }
+
+            val response = fetch(request, session)
+            val headers = response.headers.entries().associate { (name, values) -> name to values.joinToString(",") }
+            val result = if (binary) {
+                SourceRequestPolicy.Response.Bytes(VeneraBytesResponse(response.status.value, response.readRawBytes(), headers))
+            } else {
+                SourceRequestPolicy.Response.Text(VeneraHttpResponse(response.status.value, response.bodyAsText(), headers))
+            }
+            if (key != null && control != "no" && response.call.request.url == url && identity == identity()) {
+                requestPolicy.save(key, result)
+            }
+            result
         }
     }
 
-    /**
-     * Same mapping as [execute], but preserves raw response bytes for image
-     * payloads and binary script requests.
-     */
-    override suspend fun executeBytes(request: VeneraHttpRequest): VeneraBytesResponse {
-        val response = try {
-            requestClient.request { applyVeneraRequest(request) }
-        } catch (cancelled: CancellationException) {
-            throw cancelled
+    private suspend fun fetch(request: VeneraHttpRequest, session: SessionRequest?): HttpResponse =
+        try {
+            requestClient.request { applyVeneraRequest(request, session) }
         } catch (failure: ResponseException) {
             failure.response
         }
-        val headers = response.headers.entries()
-            .associate { (name, values) -> name to values.joinToString(",") }
-        return VeneraBytesResponse(
-            status = response.status.value,
-            body = response.readRawBytes(),
-            headers = headers,
-        )
-    }
 
-    private fun HttpRequestBuilder.applyVeneraRequest(request: VeneraHttpRequest) {
+    private fun cacheKey(
+        path: SourceRequestPolicy.Path,
+        headers: Map<String, String>,
+        identity: SourceSessions.HttpIdentity,
+        binary: Boolean,
+    ) = Buffer().apply {
+        fun field(value: String) {
+            val bytes = value.encodeToByteArray()
+            writeInt(bytes.size)
+            write(bytes)
+        }
+        field(checkNotNull(path.sourceKey))
+        field(path.method)
+        field(path.url)
+        writeByte(if (binary) 1 else 0)
+        writeLong(identity.revision)
+        field(identity.cookie.orEmpty())
+        for ((name, value) in headers.entries.sortedBy { it.key.lowercase() }) {
+            if (isHostControlHeader(name)) continue
+            field(name.lowercase())
+            field(value)
+        }
+    }.sha256()
+
+    private fun HttpRequestBuilder.applyVeneraRequest(request: VeneraHttpRequest, session: SessionRequest?) {
         val text = textBody(request)
         val bytes = request.binaryData?.let { requireNotNull(it.decodeBase64()).toByteArray() }
         val contentTypeHeader = request.headers.entries
@@ -125,10 +155,7 @@ class KtorVeneraHttpTransport(
         val hasUserAgent = request.headers.keys.any { it.equals(HttpHeaders.UserAgent, ignoreCase = true) }
         method = HttpMethod.parse(request.method.uppercase())
         url(request.url)
-        if (sessions != null && request.sourceKey != null) {
-            val explicit = request.headers.entries.firstOrNull { it.key.equals(HttpHeaders.Cookie, ignoreCase = true) }?.value
-            attributes.put(sourceSessionRequest, SessionRequest(sessions.lease(request.sourceKey), Url(request.url), explicit))
-        }
+        if (session != null) attributes.put(sourceSessionRequest, session)
         headers {
             for ((name, value) in request.headers) {
                 if (isHostControlHeader(name)) continue
@@ -164,6 +191,7 @@ class KtorVeneraHttpTransport(
      * No-op when the client was injected by the caller.
      */
     fun close() {
+        requestPolicy.clear()
         sessionClient?.close()
         if (ownsClient) client.close()
     }

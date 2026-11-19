@@ -64,7 +64,7 @@ class VeneraSourceRuntime private constructor(
                 val source = withTimeout(INITIALIZE_TIMEOUT_MILLIS) {
                     val result = evaluate<String>(
                         """
-                        __readerVenera.stage((Network, sendMessage, fetch, setInterval, UI, setClipboard, getClipboard, log, console) => {
+                        __readerVenera.stage((Network, sendMessage, fetch, setInterval, setTimeout, UI, setClipboard, getClipboard, log, console) => {
                         $code
                         ;
                         return new $className();
@@ -194,6 +194,10 @@ class VeneraSourceRuntime private constructor(
     suspend fun runSetting(key: String, name: String): JsonElement =
         evaluateSourceJson(key, "invokeSetting", JsonPrimitive(name).toString())
 
+    suspend fun describeAccount(key: String): JsonElement = evaluateSourceJson(key, "describeAccount")
+
+    suspend fun accountInfo(key: String): JsonElement = evaluateSourceJson(key, "accountInfo")
+
     suspend fun describe(key: String, field: SourceConfigField): JsonElement =
         evaluateSourceJson(key, "describe", JsonPrimitive(field.path).toString())
 
@@ -211,14 +215,15 @@ class VeneraSourceRuntime private constructor(
         )
     }
 
-    private suspend fun evaluateSourceJson(key: String, operation: String, args: String): JsonElement =
+    private suspend fun evaluateSourceJson(key: String, operation: String, vararg args: String): JsonElement =
         withContext(Dispatchers.Default) {
             mutex.withLock {
                 checkOpen()
                 require(key in sources) { "Source '$key' is not registered" }
                 withTimeout(CALLBACK_TIMEOUT_MILLIS) {
+                    val arguments = (listOf(JsonPrimitive(key).toString()) + args).joinToString(", ")
                     Json.parseToJsonElement(evaluate<String>(
-                        "await __readerVenera.$operation(${JsonPrimitive(key)}, $args)",
+                        "await __readerVenera.$operation($arguments)",
                         "$key:$operation",
                     ))
                 }
@@ -404,7 +409,7 @@ class VeneraSourceRuntime private constructor(
             try {
                 val result = evaluate<String>(
                     """
-                    __readerVenera.stage((Network, sendMessage, fetch, setInterval, UI, setClipboard, getClipboard, log, console) => {
+                    __readerVenera.stage((Network, sendMessage, fetch, setInterval, setTimeout, UI, setClipboard, getClipboard, log, console) => {
                     $code
                     ;
                     return new $className();
@@ -448,7 +453,7 @@ class VeneraSourceRuntime private constructor(
                 val source = withTimeout(INITIALIZE_TIMEOUT_MILLIS) {
                     val result = evaluate<String>(
                         """
-                        __readerVenera.stage((Network, sendMessage, fetch, setInterval, UI, setClipboard, getClipboard, log, console) => {
+                        __readerVenera.stage((Network, sendMessage, fetch, setInterval, setTimeout, UI, setClipboard, getClipboard, log, console) => {
                         $code
                         ;
                         return new $className();
@@ -582,6 +587,9 @@ class VeneraSourceRuntime private constructor(
     }
 
     @Serializable
+    private data class HostDelay(val key: String?, val millis: Long)
+
+    @Serializable
     private data class HostRequest(val request: VeneraHttpRequest, val bytes: Boolean)
 
     @Serializable
@@ -622,22 +630,6 @@ class VeneraSourceRuntime private constructor(
                 withContext(Dispatchers.Default) {
                     engine.memoryLimit = ENGINE_MEMORY_BYTES
                     engine.evaluationTimeoutMillis = INITIALIZE_TIMEOUT_MILLIS
-                    engine.asyncFunction<String, String>("__readerRequest") { payload ->
-                        try {
-                            val message = hostJson.decodeFromString<HostRequest>(payload)
-                            if (message.bytes) {
-                                val response = transport.executeBytes(message.request)
-                                hostJson.encodeToString(BinaryResponse(
-                                    response.status, response.body.toByteString().base64(), response.headers,
-                                ))
-                            } else hostJson.encodeToString(transport.execute(message.request))
-                        } catch (cancelled: CancellationException) {
-                            throw cancelled
-                        } catch (error: Exception) {
-                            val message = JsonPrimitive(error.message ?: "HTTP request failed")
-                            JsonObject(mapOf("error" to message)).toString()
-                        }
-                    }
                     val sessionHost = SessionHost(sessions)
                     engine.function<String, String>("__readerSourceSession", sessionHost::dispatch)
                     val html = HtmlHost()
@@ -652,17 +644,38 @@ class VeneraSourceRuntime private constructor(
                     engine.function<String, String>("__readerConvert", ::convertSourceValue)
                     val worker = ComputeHost(app)
                     engine.asyncFunction<String, String>("__readerCompute", worker::dispatch)
-                    engine.asyncFunction<String, Boolean>("__readerDelay") { raw ->
-                        delay(raw.toLongOrNull()?.coerceIn(0, 86_400_000) ?: 86_400_000L)
-                        true
-                    }
                     engine.function<String, Boolean>("__readerInterval", runtime::scheduleInterval)
-                    val interactions = InteractionHost(ui, runtime::cancelLoading) { id, value ->
+                    val interactions = InteractionHost(ui, runtime::cancelLoading, { id ->
+                        engine.evaluate<Any?>("await __readerInteractions.cancel($id)", filename = "venera:loading-cancel")
+                    }) { id, value ->
                         val result = engine.evaluate<String>(
                             "await __readerInteractions.callback($id, $value)",
                             filename = "venera:interaction",
                         )
                         (Json.parseToJsonElement(result) as? JsonPrimitive)?.takeIf { it.isString }?.content
+                    }
+                    engine.asyncFunction<String, String>("__readerRequest") { payload ->
+                        try {
+                            val message = hostJson.decodeFromString<HostRequest>(payload)
+                            interactions.whileAwaiting(message.request.sourceKey) {
+                                if (message.bytes) {
+                                    val response = transport.executeBytes(message.request)
+                                    hostJson.encodeToString(BinaryResponse(
+                                        response.status, response.body.toByteString().base64(), response.headers,
+                                    ))
+                                } else hostJson.encodeToString(transport.execute(message.request))
+                            }
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
+                        } catch (error: Exception) {
+                            val message = JsonPrimitive(error.message ?: "HTTP request failed")
+                            JsonObject(mapOf("error" to message)).toString()
+                        }
+                    }
+                    engine.asyncFunction<String, Boolean>("__readerDelay") { raw ->
+                        val timer = hostJson.decodeFromString<HostDelay>(raw)
+                        interactions.whileAwaiting(timer.key) { delay(timer.millis.coerceIn(0, 86_400_000)) }
+                        true
                     }
                     runtime.interactionHost = interactions
                     engine.function<String, Boolean>("__readerUiPost", interactions::post)

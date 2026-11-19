@@ -2,6 +2,8 @@ package app.koyura.data.extension
 
 import app.koyura.data.session.ExtensionSession
 import app.koyura.data.session.openExtensionSession
+import app.koyura.domain.extension.SourceAccountFieldType
+import app.koyura.domain.extension.SourceLoginState
 import app.koyura.domain.downloads.DownloadChapter
 import app.koyura.domain.downloads.DownloadStatus
 import app.koyura.network.createDefaultHttpClient
@@ -132,7 +134,10 @@ class CommunitySourceJourneyTest {
                     first.service.installFromContent(source.filename, script.decodeToString(), source.key)
                     println("${source.key}: installed, SHA-256 ${source.sha256}")
                     if (account != null) {
-                        first.service.accounts.login(source.key, account.first, account.second)
+                        val form = assertNotNull(first.service.sourceAccountConfig(source.key))
+                        assertEquals(listOf(SourceAccountFieldType.TEXT, SourceAccountFieldType.PASSWORD), form.fields.map { it.type })
+                        assertTrue(first.service.accounts.loginForm(source.key, listOf(account.first, account.second)))
+                        assertEquals(SourceLoginState.FORM, first.service.sourceLoginState(source.key))
                         assertTrue(first.service.runtime!!.describe(source.key, app.koyura.source.runtime.SourceConfigField.AccountLoggedIn)
                             == JsonPrimitive(true))
                         println("${source.key}: account login passed")
@@ -188,6 +193,7 @@ class CommunitySourceJourneyTest {
                 val offline = HttpClient(MockEngine { error("Offline reading attempted a request") })
                 val reopened = open(root, offline, secrets, online = false)
                 try {
+                    if (account != null) assertEquals(SourceLoginState.FORM, reopened.service.sourceLoginState(source.key))
                     val opened = reopened.comicReading.openChapter(source.key, progress.workId, progress.chapterId)
                     assertEquals(progress.index, opened.startIndex)
                     assertContentEquals(progress.image, reopened.comicReading.loadImageBytes(

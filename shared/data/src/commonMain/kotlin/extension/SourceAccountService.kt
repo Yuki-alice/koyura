@@ -51,6 +51,11 @@ class SourceAccountService internal constructor(
     suspend fun login(sourceKey: String, username: String, password: String) =
         extensions.loginSource(sourceKey, strings(username, password))
 
+    suspend fun loginForm(sourceKey: String, values: List<String>): Boolean =
+        extensions.loginSourceForm(sourceKey, JsonArray(values.map(::JsonPrimitive)))
+
+    suspend fun reLogin(sourceKey: String): Boolean = extensions.reLoginSource(sourceKey)
+
     suspend fun loginWithCookies(sourceKey: String, values: List<String>): Boolean =
         extensions.validateSourceCookies(sourceKey, JsonArray(listOf(JsonArray(values.map(::JsonPrimitive)))))
 

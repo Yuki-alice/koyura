@@ -17,6 +17,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
@@ -61,10 +62,12 @@ class SourceSessions(
     dispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
     internal data class Lease(val key: String, val generation: Long)
+    internal data class HttpIdentity(val revision: Long, val cookie: String?)
     private class Entry(val key: String) {
         val lock = SessionLock()
         var state: SourceSessionState? = null
         var generation = 0L
+        var httpRevision = 0L
         var dirty = false
         var pending: Job? = null
     }
@@ -93,10 +96,20 @@ class SourceSessions(
 
     internal fun requestHeader(lease: Lease, url: Url): String? = access(lease.key) {
         if (generation != lease.generation) return@access null
-        matching(load(this), url).joinToString("; ") {
+        renderRequestCookies(load(this), url)
+    }
+
+    internal fun httpIdentity(lease: Lease, url: Url, explicitCookie: String?): HttpIdentity? = access(lease.key) {
+        if (generation != lease.generation) return@access null
+        HttpIdentity(httpRevision, explicitCookie ?: renderRequestCookies(load(this), url))
+    }
+
+    fun invalidateHttpCache(key: String) = access(key) { httpRevision++ }
+
+    private fun renderRequestCookies(state: SourceSessionState, url: Url): String? =
+        matching(state, url).joinToString("; ") {
             renderCookieHeader(Cookie(it.cookie.name, it.cookie.value, encoding = CookieEncoding.RAW))
         }.takeIf { it.isNotEmpty() }
-    }
 
     internal fun receive(lease: Lease, url: Url, cookies: List<Cookie>) = access(lease.key) {
         if (cookies.isEmpty() || generation != lease.generation) return@access
@@ -106,6 +119,7 @@ class SourceSessions(
         }))
         if (next == current) return@access
         state = next
+        httpRevision++
         if (secrets == null) return@access
         dirty = true
         pending?.cancel()
@@ -134,11 +148,13 @@ class SourceSessions(
     fun clear(key: String) = access(key) {
         update(this, SourceSessionState(settings = load(this).settings))
         generation++
+        httpRevision++
     }
 
     fun forget(key: String) = access(key) {
         update(this, SourceSessionState())
         generation++
+        httpRevision++
     }
 
     fun saveWebLogin(key: String, url: String, cookies: List<SourceCookie>, storage: JsonObject) = access(key) {
@@ -148,6 +164,10 @@ class SourceSessions(
     }
 
     fun applyLoginMarker(key: String) = applyData(key, mapOf("account" to JsonPrimitive("ok")))
+
+    fun saveFormLogin(key: String, arguments: JsonArray) = applyData(key, mapOf("account" to arguments))
+
+    fun accountMarker(key: String): JsonElement = getData(key, "account")
 
     internal fun getData(key: String, name: String): JsonElement = access(key) { load(this).data[name] ?: JsonNull }
 
@@ -196,8 +216,12 @@ class SourceSessions(
     ).also { entry.state = it }
 
     private fun update(entry: Entry, next: SourceSessionState) {
-        if (next == load(entry) && !entry.dirty) return
+        val previous = load(entry)
+        if (next == previous && !entry.dirty) return
         persist(entry, next)
+        if (next.cookies != previous.cookies || next.data != previous.data || next.settings != previous.settings) {
+            entry.httpRevision++
+        }
         entry.pending?.cancel()
         entry.pending = null
         entry.state = next

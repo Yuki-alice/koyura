@@ -79,6 +79,7 @@ class LibraryStore(driver: SqlDriver) : LibraryRepository {
             q.deleteChaptersForWork(sourceKey, kind.name, workId)
             db.libraryUpdatesQueries.deleteDetectedChapters(sourceKey, kind.name, workId)
             db.libraryUpdatesQueries.clearUpdateFailure(sourceKey, kind.name, workId)
+            db.libraryUpdatesQueries.deleteTitleMetadata(sourceKey, kind.name, workId)
             q.deleteLibraryManga(sourceKey, kind.name, workId)
         }
         // reading_progress 行保留：历史与“继续阅读”派生仍可读，禁止静默删库。

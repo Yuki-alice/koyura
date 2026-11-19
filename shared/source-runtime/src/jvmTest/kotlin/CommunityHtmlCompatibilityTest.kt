@@ -2,7 +2,13 @@ package app.koyura.source.runtime
 
 import java.io.File
 import java.security.MessageDigest
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonArray
@@ -10,6 +16,8 @@ import kotlinx.serialization.json.jsonObject
 import org.junit.Assume.assumeNotNull
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
 
 class CommunityHtmlCompatibilityTest {
     @Test
@@ -60,6 +68,64 @@ class CommunityHtmlCompatibilityTest {
             episode = "first",
             expectedImage = "$base/page.jpg",
         )
+    }
+
+    @Test
+    fun unmodifiedMxsCancelsDomainCheckWhileNetworkIsPending() = runTest {
+        val fixtureDir = System.getProperty("reader.venera.community")
+        assumeNotNull(fixtureDir)
+        val script = File(fixtureDir, "mxs.js").readBytes()
+        assertEquals("da2c222eda825b77eb3b67ac09ec33b70bc2512cd5fc867fbe9b958df55037f8",
+            MessageDigest.getInstance("SHA-256").digest(script).toHexString())
+
+        val cancel = CompletableDeferred<() -> Unit>()
+        val requestStarted = CompletableDeferred<Unit>()
+        val respond = CompletableDeferred<Unit>()
+        val messages = Channel<String>(Channel.UNLIMITED)
+        val dismissed = CompletableDeferred<Int>()
+        val host = object : VeneraUiHost {
+            override fun showLoading(sourceKey: String, id: Int, onCancel: (() -> Unit)?) {
+                assertEquals("mxs", sourceKey)
+                cancel.complete(assertNotNull(onCancel))
+            }
+
+            override fun cancelLoading(sourceKey: String, id: Int) {
+                assertTrue(dismissed.complete(id), "Loading was dismissed twice")
+            }
+
+            override fun showMessage(sourceKey: String, message: String) {
+                messages.trySend(message)
+            }
+        }
+        val runtime = VeneraSourceRuntime.create(
+            VeneraEnvironment("1.16.0", "zh_CN", "macos"), SourceSessions(), host,
+        ) { request ->
+            assertEquals("https://www.mxshm.top", request.url.trimEnd('/'))
+            requestStarted.complete(Unit)
+            respond.await()
+            VeneraHttpResponse(200, "healthy")
+        }
+        try {
+            runtime.register(script.decodeToString(), "mxs.js", expectedKey = "mxs")
+            withContext(Dispatchers.Default) {
+                withTimeout(16_000) {
+                    val check = async { runtime.runSetting("mxs", "domainCheck") }
+                    withTimeout(4_000) {
+                        requestStarted.await()
+                        val dismiss = cancel.await()
+                        dismiss()
+                        dismiss()
+                        assertTrue(dismissed.await() > 0)
+                        assertEquals("检测已取消", messages.receive())
+                    }
+                    respond.complete(Unit)
+                    check.await()
+                    assertTrue(messages.tryReceive().isFailure)
+                }
+            }
+        } finally {
+            runtime.close()
+        }
     }
 
     private suspend fun verify(

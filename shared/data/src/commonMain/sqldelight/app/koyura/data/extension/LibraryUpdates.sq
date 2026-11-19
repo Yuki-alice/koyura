@@ -44,3 +44,34 @@ ORDER BY dc.detected_at DESC, dc.source_key, dc.work_id, c.sort_index DESC, dc.c
 
 selectUpdateFailures:
 SELECT * FROM library_update_failure ORDER BY checked_at DESC, source_key, work_id;
+
+CREATE TABLE IF NOT EXISTS library_update_metadata (
+    source_key TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    work_id TEXT NOT NULL,
+    completed INTEGER,
+    fetch_once INTEGER NOT NULL DEFAULT 0,
+    next_update INTEGER,
+    PRIMARY KEY (source_key, kind, work_id)
+);
+
+selectTitleMetadata:
+SELECT * FROM library_update_metadata WHERE source_key = ? AND kind = ? AND work_id = ?;
+
+setTitleMetadata:
+INSERT OR REPLACE INTO library_update_metadata(source_key, kind, work_id, completed, fetch_once, next_update)
+VALUES (?, ?, ?, ?, ?, ?);
+
+insertCompletionStatus:
+INSERT OR IGNORE INTO library_update_metadata(source_key, kind, work_id, completed)
+VALUES (?, ?, ?, ?);
+
+updateCompletionStatus:
+UPDATE library_update_metadata SET completed = ? WHERE source_key = ? AND kind = ? AND work_id = ?;
+
+deleteTitleMetadata:
+DELETE FROM library_update_metadata WHERE source_key = ? AND kind = ? AND work_id = ?;
+
+chapterReadCounts:
+SELECT COUNT(*) AS total_chapters, COUNT(CASE WHEN is_read != 0 THEN 1 END) AS read_chapters
+FROM library_chapter WHERE source_key = ? AND kind = ? AND work_id = ?;

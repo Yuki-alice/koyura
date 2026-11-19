@@ -1,0 +1,9 @@
+CREATE TABLE IF NOT EXISTS library_update_metadata (
+    source_key TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    work_id TEXT NOT NULL,
+    completed INTEGER,
+    fetch_once INTEGER NOT NULL DEFAULT 0,
+    next_update INTEGER,
+    PRIMARY KEY (source_key, kind, work_id)
+);
