@@ -3,10 +3,16 @@ package app.koyura.source.runtime
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
+import io.ktor.http.Cookie
+import io.ktor.http.Url
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headers
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -56,6 +62,7 @@ class SourceSessionTest {
         } finally {
             live.close()
             transport.close()
+            sessions.close()
         }
         val reopened = SourceSessions(secrets)
         val reopenedTransport = KtorVeneraHttpTransport(client, sessions = reopened)
@@ -68,6 +75,7 @@ class SourceSessionTest {
             assertNull(SourceSessions(secrets).cookies("one", "https://comics.example/media/image").singleOrNull())
         } finally {
             reopenedTransport.close()
+            reopened.close()
             client.close()
         }
     }
@@ -95,6 +103,41 @@ class SourceSessionTest {
         }
     }
 
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    @Test
+    fun batchesResponseCookiesAndPersistsWebLoginAndLogoutImmediately() = runTest {
+        val secrets = MemorySecrets()
+        val sessions = SourceSessions(secrets, StandardTestDispatcher(testScheduler))
+        val url = Url("https://comics.example/")
+        val oldLease = sessions.lease("one")
+        repeat(30) {
+            sessions.receive(oldLease, url, listOf(Cookie("sid", "value-$it")))
+            advanceTimeBy(10)
+        }
+        assertEquals(0, secrets.writes)
+        assertEquals("sid=value-29", sessions.requestHeader(oldLease, url))
+        advanceTimeBy(300)
+        runCurrent()
+        assertEquals(1, secrets.writes)
+        assertEquals("value-29", SourceSessions(secrets).cookies("one", url.toString()).single().value)
+        sessions.receive(oldLease, url, listOf(Cookie("sid", "pending")))
+        sessions.saveWebLogin("one", url.toString(), listOf(SourceCookie("sid", "login")), JsonObject(emptyMap()))
+        assertEquals(2, secrets.writes)
+        assertEquals("login", SourceSessions(secrets).cookies("one", url.toString()).single().value)
+        sessions.receive(oldLease, url, listOf(Cookie("sid", "before-logout")))
+        sessions.clear("one")
+        sessions.receive(oldLease, url, listOf(Cookie("sid", "obsolete")))
+        advanceTimeBy(300)
+        runCurrent()
+        assertEquals(3, secrets.writes)
+        assertNull(sessions.requestHeader(oldLease, url))
+        assertNull(secrets.read("one"))
+        sessions.receive(sessions.lease("one"), url, listOf(Cookie("sid", "pending-close")))
+        sessions.close()
+        assertEquals(4, secrets.writes)
+        assertEquals("pending-close", SourceSessions(secrets).cookies("one", url.toString()).single().value)
+    }
+
     private fun script(key: String) = """
         class Example extends ComicSource {
             name = "Example";
@@ -115,8 +158,11 @@ class SourceSessionTest {
 
     private class MemorySecrets : SourceSecretStore {
         private val values = mutableMapOf<String, String>()
+        var writes = 0
+            private set
         override fun read(sourceKey: String) = values[sourceKey]
         override fun write(sourceKey: String, value: String?) {
+            writes++
             if (value == null) values.remove(sourceKey) else values[sourceKey] = value
         }
     }

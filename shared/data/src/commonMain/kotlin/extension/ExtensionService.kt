@@ -490,6 +490,7 @@ class ExtensionService(
         } finally {
             runtime = null
             sourceTransport.close()
+            withContext(NonCancellable + Dispatchers.IO) { sourceSessions.close() }
         }
     }
 
