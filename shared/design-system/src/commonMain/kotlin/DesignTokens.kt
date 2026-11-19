@@ -117,6 +117,9 @@ object DesignTokens {
         // 书架继续阅读按钮 28dp / 图标 16dp — CommonMangaItem.kt:62,65。
         val ContinueButtonSize = 28.dp
         val ContinueButtonIconSize = 16.dp
+        // 更新组封面宽 48dp — UpdatesUiItem.kt:475 `UpdateItemWidth = 48.dp`；白皮书 07 §7.7。
+        // 全景封面 108dp（UpdateItemPanoramaWidth）待真实封面比例检测后启用，本轮 Fake 固定 Book 比例。
+        val UpdateCoverWidth = 48.dp
         val FastScrollerThumb = 12.dp
         // 详情封面背景模糊半径 — MangaInfoHeader.kt:180 `.blur(7.dp)`。
         val BackdropBlur = 7.dp
