@@ -73,6 +73,7 @@ import app.koyura.app.resources.history_today
 import app.koyura.app.resources.history_unknown_time
 import app.koyura.app.resources.history_yesterday
 import app.koyura.designsystem.Cover
+import app.koyura.designsystem.DesignTokens
 import app.koyura.designsystem.LocalCoverDecoder
 import app.koyura.designsystem.LocalCoverImageLoader
 import kotlinx.coroutines.launch
@@ -164,7 +165,12 @@ fun HistoryScreen(
                     onValueChange = { query = it },
                     placeholder = stringResource(Res.string.history_search),
                     clearLabel = stringResource(Res.string.browse_clear_search),
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).testTag(HistorySearchTag),
+                    modifier = Modifier.fillMaxWidth()
+                        .padding(
+                            horizontal = DesignTokens.Spacing.Medium,
+                            vertical = DesignTokens.Spacing.Small,
+                        )
+                        .testTag(HistorySearchTag),
                 )
             }
 
@@ -212,7 +218,7 @@ fun HistoryScreen(
                         LazyColumn(
                             state = listState,
                             modifier = Modifier.fillMaxSize().testTag(HistoryListTag),
-                            contentPadding = PaddingValues(vertical = 8.dp),
+                            contentPadding = PaddingValues(vertical = DesignTokens.Spacing.Small),
                         ) {
                             sections.forEach { section ->
                                 val groupKey = section.date?.toString() ?: "unknown"
@@ -419,8 +425,11 @@ private fun HistoryRow(
             .fillMaxWidth()
             .clickable(onClick = onOpen)
             .testTag(historyRowTag(entry.sourceKey, entry.workId))
-            .height(96.dp)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .height(DesignTokens.Sizes.HistoryItemHeight)
+            .padding(
+                horizontal = DesignTokens.Spacing.Medium,
+                vertical = DesignTokens.Spacing.Small,
+            ),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Cover(
@@ -432,7 +441,10 @@ private fun HistoryRow(
         Column(
             modifier = Modifier
                 .weight(1f)
-                .padding(start = 16.dp, end = 8.dp),
+                .padding(
+                    start = DesignTokens.Spacing.Medium,
+                    end = DesignTokens.Spacing.Small,
+                ),
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             Text(
@@ -460,7 +472,7 @@ private fun HistoryRow(
             label = stringResource(if (favorited) Res.string.history_favorite_remove else Res.string.history_favorite_add),
             onClick = onToggleFavorite,
             modifier = Modifier.testTag(historyFavoriteTag(entry.sourceKey, entry.workId)),
-            contentColor = if (favorited) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+            contentColor = if (favorited) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
         )
         ActionIconButton(
             icon = ActionIcon.Delete,

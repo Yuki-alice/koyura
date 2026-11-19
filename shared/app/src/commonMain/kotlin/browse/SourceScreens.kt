@@ -7,6 +7,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.ui.text.style.TextAlign
 import app.koyura.designsystem.ActionIcon
 import app.koyura.designsystem.ActionIconButton
+import app.koyura.designsystem.DesignTokens
 import app.koyura.designsystem.SearchField
 
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -36,6 +37,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -322,7 +324,7 @@ internal const val SourceDetailToolbarTag = "source-detail-toolbar"
 internal const val SourceDetailBackTag = "source-detail-back"
 
 /** Width at or above which the detail page uses the Komikku two-pane layout. */
-internal val DetailWideWidthThreshold = 720.dp
+internal val DetailWideWidthThreshold = DesignTokens.Breakpoints.TabletMinSmallestWidthDp.dp
 
 /** Work detail page backed by the source's `comic.loadInfo` callback. */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
@@ -718,7 +720,8 @@ private fun DetailInfoColumn(
     val title = detail.title.ifEmpty { fallbackTitle }
     val backdrop = rememberCoverBitmap(sourceKey, detail.cover)
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-        val coverWidth = (maxWidth * 0.62f).coerceIn(100.dp, 240.dp)
+        // 平板居中封面占宽 65%（白皮书 07 §7.4），240dp 上限保持手机/折叠屏可读。
+        val coverWidth = (maxWidth * 0.65f).coerceIn(100.dp, 240.dp)
         DetailBackdrop(cover = backdrop, modifier = Modifier.matchParentSize())
         if (wide) {
             Column(
@@ -842,20 +845,19 @@ private fun DetailInfoColumn(
             detail.tags.forEach { (group, values) ->
                 values.forEachIndexed { index, value ->
                     val chipText = if (multiGroup) "$group · $value" else value
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant,
+                    // 类型标签 = M3 SuggestionChip（small 圆角 + labelLarge + 描边容器），
+                    // Code: Chip.kt:50（shape = shapes.small）经 NamespaceTags 用于详情标签区。
+                    SuggestionChip(
+                        onClick = {},
+                        label = {
+                            Text(
+                                text = chipText,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        },
                         modifier = Modifier.testTag("detail-chip-$group-$index"),
-                    ) {
-                        Text(
-                            text = chipText,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                        )
-                    }
+                    )
                 }
             }
         }
@@ -983,19 +985,20 @@ private fun MangaChapterRow(
                 onLongClick = onToggleSelect,
             )
             .testTag("source-detail-chapter-${chapter.id}")
-            .padding(start = 16.dp, top = 12.dp, end = 8.dp, bottom = 12.dp),
+            .padding(DesignTokens.Sizes.ChapterItemPadding),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (selected) {
             ActionIcon(
                 ActionIcon.Checklist,
                 null,
-                modifier = Modifier.padding(end = 8.dp).size(16.dp),
+                modifier = Modifier.padding(end = DesignTokens.Spacing.Small).size(16.dp),
                 tint = MaterialTheme.colorScheme.primary,
             )
         } else {
+            // 未读点 8dp primary（白皮书 06 §6.10；Code MangaChapterListItem.kt:128）。
             Box(
-                Modifier.padding(end = 8.dp).size(6.dp)
+                Modifier.padding(end = DesignTokens.Spacing.Small).size(DesignTokens.Spacing.Small)
                     .background(
                         if (read) MaterialTheme.colorScheme.outlineVariant else MaterialTheme.colorScheme.primary,
                         CircleShape,
