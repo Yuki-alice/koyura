@@ -23,6 +23,8 @@ import app.koyura.app.navigation.usesNavigationRailForWindow
 import app.koyura.designsystem.DesignTokens
 import app.koyura.designsystem.ReaderTheme
 import app.koyura.designsystem.navigation.NavTab
+import app.koyura.features.account.AccountRepository
+import app.koyura.features.account.LocalAccountRepository
 import app.koyura.features.library.LocalLibraryRepository
 import app.koyura.features.library.LibraryRepository as FeaturesLibraryRepository
 import app.koyura.features.updates.LocalUpdatesRepository
@@ -64,6 +66,7 @@ fun App(
     readerPreferences: ReaderPreferences? = null,
     libraryRepository: FeaturesLibraryRepository? = null,
     updatesRepository: UpdatesRepository? = null,
+    accountRepository: AccountRepository? = null,
     sourceUiHost: SourceUiHost? = null,
 ) {
     ReaderTheme {
@@ -74,6 +77,7 @@ fun App(
             LocalHistoryService provides historyService,
             LocalLibraryRepository provides libraryRepository,
             LocalUpdatesRepository provides updatesRepository,
+            LocalAccountRepository provides accountRepository,
             LocalSourceUiHost provides sourceUiHost,
         ) {
             Surface(modifier = Modifier.fillMaxSize()) {
