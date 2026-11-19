@@ -50,5 +50,6 @@ suspend fun openExtensionSession(
         appDataDir = appDataDir,
         httpClient = createDefaultHttpClient(),
         environment = environment,
+        secrets = IosSourceSecretStore(),
     )
 }

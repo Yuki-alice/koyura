@@ -8,6 +8,7 @@ import app.koyura.domain.extension.OriginRecord
 import app.koyura.domain.extension.RepositoryRecord
 import app.koyura.domain.extension.UpdateCheckResult
 import app.koyura.source.runtime.KtorVeneraHttpTransport
+import app.koyura.source.runtime.SourceSessions
 import app.koyura.source.runtime.VeneraCallback
 import app.koyura.source.runtime.VeneraCatalog
 import app.koyura.source.runtime.VeneraCatalogEntry
@@ -24,6 +25,8 @@ import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
 import kotlin.uuid.Uuid
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.IO
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
@@ -31,7 +34,9 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
 import okio.FileSystem
 import okio.HashingSink
 import okio.Path
@@ -89,10 +94,16 @@ class ExtensionService(
     private val scriptsDir: Path,
     private val httpClient: HttpClient,
     private val environment: VeneraEnvironment,
+    private val sourceSessions: SourceSessions = SourceSessions(),
 ) {
+    internal val sourceTransport = KtorVeneraHttpTransport(httpClient, sessions = sourceSessions)
+    val accounts = SourceAccountService(this)
+    val browse = SourceBrowseService(this)
+
     private val db = ExtensionDb(driver)
     private val mutex = Mutex()
     private val updating = mutableSetOf<String>()
+    private val loginGeneration = mutableMapOf<String, Long>()
     var runtime: VeneraSourceRuntime? = null
         private set
 
@@ -211,7 +222,7 @@ class ExtensionService(
      */
     suspend fun restore(): RestoreReport {
         val failures = mutableListOf<RestoreFailure>()
-        val live = VeneraSourceRuntime.create(environment, KtorVeneraHttpTransport(httpClient))
+        val live = VeneraSourceRuntime.create(environment, sourceSessions, sourceTransport)
         runtime?.close()
         runtime = live
         val rows = queries().selectAllExtensions().executeAsList()
@@ -305,6 +316,8 @@ class ExtensionService(
         mutex.withLock {
             val row = queries().selectExtensionByKey(key).executeAsOneOrNull()
                 ?: throw ExtensionFailure.MissingExtension(key)
+            invalidateWebLogin(key)
+            withContext(Dispatchers.IO) { sourceSessions.forget(key) }
             try {
                 runtime?.unregister(key)
             } catch (_: Exception) {
@@ -410,9 +423,74 @@ class ExtensionService(
         }
     }
 
+    internal suspend fun loginSource(key: String, arguments: JsonArray) = mutex.withLock {
+        val live = runtime ?: throw ExtensionFailure.MissingExtension(key)
+        live.call(key, VeneraCallback.Login, arguments)
+        withContext(Dispatchers.IO) { sourceSessions.applyLoginMarker(key) }
+    }
+
+    internal suspend fun validateSourceCookies(key: String, values: JsonArray): Boolean = mutex.withLock {
+        val live = runtime ?: throw ExtensionFailure.MissingExtension(key)
+        val accepted = live.call(key, VeneraCallback.ValidateCookies, values) == JsonPrimitive(true)
+        if (accepted) withContext(Dispatchers.IO) { sourceSessions.applyLoginMarker(key) }
+        accepted
+    }
+
+    internal suspend fun logoutSource(key: String) = mutex.withLock {
+        invalidateWebLogin(key)
+        try {
+            val live = runtime
+            if (live?.registeredSources()?.any { it.key == key && VeneraCallback.Logout in it.callbacks } == true) {
+                live.call(key, VeneraCallback.Logout)
+            }
+        } finally {
+            withContext(NonCancellable + Dispatchers.IO) { sourceSessions.clear(key) }
+        }
+    }
+
+    internal suspend fun beginWebLogin(key: String): Pair<WebLoginOwner, String>? = mutex.withLock {
+        val live = runtime ?: throw ExtensionFailure.MissingExtension(key)
+        val instance = live.liveInstanceSeq(key) ?: throw ExtensionFailure.MissingExtension(key)
+        val start = live.webLoginUrl(key) ?: return@withLock null
+        invalidateWebLogin(key)
+        WebLoginOwner(key, live, instance, loginGeneration.getValue(key)) to start
+    }
+
+    internal suspend fun checkWebLogin(owner: WebLoginOwner, arguments: JsonArray): Boolean = mutex.withLock {
+        isCurrent(owner) && owner.runtime.call(owner.key, VeneraCallback.CheckWebLogin, arguments) == JsonPrimitive(true)
+    }
+
+    internal suspend fun finishWebLogin(owner: WebLoginOwner, capture: WebLoginCapture): Boolean = mutex.withLock {
+        if (!isCurrent(owner)) return@withLock false
+        withContext(Dispatchers.IO) {
+            sourceSessions.saveWebLogin(owner.key, capture.page.url, capture.cookies, capture.localStorage)
+        }
+        if (owner.runtime.registeredSources().any { it.key == owner.key && VeneraCallback.WebLoginSucceeded in it.callbacks }) {
+            owner.runtime.call(owner.key, VeneraCallback.WebLoginSucceeded)
+        }
+        true
+    }
+
+    private fun invalidateWebLogin(key: String) {
+        loginGeneration[key] = (loginGeneration[key] ?: 0L) + 1
+    }
+
+    private suspend fun isCurrent(owner: WebLoginOwner): Boolean =
+        runtime === owner.runtime && loginGeneration[owner.key] == owner.generation &&
+            owner.runtime.liveInstanceSeq(owner.key) == owner.instance
+
+    suspend fun setSourceSetting(key: String, name: String, value: JsonElement?) = mutex.withLock {
+        if (runtime?.registeredSources()?.none { it.key == key } != false) throw ExtensionFailure.MissingExtension(key)
+        withContext(Dispatchers.IO) { sourceSessions.setSetting(key, name, value) }
+    }
+
     suspend fun close() {
-        runtime?.close()
-        runtime = null
+        try {
+            runtime?.close()
+        } finally {
+            runtime = null
+            sourceTransport.close()
+        }
     }
 
     // ---- internals ----

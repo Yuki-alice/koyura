@@ -1,6 +1,7 @@
 package app.koyura.data.reading
 
 import app.cash.sqldelight.db.SqlDriver
+import app.koyura.data.downloads.ChapterContentPackages
 import app.koyura.data.extension.ExtensionDb
 import app.koyura.data.extension.ExtensionService
 import app.koyura.data.extension.Reading_progress
@@ -8,14 +9,17 @@ import app.koyura.domain.extension.ComicPage
 import app.koyura.domain.extension.OpenedChapter
 import app.koyura.domain.extension.ReadingFailure
 import app.koyura.domain.extension.ReadingProgress
-import app.koyura.source.runtime.KtorVeneraHttpTransport
 import app.koyura.source.runtime.ParsedImageConfig
 import app.koyura.source.runtime.VeneraCallback
 import app.koyura.source.runtime.VeneraHttpRequest
+import app.koyura.source.runtime.modifyImageWithScript
 import app.koyura.source.runtime.normalizeVeneraUrl
 import app.koyura.source.runtime.VeneraSourceRuntime
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.IO
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.JsonArray
@@ -50,8 +54,22 @@ class ComicReadingService(
 ) {
     private val db = ExtensionDb(driver)
     private val progressMutex = Mutex()
+    private var localContent: ChapterContentPackages? = null
+    private var isOnline: () -> Boolean = { true }
+
+    internal fun attachLocalContent(packages: ChapterContentPackages, isOnline: () -> Boolean) {
+        localContent = packages
+        this.isOnline = isOnline
+    }
 
     suspend fun openChapter(sourceKey: String, workId: String, chapterId: String?): OpenedChapter {
+        val local = localPackage(sourceKey, workId, chapterId)
+        if (local != null) return opened(sourceKey, workId, chapterId, local.pages)
+        if (!isOnline()) throw ReadingFailure.OfflineUnavailable()
+        return openOnlineChapter(sourceKey, workId, chapterId)
+    }
+
+    internal suspend fun openOnlineChapter(sourceKey: String, workId: String, chapterId: String?): OpenedChapter {
         val live = extensions.runtime ?: throw ReadingFailure.SourceMissing(sourceKey)
         if (live.registeredSources().none { it.key == sourceKey }) throw ReadingFailure.SourceMissing(sourceKey)
         val args = JsonArray(
@@ -88,11 +106,21 @@ class ComicReadingService(
             val pageKey = if (occurrence == 1) imageKey else "$imageKey#$occurrence"
             ComicPage(pageKey = pageKey, index = index, imageKey = imageKey)
         }
+        return opened(sourceKey, workId, chapterId, pages)
+    }
+
+    private suspend fun opened(
+        sourceKey: String, workId: String, chapterId: String?, pages: List<ComicPage>,
+    ): OpenedChapter {
         val saved = readProgress(sourceKey, workId, chapterId)
         val startIndex = when {
             pages.isEmpty() -> 0
             saved == null -> 0
-            else -> pages.indexOfFirst { it.pageKey == saved.pageKey }
+            else -> pages.indexOfFirst {
+                it.pageKey == saved.pageKey ||
+                    ChapterContentPackages.locator(it.pageKey) == saved.pageKey ||
+                    it.pageKey == ChapterContentPackages.locator(saved.pageKey)
+            }
                 .takeIf { it >= 0 }
                 ?: saved.pageIndex.coerceIn(0, pages.size - 1)
         }
@@ -123,6 +151,36 @@ class ComicReadingService(
      * network waits in between leave other source callbacks unaffected.
      */
     suspend fun loadImageBytes(sourceKey: String, workId: String, chapterId: String?, imageKey: String): ByteArray {
+        val local = localPackage(sourceKey, workId, chapterId)
+        val bytes = if (local != null) withContext(Dispatchers.IO) {
+            localContent?.readPage(local.jobId, imageKey)
+        } else null
+        if (bytes != null) return bytes
+        if (!isOnline()) throw ReadingFailure.OfflineUnavailable()
+        val remoteKey = if (imageKey.startsWith(ChapterContentPackages.LOCATOR_PREFIX)) {
+            val remote = openOnlineChapter(sourceKey, workId, chapterId)
+            val index = local?.pages?.indexOfFirst { it.pageKey == imageKey } ?: -1
+            val page = remote.pages.firstOrNull { ChapterContentPackages.locator(it.pageKey) == imageKey }
+                ?: remote.pages.getOrNull(index)
+                ?: throw ReadingFailure.PageNotFound(imageKey)
+            page.imageKey
+        } else imageKey
+        return loadOnlineImageBytes(sourceKey, workId, chapterId, remoteKey)
+    }
+
+    private data class LocalChapter(val jobId: String, val pages: List<ComicPage>)
+
+    private suspend fun localPackage(sourceKey: String, workId: String, chapterId: String?): LocalChapter? {
+        val packages = localContent ?: return null
+        return withContext(Dispatchers.IO) {
+            val row = db.downloadJobsQueries.selectDownloadForChapter(sourceKey, workId, chapterKey(chapterId)).executeAsOneOrNull()
+                ?: return@withContext null
+            if (row.status != "COMPLETE") return@withContext null
+            packages.manifest(row.id)?.let { stored -> LocalChapter(row.id, stored.comicPages()) }
+        }
+    }
+
+    internal suspend fun loadOnlineImageBytes(sourceKey: String, workId: String, chapterId: String?, imageKey: String): ByteArray {
         val live = liveRuntime(sourceKey)
         val source = live.registeredSources().firstOrNull { it.key == sourceKey }
             ?: throw ReadingFailure.SourceMissing(sourceKey)
@@ -236,7 +294,9 @@ class ComicReadingService(
                     throw mapEngineError(e)
                 }
                 try {
-                    return applyOnResponse(live, tracked, config.onResponse, bytes)
+                    val transformed = applyOnResponse(live, config.onResponse, bytes)
+                    val script = config.modifyImage
+                    return if (supportsRetry && script != null) modifyImageWithScript(transformed, script) else transformed
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: ReadingFailure.RuntimeClosed) {
@@ -245,7 +305,8 @@ class ComicReadingService(
                     config = replaceOrRethrow(e)
                     continue
                 } catch (e: Exception) {
-                    throw mapEngineError(e, ReadingFailure::InvalidTransform)
+                    config = replaceOrRethrow(ReadingFailure.InvalidTransform(e))
+                    continue
                 }
             }
         } finally {
@@ -273,9 +334,8 @@ class ComicReadingService(
     }
 
     private suspend fun downloadImageBytes(request: VeneraHttpRequest): ByteArray {
-        val transport = KtorVeneraHttpTransport(httpClient)
         val response = try {
-            transport.executeBytes(request)
+            extensions.sourceTransport.executeBytes(request)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -287,7 +347,6 @@ class ComicReadingService(
 
     private suspend fun applyOnResponse(
         live: VeneraSourceRuntime,
-        tracked: MutableSet<Int>,
         handle: Int?,
         bytes: ByteArray,
     ): ByteArray {
@@ -328,13 +387,6 @@ class ComicReadingService(
     ): ReadingFailure {
         val message = error.message.orEmpty()
         if (message.contains("closed", ignoreCase = true)) return ReadingFailure.RuntimeClosed()
-        // Thrown by the bootstrap before any config is adopted (`<file>: ...` prefix included).
-        val marker = "Unsupported image capability: "
-        val markerAt = message.indexOf(marker)
-        if (markerAt >= 0) {
-            val kind = message.substring(markerAt + marker.length).lineSequence().firstOrNull()?.trim().orEmpty()
-            return ReadingFailure.TransformUnsupported(kind)
-        }
         return wrap(error)
     }
 

@@ -28,6 +28,8 @@ kotlin {
             api(libs.serialization.json)
             implementation(libs.coroutines.core)
             implementation(libs.quickjs)
+            implementation(libs.ksoup)
+            implementation(libs.okio)
             api(project(":shared:network"))
             implementation(libs.ktor.client.core)
         }
@@ -51,4 +53,13 @@ tasks.named<Test>("jvmTest") {
     systemProperty("reader.venera.example", fixture.absolutePath)
     systemProperty("reader.venera.required", veneraReferenceDir.isPresent.toString())
     testLogging.showStandardStreams = true
+}
+
+val communityFixtureDir = providers.gradleProperty("veneraCommunityFixtureDir")
+tasks.named<Test>("jvmTest") {
+    communityFixtureDir.orNull?.let { path ->
+        val directory = rootProject.file(path)
+        inputs.files(directory.resolve("baozi.js"), directory.resolve("mxs.js"))
+        systemProperty("reader.venera.community", directory.absolutePath)
+    }
 }

@@ -155,15 +155,14 @@ class ComicReadingServiceTest {
     }
 
     @Test
-    fun unsupportedTransformReturnsClearError() = runTest {
+    fun corruptInputToImageScriptReturnsClearError() = runTest {
         val client = HttpClient(MockEngine { respond(byteArrayOf(1), HttpStatusCode.OK) }) { applyReaderDefaults() }
-        val onImageLoad = """(imageKey) => ({ url: imageKey, modifyImage: "return image;" })"""
+        val onImageLoad = """(imageKey) => ({ url: imageKey, modifyImage: "function modifyImage(image) { return image; }" })"""
         readingHarness(client) { service, reading, _ ->
             service.installFromContent("Read", readingScript("""["https://example.invalid/u1"]""", onImageLoad), READ_KEY)
-            val failure = assertFailsWith<ReadingFailure.TransformUnsupported> {
+            assertFailsWith<ReadingFailure.InvalidTransform> {
                 reading.loadPageImage(READ_KEY, "w", "ep1", "https://example.invalid/u1")
             }
-            assertEquals("modifyImage", failure.kind)
         }
     }
 

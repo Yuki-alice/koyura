@@ -3,7 +3,16 @@ package app.koyura.source.runtime
 import com.dokar.quickjs.QuickJs
 import com.dokar.quickjs.QuickJsException
 import com.dokar.quickjs.binding.asyncFunction
+import com.dokar.quickjs.binding.function
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
@@ -20,6 +29,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import okio.ByteString.Companion.toByteString
 
 /**
  * A registry of Venera sources in one QuickJS runtime. Callback parameters and results use the
@@ -30,6 +40,9 @@ class VeneraSourceRuntime private constructor(
     private val supportedVersion: VeneraVersion,
 ) {
     private val mutex = Mutex()
+    private val timerScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val timerLock = SessionLock()
+    private val timers = mutableMapOf<String, ScheduledInterval>()
     private var nextImageConfigId = 0L
     private val sources = linkedMapOf<String, VeneraSource>()
     private val displacedSources = mutableMapOf<String, VeneraSource?>()
@@ -50,7 +63,7 @@ class VeneraSourceRuntime private constructor(
                 val source = withTimeout(INITIALIZE_TIMEOUT_MILLIS) {
                     val result = evaluate<String>(
                         """
-                        __readerVenera.stage((Network, sendMessage) => {
+                        __readerVenera.stage((Network, sendMessage, fetch, setInterval) => {
                         $code
                         ;
                         return new $className();
@@ -79,6 +92,7 @@ class VeneraSourceRuntime private constructor(
                     } catch (rollback: Throwable) {
                         failure.addSuppressed(rollback)
                         try {
+                            timerScope.cancel()
                             engine.close()
                         } catch (close: Throwable) {
                             failure.addSuppressed(close)
@@ -90,6 +104,13 @@ class VeneraSourceRuntime private constructor(
                 }
                 throw failure
             }
+        }
+    }
+
+    suspend fun webLoginUrl(key: String): String? = withContext(Dispatchers.Default) {
+        mutex.withLock {
+            checkOpen()
+            evaluate<String?>("__readerVenera.webLoginUrl(${JsonPrimitive(key)})", "account:url")
         }
     }
 
@@ -168,6 +189,37 @@ class VeneraSourceRuntime private constructor(
             }
         }
     }
+
+    suspend fun describe(key: String, field: SourceConfigField): JsonElement =
+        evaluateSourceJson(key, "describe", JsonPrimitive(field.path).toString())
+
+    suspend fun callIndexed(
+        key: String,
+        callback: SourceIndexedCallback,
+        index: Int,
+        arguments: JsonArray = JsonArray(emptyList()),
+    ): JsonElement {
+        require(index >= 0)
+        val args = JsonPrimitive(arguments.toString())
+        return evaluateSourceJson(
+            key, "invokeIndexed",
+            "${JsonPrimitive(callback.section)}, $index, ${JsonPrimitive(callback.member)}, JSON.parse($args), ${callback.synchronous}",
+        )
+    }
+
+    private suspend fun evaluateSourceJson(key: String, operation: String, args: String): JsonElement =
+        withContext(Dispatchers.Default) {
+            mutex.withLock {
+                checkOpen()
+                require(key in sources) { "Source '$key' is not registered" }
+                withTimeout(CALLBACK_TIMEOUT_MILLIS) {
+                    Json.parseToJsonElement(evaluate<String>(
+                        "await __readerVenera.$operation(${JsonPrimitive(key)}, $args)",
+                        "$key:$operation",
+                    ))
+                }
+            }
+        }
 
     val isClosed: Boolean
         get() = engine.isClosed
@@ -295,6 +347,7 @@ class VeneraSourceRuntime private constructor(
     }
 
     suspend fun close() = withContext(Dispatchers.Default + NonCancellable) {
+        timerScope.cancel()
         mutex.withLock {
             if (!engine.isClosed) engine.close()
             sources.clear()
@@ -346,7 +399,7 @@ class VeneraSourceRuntime private constructor(
             try {
                 val result = evaluate<String>(
                     """
-                    __readerVenera.stage((Network, sendMessage) => {
+                    __readerVenera.stage((Network, sendMessage, fetch, setInterval) => {
                     $code
                     ;
                     return new $className();
@@ -390,7 +443,7 @@ class VeneraSourceRuntime private constructor(
                 val source = withTimeout(INITIALIZE_TIMEOUT_MILLIS) {
                     val result = evaluate<String>(
                         """
-                        __readerVenera.stage((Network, sendMessage) => {
+                        __readerVenera.stage((Network, sendMessage, fetch, setInterval) => {
                         $code
                         ;
                         return new $className();
@@ -474,6 +527,49 @@ class VeneraSourceRuntime private constructor(
         val callbacks: List<String>,
     )
 
+    private data class ScheduledInterval(val job: Job, var firing: Boolean = false)
+
+    private fun scheduleInterval(specification: String): Boolean {
+        val (id, rawDelay) = specification.split(':', limit = 2)
+        if (rawDelay == "cancel") {
+            timerLock.locked { timers.remove(id)?.takeUnless { it.firing }?.job }?.cancel()
+            return true
+        }
+        val interval = rawDelay.toLongOrNull()?.coerceIn(1, 86_400_000) ?: 86_400_000L
+        val timer = timerScope.launch(start = CoroutineStart.LAZY) {
+            while (isActive) {
+                delay(interval)
+                val keep = mutex.withLock {
+                    if (engine.isClosed) return@withLock false
+                    val scheduled = timerLock.locked { timers[id]?.also { it.firing = true } } ?: return@withLock false
+                    try {
+                        withTimeout(CALLBACK_TIMEOUT_MILLIS) {
+                            evaluate<Boolean>("await __readerVenera.fireInterval(${JsonPrimitive(id)})", "venera:interval")
+                        }
+                    } catch (cancelled: CancellationException) {
+                        if (!isActive) throw cancelled
+                        false
+                    } catch (_: Exception) {
+                        false
+                    } finally {
+                        timerLock.locked { scheduled.firing = false }
+                    }
+                }
+                if (!keep) break
+            }
+        }
+        timerLock.locked { timers.put(id, ScheduledInterval(timer)) }?.job?.cancel()
+        timer.invokeOnCompletion { timerLock.locked { if (timers[id]?.job === timer) timers.remove(id) } }
+        timer.start()
+        return true
+    }
+
+    @Serializable
+    private data class HostRequest(val request: VeneraHttpRequest, val bytes: Boolean)
+
+    @Serializable
+    private data class BinaryResponse(val status: Int, val body: String, val headers: Map<String, String>)
+
     companion object {
         private const val INITIALIZE_TIMEOUT_MILLIS = 15_000L
         private const val CALLBACK_TIMEOUT_MILLIS = 45_000L
@@ -488,6 +584,12 @@ class VeneraSourceRuntime private constructor(
         suspend fun create(
             environment: VeneraEnvironment,
             transport: VeneraHttpTransport,
+        ): VeneraSourceRuntime = create(environment, SourceSessions(), transport)
+
+        suspend fun create(
+            environment: VeneraEnvironment,
+            sessions: SourceSessions,
+            transport: VeneraHttpTransport,
         ): VeneraSourceRuntime {
             val supportedVersion = VeneraVersion.parse(environment.compatibleAppVersion.substringBefore('-'))
             val engine = QuickJs.create(Dispatchers.Default)
@@ -496,10 +598,15 @@ class VeneraSourceRuntime private constructor(
                 withContext(Dispatchers.Default) {
                     engine.memoryLimit = ENGINE_MEMORY_BYTES
                     engine.evaluationTimeoutMillis = INITIALIZE_TIMEOUT_MILLIS
-                    engine.asyncFunction<String, String>("__readerRequestText") { payload ->
+                    engine.asyncFunction<String, String>("__readerRequest") { payload ->
                         try {
-                            val request = Json.decodeFromString<VeneraHttpRequest>(payload)
-                            hostJson.encodeToString(transport.execute(request))
+                            val message = hostJson.decodeFromString<HostRequest>(payload)
+                            if (message.bytes) {
+                                val response = transport.executeBytes(message.request)
+                                hostJson.encodeToString(BinaryResponse(
+                                    response.status, response.body.toByteString().base64(), response.headers,
+                                ))
+                            } else hostJson.encodeToString(transport.execute(message.request))
                         } catch (cancelled: CancellationException) {
                             throw cancelled
                         } catch (error: Exception) {
@@ -507,6 +614,10 @@ class VeneraSourceRuntime private constructor(
                             JsonObject(mapOf("error" to message)).toString()
                         }
                     }
+                    val sessionHost = SessionHost(sessions)
+                    engine.function<String, String>("__readerSourceSession", sessionHost::dispatch)
+                    val html = HtmlHost()
+                    engine.function<String, String>("__readerHtml", html::dispatch)
                     val app = JsonObject(
                         mapOf(
                             "version" to JsonPrimitive(environment.compatibleAppVersion),
@@ -514,7 +625,18 @@ class VeneraSourceRuntime private constructor(
                             "platform" to JsonPrimitive(environment.platform),
                         ),
                     )
-                    runtime.evaluate<Any?>("const APP = Object.freeze($app);\n$veneraBootstrap", "venera-host.js")
+                    engine.function<String, String>("__readerConvert", ::convertSourceValue)
+                    val worker = ComputeHost(app)
+                    engine.asyncFunction<String, String>("__readerCompute", worker::dispatch)
+                    engine.asyncFunction<String, Boolean>("__readerDelay") { raw ->
+                        delay(raw.toLongOrNull()?.coerceIn(0, 86_400_000) ?: 86_400_000L)
+                        true
+                    }
+                    engine.function<String, Boolean>("__readerInterval", runtime::scheduleInterval)
+                    runtime.evaluate<Any?>(
+                        "const APP = Object.freeze($app);\n$utilityBootstrap\n$mainAsyncBootstrap\n$htmlBootstrap\n$veneraBootstrap",
+                        "venera-host.js",
+                    )
                 }
                 return runtime
             } catch (failure: Throwable) {
