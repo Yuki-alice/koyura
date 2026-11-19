@@ -60,7 +60,11 @@ import app.koyura.app.resources.history_clear_confirm
 import app.koyura.app.resources.history_clear_confirm_body
 import app.koyura.app.resources.history_clear_confirm_title
 import app.koyura.app.resources.history_continue
+import app.koyura.app.resources.history_clear_selection
 import app.koyura.app.resources.history_delete
+import app.koyura.app.resources.history_delete_selected_body
+import app.koyura.app.resources.history_delete_selected_confirm
+import app.koyura.app.resources.history_delete_selected_title
 import app.koyura.app.resources.history_empty
 import app.koyura.app.resources.history_favorite_add
 import app.koyura.app.resources.history_favorite_remove
@@ -69,9 +73,12 @@ import app.koyura.app.resources.history_filter_clear
 import app.koyura.app.resources.history_filter_favorites
 import app.koyura.app.resources.history_filter_sources
 import app.koyura.app.resources.history_filter_title
+import app.koyura.app.resources.history_invert_selection
 import app.koyura.app.resources.history_no_results
 import app.koyura.app.resources.history_page
 import app.koyura.app.resources.history_search
+import app.koyura.app.resources.history_select_all
+import app.koyura.app.resources.history_selection_count
 import app.koyura.app.resources.history_single_chapter
 import app.koyura.app.resources.history_title
 import app.koyura.app.resources.history_today
