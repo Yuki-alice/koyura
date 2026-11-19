@@ -23,6 +23,7 @@ import app.koyura.app.reader.VeneraReaderService
 import app.koyura.app.browse.venera.VeneraBrowseService
 import app.koyura.app.history.VeneraHistoryService
 import app.koyura.app.library.ProductionLibraryRepository
+import app.koyura.app.updates.ProductionUpdatesRepository
 import app.koyura.app.resources.Res
 import app.koyura.app.resources.extension_startup_failed
 import app.koyura.app.resources.extension_startup_loading
@@ -87,6 +88,9 @@ internal fun ExtensionApp(openSession: suspend () -> ExtensionSession) {
                 },
             )
         }
+        val updates = remember(session) {
+            ProductionUpdatesRepository(session.updates)
+        }
         val browse = remember(session) {
             VeneraBrowseService(
                 extensions = session.service,
@@ -117,6 +121,7 @@ internal fun ExtensionApp(openSession: suspend () -> ExtensionSession) {
             historyService = history,
             readerPreferences = session.readerPreferences,
             libraryRepository = library,
+            updatesRepository = updates,
         )
     } else {
         ReaderTheme {

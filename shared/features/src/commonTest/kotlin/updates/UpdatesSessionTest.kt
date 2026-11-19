@@ -36,4 +36,26 @@ class UpdatesSessionTest {
         session.clearError()
         assertEquals(null, session.actionError)
     }
+
+    @Test
+    fun checkNowUsesRepositoryScanResult() = runTest {
+        val session = UpdatesSession(object : UpdatesRepository {
+            override suspend fun loadUpdates() = emptyList<UpdateWork>()
+            override suspend fun checkNow() = FakeUpdatesRepository.sampleEntries()
+        })
+        session.refresh()
+        assertEquals(0, session.unreadCount)
+        session.checkNow()
+        assertIs<UpdatesLoadState.Ready>(session.loadState)
+        assertEquals(3, session.unreadCount)
+    }
+
+    @Test
+    fun defaultContractDelegatesScanToFeedForFakes() = runTest {
+        val session = UpdatesSession(FakeUpdatesRepository(FakeUpdatesRepository.sampleEntries()))
+        session.checkNow()
+        session.retryFailures()
+        assertIs<UpdatesLoadState.Ready>(session.loadState)
+        assertEquals(3, session.unreadCount)
+    }
 }

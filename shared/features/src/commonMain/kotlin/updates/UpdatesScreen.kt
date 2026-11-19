@@ -108,7 +108,7 @@ fun UpdatesScreen(
                     ActionIconButton(
                         icon = ActionIcon.Sync,
                         label = stringResource(Res.string.updates_refresh),
-                        onClick = { scope.launch { session.refresh() } },
+                        onClick = { scope.launch { session.checkNow() } },
                         modifier = Modifier.testTag(UpdatesRefreshTag),
                     )
                 },
@@ -131,7 +131,7 @@ fun UpdatesScreen(
                         text = stringResource(Res.string.updates_load_failed, state.message),
                         color = MaterialTheme.colorScheme.error,
                     )
-                    TextButton(onClick = { scope.launch { session.refresh() } }) {
+                    TextButton(onClick = { scope.launch { session.checkNow() } }) {
                         Text(stringResource(Res.string.updates_retry))
                     }
                 }

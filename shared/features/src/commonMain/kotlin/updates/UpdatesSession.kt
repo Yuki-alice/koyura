@@ -5,12 +5,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 
 /**
- * 更新页状态座：Fake 仓储的唯一读者。
+ * 更新页状态座：注入仓储（生产为扫描引擎桥）的唯一读者。
  *
  * 并发规则沿用 LibrarySession：失败只记 `actionError`，已提交的快照原样保留；
- * 取消不是失败，不记错误。真实引擎由引擎轨接入，届时只替换注入的仓储。
+ * 取消不是失败，不记错误。
  */
 class UpdatesSession(
     private val repository: UpdatesRepository,
@@ -28,10 +29,18 @@ class UpdatesSession(
     val unreadCount: Int
         get() = entries.sumOf { it.chapters.size }
 
-    suspend fun refresh() {
+    suspend fun refresh() = load { repository.loadUpdates() }
+
+    /** 顶栏刷新按钮：触发一次真实扫描（生产实现），不改动 feed 读取语义。 */
+    suspend fun checkNow() = load { repository.checkNow() }
+
+    /** 只重试上次扫描失败的作品。 */
+    suspend fun retryFailures() = load { repository.retryFailures() }
+
+    private suspend fun load(source: suspend () -> List<UpdateWork>) {
         loadState = UpdatesLoadState.Loading
         try {
-            entries = repository.loadUpdates()
+            entries = source()
             actionError = null
             loadState = UpdatesLoadState.Ready
         } catch (cancelled: kotlinx.coroutines.CancellationException) {
@@ -47,13 +56,16 @@ class UpdatesSession(
     }
 }
 
+/** 注入的更新仓储；未装配时（测试与预览）落回默认 Fake。 */
+val LocalUpdatesRepository = staticCompositionLocalOf<UpdatesRepository?> { null }
+
 /**
  * 页签级会话。不传仓储时用 remember 持稳默认 Fake：默认参数在每次重组
  * 都会新建实例，会让 remember 的 key 失稳、会话随重组被重置。
  */
 @Composable
 fun rememberUpdatesSession(
-    repository: UpdatesRepository? = null,
+    repository: UpdatesRepository? = LocalUpdatesRepository.current,
 ): UpdatesSession {
     val resolved = repository ?: remember { FakeUpdatesRepository() }
     return remember(resolved) { UpdatesSession(resolved) }

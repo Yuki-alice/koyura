@@ -16,9 +16,15 @@ data class UpdateWork(
     val chapters: List<UpdateChapter>,
 )
 
-/** 更新数据源：本轮只有 Fake 实现，引擎轨接真实源后替换注入。 */
+/**
+ * 更新数据源。`loadUpdates` 读上次扫描的持久 feed；[checkNow] 触发一次真实扫描并返回
+ * 新 feed；[retryFailures] 只重试上次失败的作品。默认实现把两者等同 `loadUpdates`，
+ * Fake 与无引擎装配时行为不变。
+ */
 interface UpdatesRepository {
     suspend fun loadUpdates(): List<UpdateWork>
+    suspend fun checkNow(): List<UpdateWork> = loadUpdates()
+    suspend fun retryFailures(): List<UpdateWork> = loadUpdates()
 }
 
 /** 更新列表加载态（对齐 Library / History 的三态）。 */

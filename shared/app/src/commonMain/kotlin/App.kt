@@ -22,6 +22,8 @@ import app.koyura.designsystem.ReaderTheme
 import app.koyura.designsystem.navigation.NavTab
 import app.koyura.features.library.LocalLibraryRepository
 import app.koyura.features.library.LibraryRepository as FeaturesLibraryRepository
+import app.koyura.features.updates.LocalUpdatesRepository
+import app.koyura.features.updates.UpdatesRepository
 
 /** Base tablet rule kept as a pure function so the 719/720 dp boundary is directly testable. */
 internal val RailWidthThreshold = DesignTokens.Breakpoints.TabletMinSmallestWidthDp.dp
@@ -58,6 +60,7 @@ fun App(
     historyService: HistoryService? = null,
     readerPreferences: ReaderPreferences? = null,
     libraryRepository: FeaturesLibraryRepository? = null,
+    updatesRepository: UpdatesRepository? = null,
 ) {
     ReaderTheme {
         CompositionLocalProvider(
@@ -66,6 +69,7 @@ fun App(
             LocalReaderPreferences provides readerPreferences,
             LocalHistoryService provides historyService,
             LocalLibraryRepository provides libraryRepository,
+            LocalUpdatesRepository provides updatesRepository,
         ) {
             Surface(modifier = Modifier.fillMaxSize()) {
                 AppShell()
