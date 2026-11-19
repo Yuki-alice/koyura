@@ -110,7 +110,7 @@ internal fun AppScaffold(
     val activeDownloadsSession = rememberDownloadsSession()
     val librarySession = rememberLibrarySession()
 
-    BackToLibraryHandler(navigation, librarySession)
+    BackToLibraryHandler(navigation, librarySession, activeHistorySession)
 
     // The bar and rail branches have different layout shapes, so recomposing one into the other
     // would dispose the content subtree and rebuild it from saved state. Moving the subtree with
@@ -139,7 +139,8 @@ internal fun AppScaffold(
     // hides the tab bar/rail while a chapter is open. Library multi-select hides them the same
     // way (Komikku parity: selection mode owns the chrome).
     val isReaderOpen = navigation.currentStack.lastOrNull() is ComicReaderRoute
-    val hideChrome = navigation.selectedTab == NavTab.Library && librarySession.selection.isNotEmpty()
+    val hideChrome = (navigation.selectedTab == NavTab.Library && librarySession.selection.isNotEmpty()) ||
+        (navigation.selectedTab == NavTab.History && activeHistorySession.selection.isNotEmpty())
     if (isReaderOpen || hideChrome) {
         Box(modifier = Modifier.fillMaxSize()) {
             appContent(navigation, saveableStateHolder, activeBrowseSession)
@@ -201,6 +202,7 @@ internal fun AppScaffold(
 private fun BackToLibraryHandler(
     navigation: AppNavigationState,
     librarySession: LibrarySession?,
+    historySession: app.koyura.app.history.HistorySession?,
 ) {
     BackHandler(enabled = navigation.returnsToLibraryOnBack()) {
         navigation.handleBack()
@@ -210,6 +212,12 @@ private fun BackToLibraryHandler(
         navigation.currentStack.size <= 1 && librarySession?.wantsBack == true
     BackHandler(enabled = consumeLibrary) {
         librarySession?.consumeBack()
+    }
+    // 历史页多选：返回键先清选择态，不直接交平台（与书架同序）。
+    val consumeHistory = navigation.selectedTab == NavTab.History &&
+        navigation.currentStack.size <= 1 && historySession?.wantsBack == true
+    BackHandler(enabled = consumeHistory) {
+        historySession?.clearSelection()
     }
 }
 
