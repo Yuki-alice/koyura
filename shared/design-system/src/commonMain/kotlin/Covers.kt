@@ -15,11 +15,12 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.unit.dp
 
 /**
  * 全仓唯一的封面组件（A 轨所有）。
@@ -111,9 +112,10 @@ const val CoverPlaceholderTag = "komikku-cover-placeholder"
 /**
  * 全仓封面统一圆角（网格 2:3、搜索行 48x72、历史行 56x80、详情头 96x144 均用此值）。
  *
- * 尺寸由调用方 modifier 决定，本常量只定圆角。
+ * 尺寸由调用方 modifier 决定，本常量只定圆角。白皮书 02 §2.7 圆角 extraSmall(4dp)，
+ * Code: MangaCover.kt:62,175 默认 `shape = MaterialTheme.shapes.extraSmall`。
  */
-val CoverCornerRadius = 8.dp
+val CoverCornerRadius = DesignTokens.Radius.ExtraSmall
 
 /**
  * 加载一封面的解码位图（单次尝试，可空）：头部大图与模糊背景共用同一结果，
@@ -187,8 +189,11 @@ fun Cover(
 }
 
 /**
- * 详情头模糊背景：有图时低透明度铺底 + 表面色渐隐，保证文字可读；
- * 缺图时直接使用主题 surface 色，不做任何取色计算（永不因取色崩溃）。
+ * 详情头模糊背景：封面经 surfaceTint 衬底 + 模糊 + 低透明度铺底，上覆透明→surface
+ * 渐隐（起点 50% 高度），保证文字可读；缺图时直接使用主题 surface 色。
+ *
+ * Code: MangaInfoHeader.kt:147-184（`surfaceTint.copy(alpha = 0.4f)` + `.blur(7.dp)`
+ * + `.alpha(0.2f)`，渐变 `startY = size.height / 2`）；白皮书 07 §7.4 背景层。
  */
 @Composable
 fun DetailBackdrop(
@@ -204,13 +209,19 @@ fun DetailBackdrop(
                 bitmap = cover,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
-                alpha = 0.28f,
-                modifier = Modifier.matchParentSize(),
+                alpha = DesignTokens.Alpha.Backdrop,
+                modifier = Modifier.matchParentSize()
+                    .background(
+                        MaterialTheme.colorScheme.surfaceTint.copy(
+                            alpha = DesignTokens.Alpha.SurfaceTintWash,
+                        ),
+                    )
+                    .blur(DesignTokens.Sizes.BackdropBlur),
             )
             Box(
                 modifier = Modifier.matchParentSize().background(
                     Brush.verticalGradient(
-                        0.35f to MaterialTheme.colorScheme.surface.copy(alpha = 0.55f),
+                        0.5f to Color.Transparent,
                         1f to MaterialTheme.colorScheme.surface,
                     ),
                 ),

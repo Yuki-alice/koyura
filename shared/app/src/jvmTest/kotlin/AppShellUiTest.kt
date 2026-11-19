@@ -22,6 +22,8 @@ import app.koyura.designsystem.ReaderTheme
 import app.koyura.designsystem.navigation.NavTab
 import app.koyura.features.library.LibraryEmptyTag
 import app.koyura.features.library.LibraryRootTag
+import app.koyura.features.more.MoreRootTestTag
+import app.koyura.features.updates.UpdatesRootTestTag
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -130,6 +132,12 @@ class AppShellUiTest {
             } else if (tab == NavTab.Library) {
                 // Library renders the real shelf instead of the placeholder root page.
                 onNodeWithTag(LibraryRootTag).assertIsDisplayed()
+            } else if (tab == NavTab.Updates) {
+                // Updates renders the real grouped list instead of the placeholder root page.
+                onNodeWithTag(UpdatesRootTestTag).assertIsDisplayed()
+            } else if (tab == NavTab.More) {
+                // More renders the real settings entry list instead of the placeholder root page.
+                onNodeWithTag(MoreRootTestTag).assertIsDisplayed()
             } else {
                 onNodeWithTag("tab-title-${tab.name}").assertIsDisplayed()
             }

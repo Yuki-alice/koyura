@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="more_downloaded_only">仅看已下载</string>
+    <string name="more_downloaded_only_subtitle">只显示书架中的已下载条目</string>
+    <string name="more_incognito">隐身模式</string>
+    <string name="more_incognito_subtitle">暂停记录阅读历史</string>
+    <string name="more_download_queue">下载队列</string>
+    <string name="more_categories">分类</string>
+    <string name="more_statistics">统计</string>
+    <string name="more_update_errors">书架更新错误</string>
+    <string name="more_data_storage">数据与存储</string>
+    <string name="more_batch_add">批量添加</string>
+    <string name="more_settings">设置</string>
+    <string name="more_about">关于</string>
+    <string name="more_help">帮助</string>
+    <string name="more_sponsor">赞助我</string>
+</resources>

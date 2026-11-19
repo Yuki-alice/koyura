@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="updates_title">Updates</string>
+    <string name="updates_filter">Filter updates</string>
+    <string name="updates_calendar">Update schedule</string>
+    <string name="updates_refresh">Check for updates</string>
+    <string name="updates_empty">No recent updates</string>
+    <string name="updates_load_failed">Could not load updates: %1$s</string>
+    <string name="updates_retry">Retry</string>
+    <string name="updates_chapters">%1$d chapters</string>
+    <string name="updates_open">Open</string>
+</resources>

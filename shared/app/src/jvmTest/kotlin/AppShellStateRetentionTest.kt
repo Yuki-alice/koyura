@@ -8,7 +8,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.ComposeUiTest
@@ -21,6 +23,7 @@ import app.koyura.designsystem.navigation.NavTab
 import app.koyura.features.library.FakeLibraryRepository
 import app.koyura.features.library.LocalLibraryRepository
 import app.koyura.features.library.libraryFixtureSnapshot
+import app.koyura.features.updates.UpdatesEmptyTag
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -112,15 +115,20 @@ class AppShellStateRetentionTest {
         val libraryOffset = scrollOffset()
         assertTrue(libraryOffset > 0f, "library must scroll first (offset = $libraryOffset)")
 
+        // Updates 默认 Fake 为空（白皮书空态）：138dp 高视口下颜文字会超出可视区，
+        // 只断言其独立空态存在且不影响书架位置。
         runOnIdle { navigation.select(NavTab.Updates) }
         waitForIdle()
-        assertEquals(0f, scrollOffset(), "updates starts at its own scroll origin")
+        onAllNodesWithTag(UpdatesEmptyTag).assertCountEquals(1)
 
+        // More 长列表可滚：滚动后拥有独立于书架的位置。
+        runOnIdle { navigation.select(NavTab.More) }
+        waitForIdle()
         onNode(hasVerticalScroll()).performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, 5f) }
         waitForIdle()
-        val updatesOffset = scrollOffset()
-        assertTrue(updatesOffset > 0f, "updates must scroll first (offset = $updatesOffset)")
-        assertTrue(updatesOffset != libraryOffset, "tabs must not share one scroll position")
+        val moreOffset = scrollOffset()
+        assertTrue(moreOffset > 0f, "more must scroll first (offset = $moreOffset)")
+        assertTrue(moreOffset != libraryOffset, "tabs must not share one scroll position")
 
         runOnIdle { width.value = 720.dp }
         waitForIdle()
@@ -129,8 +137,8 @@ class AppShellStateRetentionTest {
         waitForIdle()
         assertEquals(libraryOffset, scrollOffset(), "library keeps its own offset after resizing")
 
-        runOnIdle { navigation.select(NavTab.Updates) }
+        runOnIdle { navigation.select(NavTab.More) }
         waitForIdle()
-        assertEquals(updatesOffset, scrollOffset(), "updates keeps its own offset after resizing")
+        assertEquals(moreOffset, scrollOffset(), "more keeps its own offset after resizing")
     }
 }

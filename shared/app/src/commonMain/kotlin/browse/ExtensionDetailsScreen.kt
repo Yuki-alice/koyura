@@ -43,6 +43,7 @@ import app.koyura.app.resources.extension_trust_confirm
 import app.koyura.app.resources.extension_trust_nsfw_body
 import app.koyura.app.resources.extension_trust_nsfw_title
 import app.koyura.app.resources.stores_cancel
+import app.koyura.designsystem.DesignTokens
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 
@@ -274,7 +275,10 @@ private fun ExtensionInfoText(
             text = secondaryText,
             textAlign = TextAlign.Center,
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+            // 次级文字 onSurfaceVariant × 0.78（白皮书 02 §2.5 语义色；Browse 来源副行同式）。
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                alpha = DesignTokens.Alpha.Secondary,
+            ),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )

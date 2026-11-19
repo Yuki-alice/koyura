@@ -33,6 +33,11 @@ import app.koyura.app.browse.BrowseScreen
 import app.koyura.app.browse.BrowseService
 import app.koyura.app.browse.LocalBrowseService
 import app.koyura.app.browse.BrowseSession
+import app.koyura.app.browse.ProvideCoverPipeline
+import app.koyura.features.more.MoreScreen
+import app.koyura.features.more.rememberMoreSession
+import app.koyura.features.updates.UpdatesScreen
+import app.koyura.features.updates.rememberUpdatesSession
 import app.koyura.app.browse.ExtensionDetailsScreen
 import app.koyura.app.browse.ExtensionStoresScreen
 import app.koyura.app.browse.LocalBrowseSession
@@ -87,12 +92,12 @@ internal fun AppScaffold(
     readerSession: ReaderSession? = null,
     historyService: HistoryService? = LocalHistoryService.current,
     historySession: HistorySession? = null,
-    // Updates badge count has no data source until Updates lands (P7); 0 hides the badge.
-    updatesBadgeCount: Int = 0,
 ) {
     val activeBrowseSession = browseSession ?: rememberBrowseSession(browseService)
     val activeReaderSession = readerSession ?: rememberReaderSession(readerService)
     val activeHistorySession = historySession ?: rememberHistorySession(historyService, browseService)
+    val activeUpdatesSession = rememberUpdatesSession()
+    val activeMoreSession = rememberMoreSession()
     val librarySession = rememberLibrarySession()
 
     BackToLibraryHandler(navigation, librarySession)
@@ -104,7 +109,16 @@ internal fun AppScaffold(
     val appContent = remember {
         movableContentOf<AppNavigationState, SaveableStateHolder, BrowseSession> { state, holder, browse ->
             CompositionLocalProvider(LocalReaderService provides readerService) {
-                AppNavigationContent(state, holder, browse, activeReaderSession, activeHistorySession, librarySession)
+                AppNavigationContent(
+                    state,
+                    holder,
+                    browse,
+                    activeReaderSession,
+                    activeHistorySession,
+                    librarySession,
+                    activeUpdatesSession,
+                    activeMoreSession,
+                )
             }
         }
     }
@@ -128,7 +142,7 @@ internal fun AppScaffold(
                 onTabClick = navigation::select,
                 modifier = Modifier.fillMaxHeight().testTag(NavigationRailTestTag),
                 browseBadgeCount = activeBrowseSession.state.updateCount,
-                updatesBadgeCount = updatesBadgeCount,
+                updatesBadgeCount = activeUpdatesSession.unreadCount,
             )
             Box(
                 modifier = Modifier
@@ -157,7 +171,7 @@ internal fun AppScaffold(
                 onTabClick = navigation::select,
                 modifier = Modifier.testTag(NavigationBarTestTag),
                 browseBadgeCount = activeBrowseSession.state.updateCount,
-                updatesBadgeCount = updatesBadgeCount,
+                updatesBadgeCount = activeUpdatesSession.unreadCount,
             )
         }
     }
@@ -203,8 +217,18 @@ private fun AppNavigationContent(
     readerSession: ReaderSession,
     historySession: app.koyura.app.history.HistorySession,
     librarySession: LibrarySession,
+    updatesSession: app.koyura.features.updates.UpdatesSession,
+    moreSession: app.koyura.features.more.MoreSession,
 ) {
-    val entryProvider = remember(navigation, browseSession, readerSession, historySession, librarySession) {
+    val entryProvider = remember(
+        navigation,
+        browseSession,
+        readerSession,
+        historySession,
+        librarySession,
+        updatesSession,
+        moreSession,
+    ) {
         entryProvider<NavKey> {
             entry<TabRootRoute> { route ->
                 if (route.tab == NavTab.Browse) {
@@ -243,6 +267,17 @@ private fun AppNavigationContent(
                             )
                         },
                     )
+                } else if (route.tab == NavTab.Updates) {
+                    ProvideCoverPipeline(service = LocalBrowseService.current) {
+                        UpdatesScreen(
+                            session = updatesSession,
+                            onOpenWork = { sourceKey, workId, title ->
+                                navigation.push(SourceDetailRoute(sourceKey, workId, title))
+                            },
+                        )
+                    }
+                } else if (route.tab == NavTab.More) {
+                    MoreScreen(session = moreSession)
                 } else {
                     TabRootScreen(
                         tab = route.tab,

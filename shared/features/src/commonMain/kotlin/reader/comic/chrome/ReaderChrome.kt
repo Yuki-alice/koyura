@@ -42,6 +42,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -49,6 +50,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import app.koyura.designsystem.DesignTokens
 import app.koyura.domain.reader.preferences.OverrideField
 import app.koyura.domain.reader.preferences.ReaderLayout
 import app.koyura.domain.reader.preferences.ReadingMode
@@ -96,10 +98,6 @@ const val ReaderChromePageJumpDialogTag = "reader-chrome-page-jump"
 const val ReaderChromePageInputTag = "reader-chrome-page-input"
 const val ReaderChromePageGoTag = "reader-chrome-page-go"
 
-/** Komikku ReaderAppBars parity: bars slide over 200ms and fade over 150ms. */
-private const val CHROME_SLIDE_MS = 200
-private const val CHROME_FADE_MS = 150
-
 /**
  * Length of the vertical strip slider (layout width before the 90-degree rotation turns it
  * upright). The rail itself is 64dp wide; the bar does not clip so the rotated slider overflows
@@ -133,6 +131,13 @@ fun ReaderChrome(
     fun openDialog(dialog: ReaderChromeDialog, invoker: FocusRequester) {
         lastInvoker = invoker
         onAction(ReaderChromeAction.SetDialog(dialog))
+    }
+
+    // Komikku ReaderAppBars parity: surface@3dp, 亮 0.95 / 暗 0.90（白皮书 02 §2.7）。
+    val readerBarAlpha = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) {
+        DesignTokens.Alpha.ReaderBarDark
+    } else {
+        DesignTokens.Alpha.ReaderBarLight
     }
 
     LaunchedEffect(state.dialog) {
@@ -175,10 +180,10 @@ fun ReaderChrome(
         // 150ms. The top bar moves through the top edge, the bottom bar through the bottom edge.
         AnimatedVisibility(
             visible = state.menuVisible,
-            enter = slideInVertically(animationSpec = tween(CHROME_SLIDE_MS)) { -it } +
-                fadeIn(animationSpec = tween(CHROME_FADE_MS)),
-            exit = slideOutVertically(animationSpec = tween(CHROME_SLIDE_MS)) { -it } +
-                fadeOut(animationSpec = tween(CHROME_FADE_MS)),
+            enter = slideInVertically(animationSpec = tween(DesignTokens.Motion.ReaderBarsSlideMs)) { -it } +
+                fadeIn(animationSpec = tween(DesignTokens.Motion.ReaderBarsFadeMs)),
+            exit = slideOutVertically(animationSpec = tween(DesignTokens.Motion.ReaderBarsSlideMs)) { -it } +
+                fadeOut(animationSpec = tween(DesignTokens.Motion.ReaderBarsFadeMs)),
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
@@ -188,9 +193,9 @@ fun ReaderChrome(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.92f))
+                .background(MaterialTheme.colorScheme.surface.copy(alpha = readerBarAlpha))
                 .safeDrawingPadding()
-                .padding(horizontal = 4.dp, vertical = 4.dp),
+                .padding(horizontal = DesignTokens.Spacing.ExtraSmall, vertical = DesignTokens.Spacing.ExtraSmall),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             ActionIconButton(
@@ -233,13 +238,13 @@ fun ReaderChrome(
         // menu through the viewer tap zones; scrolling never re-shows it.
         AnimatedVisibility(
             visible = !state.menuVisible,
-            enter = fadeIn(animationSpec = tween(CHROME_FADE_MS)),
-            exit = fadeOut(animationSpec = tween(CHROME_FADE_MS)),
+            enter = fadeIn(animationSpec = tween(DesignTokens.Motion.ReaderBarsFadeMs)),
+            exit = fadeOut(animationSpec = tween(DesignTokens.Motion.ReaderBarsFadeMs)),
             modifier = Modifier.align(Alignment.Center),
         ) {
             Surface(
                 shape = MaterialTheme.shapes.small,
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = readerBarAlpha),
                 modifier = Modifier.testTag(ReaderChromeHiddenIndicatorTag),
             ) {
                 Text(
@@ -252,10 +257,10 @@ fun ReaderChrome(
         // Bottom block: chapter navigator row, then action row.
         AnimatedVisibility(
             visible = state.menuVisible,
-            enter = slideInVertically(animationSpec = tween(CHROME_SLIDE_MS)) { it } +
-                fadeIn(animationSpec = tween(CHROME_FADE_MS)),
-            exit = slideOutVertically(animationSpec = tween(CHROME_SLIDE_MS)) { it } +
-                fadeOut(animationSpec = tween(CHROME_FADE_MS)),
+            enter = slideInVertically(animationSpec = tween(DesignTokens.Motion.ReaderBarsSlideMs)) { it } +
+                fadeIn(animationSpec = tween(DesignTokens.Motion.ReaderBarsFadeMs)),
+            exit = slideOutVertically(animationSpec = tween(DesignTokens.Motion.ReaderBarsSlideMs)) { it } +
+                fadeOut(animationSpec = tween(DesignTokens.Motion.ReaderBarsFadeMs)),
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
@@ -264,13 +269,13 @@ fun ReaderChrome(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.92f))
+                .background(MaterialTheme.colorScheme.surface.copy(alpha = readerBarAlpha))
                 .safeDrawingPadding()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.Small),
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small),
             ) {
                 ActionIconButton(
                     icon = ActionIcon.Previous,
@@ -299,7 +304,7 @@ fun ReaderChrome(
                     modifier = Modifier.testTag(ReaderNextChapterTag),
                 )
             }
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(DesignTokens.Spacing.ExtraSmall))
             Row(
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically,
@@ -368,8 +373,8 @@ fun ReaderChrome(
         // for WEBTOON/CONTINUOUS_VERTICAL that drives the same jump as the bottom slider.
         AnimatedVisibility(
             visible = state.menuVisible && isStrip && state.pageCount > 1,
-            enter = fadeIn(animationSpec = tween(CHROME_FADE_MS)),
-            exit = fadeOut(animationSpec = tween(CHROME_FADE_MS)),
+            enter = fadeIn(animationSpec = tween(DesignTokens.Motion.ReaderBarsFadeMs)),
+            exit = fadeOut(animationSpec = tween(DesignTokens.Motion.ReaderBarsFadeMs)),
             modifier = Modifier.align(Alignment.CenterEnd),
         ) {
             Box(
@@ -586,7 +591,7 @@ private fun PageJumpDialog(
             modifier = Modifier
                 .testTag(ReaderChromePageJumpDialogTag)
                 .background(MaterialTheme.colorScheme.surface, MaterialTheme.shapes.large)
-                .padding(20.dp),
+                .padding(DesignTokens.Spacing.Large),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
