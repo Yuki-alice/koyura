@@ -10,6 +10,10 @@ internal val veneraBootstrap = """
         url = "";
         translation = {};
 
+        loadSetting(key) {
+            return this.settings?.[key]?.default ?? null;
+        }
+
         translate(text) {
             return this.translation[APP.locale]?.[text] ?? text;
         }
@@ -75,7 +79,7 @@ internal val veneraBootstrap = """
                 if (typeof value === "function" || value instanceof ArrayBuffer || ArrayBuffer.isView(value)) {
                     throw new TypeError("The callback returned a function or binary value where the host expects JSON");
                 }
-                return value;
+                return value instanceof Map ? Object.fromEntries(value) : value;
             });
         }
 

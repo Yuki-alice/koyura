@@ -3,6 +3,7 @@ package app.koyura.source.runtime
 import com.dokar.quickjs.QuickJs
 import com.dokar.quickjs.QuickJsException
 import com.dokar.quickjs.binding.asyncFunction
+import com.dokar.quickjs.binding.function
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -507,6 +508,8 @@ class VeneraSourceRuntime private constructor(
                             JsonObject(mapOf("error" to message)).toString()
                         }
                     }
+                    val html = HtmlHost()
+                    engine.function<String, String>("__readerHtml", html::dispatch)
                     val app = JsonObject(
                         mapOf(
                             "version" to JsonPrimitive(environment.compatibleAppVersion),
@@ -514,7 +517,7 @@ class VeneraSourceRuntime private constructor(
                             "platform" to JsonPrimitive(environment.platform),
                         ),
                     )
-                    runtime.evaluate<Any?>("const APP = Object.freeze($app);\n$veneraBootstrap", "venera-host.js")
+                    runtime.evaluate<Any?>("const APP = Object.freeze($app);\n$htmlBootstrap\n$veneraBootstrap", "venera-host.js")
                 }
                 return runtime
             } catch (failure: Throwable) {
