@@ -37,4 +37,18 @@
     <string name="reader_chrome_fit_width">Fit width</string>
     <string name="reader_chrome_fit_height">Fit height</string>
     <string name="reader_chrome_fit_original">Original size</string>
+    <string name="reader_chrome_background">Background</string>
+    <string name="reader_chrome_background_automatic">Automatic</string>
+    <string name="reader_chrome_background_black">Black</string>
+    <string name="reader_chrome_background_gray">Gray</string>
+    <string name="reader_chrome_background_white">White</string>
+    <string name="reader_chrome_tap_zone_title">Tap zones</string>
+    <string name="reader_chrome_tap_zone">Layout</string>
+    <string name="reader_chrome_tap_zone_block">Thirds</string>
+    <string name="reader_chrome_tap_zone_left_right">Left / right</string>
+    <string name="reader_chrome_tap_zone_kindle">Mostly next</string>
+    <string name="reader_chrome_tap_zone_edge">Edges only</string>
+    <string name="reader_chrome_tap_zone_l_shape">L shape</string>
+    <string name="reader_chrome_tap_zone_disabled">Disabled</string>
+    <string name="reader_chrome_tap_zone_invert">Invert previous / next</string>
 </resources>
