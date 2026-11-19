@@ -45,6 +45,6 @@ JAVA_HOME="$HOME/devtools/jdk-21" ./gradlew \
   -PveneraReferenceDir="/Users/kurisu/project x/reference/Venera-Next" --rerun-tasks
 ```
 
-结果：连续两遍全绿（第三遍终态确认亦绿）。末遍：design-system 无测试源集（NO-SOURCE），其余五模块 574 例全绿（domain 11 / features 90 / data 117 / source-runtime 57 / app 299）。本轮新增 UI 轨用例 26 例（账号会话 8 + 账号 UI 8 + 宿主 14 + 更新错误会话 2 + 更新错误 UI 1；features +12 / app +14，其余增量为引擎轨同期交付）。
+结果：连续两遍全绿（第三遍终态确认亦绿）。末遍：design-system 无测试源集（NO-SOURCE），其余五模块 574 例全绿（domain 11 / features 90 / data 117 / source-runtime 57 / app 299）。本轮 UI 轨新增 33 例（账号会话 8 + 账号 UI 8 + 宿主 14 + 更新错误会话 2 + 更新错误 UI 1）；模块总数差含引擎轨同期增量。
 
 三端构建（本轮平台粘合后必跑）：`:apps:android:assembleDebug` EXIT 0（中途修过一次 `ClipboardManager.getContext` 误用），`:apps:desktop:classes` EXIT 0，`:shared:app:linkDebugFrameworkIosSimulatorArm64` EXIT 0。
