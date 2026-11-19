@@ -283,7 +283,11 @@ private fun StatisticsSection(
                 verticalAlignment = Alignment.Top,
             ) {
                 metrics.forEach { metric ->
-                    MetricColumn(sectionKey = sectionKey, metric = metric)
+                    MetricColumn(
+                        sectionKey = sectionKey,
+                        metric = metric,
+                        modifier = Modifier.weight(1f),
+                    )
                 }
             }
         }
@@ -295,9 +299,10 @@ private fun StatisticsSection(
 private fun MetricColumn(
     sectionKey: String,
     metric: Metric,
+    modifier: Modifier = Modifier,
 ) {
     Column(
-        modifier = Modifier.weight(1f).testTag(statisticsMetricTag(sectionKey, metric.key)),
+        modifier = modifier.testTag(statisticsMetricTag(sectionKey, metric.key)),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.ExtraSmall),
     ) {
