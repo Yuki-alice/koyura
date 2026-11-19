@@ -35,6 +35,7 @@ import app.koyura.domain.reader.preferences.ReaderPreferencesSnapshot
 import app.koyura.domain.reader.preferences.ReaderSettings
 import app.koyura.domain.reader.preferences.WorkReaderOverride
 import app.koyura.domain.reader.preferences.patchedWith
+import app.koyura.domain.reader.preferences.withOverride
 import app.koyura.designsystem.ReaderTheme
 import app.koyura.features.reader.comic.chrome.ChapterEntry
 import app.koyura.features.reader.comic.chrome.ReaderChrome
@@ -199,7 +200,10 @@ fun ComicReaderScreen(
         if (dialog != ReaderChromeDialog.None) dialog = ReaderChromeDialog.None else goBack()
     }
 
-    val resolvedBackground = settings?.effective?.background ?: ReaderBackground.AUTOMATIC
+    // 根背景读「全局 + 作品覆盖」解析后的档位；未加载完成时按 Automatic。
+    val resolvedBackground = settings
+        ?.let { it.global.withOverride(it.override).background }
+        ?: ReaderBackground.AUTOMATIC
     Box(
         modifier = modifier
             .fillMaxSize()
