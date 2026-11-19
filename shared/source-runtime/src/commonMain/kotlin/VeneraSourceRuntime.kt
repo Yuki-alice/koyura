@@ -194,6 +194,10 @@ class VeneraSourceRuntime private constructor(
     suspend fun runSetting(key: String, name: String): JsonElement =
         evaluateSourceJson(key, "invokeSetting", JsonPrimitive(name).toString())
 
+    suspend fun describeAccount(key: String): JsonElement = evaluateSourceJson(key, "describeAccount")
+
+    suspend fun accountInfo(key: String): JsonElement = evaluateSourceJson(key, "accountInfo")
+
     suspend fun describe(key: String, field: SourceConfigField): JsonElement =
         evaluateSourceJson(key, "describe", JsonPrimitive(field.path).toString())
 
@@ -211,14 +215,15 @@ class VeneraSourceRuntime private constructor(
         )
     }
 
-    private suspend fun evaluateSourceJson(key: String, operation: String, args: String): JsonElement =
+    private suspend fun evaluateSourceJson(key: String, operation: String, vararg args: String): JsonElement =
         withContext(Dispatchers.Default) {
             mutex.withLock {
                 checkOpen()
                 require(key in sources) { "Source '$key' is not registered" }
                 withTimeout(CALLBACK_TIMEOUT_MILLIS) {
+                    val arguments = (listOf(JsonPrimitive(key).toString()) + args).joinToString(", ")
                     Json.parseToJsonElement(evaluate<String>(
-                        "await __readerVenera.$operation(${JsonPrimitive(key)}, $args)",
+                        "await __readerVenera.$operation($arguments)",
                         "$key:$operation",
                     ))
                 }

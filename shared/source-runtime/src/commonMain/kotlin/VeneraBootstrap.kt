@@ -411,6 +411,36 @@ internal val veneraBootstrap = """
                 if (setting?.type !== "callback") throw new Error("Source setting has no callback");
                 return invokeCallback(setting, setting.callback, [], false, "settings." + name);
             },
+            describeAccount(key) {
+                const account = sources[key]?.account;
+                if (account == null || typeof account !== "object") return "null";
+                const form = typeof account.login === "function";
+                const cookieFields = account.loginWithCookies?.fields;
+                return serializeResult({
+                    form,
+                    fields: form ? account.login.fields ?? account.loginFields ?? null
+                        : typeof account.loginWithCookies?.validate === "function" && Array.isArray(cookieFields)
+                            ? cookieFields.map(label => ({ label, type: "cookies" })) : [],
+                    registerWebsite: typeof account.registerWebsite === "string" ? account.registerWebsite : null,
+                    declaresWebLogin: typeof account.loginWithWebview?.url === "string",
+                    infoItems: Array.isArray(account.infoItems) ? account.infoItems
+                        .filter(item => typeof item?.title === "string")
+                        .map(item => ({ title: item.title, hasValue: "data" in item })) : [],
+                });
+            },
+            async accountInfo(key) {
+                const items = sources[key]?.account?.infoItems;
+                if (!Array.isArray(items)) return "[]";
+                const result = [];
+                for (const item of items) {
+                    if (typeof item?.title !== "string") continue;
+                    const data = item.data;
+                    const current = typeof data === "function" ? await Reflect.apply(data, item, []) : data;
+                    const value = current == null ? null : String(current);
+                    result.push({ title: item.title, value });
+                }
+                return serializeResult(result);
+            },
             describe(key, path) {
                 const source = sources[key];
                 if (source === undefined) throw new Error("Source is not registered: " + key);

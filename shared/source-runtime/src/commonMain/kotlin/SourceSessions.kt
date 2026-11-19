@@ -17,6 +17,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
@@ -148,6 +149,10 @@ class SourceSessions(
     }
 
     fun applyLoginMarker(key: String) = applyData(key, mapOf("account" to JsonPrimitive("ok")))
+
+    fun saveFormLogin(key: String, arguments: JsonArray) = applyData(key, mapOf("account" to arguments))
+
+    fun accountMarker(key: String): JsonElement = getData(key, "account")
 
     internal fun getData(key: String, name: String): JsonElement = access(key) { load(this).data[name] ?: JsonNull }
 
