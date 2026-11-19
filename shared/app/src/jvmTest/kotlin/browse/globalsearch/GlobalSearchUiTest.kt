@@ -1,4 +1,4 @@
-package app.koyura.browse.globalsearch
+package app.koyura.app.browse.globalsearch
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onNodeWithTag

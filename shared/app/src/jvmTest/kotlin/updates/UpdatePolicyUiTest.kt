@@ -1,4 +1,4 @@
-package app.koyura.updates
+package app.koyura.features.updates
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onNodeWithTag

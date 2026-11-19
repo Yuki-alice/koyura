@@ -1,4 +1,4 @@
-package app.koyura.browse.globalsearch
+package app.koyura.app.browse.globalsearch
 
 import app.koyura.app.browse.FakeBrowseService
 import app.koyura.app.browse.WorkSearchPage

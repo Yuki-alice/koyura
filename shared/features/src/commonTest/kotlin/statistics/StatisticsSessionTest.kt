@@ -1,4 +1,4 @@
-package app.koyura.statistics
+package app.koyura.features.statistics
 
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test

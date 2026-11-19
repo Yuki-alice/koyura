@@ -1,4 +1,4 @@
-package app.koyura.reader.comic
+package app.koyura.features.reader.comic
 
 import androidx.compose.ui.graphics.Color
 import app.koyura.domain.reader.preferences.ReaderBackground

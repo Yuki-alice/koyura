@@ -1,4 +1,4 @@
-package app.koyura.reader.comic
+package app.koyura.features.reader.comic.chrome
 
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick

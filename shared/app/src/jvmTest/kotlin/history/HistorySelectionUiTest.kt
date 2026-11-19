@@ -1,4 +1,4 @@
-package app.koyura.history
+package app.koyura.app.history
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.longClick

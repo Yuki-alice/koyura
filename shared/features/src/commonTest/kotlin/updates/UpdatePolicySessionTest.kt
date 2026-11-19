@@ -1,4 +1,4 @@
-package app.koyura.updates
+package app.koyura.features.updates
 
 import app.koyura.domain.updates.SmartUpdatePreferences
 import kotlinx.coroutines.test.runTest

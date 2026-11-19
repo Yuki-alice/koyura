@@ -1,4 +1,4 @@
-package app.koyura.statistics
+package app.koyura.features.statistics
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onNodeWithTag
