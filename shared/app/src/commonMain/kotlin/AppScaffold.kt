@@ -34,6 +34,8 @@ import app.koyura.app.browse.BrowseService
 import app.koyura.app.browse.LocalBrowseService
 import app.koyura.app.browse.BrowseSession
 import app.koyura.app.browse.ProvideCoverPipeline
+import app.koyura.features.downloads.DownloadsScreen
+import app.koyura.features.downloads.rememberDownloadsSession
 import app.koyura.features.more.MoreScreen
 import app.koyura.features.more.rememberMoreSession
 import app.koyura.features.updates.UpdatesScreen
@@ -56,6 +58,7 @@ import app.koyura.features.reader.comic.rememberReaderSession
 import app.koyura.app.browse.rememberBrowseSession
 import app.koyura.app.navigation.AppNavigationState
 import app.koyura.app.navigation.DetailRoute
+import app.koyura.app.navigation.DownloadQueueRoute
 import app.koyura.app.navigation.ExtensionDetailsRoute
 import app.koyura.app.navigation.ComicReaderRoute
 import app.koyura.app.navigation.SourceDetailRoute
@@ -98,6 +101,7 @@ internal fun AppScaffold(
     val activeHistorySession = historySession ?: rememberHistorySession(historyService, browseService)
     val activeUpdatesSession = rememberUpdatesSession()
     val activeMoreSession = rememberMoreSession()
+    val activeDownloadsSession = rememberDownloadsSession()
     val librarySession = rememberLibrarySession()
 
     BackToLibraryHandler(navigation, librarySession)
@@ -118,6 +122,7 @@ internal fun AppScaffold(
                     librarySession,
                     activeUpdatesSession,
                     activeMoreSession,
+                    activeDownloadsSession,
                 )
             }
         }
@@ -219,6 +224,7 @@ private fun AppNavigationContent(
     librarySession: LibrarySession,
     updatesSession: app.koyura.features.updates.UpdatesSession,
     moreSession: app.koyura.features.more.MoreSession,
+    downloadsSession: app.koyura.features.downloads.DownloadsSession,
 ) {
     val entryProvider = remember(
         navigation,
@@ -228,6 +234,7 @@ private fun AppNavigationContent(
         librarySession,
         updatesSession,
         moreSession,
+        downloadsSession,
     ) {
         entryProvider<NavKey> {
             entry<TabRootRoute> { route ->
@@ -277,7 +284,12 @@ private fun AppNavigationContent(
                         )
                     }
                 } else if (route.tab == NavTab.More) {
-                    MoreScreen(session = moreSession)
+                    MoreScreen(
+                        session = moreSession,
+                        onOpenDownloadQueue = {
+                            navigation.push(DownloadQueueRoute)
+                        },
+                    )
                 } else {
                     TabRootScreen(
                         tab = route.tab,
@@ -289,6 +301,12 @@ private fun AppNavigationContent(
             }
             entry<DetailRoute> { route ->
                 DetailScreen(origin = route.tab, id = route.id)
+            }
+            entry<DownloadQueueRoute> {
+                DownloadsScreen(
+                    session = downloadsSession,
+                    onBack = { navigation.popCurrentChild() },
+                )
             }
             entry<ExtensionDetailsRoute> { route ->
                 CompositionLocalProvider(LocalBrowseSession provides browseSession) {

@@ -50,6 +50,10 @@ data class ComicReaderRoute(
     val chapterTitles: List<String> = emptyList(),
 ) : AppRoute
 
+/** Download queue page, pushed from the More tab. Fake-driven until the engine lands. */
+@Serializable
+data object DownloadQueueRoute : AppRoute
+
 /**
  * Saved-state configuration registering every [AppRoute] subtype for open polymorphism.
  *
@@ -65,6 +69,7 @@ val ReaderSavedStateConfiguration: SavedStateConfiguration = SavedStateConfigura
             subclass(SourceSearchRoute::class, SourceSearchRoute.serializer())
             subclass(SourceDetailRoute::class, SourceDetailRoute.serializer())
             subclass(ComicReaderRoute::class, ComicReaderRoute.serializer())
+            subclass(DownloadQueueRoute::class, DownloadQueueRoute.serializer())
         }
     }
 }

@@ -1,6 +1,7 @@
 package app.koyura.features.more
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -62,6 +63,7 @@ fun moreSwitchTag(key: String) = "more-switch-$key"
 fun MoreScreen(
     session: MoreSession,
     modifier: Modifier = Modifier,
+    onOpenDownloadQueue: (() -> Unit)? = null,
 ) {
     Column(
         modifier = modifier
@@ -87,8 +89,13 @@ fun MoreScreen(
             onCheckedChange = session::updateIncognito,
         )
         HorizontalDivider()
-        // 目标页均未落地：入口保留并禁用，随轮次启用（下载队列见任务书 7.12 说明）。
-        MoreNavRow(key = "download-queue", icon = ActionIcon.Download, title = stringResource(Res.string.more_download_queue))
+        // 下载队列本轮落地为真实页面；其余目标页未落地，入口保持非交互随轮次启用。
+        MoreNavRow(
+            key = "download-queue",
+            icon = ActionIcon.Download,
+            title = stringResource(Res.string.more_download_queue),
+            onClick = onOpenDownloadQueue,
+        )
         MoreNavRow(key = "categories", icon = ActionIcon.Categories, title = stringResource(Res.string.more_categories))
         MoreNavRow(key = "statistics", icon = ActionIcon.Statistics, title = stringResource(Res.string.more_statistics))
         MoreNavRow(
@@ -212,16 +219,18 @@ private fun MoreSwitchRow(
     }
 }
 
-/** 导航行：与开关行同规格，无副标题，尾部无控件（目标页落地前禁用）。 */
+/** 导航行：与开关行同规格，无副标题；有目标页时可点，无回调时保持非交互。 */
 @Composable
 private fun MoreNavRow(
     key: String,
     icon: ActionIcon,
     title: String,
+    onClick: (() -> Unit)? = null,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .heightIn(min = DesignTokens.Sizes.SettingsItemMinHeight)
             .padding(
                 horizontal = DesignTokens.Spacing.Medium,
