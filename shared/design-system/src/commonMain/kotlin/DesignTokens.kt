@@ -55,6 +55,9 @@ object DesignTokens {
         const val ReaderBarLight = 0.95f
         const val ReaderBarDark = 0.9f
         const val Backdrop = 0.2f
+        // 详情封面背景的 surfaceTint 衬底 — MangaInfoHeader.kt:179
+        // `surfaceTint.copy(alpha = 0.4f)`，白皮书 02 §2.1 封面取色层。
+        const val SurfaceTintWash = 0.4f
         const val ContinueReading = 0.9f
     }
 
@@ -108,7 +111,15 @@ object DesignTokens {
         val HistoryItemHeight = 96.dp
         val ListItemHeight = 56.dp
         val BadgeHeight = 18.dp
+        // 徽标文字内边距 — Badges.kt:62,107 `padding(horizontal = 3.dp, vertical = 1.dp)`，
+        // 白皮书 06 §6.4。
+        val BadgeContentPadding = PaddingValues(horizontal = 3.dp, vertical = 1.dp)
+        // 书架继续阅读按钮 28dp / 图标 16dp — CommonMangaItem.kt:62,65。
+        val ContinueButtonSize = 28.dp
+        val ContinueButtonIconSize = 16.dp
         val FastScrollerThumb = 12.dp
+        // 详情封面背景模糊半径 — MangaInfoHeader.kt:180 `.blur(7.dp)`。
+        val BackdropBlur = 7.dp
         val ReaderSliderRadius = 24.dp
         val BottomActionMenuRadius = 16.dp
     }
