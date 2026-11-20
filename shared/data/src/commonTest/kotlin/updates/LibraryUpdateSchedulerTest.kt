@@ -3,6 +3,7 @@ package app.koyura.data.updates
 import app.koyura.domain.updates.LibraryUpdateInterval
 import app.koyura.domain.updates.LibraryUpdateSchedulePreferences
 import app.koyura.domain.updates.UpdateScan
+import app.koyura.domain.updates.ScheduledUpdateFailure
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -89,6 +90,7 @@ class LibraryUpdateSchedulerTest {
         assertEquals(1, runs)
         assertEquals(26.hours.inWholeMilliseconds, again.state.value.nextUpdateMillis)
         assertTrue(again.state.value.lastCheck!!.failedToRun)
+        assertEquals(setOf(ScheduledUpdateFailure.SCAN), again.state.value.lastCheck?.failureKinds)
         again.close()
     }
 
@@ -122,6 +124,32 @@ class LibraryUpdateSchedulerTest {
         runCurrent()
         assertEquals(1, runs)
         assertEquals(26.hours.inWholeMilliseconds, updates.state.value.nextUpdateMillis)
+        updates.close()
+    }
+
+    @Test
+    fun toleratesLegacyScheduleWithoutAnchorAndDefersAnOverdueRunUntilNetworkAllowsIt() = runTest {
+        var raw = """{"preferences":{"interval":"HOURS_6"}}"""
+        var runAllowed = false
+        var runs = 0
+        val time = object : Clock {
+            override fun now() = Instant.fromEpochMilliseconds(testScheduler.currentTime)
+        }
+        val updates = LibraryUpdateScheduler(
+            { raw }, { raw = it }, { runs++; UpdateScan(emptyList(), emptyList()) },
+            clock = time, networkAllowsRun = { !it.wifiOnly || runAllowed },
+        )
+        updates.start(backgroundScope)
+        runCurrent()
+        assertEquals(6.hours.inWholeMilliseconds, updates.state.value.nextUpdateMillis)
+        advanceTimeBy(7.hours)
+        runCurrent()
+        assertEquals(0, runs)
+        runAllowed = true
+        updateForeground(updates)
+        runCurrent()
+        assertEquals(1, runs)
+        assertEquals(13.hours.inWholeMilliseconds, updates.state.value.nextUpdateMillis)
         updates.close()
     }
 

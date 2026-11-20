@@ -4,6 +4,7 @@ import app.koyura.domain.updates.LibraryUpdateInterval
 import app.koyura.domain.updates.LibraryUpdateSchedulePreferences
 import app.koyura.domain.updates.LibraryUpdateScheduleState
 import app.koyura.domain.updates.ScheduledUpdateCheck
+import app.koyura.domain.updates.ScheduledUpdateFailure
 import app.koyura.domain.updates.UpdateScan
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -25,6 +26,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.hours
+import kotlin.time.Duration.Companion.minutes
 
 class LibraryUpdateScheduler internal constructor(
     private val readPreference: suspend () -> String?,
@@ -33,6 +35,7 @@ class LibraryUpdateScheduler internal constructor(
     private val nextReleaseWindow: suspend () -> Long? = { null },
     private val releaseChanges: Flow<Unit> = emptyFlow(),
     private val clock: Clock = Clock.System,
+    private val networkAllowsRun: (LibraryUpdateSchedulePreferences) -> Boolean = { true },
 ) {
     private val lock = Mutex()
     private val wake = Channel<Unit>(Channel.CONFLATED)
@@ -55,7 +58,9 @@ class LibraryUpdateScheduler internal constructor(
                     when {
                         remaining == null -> wake.receive()
                         remaining > 0 -> withTimeoutOrNull(remaining) { wake.receive() }
-                        else -> checkIfDue()
+                        else -> {
+                            if (!checkIfDue()) withTimeoutOrNull(15.minutes) { wake.receive() }
+                        }
                     }
                 }
             } finally {
@@ -103,30 +108,42 @@ class LibraryUpdateScheduler internal constructor(
             current.releaseMillis?.let { it <= now() } == true -> current.releaseMillis
             else -> nextReleaseWindow()
         }
-        val updated = current.copy(releaseMillis = release)
+        val anchor = when (current.preferences.interval) {
+            LibraryUpdateInterval.DISABLED -> null
+            else -> current.anchorMillis ?: current.lastCheck?.checkedAtMillis ?: now()
+        }
+        val updated = current.copy(anchorMillis = anchor, releaseMillis = release)
         if (current != updated) save(updated)
         publish(updated)
         return deadline(updated)
     }
 
-    private suspend fun checkIfDue() {
+    private suspend fun checkIfDue(): Boolean {
         val due = lock.withLock {
-            val deadline = deadline(record())
-            (deadline != null && deadline <= now()).also {
+            val current = record()
+            val deadline = deadline(current)
+            (deadline != null && deadline <= now() && networkAllowsRun(current.preferences)).also {
                 if (it) status.update { previous -> previous.copy(checking = true) }
             }
         }
-        if (!due) return
+        if (!due) return false
 
         val result = try {
             val scan = checkNow()
             ScheduledUpdateCheck(
                 now(), scan.updates.size + scan.failures.size, scan.updates.sumOf { it.newChapterCount },
-                scan.failures.size, scan.skipped.size, downloadTriggerFailures = scan.downloadTriggerFailures.size,
+                scan.failures.size, scan.skipped.size,
+                downloadTriggerFailures = scan.downloadTriggerFailures.size,
+                failureKinds = buildSet {
+                    if (scan.failures.isNotEmpty()) add(ScheduledUpdateFailure.SOURCE_WORKS)
+                    if (scan.downloadTriggerFailures.isNotEmpty()) add(ScheduledUpdateFailure.DOWNLOAD_TRIGGER)
+                },
             )
         } catch (_: Exception) {
             currentCoroutineContext().ensureActive()
-            ScheduledUpdateCheck(now(), 0, 0, 0, 0, failedToRun = true)
+            ScheduledUpdateCheck(
+                now(), 0, 0, 0, 0, failedToRun = true, failureKinds = setOf(ScheduledUpdateFailure.SCAN),
+            )
         }
         lock.withLock {
             val current = record()
@@ -135,6 +152,7 @@ class LibraryUpdateScheduler internal constructor(
             save(updated)
             publish(updated, checking = false)
         }
+        return true
     }
 
     private fun deadline(record: Record): Long? {

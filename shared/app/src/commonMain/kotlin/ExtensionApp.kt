@@ -20,6 +20,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import app.koyura.app.reader.VeneraReaderService
 import app.koyura.app.browse.venera.VeneraBrowseService
 import app.koyura.app.history.VeneraHistoryService
@@ -97,9 +99,10 @@ internal fun ExtensionApp(
 
     val session = openedSession
     if (session != null) {
-        // 后台更新调度：进程内时间驱动 + 启动补跑；作用域随会话销毁，前台唤醒由平台接线补充。
+        // 调度随会话启动，恢复前台时重新判断逾期和网络约束。
         val sessionScope = remember(session) { CoroutineScope(SupervisorJob() + Dispatchers.Default) }
         LaunchedEffect(session) { session.updateScheduler.start(sessionScope) }
+        LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { session.updateScheduler.onForeground() }
         DisposableEffect(session) {
             onDispose { sessionScope.cancel() }
         }

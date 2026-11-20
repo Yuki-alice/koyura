@@ -54,6 +54,7 @@ class ExtensionSession internal constructor(
     val readerPreferences: ReaderPreferencesStore,
     packages: ChapterContentPackages,
     isOnline: () -> Boolean,
+    isUnmetered: (() -> Boolean)?,
 ) {
     val comicReading = ComicReadingService(driver, service, httpClient).apply {
         attachLocalContent(packages, isOnline)
@@ -83,6 +84,9 @@ class ExtensionSession internal constructor(
         checkNow = updates::checkNow,
         nextReleaseWindow = updates::nextReleaseWindowMillis,
         releaseChanges = updates.releaseWindowChanges,
+        networkAllowsRun = { preferences ->
+            isOnline() && (!preferences.wifiOnly || isUnmetered?.invoke() != false)
+        },
     )
 
     private val mutex = Mutex()
@@ -127,6 +131,7 @@ suspend fun openExtensionSession(
     isOnline: () -> Boolean = { true },
     webLoginBrowser: WebLoginBrowser? = null,
     sourceUi: VeneraUiHost = VeneraUiHost.Headless,
+    isUnmetered: (() -> Boolean)? = null,
 ): ExtensionSession {
     val scriptsDir = appDataDir / "scripts"
     val service = ExtensionService(
@@ -139,7 +144,7 @@ suspend fun openExtensionSession(
         val report = service.restore()
         val readerPreferences = ReaderPreferencesStore(appDataDir, fileSystem)
         val packages = ChapterContentPackages(fileSystem, appDataDir / "downloads")
-        val opened = ExtensionSession(service, report, driver, httpClient, readerPreferences, packages, isOnline)
+        val opened = ExtensionSession(service, report, driver, httpClient, readerPreferences, packages, isOnline, isUnmetered)
         session = opened
         opened.startDownloads()
         return opened
