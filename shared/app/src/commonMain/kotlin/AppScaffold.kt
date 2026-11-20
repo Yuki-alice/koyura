@@ -72,17 +72,25 @@ import app.koyura.app.navigation.GlobalSearchRoute
 import app.koyura.app.navigation.ComicReaderRoute
 import app.koyura.app.navigation.SourceDetailRoute
 import app.koyura.app.navigation.StatisticsRoute
+import app.koyura.app.navigation.SettingsRoute
+import app.koyura.app.navigation.SettingsSubpageRoute
+import app.koyura.app.navigation.UtilityPageRoute
 import app.koyura.app.navigation.SourceSearchRoute
 import app.koyura.app.navigation.ExtensionStoresRoute
 import app.koyura.app.navigation.TabRootRoute
 import app.koyura.app.ui.DetailScreen
 import app.koyura.app.ui.TabRootScreen
+import app.koyura.app.ui.UtilityPageScreen
 import app.koyura.designsystem.DesignTokens
 import app.koyura.designsystem.navigation.NavTab
 import app.koyura.designsystem.navigation.ReaderNavigationBar
 import app.koyura.designsystem.navigation.ReaderNavigationRail
 import app.koyura.features.library.LibrarySession
 import app.koyura.features.library.rememberLibrarySession
+import app.koyura.features.settings.SettingsScreen
+import app.koyura.features.settings.SettingsSubpage
+import app.koyura.features.settings.SettingsSubpageScreen
+import app.koyura.features.settings.rememberSettingsSession
 
 internal const val NavigationBarTestTag = "app-navigation-bar"
 internal const val NavigationRailTestTag = "app-navigation-rail"
@@ -249,6 +257,8 @@ private fun AppNavigationContent(
     statisticsSession: app.koyura.features.statistics.StatisticsSession,
     browseService: BrowseService?,
 ) {
+    // 设置主页与手机子页共享同一份会话；remember 落在导航内容层，切 tab 不重建。
+    val settingsSession = rememberSettingsSession()
     val entryProvider = remember(
         navigation,
         browseSession,
@@ -322,6 +332,8 @@ private fun AppNavigationContent(
                         onOpenStatistics = {
                             navigation.push(StatisticsRoute)
                         },
+                        onOpenSettings = { navigation.push(SettingsRoute) },
+                        onOpenUtility = { key -> navigation.push(UtilityPageRoute(key)) },
                     )
                 } else {
                     TabRootScreen(
@@ -367,6 +379,31 @@ private fun AppNavigationContent(
             entry<StatisticsRoute> {
                 StatisticsScreen(
                     session = statisticsSession,
+                    onBack = { navigation.popCurrentChild() },
+                )
+            }
+            entry<SettingsRoute> {
+                SettingsScreen(
+                    session = settingsSession,
+                    onOpenSubpage = { subpage ->
+                        navigation.push(SettingsSubpageRoute(subpage.name))
+                    },
+                    onBack = { navigation.handleBack() },
+                )
+            }
+            entry<SettingsSubpageRoute> { route ->
+                val subpage = SettingsSubpage.entries.firstOrNull { it.name == route.subpageName }
+                    ?: SettingsSubpage.APPEARANCE
+                SettingsSubpageScreen(
+                    session = settingsSession,
+                    subpage = subpage,
+                    onBack = { navigation.popCurrentChild() },
+                )
+            }
+            entry<UtilityPageRoute> { route ->
+                UtilityPageScreen(
+                    title = utilityPageTitle(route.key),
+                    message = "该页面尚未完整落地，先以统一占位承接入口与返回栈。",
                     onBack = { navigation.popCurrentChild() },
                 )
             }
@@ -470,4 +507,14 @@ private fun AppNavigationContent(
             )
         }
     }
+}
+
+/** More 页工具占位的标题；key 与 `MoreScreen` 的导航行 key 一致。 */
+private fun utilityPageTitle(key: String): String = when (key) {
+    "update-errors" -> "更新错误"
+    "data-storage" -> "数据与存储"
+    "batch-add" -> "批量添加"
+    "about" -> "关于"
+    "help" -> "帮助"
+    else -> "工具页"
 }

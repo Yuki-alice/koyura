@@ -62,6 +62,18 @@ data object CategoriesRoute : AppRoute
 @Serializable
 data object GlobalSearchRoute : AppRoute
 
+/** Settings master page (phone list / tablet two-pane), pushed from the More tab. */
+@Serializable
+data object SettingsRoute : AppRoute
+
+/** One settings subpage, pushed on narrow layouts; the name maps to SettingsSubpage. */
+@Serializable
+data class SettingsSubpageRoute(val subpageName: String) : AppRoute
+
+/** Utility entry from More whose full page is still a placeholder (update errors, about, help…). */
+@Serializable
+data class UtilityPageRoute(val key: String) : AppRoute
+
 /** Statistics page, pushed from the More tab. Fake-driven until the data layer aggregates it. */
 @Serializable
 data object StatisticsRoute : AppRoute
@@ -85,6 +97,9 @@ val ReaderSavedStateConfiguration: SavedStateConfiguration = SavedStateConfigura
             subclass(CategoriesRoute::class, CategoriesRoute.serializer())
             subclass(StatisticsRoute::class, StatisticsRoute.serializer())
             subclass(GlobalSearchRoute::class, GlobalSearchRoute.serializer())
+            subclass(SettingsRoute::class, SettingsRoute.serializer())
+            subclass(SettingsSubpageRoute::class, SettingsSubpageRoute.serializer())
+            subclass(UtilityPageRoute::class, UtilityPageRoute.serializer())
         }
     }
 }

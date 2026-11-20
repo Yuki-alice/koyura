@@ -55,9 +55,8 @@ fun moreSwitchTag(key: String) = "more-switch-$key"
  * 图标 primary、标题 16sp；开关行同式 + M3 Switch；底部赞助按钮
  * 2dp primary 边框 small 圆角居中（Code: Sponsor）。
  *
- * 本轮导航行按落地进度启用：下载队列与分类是真实页面；其余目标页
- * （统计/更新错误/数据与存储/批量添加/设置/关于/帮助）随后续轮次落地后再启用；
- * 两个开关为真实页内状态。
+ * 下载队列、分类、统计与设置是真实页面；更新错误、数据与存储、批量添加、
+ * 关于、帮助接到统一工具占位页，保证入口可点与返回栈正确；两个开关为真实页内状态。
  */
 @Composable
 fun MoreScreen(
@@ -66,7 +65,10 @@ fun MoreScreen(
     onOpenDownloadQueue: (() -> Unit)? = null,
     onOpenCategories: (() -> Unit)? = null,
     onOpenStatistics: (() -> Unit)? = null,
+    onOpenSettings: (() -> Unit)? = null,
+    onOpenUtility: ((String) -> Unit)? = null,
 ) {
+    val utilityHandler = onOpenUtility
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -114,17 +116,39 @@ fun MoreScreen(
             key = "update-errors",
             icon = ActionIcon.UpdateErrors,
             title = stringResource(Res.string.more_update_errors),
+            onClick = utilityHandler?.let { cb -> { cb("update-errors") } },
         )
         MoreNavRow(
             key = "data-storage",
             icon = ActionIcon.Storage,
             title = stringResource(Res.string.more_data_storage),
+            onClick = utilityHandler?.let { cb -> { cb("data-storage") } },
         )
-        MoreNavRow(key = "batch-add", icon = ActionIcon.BatchAdd, title = stringResource(Res.string.more_batch_add))
+        MoreNavRow(
+            key = "batch-add",
+            icon = ActionIcon.BatchAdd,
+            title = stringResource(Res.string.more_batch_add),
+            onClick = utilityHandler?.let { cb -> { cb("batch-add") } },
+        )
         HorizontalDivider()
-        MoreNavRow(key = "settings", icon = ActionIcon.Settings, title = stringResource(Res.string.more_settings))
-        MoreNavRow(key = "about", icon = ActionIcon.Info, title = stringResource(Res.string.more_about))
-        MoreNavRow(key = "help", icon = ActionIcon.Help, title = stringResource(Res.string.more_help))
+        MoreNavRow(
+            key = "settings",
+            icon = ActionIcon.Settings,
+            title = stringResource(Res.string.more_settings),
+            onClick = onOpenSettings,
+        )
+        MoreNavRow(
+            key = "about",
+            icon = ActionIcon.Info,
+            title = stringResource(Res.string.more_about),
+            onClick = utilityHandler?.let { cb -> { cb("about") } },
+        )
+        MoreNavRow(
+            key = "help",
+            icon = ActionIcon.Help,
+            title = stringResource(Res.string.more_help),
+            onClick = utilityHandler?.let { cb -> { cb("help") } },
+        )
         Row(
             modifier = Modifier
                 .fillMaxWidth()
