@@ -49,6 +49,7 @@ import app.koyura.app.browse.venera.VeneraFixtures
 import app.koyura.app.history.HistoryClearAllTag
 import app.koyura.app.history.HistoryClearConfirmTag
 import app.koyura.app.history.historyContinueTag
+import app.koyura.app.history.historyRowActionsTag
 import app.koyura.app.history.historyDeleteTag
 import app.koyura.app.history.historyFavoriteTag
 import app.koyura.app.history.historyRowTag
@@ -259,6 +260,7 @@ class VeneraLibraryHistoryMutationRestartTest {
             awaitTag(historyRowTag(SourceKey, OtherWorkId))
             when (action) {
                 ActionDelete -> {
+                    onNodeWithTag(historyRowActionsTag(SourceKey, WorkId)).performClick()
                     onNodeWithTag(historyDeleteTag(SourceKey, WorkId)).performClick()
                     waitUntil(timeoutMillis = 15_000) {
                         onAllNodesWithTag(historyRowTag(SourceKey, WorkId))

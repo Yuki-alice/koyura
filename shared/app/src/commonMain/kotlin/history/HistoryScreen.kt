@@ -4,6 +4,7 @@
 
 package app.koyura.app.history
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -13,9 +14,10 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -31,6 +33,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.koyura.app.browse.AppCoverDecoder
@@ -58,6 +62,8 @@ import app.koyura.app.resources.history_filter_sources
 import app.koyura.app.resources.history_filter_title
 import app.koyura.app.resources.history_invert_selection
 import app.koyura.app.resources.history_no_results
+import app.koyura.app.resources.history_row_actions
+import app.koyura.app.resources.history_unread
 import app.koyura.app.resources.history_page
 import app.koyura.app.resources.history_search
 import app.koyura.app.resources.history_select_all
@@ -79,13 +85,17 @@ import app.koyura.designsystem.components.AppButton
 import app.koyura.designsystem.components.AppCheckbox
 import app.koyura.designsystem.components.AppCircularProgress
 import app.koyura.designsystem.components.AppDivider
+import app.koyura.designsystem.components.AppMenu
+import app.koyura.designsystem.components.AppMenuItem
 import app.koyura.designsystem.components.AppSurface
 import app.koyura.designsystem.components.AppText
 import app.koyura.designsystem.components.AppTextButton
 import app.koyura.designsystem.components.ReaderTopAppBar
 import app.koyura.designsystem.components.UiTheme
 import kotlin.time.Clock
+import kotlin.time.Instant
 import kotlinx.coroutines.launch
+import kotlinx.datetime.toLocalDateTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
 import org.jetbrains.compose.resources.stringResource
@@ -118,6 +128,7 @@ internal fun historyRowDetailTag(sourceKey: String, workId: String) = "history-r
 internal fun historyContinueTag(sourceKey: String, workId: String) = "history-continue-$sourceKey-$workId"
 internal fun historyDeleteTag(sourceKey: String, workId: String) = "history-delete-$sourceKey-$workId"
 internal fun historyFavoriteTag(sourceKey: String, workId: String) = "history-favorite-$sourceKey-$workId"
+internal fun historyRowActionsTag(sourceKey: String, workId: String) = "history-row-actions-$sourceKey-$workId"
 internal fun historyGroupTag(key: String) = "history-group-$key"
 
 /**
@@ -134,6 +145,7 @@ fun HistoryScreen(
     onOpenWork: (sourceKey: String, workId: String, title: String) -> Unit,
     onContinue: (entry: HistoryEntry, chapterIds: List<String>, chapterTitles: List<String>) -> Unit,
     modifier: Modifier = Modifier,
+    hasUnread: (HistoryEntry) -> Boolean = { false },
 ) {
     val scope = rememberCoroutineScope()
     var query by rememberSaveable { mutableStateOf("") }
@@ -261,6 +273,7 @@ fun HistoryScreen(
                                     HistoryRow(
                                         entry = entry,
                                         favorited = session.isFavorite(entry),
+                                        hasUnread = hasUnread(entry),
                                         selecting = session.selection.isNotEmpty(),
                                         selected = session.isSelected(entry),
                                         onToggleSelect = { session.toggleSelect(entry) },
@@ -486,6 +499,7 @@ private fun HistoryFilterDialog(
 private fun HistoryRow(
     entry: HistoryEntry,
     favorited: Boolean,
+    hasUnread: Boolean,
     selecting: Boolean,
     selected: Boolean,
     onToggleSelect: () -> Unit,
@@ -494,12 +508,15 @@ private fun HistoryRow(
     onDelete: () -> Unit,
     onToggleFavorite: () -> Unit,
 ) {
-    // Komikku HistoryItem: fixed 96 dp row, shared cover (56x80), semibold title, chapter/page
-    // secondary line, source line, favorite + delete + resume affordances. Tapping the row
-    // opens the work; Continue resumes the saved chapter/page. Test tags are unchanged.
     val chapterLabel = entry.chapterTitle?.takeIf { it.isNotBlank() }
         ?: entry.chapterId
         ?: stringResource(Res.string.history_single_chapter)
+    val readTime = remember(entry.readAtMillis) {
+        entry.readAtMillis?.let { millis ->
+            Instant.fromEpochMilliseconds(millis).toLocalDateTime(TimeZone.currentSystemDefault()).time
+                .toString().take(5)
+        }
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -509,11 +526,8 @@ private fun HistoryRow(
                 onLongClick = { if (!selecting) onToggleSelect() },
             )
             .testTag(historyRowTag(entry.sourceKey, entry.workId))
-            .height(DesignTokens.Sizes.HistoryItemHeight)
-            .padding(
-                horizontal = DesignTokens.Spacing.Medium,
-                vertical = DesignTokens.Spacing.Small,
-            ),
+            .heightIn(min = DesignTokens.Sizes.HistoryItemHeight)
+            .padding(horizontal = DesignTokens.Spacing.Medium),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (selecting) {
@@ -524,7 +538,7 @@ private fun HistoryRow(
             coverUrl = entry.cover,
             label = entry.displayTitle,
             // 原版历史行封面约 63×94，填满行高（白皮书 07 §7.6）。
-            modifier = Modifier.size(width = 63.dp, height = 94.dp),
+            modifier = Modifier.size(width = DesignTokens.Sizes.HistoryCoverWidth, height = DesignTokens.Sizes.HistoryCoverHeight),
         )
         Column(
             modifier = Modifier
@@ -535,53 +549,78 @@ private fun HistoryRow(
                 ),
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            AppText(
-                text = entry.displayTitle,
-                color = UiTheme.colorScheme.onSurface,
-                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                style = UiTheme.typography.bodyMedium,
-                modifier = Modifier.testTag(historyRowTitleTag(entry.sourceKey, entry.workId)),
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.ExtraSmall),
+            ) {
+                if (hasUnread) {
+                    val label = stringResource(Res.string.history_unread)
+                    Box(
+                        Modifier.size(DesignTokens.Sizes.UnreadDot)
+                            .background(UiTheme.colorScheme.secondary, CircleShape)
+                            .semantics { contentDescription = label },
+                    )
+                }
+                AppText(
+                    text = entry.displayTitle,
+                    color = UiTheme.colorScheme.onSurface,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    style = UiTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f).testTag(historyRowTitleTag(entry.sourceKey, entry.workId)),
+                )
+            }
             AppText(
                 text = "$chapterLabel · " + stringResource(Res.string.history_page, entry.pageIndex + 1),
                 style = UiTheme.typography.bodySmall,
                 color = UiTheme.colorScheme.onSurfaceVariant.copy(
                     alpha = app.koyura.designsystem.DesignTokens.Alpha.Secondary,
                 ),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.testTag(historyRowDetailTag(entry.sourceKey, entry.workId)),
             )
+            if (readTime != null) {
+                AppText(readTime, style = UiTheme.typography.bodySmall, color = UiTheme.colorScheme.onSurfaceVariant)
+            }
         }
         // 选择态只留勾选框：行级动作隐藏，避免与批量动作抢同一个点击区。
         if (!selecting) {
-            ActionIconButton(
-                icon = if (favorited) ActionIcon.Favorite else ActionIcon.FavoriteBorder,
-                label = stringResource(
-                    if (favorited) Res.string.history_favorite_remove else Res.string.history_favorite_add,
-                ),
-                onClick = onToggleFavorite,
-                modifier = Modifier.testTag(historyFavoriteTag(entry.sourceKey, entry.workId)),
-                contentColor = if (favorited) {
-                    UiTheme.colorScheme.primary
-                } else {
-                    UiTheme.colorScheme.onSurfaceVariant
-                },
-            )
-            ActionIconButton(
-                icon = ActionIcon.Delete,
-                label = stringResource(Res.string.history_delete),
-                onClick = onDelete,
-                modifier = Modifier.testTag(historyDeleteTag(entry.sourceKey, entry.workId)),
-            )
             ActionIconButton(
                 icon = ActionIcon.Play,
                 label = stringResource(Res.string.history_continue),
                 onClick = onContinue,
                 modifier = Modifier.testTag(historyContinueTag(entry.sourceKey, entry.workId)),
             )
+            var menuOpen by remember { mutableStateOf(false) }
+            Box {
+                ActionIconButton(
+                    icon = ActionIcon.More,
+                    label = stringResource(Res.string.history_row_actions),
+                    onClick = { menuOpen = true },
+                    modifier = Modifier.testTag(historyRowActionsTag(entry.sourceKey, entry.workId)),
+                )
+                AppMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    val favoriteLabel = stringResource(
+                        if (favorited) Res.string.history_favorite_remove else Res.string.history_favorite_add,
+                    )
+                    AppMenuItem(
+                        text = { AppText(favoriteLabel) },
+                        onClick = {
+                            menuOpen = false
+                            onToggleFavorite()
+                        },
+                        modifier = Modifier.testTag(historyFavoriteTag(entry.sourceKey, entry.workId)),
+                    )
+                    AppMenuItem(
+                        text = { AppText(stringResource(Res.string.history_delete)) },
+                        onClick = {
+                            menuOpen = false
+                            onDelete()
+                        },
+                        modifier = Modifier.testTag(historyDeleteTag(entry.sourceKey, entry.workId)),
+                    )
+                }
+            }
         }
     }
 }

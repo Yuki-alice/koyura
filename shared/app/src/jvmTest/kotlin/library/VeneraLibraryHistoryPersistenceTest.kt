@@ -18,6 +18,7 @@ import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import app.koyura.app.history.HistoryScreen
 import app.koyura.app.history.HistorySession
 import app.koyura.app.history.VeneraHistoryService
+import app.koyura.app.history.historyRowActionsTag
 import app.koyura.app.history.historyDeleteTag
 import app.koyura.app.history.historyFavoriteTag
 import app.koyura.app.history.historyRowTag
@@ -321,6 +322,7 @@ class VeneraLibraryHistoryPersistenceTest {
                     }
                     runBlocking { owned.refresh() }
                     assertTrue(owned.favoriteKeys.contains(SourceKey to WorkId), "heart must return after re-favorite")
+                    onNodeWithTag(historyRowActionsTag(SourceKey, WorkId)).performClick()
                     onNodeWithTag(historyFavoriteTag(SourceKey, WorkId)).performClick()
                     waitUntil(timeoutMillis = 10_000) { !owned.favoriteKeys.contains(SourceKey to WorkId) }
                     assertTrue(
@@ -369,6 +371,7 @@ class VeneraLibraryHistoryPersistenceTest {
                         }
                     }
                     awaitHistoryRow()
+                    onNodeWithTag(historyRowActionsTag(SourceKey, WorkId)).performClick()
                     onNodeWithTag(historyDeleteTag(SourceKey, WorkId)).performClick()
                     waitUntil(timeoutMillis = 10_000) {
                         onAllNodesWithTag(historyRowTag(SourceKey, WorkId))

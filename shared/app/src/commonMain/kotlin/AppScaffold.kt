@@ -20,6 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.movableContentOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.SaveableStateHolder
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -38,6 +39,7 @@ import app.koyura.features.downloads.DownloadsScreen
 import app.koyura.features.downloads.rememberDownloadsSession
 import app.koyura.categories.CategoriesScreen
 import app.koyura.features.more.MoreScreen
+import app.koyura.features.more.MoreSession
 import app.koyura.features.more.rememberMoreSession
 import app.koyura.features.statistics.StatisticsScreen
 import app.koyura.features.statistics.rememberStatisticsSession
@@ -114,13 +116,16 @@ internal fun AppScaffold(
     readerSession: ReaderSession? = null,
     historyService: HistoryService? = LocalHistoryService.current,
     historySession: HistorySession? = null,
+    moreSession: MoreSession? = null,
+    indexing: Boolean = false,
 ) {
     val activeBrowseSession = browseSession ?: rememberBrowseSession(browseService)
     val activeReaderSession = readerSession ?: rememberReaderSession(readerService)
     val activeHistorySession = historySession ?: rememberHistorySession(historyService, browseService)
     val activeUpdatesSession = rememberUpdatesSession()
     val statisticsSession = rememberStatisticsSession()
-    val activeMoreSession = rememberMoreSession()
+    val activeMoreSession = moreSession ?: rememberMoreSession()
+    val indexingState = rememberUpdatedState(indexing)
     val activeDownloadsSession = rememberDownloadsSession()
     val librarySession = rememberLibrarySession()
 
@@ -130,22 +135,31 @@ internal fun AppScaffold(
     // would dispose the content subtree and rebuild it from saved state. Moving the subtree with
     // movable content keeps its remember state, including scroll position, across the switch.
     val saveableStateHolder = rememberSaveableStateHolder()
-    val appContent = remember {
+    val appContent = remember(activeMoreSession) {
         movableContentOf<AppNavigationState, SaveableStateHolder, BrowseSession> { state, holder, browse ->
             CompositionLocalProvider(LocalReaderService provides readerService) {
-                AppNavigationContent(
-                    state,
-                    holder,
-                    browse,
-                    activeReaderSession,
-                    activeHistorySession,
-                    librarySession,
-                    activeUpdatesSession,
-                    activeMoreSession,
-                    activeDownloadsSession,
-                    statisticsSession,
-                    browseService,
-                )
+                Column(Modifier.fillMaxSize()) {
+                    if (state.currentStack.lastOrNull() !is ComicReaderRoute) {
+                        AppStatusBanners(
+                            indexing = indexingState.value,
+                            downloadedOnly = activeMoreSession.downloadedOnly,
+                            incognito = activeMoreSession.incognito,
+                        )
+                    }
+                    AppNavigationContent(
+                        state,
+                        holder,
+                        browse,
+                        activeReaderSession,
+                        activeHistorySession,
+                        librarySession,
+                        activeUpdatesSession,
+                        activeMoreSession,
+                        activeDownloadsSession,
+                        statisticsSession,
+                        browseService,
+                    )
+                }
             }
         }
     }
@@ -297,6 +311,11 @@ private fun AppNavigationContent(
                 } else if (route.tab == NavTab.History) {
                     HistoryScreen(
                         session = historySession,
+                        hasUnread = { entry ->
+                            librarySession.snapshot.entries.any {
+                                it.sourceKey == entry.sourceKey && it.workId == entry.workId && it.unreadCount > 0
+                            }
+                        },
                         onOpenWork = { sourceKey, workId, title ->
                             navigation.push(SourceDetailRoute(sourceKey, workId, title))
                         },

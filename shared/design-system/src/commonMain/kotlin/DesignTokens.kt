@@ -112,6 +112,9 @@ object DesignTokens {
         val SettingsItemMinHeight = 56.dp
         val ChapterItemPadding = PaddingValues(start = 16.dp, top = 12.dp, end = 8.dp, bottom = 12.dp)
         val HistoryItemHeight = 96.dp
+        val HistoryCoverWidth = 63.dp
+        val HistoryCoverHeight = 94.dp
+        val UnreadDot = 6.dp
         val ListItemHeight = 56.dp
         val BadgeHeight = 18.dp
         // 徽标文字内边距 — Badges.kt:62,107 `padding(horizontal = 3.dp, vertical = 1.dp)`，

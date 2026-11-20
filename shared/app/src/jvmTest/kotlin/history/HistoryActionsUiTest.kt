@@ -41,12 +41,14 @@ class HistoryActionsUiTest {
         onNodeWithTag(historyRowTag("example_source", "demo")).assertIsDisplayed()
 
         // 删除：行消失且服务侧有记录。
+        onNodeWithTag(historyRowActionsTag("example_source", "demo")).performClick()
         onNodeWithTag(historyDeleteTag("example_source", "demo")).performClick()
         waitForIdle()
         onNodeWithTag(historyRowTag("example_source", "demo")).assertDoesNotExist()
         assertEquals(listOf("example_source" to "demo"), history.deletedKeys)
 
         // 收藏：心态切换且行保留。
+        onNodeWithTag(historyRowActionsTag("other_source", "night")).performClick()
         onNodeWithTag(historyFavoriteTag("other_source", "night")).performClick()
         onNodeWithTag(historyRowTag("other_source", "night")).assertIsDisplayed()
     }

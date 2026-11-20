@@ -178,4 +178,9 @@
     <string name="stores_remove_confirm">移除</string>
     <string name="source_detail_suggestions">推荐作品</string>
     <string name="source_detail_suggestions_empty">暂无推荐作品</string>
+    <string name="history_row_actions">历史记录操作</string>
+    <string name="history_unread">有未读章节</string>
+    <string name="status_indexing">正在建立索引</string>
+    <string name="status_downloaded_only">仅显示已下载</string>
+    <string name="status_incognito">隐身模式</string>
 </resources>

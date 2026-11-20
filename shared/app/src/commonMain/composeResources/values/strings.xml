@@ -179,4 +179,9 @@
     <string name="stores_remove_confirm">Remove</string>
     <string name="source_detail_suggestions">Suggestions</string>
     <string name="source_detail_suggestions_empty">No suggestions available</string>
+    <string name="history_row_actions">History actions</string>
+    <string name="history_unread">Unread chapters</string>
+    <string name="status_indexing">Indexing</string>
+    <string name="status_downloaded_only">Downloaded only</string>
+    <string name="status_incognito">Incognito mode</string>
 </resources>

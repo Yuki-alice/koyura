@@ -1,6 +1,7 @@
 package app.koyura.features.more
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -15,6 +16,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.koyura.designsystem.ActionIcon
@@ -212,9 +215,13 @@ private fun MoreSwitchRow(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
 ) {
+    val scheme = UiTheme.colorScheme
+    val enabledColor = if (icon == ActionIcon.CloudOff) scheme.tertiaryContainer else scheme.primaryContainer
+    val enabledContent = if (icon == ActionIcon.CloudOff) scheme.onTertiaryContainer else scheme.onPrimaryContainer
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .then(if (checked) Modifier.background(enabledColor) else Modifier)
             .heightIn(min = DesignTokens.Sizes.SettingsItemMinHeight)
             .padding(
                 horizontal = DesignTokens.Spacing.Medium,
@@ -226,7 +233,7 @@ private fun MoreSwitchRow(
         ActionIcon(
             icon = icon,
             contentDescription = null,
-            tint = UiTheme.colorScheme.primary,
+            tint = if (checked) enabledContent else scheme.primary,
         )
         Column(
             modifier = Modifier
@@ -237,12 +244,12 @@ private fun MoreSwitchRow(
                 // 设置项标题：titleLarge 字阶强制 16sp（白皮书 02 §2.6 被改写字号表）。
                 text = title,
                 style = UiTheme.typography.titleLarge.copy(fontSize = 16.sp),
-                color = UiTheme.colorScheme.onSurface,
+                color = if (checked) enabledContent else scheme.onSurface,
             )
             AppText(
                 text = subtitle,
                 style = UiTheme.typography.bodySmall,
-                color = UiTheme.colorScheme.onSurfaceVariant.copy(
+                color = (if (checked) enabledContent else scheme.onSurfaceVariant).copy(
                     alpha = DesignTokens.Alpha.Secondary,
                 ),
             )
@@ -250,7 +257,7 @@ private fun MoreSwitchRow(
         AppSwitch(
             checked = checked,
             onCheckedChange = onCheckedChange,
-            modifier = Modifier.testTag(moreSwitchTag(key)),
+            modifier = Modifier.testTag(moreSwitchTag(key)).semantics { contentDescription = title },
         )
     }
 }
