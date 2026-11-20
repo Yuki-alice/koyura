@@ -85,6 +85,9 @@
     <string name="library_remove_title">移除 %1$d 部作品？</string>
     <string name="library_remove_body">已移除作品的阅读进度保持不变。</string>
     <string name="library_remove_confirm">移除</string>
+    <string name="library_removed_count">已移除 %1$d 部作品</string>
+    <string name="library_undo">撤销</string>
+    <string name="library_restore_failed">作品放回失败</string>
     <string name="library_cancel">取消</string>
     <string name="library_close">关闭</string>
     <string name="library_save">保存</string>
