@@ -1,6 +1,7 @@
 package app.koyura.features.settings
 
 import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,6 +23,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.koyura.designsystem.ActionIcon
 import app.koyura.designsystem.DecorativeActionIcon
@@ -66,11 +68,27 @@ internal fun SettingsRow(
     danger: Boolean = false,
     trailing: @Composable () -> Unit = {},
     testTag: String? = null,
+    selected: Boolean = false,
+    twoPane: Boolean = false,
 ) {
     val clickModifier = if (enabled && onClick != null) Modifier.clickable(onClick = onClick) else Modifier
-    Row(
-        modifier = modifier
+    // 平板双栏左栏（白皮书 06 §6.9 套 C）：行外 8dp、选中 24dp 圆角 + surfaceVariant。
+    val containerModifier = if (twoPane) {
+        modifier
             .fillMaxWidth()
+            .padding(horizontal = DesignTokens.Spacing.Small)
+            .clip(RoundedCornerShape(DesignTokens.Radius.SettingsSelected))
+            .background(if (selected) UiTheme.colorScheme.surfaceVariant else Color.Transparent)
+    } else {
+        modifier.fillMaxWidth()
+    }
+    val contentColor = if (twoPane && selected) {
+        UiTheme.colorScheme.onSurfaceVariant
+    } else {
+        UiTheme.colorScheme.onSurface
+    }
+    Row(
+        modifier = containerModifier
             .then(clickModifier)
             .heightIn(min = DesignTokens.Sizes.SettingsItemMinHeight)
             .padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.Medium)
@@ -90,7 +108,7 @@ internal fun SettingsRow(
                 color = when {
                     !enabled -> UiTheme.colorScheme.onSurface.copy(alpha = DesignTokens.Alpha.Disabled)
                     danger -> UiTheme.colorScheme.error
-                    else -> UiTheme.colorScheme.onSurface
+                    else -> contentColor
                 },
                 style = UiTheme.typography.titleLarge.copy(fontSize = 16.sp),
                 maxLines = 2,
@@ -316,4 +334,60 @@ internal fun <T> SettingsSegmentedControl(
             )
         }
     }
+}
+
+/**
+ * 套 B（白皮书 06 §6.9 `SettingsItems`）：24dp/10dp 内边距、控件与文字间距 24dp、`bodyMedium`。
+ *
+ * 用于旧式列表条目（Checkbox/Radio/Slider/Select）；新的 Settings 子页仍用 [SettingsRow]（套 A）。
+ */
+@Composable
+internal fun SettingsLegacyRow(
+    label: String,
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+    control: (@Composable () -> Unit)? = null,
+    testTag: String? = null,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .padding(horizontal = DesignTokens.Spacing.Large, vertical = DesignTokens.Spacing.Row)
+            .then(if (testTag != null) Modifier.testTag(testTag) else Modifier),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Large),
+    ) {
+        control?.invoke()
+        AppText(
+            text = label,
+            modifier = Modifier.weight(1f),
+            color = UiTheme.colorScheme.onSurface,
+            style = UiTheme.typography.bodyMedium,
+        )
+    }
+}
+
+/**
+ * 套 3 组头 `PreferenceGroupHeader`（白皮书 06 §6.10）：`secondary` 色、Normal 字重、
+ * 上 14dp / 下 8dp、水平 16dp。Settings 子页用它；列表页仍用 `ListGroupHeader`。
+ */
+@Composable
+internal fun PreferenceGroupHeader(
+    title: String,
+    modifier: Modifier = Modifier,
+) {
+    AppText(
+        text = title,
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(
+                start = DesignTokens.Spacing.Medium,
+                end = DesignTokens.Spacing.Medium,
+                top = 14.dp,
+                bottom = DesignTokens.Spacing.Small,
+            ),
+        color = UiTheme.colorScheme.secondary,
+        style = UiTheme.typography.bodyMedium,
+    )
 }
