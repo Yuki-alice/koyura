@@ -1,10 +1,13 @@
 package app.koyura.app
 
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -19,6 +22,9 @@ import app.koyura.domain.reader.ReaderService
 import app.koyura.domain.reader.preferences.ReaderPreferences
 import app.koyura.app.navigation.rememberAppNavigationState
 import app.koyura.app.navigation.TabletUiMode
+import app.koyura.app.library.LocalProductionSettings
+import app.koyura.domain.appearance.ThemeMode
+import kotlinx.coroutines.CancellationException
 import app.koyura.app.navigation.usesNavigationRailForWindow
 import app.koyura.designsystem.DesignTokens
 import app.koyura.designsystem.ReaderTheme
@@ -74,7 +80,23 @@ fun App(
     searchSourceFilter: (suspend () -> Set<String>)? = null,
     sourceUiHost: SourceUiHost? = null,
 ) {
-    ReaderTheme {
+    val settings = LocalProductionSettings.current
+    LaunchedEffect(settings) {
+        try {
+            settings?.appearance()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            // The default appearance remains available on a storage read failure.
+        }
+    }
+    val appearance = settings?.appearanceState?.collectAsState()?.value
+    val dark = when (appearance?.mode) {
+        ThemeMode.LIGHT -> false
+        ThemeMode.DARK -> true
+        ThemeMode.SYSTEM, null -> isSystemInDarkTheme()
+    }
+    ReaderTheme(darkTheme = dark, amoled = appearance?.amoled == true) {
         CompositionLocalProvider(
             LocalBrowseService provides browseService,
             LocalReaderService provides readerService,

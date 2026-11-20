@@ -12,6 +12,10 @@ import app.koyura.domain.updates.LibraryUpdateSchedulePreferences
 import app.koyura.domain.updates.LibraryUpdateInterval
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
@@ -26,18 +30,29 @@ class ProductionSettingsRepository(
     private val schedule: LibraryUpdateScheduler,
     private val requestUpdateNotifications: () -> Unit = {},
 ) : ReaderPreferences by reader {
-    suspend fun appearance(): AppearancePreferences = withContext(Dispatchers.IO) {
-        val saved = library.getPref(APPEARANCE) ?: return@withContext AppearancePreferences()
-        try {
-            json.decodeFromString<AppearancePreferences>(saved)
-        } catch (_: SerializationException) {
-            AppearancePreferences()
+    private val appearanceLock = Mutex()
+    private val currentAppearance = MutableStateFlow(AppearancePreferences())
+    val appearanceState = currentAppearance.asStateFlow()
+
+    suspend fun appearance(): AppearancePreferences = appearanceLock.withLock {
+        withContext(Dispatchers.IO) {
+            val stored = library.getPref(APPEARANCE)
+            val value = if (stored == null) AppearancePreferences() else try {
+                json.decodeFromString<AppearancePreferences>(stored)
+            } catch (_: SerializationException) {
+                AppearancePreferences()
+            }
+            currentAppearance.value = value
+            value
         }
     }
 
-    suspend fun setAppearance(value: AppearancePreferences) = withContext(Dispatchers.IO) {
+    suspend fun setAppearance(value: AppearancePreferences) = appearanceLock.withLock {
         require(value.themeId.isNotBlank())
-        library.setPref(APPEARANCE, json.encodeToString(value))
+        withContext(Dispatchers.IO) {
+            library.setPref(APPEARANCE, json.encodeToString(value))
+            currentAppearance.value = value
+        }
     }
 
     suspend fun readerSettings() = reader.readGlobal()
