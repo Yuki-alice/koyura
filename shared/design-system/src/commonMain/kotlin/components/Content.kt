@@ -12,6 +12,7 @@ import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -27,6 +28,9 @@ object UiTheme {
     val colorScheme @Composable get() = MaterialTheme.colorScheme
     val typography @Composable get() = MaterialTheme.typography
     val shapes @Composable get() = MaterialTheme.shapes
+
+    @Composable
+    fun surfaceAtElevation(elevation: Dp): Color = colorScheme.surfaceColorAtElevation(elevation)
 }
 
 @Composable

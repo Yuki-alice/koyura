@@ -51,4 +51,5 @@
     <string name="reader_chrome_tap_zone_l_shape">L shape</string>
     <string name="reader_chrome_tap_zone_disabled">Disabled</string>
     <string name="reader_chrome_tap_zone_invert">Invert previous / next</string>
+    <string name="reader_chrome_bookmark">Bookmark chapter</string>
 </resources>

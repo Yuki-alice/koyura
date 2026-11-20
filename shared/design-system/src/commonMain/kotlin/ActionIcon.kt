@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import app.koyura.designsystem.resources.Res
 import app.koyura.designsystem.resources.action_back
+import app.koyura.designsystem.resources.action_bookmark
 import app.koyura.designsystem.resources.action_batch_add
 import app.koyura.designsystem.resources.action_calendar
 import app.koyura.designsystem.resources.action_categories
@@ -60,6 +61,7 @@ import org.jetbrains.compose.resources.painterResource
 
 enum class ActionIcon(internal val resource: DrawableResource) {
     Back(Res.drawable.action_back),
+    Bookmark(Res.drawable.action_bookmark),
     BatchAdd(Res.drawable.action_batch_add),
     Calendar(Res.drawable.action_calendar),
     Categories(Res.drawable.action_categories),

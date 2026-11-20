@@ -59,6 +59,7 @@ import app.koyura.app.history.LocalHistoryService
 import app.koyura.app.history.rememberHistorySession
 import app.koyura.app.library.LibraryTabContent
 import app.koyura.domain.reader.ReaderService
+import app.koyura.domain.reader.preferences.ReaderBackground
 import app.koyura.features.reader.comic.ComicReaderScreen
 import app.koyura.features.reader.comic.ReaderSession
 import app.koyura.features.reader.comic.rememberReaderSession
@@ -153,6 +154,7 @@ internal fun AppScaffold(
     // hides the tab bar/rail while a chapter is open. Library multi-select hides them the same
     // way (Komikku parity: selection mode owns the chrome).
     val isReaderOpen = navigation.currentStack.lastOrNull() is ComicReaderRoute
+    ReaderSystemBars(hidden = isReaderOpen)
     val hideChrome = (navigation.selectedTab == NavTab.Library && librarySession.selection.isNotEmpty()) ||
         (navigation.selectedTab == NavTab.History && activeHistorySession.selection.isNotEmpty())
     if (isReaderOpen || hideChrome) {
@@ -459,6 +461,7 @@ private fun AppNavigationContent(
                     ComicReaderScreen(
                         session = readerSession,
                         preferences = LocalReaderPreferences.current,
+                        fallbackBackground = ReaderBackground.BLACK,
                         installBackHandler = { BackHandler(onBack = it) },
                         sourceKey = route.sourceKey,
                         workId = route.workId,

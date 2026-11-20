@@ -89,6 +89,7 @@ fun ComicReaderScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     preferences: ReaderPreferences? = null,
+    fallbackBackground: ReaderBackground = ReaderBackground.AUTOMATIC,
     installBackHandler: @Composable (() -> Unit) -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
@@ -116,7 +117,9 @@ fun ComicReaderScreen(
         if (settings == null) {
             try {
                 settings = preferences?.load(sourceKey, workId)
-                    ?: ReaderPreferencesSnapshot(global = ReaderSettings(layout = ReaderLayout.SINGLE_PAGE))
+                    ?: ReaderPreferencesSnapshot(
+                        global = ReaderSettings(layout = ReaderLayout.SINGLE_PAGE, background = fallbackBackground),
+                    )
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: Exception) {
@@ -197,10 +200,10 @@ fun ComicReaderScreen(
         if (dialog != ReaderChromeDialog.None) dialog = ReaderChromeDialog.None else goBack()
     }
 
-    // 根背景读「全局 + 作品覆盖」解析后的档位；未加载完成时按 Automatic。
+    // 已加载的作品和全局选择优先；读取期间使用装配层背景。
     val resolvedBackground = settings
         ?.let { it.global.withOverride(it.override).background }
-        ?: ReaderBackground.AUTOMATIC
+        ?: fallbackBackground
     Box(
         modifier = modifier
             .fillMaxSize()

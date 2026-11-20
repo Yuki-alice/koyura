@@ -126,6 +126,7 @@ object DesignTokens {
         // 详情封面背景模糊半径 — MangaInfoHeader.kt:180 `.blur(7.dp)`。
         val BackdropBlur = 7.dp
         val ReaderSliderRadius = 24.dp
+        val ReaderSliderThumb = 16.dp
         val BottomActionMenuRadius = 16.dp
     }
 }

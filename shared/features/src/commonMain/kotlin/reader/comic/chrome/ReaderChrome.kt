@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.runtime.Composable
@@ -31,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -43,7 +45,7 @@ import app.koyura.designsystem.ActionIcon
 import app.koyura.designsystem.ActionIconButton
 import app.koyura.designsystem.DesignTokens
 import app.koyura.designsystem.components.AppButton
-import app.koyura.designsystem.components.AppSlider
+import app.koyura.designsystem.components.ReaderSlider
 import app.koyura.designsystem.components.AppSurface
 import app.koyura.designsystem.components.AppText
 import app.koyura.designsystem.components.AppTextButton
@@ -62,6 +64,7 @@ import app.koyura.features.reader.comic.viewer.ComicSpread
 import app.koyura.features.reader.comic.viewer.buildComicSpreads
 import app.koyura.features.resources.Res
 import app.koyura.features.resources.reader_back
+import app.koyura.features.resources.reader_chrome_bookmark
 import app.koyura.features.resources.reader_chrome_cancel
 import app.koyura.features.resources.reader_chrome_chapters
 import app.koyura.features.resources.reader_chrome_crop_borders
@@ -72,7 +75,6 @@ import app.koyura.features.resources.reader_chrome_no_chapters
 import app.koyura.features.resources.reader_chrome_page_number
 import app.koyura.features.resources.reader_chrome_page_of
 import app.koyura.features.resources.reader_chrome_page_out_of_range
-import app.koyura.features.resources.reader_chrome_page_range_of
 import app.koyura.features.resources.reader_chrome_reading_mode
 import app.koyura.features.resources.reader_chrome_settings
 import app.koyura.features.resources.reader_next_chapter
@@ -130,6 +132,9 @@ fun ReaderChrome(
         DesignTokens.Alpha.ReaderBarLight
     }
 
+    val barColor = UiTheme.surfaceAtElevation(DesignTokens.Elevation.AppBarScrolled)
+        .copy(alpha = readerBarAlpha)
+
     LaunchedEffect(state.dialog) {
         if (state.dialog == ReaderChromeDialog.None) {
             lastInvoker?.requestFocus()
@@ -140,6 +145,7 @@ fun ReaderChrome(
     // The root stays composed while hidden so the bars can play Komikku's exit slide+fade and
     // the hidden page indicator stays observable (old contract returned early here; the app-track
     // ChromeBehaviorTest.hiddenMenuRendersNothing expectation needs updating — see track notes).
+    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
     BoxWithConstraints(
         modifier
             .fillMaxSize()
@@ -183,7 +189,7 @@ fun ReaderChrome(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(UiTheme.colorScheme.surface.copy(alpha = readerBarAlpha))
+                .background(barColor)
                 .safeDrawingPadding()
                 .padding(horizontal = DesignTokens.Spacing.ExtraSmall, vertical = DesignTokens.Spacing.ExtraSmall),
             verticalAlignment = Alignment.CenterVertically,
@@ -219,7 +225,14 @@ fun ReaderChrome(
                     .clickable(enabled = state.pageCount > 1) {
                         openDialog(ReaderChromeDialog.PageJump, indicatorFocus)
                     }
-                    .padding(end = 12.dp),
+                    .sizeIn(minWidth = DesignTokens.Sizes.MinimumTouchTarget)
+                    .padding(vertical = DesignTokens.Spacing.Medium),
+            )
+            ActionIconButton(
+                icon = ActionIcon.Bookmark,
+                label = stringResource(Res.string.reader_chrome_bookmark),
+                onClick = {},
+                enabled = false,
             )
         }
         }
@@ -234,7 +247,7 @@ fun ReaderChrome(
         ) {
             AppSurface(
                 shape = UiTheme.shapes.small,
-                color = UiTheme.colorScheme.surface.copy(alpha = readerBarAlpha),
+                color = barColor,
                 modifier = Modifier.testTag(ReaderChromeHiddenIndicatorTag),
             ) {
                 AppText(
@@ -259,7 +272,7 @@ fun ReaderChrome(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(UiTheme.colorScheme.surface.copy(alpha = readerBarAlpha))
+                .background(barColor)
                 .safeDrawingPadding()
                 .padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.Small),
         ) {
@@ -281,6 +294,7 @@ fun ReaderChrome(
                         onJump = { onAction(ReaderChromeAction.JumpToPage(it)) },
                         modifier = Modifier.weight(1f),
                         isRtl = isRtl,
+                        containerColor = barColor,
                         spreadEndFor = { spreadEndForPage(pagerSpreads, it) },
                     )
                 } else {
@@ -417,6 +431,7 @@ fun ReaderChrome(
         ReaderChromeDialog.None -> Unit
         }
     }
+    }
 }
 
 @Composable
@@ -485,47 +500,34 @@ private fun PageSlider(
     onJump: (Int) -> Unit,
     modifier: Modifier = Modifier,
     isRtl: Boolean = false,
+    containerColor: Color,
     spreadEndFor: (Int) -> Int? = { null },
 ) {
     var preview by remember(pageIndex, pageCount) { mutableStateOf(pageIndex) }
     val haptic = LocalHapticFeedback.current
     val direction = if (isRtl) LayoutDirection.Rtl else LayoutDirection.Ltr
     CompositionLocalProvider(LocalLayoutDirection provides direction) {
-        Column(modifier) {
-            AppSlider(
-                value = (preview + 1).toFloat(),
-                onValueChange = {
-                    preview = (it.toInt() - 1).coerceIn(0, pageCount - 1)
+        ReaderSlider(
+            value = preview + 1,
+            valueRange = 1..pageCount,
+            startLabel = spreadRangePrefix(preview, spreadEndFor(preview)),
+            endLabel = pageCount.toString(),
+            onValueChange = { page ->
+                val index = page - 1
+                if (preview != index) {
+                    preview = index
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                },
-                onValueChangeFinished = {
-                    if (preview != pageIndex) onJump(preview)
-                },
-                valueRange = 1f..pageCount.toFloat(),
-                steps = (pageCount - 2).coerceAtLeast(0),
-                modifier = Modifier.testTag(ReaderChromeSliderTag),
-            )
-            AppText(
-                text = pageRangeLabel(preview, spreadEndFor(preview), pageCount),
-                style = UiTheme.typography.bodySmall,
-                color = UiTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.align(Alignment.CenterHorizontally),
-            )
-        }
-    }
-}
-
-@Composable
-private fun pageRangeLabel(pageIndex: Int, spreadEnd: Int?, pageCount: Int): String =
-    if (spreadEnd == null || spreadEnd == pageIndex || pageCount <= 0) {
-        pageLabel(pageIndex, pageCount)
-    } else {
-        stringResource(
-            Res.string.reader_chrome_page_range_of,
-            spreadRangePrefix(pageIndex, spreadEnd),
-            pageCount,
+                }
+            },
+            onValueChangeFinished = {
+                if (preview != pageIndex) onJump(preview)
+            },
+            containerColor = containerColor,
+            modifier = modifier,
+            sliderModifier = Modifier.testTag(ReaderChromeSliderTag),
         )
     }
+}
 
 /** Page-number jump dialog with range validation; invalid input never emits. */
 @Composable
