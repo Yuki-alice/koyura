@@ -42,11 +42,11 @@ import app.koyura.features.reader.comic.chrome.ReaderChrome
 import app.koyura.features.reader.comic.chrome.ReaderChromeAction
 import app.koyura.features.reader.comic.chrome.ReaderChromeDialog
 import app.koyura.features.reader.comic.chrome.ReaderChromeState
+import app.koyura.features.reader.comic.chrome.toViewerZone
 import app.koyura.features.reader.comic.viewer.ComicChapterBoundary
 import app.koyura.features.reader.comic.viewer.ComicPagerLayout
 import app.koyura.features.reader.comic.viewer.ComicReadingMode
 import app.koyura.features.reader.comic.viewer.ComicScaleFit
-import app.koyura.features.reader.comic.viewer.ComicTapZoneMode
 import app.koyura.features.reader.comic.viewer.ComicViewer
 import app.koyura.features.reader.comic.viewer.ComicViewerJump
 import app.koyura.features.reader.comic.viewer.ComicViewerOptions
@@ -109,10 +109,7 @@ fun ComicReaderScreen(
     var openingFailed by remember(preferences, sourceKey, workId, attempt) { mutableStateOf<String?>(null) }
     var changingRoute by remember(session, sourceKey, workId, chapterId) { mutableStateOf(false) }
     var progressFailed by remember(session, sourceKey, workId, chapterId) { mutableStateOf(false) }
-    // 点击区契约未进 ReaderSettings（domain 禁改），按 (sourceKey, workId) 随会话保留，
-    // 默认 DEFAULT 即既有三分区行为。
-    var tapZone by rememberSaveable(sourceKey, workId) { mutableStateOf(ComicTapZoneMode.DEFAULT) }
-    var invertTapZone by rememberSaveable(sourceKey, workId) { mutableStateOf(false) }
+    // 点击区走偏好链（全局 + 覆盖合并），默认 DEFAULT 即既有三分区行为。
     val settingWrites = remember(preferences, sourceKey, workId) { Mutex() }
 
     LaunchedEffect(preferences, sourceKey, workId, attempt) {
@@ -241,8 +238,6 @@ fun ComicReaderScreen(
                     global = currentSettings.global,
                     override = currentSettings.override,
                     dialog = dialog,
-                    tapZone = tapZone,
-                    invertTapZone = invertTapZone,
                 )
                 if (content.pageKeys.isEmpty()) {
                     Text(stringResource(Res.string.reader_empty_pages), Modifier.align(Alignment.Center))
@@ -251,7 +246,7 @@ fun ComicReaderScreen(
                         ComicViewer(
                             session = session,
                             content = content,
-                            options = chrome.effective.viewerOptions(tapZone, invertTapZone),
+                            options = chrome.effective.viewerOptions(),
                             jump = jump,
                             onToggleMenu = { menuVisible = !menuVisible },
                             onChapterBoundary = { direction ->
@@ -273,11 +268,9 @@ fun ComicReaderScreen(
                             is ReaderChromeAction.JumpToPage -> {
                                 jump = ComicViewerJump(++requestId, session.contentSeq, action.pageIndex)
                             }
-                            is ReaderChromeAction.ChangeGlobalSettings,
-                            is ReaderChromeAction.ChangeWorkOverride,
-                            ReaderChromeAction.ResetWorkOverride -> changeSettings(action)
-                            is ReaderChromeAction.SetTapZone -> tapZone = action.zone
-                            is ReaderChromeAction.SetInvertTapZone -> invertTapZone = action.invert
+                        is ReaderChromeAction.ChangeGlobalSettings,
+                        is ReaderChromeAction.ChangeWorkOverride,
+                        ReaderChromeAction.ResetWorkOverride -> changeSettings(action)
                         }
                     })
                 }
@@ -300,10 +293,7 @@ fun ComicReaderScreen(
     }
 }
 
-private fun ReaderSettings.viewerOptions(
-    tapZone: ComicTapZoneMode = ComicTapZoneMode.DEFAULT,
-    invertTapZone: Boolean = false,
-) = ComicViewerOptions(
+private fun ReaderSettings.viewerOptions() = ComicViewerOptions(
     mode = ComicReadingMode.fromId(mode.name),
     pagerLayout = ComicPagerLayout.fromId(layout.name),
     firstPageSingle = firstPageSingle,
@@ -311,7 +301,7 @@ private fun ReaderSettings.viewerOptions(
     scaleFit = ComicScaleFit.fromId(fit.name),
     cropBorders = cropBorders,
     doubleTapZoom = zoomOnDoubleTap,
-    tapZone = tapZone,
+    tapZone = tapZone.toViewerZone(),
     invertTapZone = invertTapZone,
 )
 

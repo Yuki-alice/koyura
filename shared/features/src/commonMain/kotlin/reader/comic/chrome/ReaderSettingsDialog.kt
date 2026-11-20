@@ -26,12 +26,12 @@ import androidx.compose.ui.window.Dialog
 import app.koyura.domain.reader.preferences.ReaderBackground
 import app.koyura.domain.reader.preferences.ReaderFit
 import app.koyura.domain.reader.preferences.ReaderLayout
+import app.koyura.domain.reader.preferences.ReaderTapZone
 import app.koyura.domain.reader.preferences.ReaderSettings
 import app.koyura.domain.reader.preferences.ReadingMode
 import app.koyura.domain.reader.preferences.OverrideField
 import app.koyura.domain.reader.preferences.WorkReaderOverride
 import app.koyura.domain.reader.preferences.WorkReaderOverridePatch
-import app.koyura.features.reader.comic.viewer.ComicTapZoneMode
 import app.koyura.features.resources.Res
 import app.koyura.features.resources.reader_chrome_background
 import app.koyura.features.resources.reader_chrome_background_automatic
@@ -55,11 +55,8 @@ import app.koyura.features.resources.reader_chrome_reset_override
 import app.koyura.features.resources.reader_chrome_settings
 import app.koyura.features.resources.reader_chrome_tap_zone
 import app.koyura.features.resources.reader_chrome_tap_zone_block
-import app.koyura.features.resources.reader_chrome_tap_zone_disabled
-import app.koyura.features.resources.reader_chrome_tap_zone_edge
 import app.koyura.features.resources.reader_chrome_tap_zone_invert
 import app.koyura.features.resources.reader_chrome_tap_zone_kindle
-import app.koyura.features.resources.reader_chrome_tap_zone_l_shape
 import app.koyura.features.resources.reader_chrome_tap_zone_left_right
 import app.koyura.features.resources.reader_chrome_tap_zone_title
 import org.jetbrains.compose.resources.stringResource
@@ -119,19 +116,12 @@ fun ReaderSettingsDialog(
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.primary,
             )
-            // 点击区契约尚未进 ReaderSettings（domain 为禁改区），由宿主持有并按次会话生效。
-            EnumRow(
-                label = stringResource(Res.string.reader_chrome_tap_zone),
-                options = ComicTapZoneMode.entries.map { tapZoneLabel(it) to it.id },
-                selected = state.tapZone.id,
-                tag = { readerChromeGlobalOptionTag("tapZone", it) },
-                onSelect = { onAction(ReaderChromeAction.SetTapZone(ComicTapZoneMode.fromId(it))) },
-            )
-            SwitchRow(
-                label = stringResource(Res.string.reader_chrome_tap_zone_invert),
-                checked = state.invertTapZone,
-                tag = readerChromeGlobalOptionTag("tapZoneInvert", state.invertTapZone.toString()),
-                onToggle = { onAction(ReaderChromeAction.SetInvertTapZone(it)) },
+            // 点击区段走偏好双路径：全局整份替换，覆盖行含「跟随全局」清除项。
+            TapZoneSection(
+                global = state.global,
+                override = state.override,
+                onGlobalChange = { onAction(ReaderChromeAction.ChangeGlobalSettings(it)) },
+                onPatch = { onAction(ReaderChromeAction.ChangeWorkOverride(it)) },
             )
             Row(
                 horizontalArrangement = Arrangement.End,
@@ -153,6 +143,60 @@ fun ReaderSettingsDialog(
             }
         }
     }
+}
+
+@Composable
+private fun TapZoneSection(
+    global: ReaderSettings,
+    override: WorkReaderOverride?,
+    onGlobalChange: (ReaderSettings) -> Unit,
+    onPatch: (WorkReaderOverridePatch) -> Unit,
+) {
+    val current = override ?: WorkReaderOverride()
+    // 偏好只收录 Komikku navigation mode 三档；EDGE/L_SHAPE/DISABLED 为查看器自有
+    // 模式（几何测试保留），不进偏好链。
+    EnumRow(
+        label = stringResource(Res.string.reader_chrome_tap_zone),
+        options = ReaderTapZone.entries.map { tapZoneLabel(it) to it.name },
+        selected = global.tapZone.name,
+        tag = { readerChromeGlobalOptionTag("tapZone", it) },
+        onSelect = { onGlobalChange(global.copy(tapZone = ReaderTapZone.valueOf(it))) },
+    )
+    SwitchRow(
+        label = stringResource(Res.string.reader_chrome_tap_zone_invert),
+        checked = global.invertTapZone,
+        tag = readerChromeGlobalOptionTag("tapZoneInvert", global.invertTapZone.toString()),
+        onToggle = { onGlobalChange(global.copy(invertTapZone = it)) },
+    )
+    InheritEnumRow(
+        label = stringResource(Res.string.reader_chrome_tap_zone),
+        options = ReaderTapZone.entries.map { tapZoneLabel(it) to it.name },
+        selected = current.tapZone?.name,
+        inheritLabel = "${stringResource(Res.string.reader_chrome_inherit)} (${tapZoneLabel(global.tapZone)})",
+        tag = { readerChromeOverrideOptionTag("tapZone", it) },
+        onSelect = {
+            onPatch(
+                WorkReaderOverridePatch(
+                    tapZone = it?.let { name -> OverrideField.Set(ReaderTapZone.valueOf(name)) }
+                        ?: OverrideField.Clear,
+                ),
+            )
+        },
+    )
+    InheritBoolRow(
+        label = stringResource(Res.string.reader_chrome_tap_zone_invert),
+        selected = current.invertTapZone,
+        global = global.invertTapZone,
+        tag = { readerChromeOverrideOptionTag("tapZoneInvert", it) },
+        onSelect = {
+            onPatch(
+                WorkReaderOverridePatch(
+                    invertTapZone = it?.let { value -> OverrideField.Set(value) }
+                        ?: OverrideField.Clear,
+                ),
+            )
+        },
+    )
 }
 
 @Composable
@@ -413,13 +457,10 @@ private fun backgroundLabel(background: ReaderBackground): String = stringResour
 )
 
 @Composable
-private fun tapZoneLabel(zone: ComicTapZoneMode): String = stringResource(
+private fun tapZoneLabel(zone: ReaderTapZone): String = stringResource(
     when (zone) {
-        ComicTapZoneMode.DEFAULT -> Res.string.reader_chrome_tap_zone_block
-        ComicTapZoneMode.LEFT_RIGHT -> Res.string.reader_chrome_tap_zone_left_right
-        ComicTapZoneMode.KINDLE -> Res.string.reader_chrome_tap_zone_kindle
-        ComicTapZoneMode.EDGE -> Res.string.reader_chrome_tap_zone_edge
-        ComicTapZoneMode.L_SHAPE -> Res.string.reader_chrome_tap_zone_l_shape
-        ComicTapZoneMode.DISABLED -> Res.string.reader_chrome_tap_zone_disabled
+        ReaderTapZone.DEFAULT -> Res.string.reader_chrome_tap_zone_block
+        ReaderTapZone.LEFT_RIGHT -> Res.string.reader_chrome_tap_zone_left_right
+        ReaderTapZone.KINDLE -> Res.string.reader_chrome_tap_zone_kindle
     },
 )

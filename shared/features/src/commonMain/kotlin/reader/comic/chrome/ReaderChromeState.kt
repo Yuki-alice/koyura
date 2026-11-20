@@ -1,6 +1,7 @@
 package app.koyura.features.reader.comic.chrome
 
 import app.koyura.domain.reader.preferences.ReaderSettings
+import app.koyura.domain.reader.preferences.ReaderTapZone
 import app.koyura.domain.reader.preferences.WorkReaderOverride
 import app.koyura.domain.reader.preferences.WorkReaderOverridePatch
 import app.koyura.domain.reader.preferences.withOverride
@@ -43,17 +44,18 @@ data class ReaderChromeState(
     val override: WorkReaderOverride?,
     /** Which dialog is open, if any. */
     val dialog: ReaderChromeDialog = ReaderChromeDialog.None,
-    /**
-     * 点击区布局（Komikku navigation mode 选择）。持久化契约已就位
-     * （`ReaderSettings.tapZone/invertTapZone`，含旧配置兼容），由宿主持有、
-     * 阅读器轮次把此会话字段切到偏好读写链；默认 DEFAULT 即既有三分区行为。
-     */
-    val tapZone: ComicTapZoneMode = ComicTapZoneMode.DEFAULT,
-    /** 点击区反转：交换上一页/下一页区域（菜单区不受影响）。 */
-    val invertTapZone: Boolean = false,
 ) {
     /** Effective settings: the override merged over the global defaults. */
     val effective: ReaderSettings get() = global.withOverride(override)
+
+    /**
+     * 点击区布局：从 `effective` 解析映射（域枚举 ↔ 查看器一一对应）。
+     * 三档之外（EDGE/L_SHAPE/DISABLED）是查看器自有模式，不进偏好链。
+     */
+    val tapZone: ComicTapZoneMode get() = effective.tapZone.toViewerZone()
+
+    /** 点击区反转：交换上一页/下一页区域（菜单区不受影响）。 */
+    val invertTapZone: Boolean get() = effective.invertTapZone
 
     /** Index of the current chapter in [chapters], or -1 when absent. */
     val currentChapterIndex: Int get() = chapters.indexOfFirst { it.id == chapterId }
@@ -97,10 +99,11 @@ sealed interface ReaderChromeAction {
 
     /** Open or close a dialog. */
     data class SetDialog(val dialog: ReaderChromeDialog) : ReaderChromeAction
+}
 
-    /** 切换点击区布局（点击区契约未进 ReaderSettings，由宿主持有，见交付报告）。 */
-    data class SetTapZone(val zone: ComicTapZoneMode) : ReaderChromeAction
-
-    /** 切换点击区反转。 */
-    data class SetInvertTapZone(val invert: Boolean) : ReaderChromeAction
+/** 域点击区分区 ↔ 查看器模式（Komikku navigation mode 三档一一对应）。 */
+fun ReaderTapZone.toViewerZone(): ComicTapZoneMode = when (this) {
+    ReaderTapZone.DEFAULT -> ComicTapZoneMode.DEFAULT
+    ReaderTapZone.LEFT_RIGHT -> ComicTapZoneMode.LEFT_RIGHT
+    ReaderTapZone.KINDLE -> ComicTapZoneMode.KINDLE
 }

@@ -2,12 +2,14 @@ package app.koyura.app.reader.chrome
 
 import app.koyura.data.reader.preferences.ReaderPreferencesStore
 import app.koyura.domain.reader.preferences.ReaderSettings
+import app.koyura.domain.reader.preferences.ReaderTapZone
 import app.koyura.domain.reader.preferences.OverrideField
 import app.koyura.domain.reader.preferences.ReadingMode
 import app.koyura.domain.reader.preferences.WorkReaderOverridePatch
 import app.koyura.features.reader.comic.chrome.ChapterEntry
 import app.koyura.features.reader.comic.chrome.ReaderChromeAction
 import app.koyura.features.reader.comic.chrome.ReaderChromeState
+import app.koyura.features.reader.comic.viewer.ComicTapZoneMode
 import kotlinx.coroutines.test.runTest
 import okio.FileSystem
 import kotlin.test.Test
@@ -98,5 +100,63 @@ class ChromeSettingsHostTest {
         assertEquals(ReadingMode.LEFT_TO_RIGHT, host.state.effective.mode)
         assertStillOnThirdPageOfChapterTwo(host.state)
         assertNull(newStore(dir).readOverride("example_source", "demo"))
+    }
+
+    @Test
+    fun tapZoneFollowsPreferenceChainAndOverrideClearsToGlobal() = runTest {
+        val dir = freshDir()
+        val store = newStore(dir)
+        val host = ChromeTestHost(demoState(), store)
+
+        // 改全局：effective 即切三分区外布局并落盘。
+        host.onAction(
+            ReaderChromeAction.ChangeGlobalSettings(
+                ReaderSettings(
+                    tapZone = ReaderTapZone.KINDLE,
+                ),
+            ),
+        )
+        assertEquals(
+            ComicTapZoneMode.KINDLE,
+            host.state.tapZone,
+        )
+        assertStillOnThirdPageOfChapterTwo(host.state)
+
+        // 覆盖：分区 + 反转走合并；重进阅读器（新会话同仓）保持。
+        host.onAction(
+            ReaderChromeAction.ChangeWorkOverride(
+                WorkReaderOverridePatch(
+                    tapZone = OverrideField.Set(ReaderTapZone.LEFT_RIGHT),
+                    invertTapZone = OverrideField.Set(true),
+                ),
+            ),
+        )
+        assertEquals(
+            ComicTapZoneMode.LEFT_RIGHT,
+            host.state.tapZone,
+        )
+        assertEquals(true, host.state.invertTapZone)
+
+        // 清除覆盖回全局。
+        host.onAction(
+            ReaderChromeAction.ChangeWorkOverride(
+                WorkReaderOverridePatch(
+                    tapZone = OverrideField.Clear,
+                    invertTapZone = OverrideField.Clear,
+                ),
+            ),
+        )
+        assertEquals(
+            ComicTapZoneMode.KINDLE,
+            host.state.tapZone,
+        )
+        assertEquals(false, host.state.invertTapZone)
+
+        // 落盘可恢复：全局 KINDLE 留存。
+        val reopened = newStore(dir)
+        assertEquals(
+            ReaderTapZone.KINDLE,
+            reopened.readGlobal().tapZone,
+        )
     }
 }
