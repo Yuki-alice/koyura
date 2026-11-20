@@ -2,6 +2,7 @@ package app.koyura.data.session
 
 import app.cash.sqldelight.db.QueryResult
 import app.cash.sqldelight.db.SqlDriver
+import app.koyura.data.browse.SourceFeedService
 import app.koyura.data.downloads.ChapterContentPackages
 import app.koyura.data.downloads.ChapterDownloadStore
 import app.koyura.data.downloads.DownloadTriggers
@@ -67,6 +68,7 @@ class ExtensionSession internal constructor(
     internal suspend fun startDownloads() = queue.start()
     val history = HistoryStore(driver)
     val library = LibraryStore(driver)
+    val feed = SourceFeedService(library, service.browse)
     val downloadTriggers = DownloadTriggers(library, downloads)
     val updates = LibraryUpdateScanner(driver, library, service)
     val updateScheduler = LibraryUpdateScheduler(

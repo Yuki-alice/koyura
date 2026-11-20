@@ -4,6 +4,8 @@ import app.koyura.data.search.SavedSearchStore
 import app.koyura.data.search.parseSearchOptions
 import app.koyura.data.search.requireValid
 import app.koyura.data.search.toArguments
+import app.koyura.domain.browse.SourceFeedId
+import app.koyura.domain.browse.SourceFeedItem
 import app.koyura.domain.extension.ExtensionFailure
 import app.koyura.domain.extension.SavedSearch
 import app.koyura.domain.extension.SavedSearches
@@ -12,6 +14,8 @@ import app.koyura.domain.extension.SourceSearchOptions
 import app.koyura.source.runtime.SourceConfigField
 import app.koyura.source.runtime.SourceIndexedCallback
 import app.koyura.source.runtime.VeneraCallback
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -79,7 +83,28 @@ class SourceBrowseService internal constructor(
     }
 
     suspend fun explorePages(key: String): List<SourceExplorePage> =
-        configuration(key, SourceConfigField.Explore).jsonArray.map { entry ->
+        decodeExplorePages(configuration(key, SourceConfigField.Explore))
+
+    internal suspend fun feedDeclarations(): Map<String, List<SourceFeedItem>> = extensions.withBrowseRuntime { live ->
+        if (live == null) return@withBrowseRuntime emptyMap()
+        buildMap {
+            for (source in live.registeredSources().sortedBy { it.key }) {
+                val pages = try {
+                    decodeExplorePages(live.describe(source.key, SourceConfigField.Explore))
+                } catch (_: Exception) {
+                    currentCoroutineContext().ensureActive()
+                    continue
+                }
+                put(source.key, pages.distinctBy { it.title }.map { page ->
+                    SourceFeedItem(SourceFeedId(source.key, page.title), source.name, page.index,
+                        page.type, page.numbered, page.cursor, enabled = true)
+                })
+            }
+        }
+    }
+
+    private fun decodeExplorePages(config: JsonElement): List<SourceExplorePage> =
+        config.jsonArray.map { entry ->
             val page = entry.jsonObject
             SourceExplorePage(
                 page.getValue("index").jsonPrimitive.int, page.getValue("title").jsonPrimitive.content,

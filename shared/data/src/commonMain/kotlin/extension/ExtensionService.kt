@@ -213,6 +213,9 @@ class ExtensionService(
             )
         }
 
+    internal suspend fun <T> withBrowseRuntime(block: suspend (VeneraSourceRuntime?) -> T): T =
+        mutex.withLock { block(runtime) }
+
     suspend fun call(key: String, callback: VeneraCallback, args: kotlinx.serialization.json.JsonArray): JsonElement {
         val live = runtime ?: throw ExtensionFailure.MissingExtension(key)
         if (live.registeredSources().none { it.key == key }) throw ExtensionFailure.MissingExtension(key)
