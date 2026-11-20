@@ -31,7 +31,9 @@ kotlin {
             implementation(libs.compose.resources)
             implementation(libs.compose.runtime)
             implementation(libs.compose.ui)
-            implementation(libs.material.kolor)
+            // ThemeSelection/VisualTheme expose PaletteStyle in their public API: consumers
+            // need the materialkolor types on their compile classpath.
+            api(libs.material.kolor)
             implementation(libs.coil.compose)
         }
         commonTest.dependencies {
