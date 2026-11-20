@@ -6,6 +6,7 @@ import app.koyura.domain.reader.ChapterContent
 import app.koyura.domain.reader.ReaderProgress
 import app.koyura.domain.reader.ReaderService
 import app.koyura.domain.reader.ReadingDurationRecorder
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlin.time.Clock
@@ -82,6 +83,8 @@ internal class VeneraReaderService(
                     if (existing.any { it.chapterId == (chapterId ?: "") }) {
                         store.markChapterRead(sourceKey, kind, workId, chapterId ?: "", true)
                     }
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
                 } catch (_: Exception) {
                     // 已读标记失败不回滚进度，进度已提交为准。
                 }

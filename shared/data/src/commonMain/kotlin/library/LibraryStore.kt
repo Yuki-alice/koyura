@@ -15,6 +15,9 @@ import app.koyura.domain.library.LibraryQuery
 import app.koyura.domain.library.LibraryRepository
 import app.koyura.domain.library.LibrarySort
 import app.koyura.domain.library.WorkKind
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.IO
+import kotlinx.coroutines.withContext
 import kotlin.random.Random
 
 /**
@@ -52,11 +55,11 @@ class LibraryStore(driver: SqlDriver) : LibraryRepository {
         coverUrl: String,
         sourceName: String?,
         addedAtMillis: Long,
-    ): LibraryManga {
+    ): LibraryManga = withContext(Dispatchers.IO) {
         require(kind == WorkKind.COMIC) { "NOVEL rows are not written in the manga round" }
         val q = seeded()
         q.insertLibraryManga(sourceKey, kind.name, workId, title, coverUrl, sourceName, addedAtMillis, null)
-        return q.selectLibraryByKey(sourceKey, kind.name, workId).executeAsOne().toManga()
+        q.selectLibraryByKey(sourceKey, kind.name, workId).executeAsOne().toManga()
     }
 
     /** 显式刷新标题/封面/源名/更新检查快照（不改变收藏时间与主键）。 */
@@ -72,7 +75,7 @@ class LibraryStore(driver: SqlDriver) : LibraryRepository {
         seeded().updateLibrarySnapshot(title, coverUrl, sourceName, lastUpdateCheckMillis, sourceKey, kind.name, workId)
     }
 
-    override suspend fun removeFromLibrary(sourceKey: String, kind: WorkKind, workId: String) {
+    override suspend fun removeFromLibrary(sourceKey: String, kind: WorkKind, workId: String): Unit = withContext(Dispatchers.IO) {
         val q = seeded()
         db.transaction {
             q.deleteMappingsForWork(sourceKey, kind.name, workId)
@@ -85,7 +88,7 @@ class LibraryStore(driver: SqlDriver) : LibraryRepository {
         // reading_progress 行保留：历史与“继续阅读”派生仍可读，禁止静默删库。
     }
 
-    override suspend fun listEntries(query: LibraryQuery): List<LibraryEntry> {
+    override suspend fun listEntries(query: LibraryQuery): List<LibraryEntry> = withContext(Dispatchers.IO) {
         val q = seeded()
         val categories = q.selectCategoriesOrdered().executeAsList()
         val hiddenIds = categories.filter { it.hidden == 1L }.map { it.id }.toSet()
@@ -124,30 +127,30 @@ class LibraryStore(driver: SqlDriver) : LibraryRepository {
             LibrarySort.RANDOM -> entries.shuffled(Random(query.randomSeed))
         }
         if (!query.ascending) entries = entries.reversed()
-        return entries
+        entries
     }
 
-    override suspend fun listCategories(includeHidden: Boolean): List<LibraryCategory> {
+    override suspend fun listCategories(includeHidden: Boolean): List<LibraryCategory> = withContext(Dispatchers.IO) {
         val q = seeded()
-        return q.selectCategoriesOrdered().executeAsList()
+        q.selectCategoriesOrdered().executeAsList()
             .map { it.toCategory() }
             .filter { includeHidden || !it.hidden }
     }
 
-    override suspend fun createCategory(name: String): LibraryCategory {
+    override suspend fun createCategory(name: String): LibraryCategory = withContext(Dispatchers.IO) {
         require(name.isNotBlank()) { "Category name must not be blank" }
         val q = seeded()
         val maxOrder = q.selectCategoriesOrdered().executeAsList().maxOfOrNull { it.sort_order } ?: -1L
         q.insertCategory(name, maxOrder + 1, 0, 0)
-        return q.selectCategoriesOrdered().executeAsList().last().toCategory()
+        q.selectCategoriesOrdered().executeAsList().last().toCategory()
     }
 
-    override suspend fun renameCategory(id: Long, name: String) {
+    override suspend fun renameCategory(id: Long, name: String): Unit = withContext(Dispatchers.IO) {
         require(name.isNotBlank()) { "Category name must not be blank" }
         seeded().updateCategoryName(name, id)
     }
 
-    override suspend fun deleteCategory(id: Long) {
+    override suspend fun deleteCategory(id: Long): Unit = withContext(Dispatchers.IO) {
         val q = seeded()
         db.transaction {
             // 只删归属映射：作品行保留，转为无分类。禁止静默删库。
@@ -156,7 +159,7 @@ class LibraryStore(driver: SqlDriver) : LibraryRepository {
         }
     }
 
-    override suspend fun reorderCategories(orderedIds: List<Long>) {
+    override suspend fun reorderCategories(orderedIds: List<Long>): Unit = withContext(Dispatchers.IO) {
         val q = seeded()
         db.transaction {
             orderedIds.forEachIndexed { index, id ->
@@ -165,7 +168,7 @@ class LibraryStore(driver: SqlDriver) : LibraryRepository {
         }
     }
 
-    override suspend fun setCategoryHidden(id: Long, hidden: Boolean) {
+    override suspend fun setCategoryHidden(id: Long, hidden: Boolean): Unit = withContext(Dispatchers.IO) {
         seeded().updateCategoryHidden(if (hidden) 1 else 0, id)
     }
 
@@ -174,7 +177,7 @@ class LibraryStore(driver: SqlDriver) : LibraryRepository {
         kind: WorkKind,
         workId: String,
         categoryIds: List<Long>,
-    ) {
+    ): Unit = withContext(Dispatchers.IO) {
         val q = seeded()
         val known = q.selectCategoriesOrdered().executeAsList().map { it.id }.toSet()
         require(categoryIds.all { it in known }) { "Unknown category id in $categoryIds" }
@@ -184,7 +187,7 @@ class LibraryStore(driver: SqlDriver) : LibraryRepository {
         }
     }
 
-    override suspend fun batchAssignToCategory(keys: List<Triple<String, WorkKind, String>>, categoryId: Long) {
+    override suspend fun batchAssignToCategory(keys: List<Triple<String, WorkKind, String>>, categoryId: Long): Unit = withContext(Dispatchers.IO) {
         val q = seeded()
         require(q.selectCategoryById(categoryId).executeAsOneOrNull() != null) { "Unknown category id $categoryId" }
         db.transaction {
@@ -194,14 +197,15 @@ class LibraryStore(driver: SqlDriver) : LibraryRepository {
         }
     }
 
-    override suspend fun getPref(key: String): String? =
+    override suspend fun getPref(key: String): String? = withContext(Dispatchers.IO) {
         seeded().selectPref(key).executeAsOneOrNull()?.pref_value
+    }
 
-    override suspend fun setPref(key: String, value: String) {
+    override suspend fun setPref(key: String, value: String): Unit = withContext(Dispatchers.IO) {
         seeded().upsertPref(key, value)
     }
 
-    override suspend fun deletePref(key: String) {
+    override suspend fun deletePref(key: String): Unit = withContext(Dispatchers.IO) {
         seeded().deletePref(key)
     }
 
@@ -213,7 +217,7 @@ class LibraryStore(driver: SqlDriver) : LibraryRepository {
         kind: WorkKind,
         workId: String,
         chapters: List<LibraryChapter>,
-    ) {
+    ): Unit = withContext(Dispatchers.IO) {
         db.transaction { mergeChapters(sourceKey, kind, workId, chapters) }
     }
 
@@ -225,7 +229,7 @@ class LibraryStore(driver: SqlDriver) : LibraryRepository {
         }
     }
 
-    override suspend fun listChapters(sourceKey: String, kind: WorkKind, workId: String): List<LibraryChapter> =
+    override suspend fun listChapters(sourceKey: String, kind: WorkKind, workId: String): List<LibraryChapter> = withContext(Dispatchers.IO) {
         seeded().selectChaptersForWork(sourceKey, kind.name, workId).executeAsList().map { row ->
             LibraryChapter(
                 sourceKey = row.source_key,
@@ -237,6 +241,7 @@ class LibraryStore(driver: SqlDriver) : LibraryRepository {
                 isRead = row.is_read == 1L,
             )
         }
+    }
 
     override suspend fun markChaptersRead(
         sourceKey: String,
@@ -244,7 +249,7 @@ class LibraryStore(driver: SqlDriver) : LibraryRepository {
         workId: String,
         chapterIds: List<String>,
         read: Boolean,
-    ) {
+    ): Unit = withContext(Dispatchers.IO) {
         val q = seeded()
         db.transaction {
             if (chapterIds.isEmpty()) {
@@ -263,7 +268,7 @@ class LibraryStore(driver: SqlDriver) : LibraryRepository {
         workId: String,
         chapterId: String,
         read: Boolean,
-    ) {
+    ): Unit = withContext(Dispatchers.IO) {
         seeded().updateChapterRead(if (read) 1 else 0, sourceKey, kind.name, workId, chapterId)
     }
 
@@ -281,8 +286,9 @@ class LibraryStore(driver: SqlDriver) : LibraryRepository {
      * `chapter_id` 空字符串映射回 null，与既有 `HistoryStore` 同语义；
      * 源失效时同样可读（只读进度表，不碰扩展运行时）。
      */
-    suspend fun latestProgress(sourceKey: String, workId: String): ReadingProgress? =
+    suspend fun latestProgress(sourceKey: String, workId: String): ReadingProgress? = withContext(Dispatchers.IO) {
         seeded().selectLatestProgress(sourceKey, workId).executeAsOneOrNull()?.toProgress()
+    }
 
     override suspend fun migrateSource(oldSourceKey: String, newSourceKey: String): LibraryMigrationReport {
         if (oldSourceKey == newSourceKey) return LibraryMigrationReport(0, 0, 0, 0)

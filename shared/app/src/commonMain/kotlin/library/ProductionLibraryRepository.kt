@@ -78,6 +78,8 @@ class ProductionLibraryRepository(
     private suspend fun chapterCountsFor(domain: DomainLibraryEntry): EntryCounts {
         val chapters = try {
             store.listChapters(domain.manga.sourceKey, domain.manga.kind, domain.manga.workId)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (_: Exception) {
             emptyList()
         }
@@ -87,6 +89,8 @@ class ProductionLibraryRepository(
 
     private suspend fun downloadedCountFor(domain: DomainLibraryEntry): Long = try {
         downloadedCounts?.invoke(domain.manga.sourceKey, domain.manga.workId) ?: 0L
+    } catch (cancelled: CancellationException) {
+        throw cancelled
     } catch (_: Exception) {
         0L
     }
@@ -143,6 +147,8 @@ class ProductionLibraryRepository(
         try {
             store.listChapters(key.sourceKey, key.kind.toDomain(), key.workId)
                 .associate { it.chapterId to it.isRead }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (_: Exception) {
             emptyMap()
         }
