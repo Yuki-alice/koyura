@@ -27,6 +27,7 @@ fun LibraryTabContent(
     navigation: AppNavigationState,
     session: LibrarySession,
     browseSession: BrowseSession,
+    onGlobalSearch: (() -> Unit)? = null,
 ) {
     val scope = rememberCoroutineScope()
     LaunchedEffect(navigation.currentStack.size) {
@@ -41,6 +42,7 @@ fun LibraryTabContent(
             navigation.push(SourceDetailRoute(sourceKey, workId, title))
         },
         onOpenBrowse = { navigation.select(NavTab.Browse) },
+        onGlobalSearch = onGlobalSearch,
         onContinue = { entry ->
             scope.launch {
                 try {

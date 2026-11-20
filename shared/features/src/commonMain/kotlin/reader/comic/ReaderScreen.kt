@@ -28,12 +28,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import app.koyura.domain.reader.preferences.ReaderBackground
 import app.koyura.domain.reader.preferences.ReaderLayout
 import app.koyura.domain.reader.preferences.ReaderPreferences
 import app.koyura.domain.reader.preferences.ReaderPreferencesSnapshot
 import app.koyura.domain.reader.preferences.ReaderSettings
 import app.koyura.domain.reader.preferences.WorkReaderOverride
 import app.koyura.domain.reader.preferences.patchedWith
+import app.koyura.domain.reader.preferences.withOverride
+import app.koyura.designsystem.ReaderTheme
 import app.koyura.features.reader.comic.chrome.ChapterEntry
 import app.koyura.features.reader.comic.chrome.ReaderChrome
 import app.koyura.features.reader.comic.chrome.ReaderChromeAction
@@ -43,6 +46,7 @@ import app.koyura.features.reader.comic.viewer.ComicChapterBoundary
 import app.koyura.features.reader.comic.viewer.ComicPagerLayout
 import app.koyura.features.reader.comic.viewer.ComicReadingMode
 import app.koyura.features.reader.comic.viewer.ComicScaleFit
+import app.koyura.features.reader.comic.viewer.ComicTapZoneMode
 import app.koyura.features.reader.comic.viewer.ComicViewer
 import app.koyura.features.reader.comic.viewer.ComicViewerJump
 import app.koyura.features.reader.comic.viewer.ComicViewerOptions
@@ -105,6 +109,10 @@ fun ComicReaderScreen(
     var openingFailed by remember(preferences, sourceKey, workId, attempt) { mutableStateOf<String?>(null) }
     var changingRoute by remember(session, sourceKey, workId, chapterId) { mutableStateOf(false) }
     var progressFailed by remember(session, sourceKey, workId, chapterId) { mutableStateOf(false) }
+    // 点击区契约未进 ReaderSettings（domain 禁改），按 (sourceKey, workId) 随会话保留，
+    // 默认 DEFAULT 即既有三分区行为。
+    var tapZone by rememberSaveable(sourceKey, workId) { mutableStateOf(ComicTapZoneMode.DEFAULT) }
+    var invertTapZone by rememberSaveable(sourceKey, workId) { mutableStateOf(false) }
     val settingWrites = remember(preferences, sourceKey, workId) { Mutex() }
 
     LaunchedEffect(preferences, sourceKey, workId, attempt) {
@@ -192,10 +200,14 @@ fun ComicReaderScreen(
         if (dialog != ReaderChromeDialog.None) dialog = ReaderChromeDialog.None else goBack()
     }
 
+    // 根背景读「全局 + 作品覆盖」解析后的档位；未加载完成时按 Automatic。
+    val resolvedBackground = settings
+        ?.let { it.global.withOverride(it.override).background }
+        ?: ReaderBackground.AUTOMATIC
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(readerAutomaticBackground())
+            .background(readerBackgroundColor(resolvedBackground, isSystemInDarkTheme()))
             .testTag(ReaderRootTestTag),
     ) {
         val currentSettings = settings
@@ -229,6 +241,8 @@ fun ComicReaderScreen(
                     global = currentSettings.global,
                     override = currentSettings.override,
                     dialog = dialog,
+                    tapZone = tapZone,
+                    invertTapZone = invertTapZone,
                 )
                 if (content.pageKeys.isEmpty()) {
                     Text(stringResource(Res.string.reader_empty_pages), Modifier.align(Alignment.Center))
@@ -237,7 +251,7 @@ fun ComicReaderScreen(
                         ComicViewer(
                             session = session,
                             content = content,
-                            options = chrome.effective.viewerOptions(),
+                            options = chrome.effective.viewerOptions(tapZone, invertTapZone),
                             jump = jump,
                             onToggleMenu = { menuVisible = !menuVisible },
                             onChapterBoundary = { direction ->
@@ -249,20 +263,30 @@ fun ComicReaderScreen(
                         )
                     }
                 }
-                ReaderChrome(chrome, onAction = { action ->
-                    when (action) {
-                        ReaderChromeAction.Back -> goBack()
-                        is ReaderChromeAction.SetMenuVisible -> menuVisible = action.visible
-                        is ReaderChromeAction.OpenChapter -> openChapter(action.chapterId)
-                        is ReaderChromeAction.SetDialog -> dialog = action.dialog
-                        is ReaderChromeAction.JumpToPage -> {
-                            jump = ComicViewerJump(++requestId, session.contentSeq, action.pageIndex)
+                val chromeContent: @Composable () -> Unit = {
+                    ReaderChrome(chrome, onAction = { action ->
+                        when (action) {
+                            ReaderChromeAction.Back -> goBack()
+                            is ReaderChromeAction.SetMenuVisible -> menuVisible = action.visible
+                            is ReaderChromeAction.OpenChapter -> openChapter(action.chapterId)
+                            is ReaderChromeAction.SetDialog -> dialog = action.dialog
+                            is ReaderChromeAction.JumpToPage -> {
+                                jump = ComicViewerJump(++requestId, session.contentSeq, action.pageIndex)
+                            }
+                            is ReaderChromeAction.ChangeGlobalSettings,
+                            is ReaderChromeAction.ChangeWorkOverride,
+                            ReaderChromeAction.ResetWorkOverride -> changeSettings(action)
+                            is ReaderChromeAction.SetTapZone -> tapZone = action.zone
+                            is ReaderChromeAction.SetInvertTapZone -> invertTapZone = action.invert
                         }
-                        is ReaderChromeAction.ChangeGlobalSettings,
-                        is ReaderChromeAction.ChangeWorkOverride,
-                        ReaderChromeAction.ResetWorkOverride -> changeSettings(action)
-                    }
-                })
+                    })
+                }
+                // Black/Gray 两档强制暗色 chrome（原版 ContextExtensions.kt:111-118 的 night 上下文语义）。
+                if (resolvedBackground == ReaderBackground.BLACK || resolvedBackground == ReaderBackground.GRAY) {
+                    ReaderTheme(darkTheme = true) { chromeContent() }
+                } else {
+                    chromeContent()
+                }
             }
             else -> CircularProgressIndicator(Modifier.align(Alignment.Center))
         }
@@ -276,7 +300,10 @@ fun ComicReaderScreen(
     }
 }
 
-private fun ReaderSettings.viewerOptions() = ComicViewerOptions(
+private fun ReaderSettings.viewerOptions(
+    tapZone: ComicTapZoneMode = ComicTapZoneMode.DEFAULT,
+    invertTapZone: Boolean = false,
+) = ComicViewerOptions(
     mode = ComicReadingMode.fromId(mode.name),
     pagerLayout = ComicPagerLayout.fromId(layout.name),
     firstPageSingle = firstPageSingle,
@@ -284,6 +311,8 @@ private fun ReaderSettings.viewerOptions() = ComicViewerOptions(
     scaleFit = ComicScaleFit.fromId(fit.name),
     cropBorders = cropBorders,
     doubleTapZoom = zoomOnDoubleTap,
+    tapZone = tapZone,
+    invertTapZone = invertTapZone,
 )
 
 /**
@@ -291,12 +320,31 @@ private fun ReaderSettings.viewerOptions() = ComicViewerOptions(
  *
  * Code: ReaderActivity.kt:1432 `automaticBackgroundColor()`（暗走 `grayBackgroundColor` =
  * `Color.rgb(0x20, 0x21, 0x25)`，亮走 `Color.WHITE`；偏好索引 3 即 Automatic）。
- * 不用主题 token：Automatic 下根背景固定映射、chrome 跟随主题，现状即正确。
+ * 不用主题 token：Automatic 下根背景固定映射、chrome 跟随主题。
  *
- * 后置四档偏好（Black/Gray/Automatic/White）时注意：Black/Gray 档须用
+ * 四档（Black/Gray/Automatic/White）见 [readerBackgroundColor]；Black/Gray 档由根组件用
  * `ReaderTheme(darkTheme = true)` 包 chrome——原版 `ContextExtensions.kt:111-118`
- * 对 Black/Gray 强制 night 上下文的耦合语义，勿丢。
+ * 对 Black/Gray 强制 night 上下文的耦合语义。
  */
 @Composable
 fun readerAutomaticBackground(dark: Boolean = isSystemInDarkTheme()): Color =
-    if (dark) Color(0xFF202125) else Color.White
+    readerBackgroundColor(ReaderBackground.AUTOMATIC, dark)
+
+/**
+ * 四档阅读背景色（白皮书 07 §7.5 / 原版 `ReaderActivity.automaticBackgroundColor()`）：
+ * - AUTOMATIC：暗 `#FF202125`、亮白；
+ * - BLACK：纯黑；
+ * - GRAY：`#FF202125`（两档 chrome 均走暗色主题，见调用点）；
+ * - WHITE：纯白（chrome 跟随主题）。
+ *
+ * 纯函数（暗色入参显式），便于直接断言四档色值。
+ */
+fun readerBackgroundColor(
+    background: ReaderBackground,
+    dark: Boolean,
+): Color = when (background) {
+    ReaderBackground.AUTOMATIC -> if (dark) Color(0xFF202125) else Color.White
+    ReaderBackground.BLACK -> Color.Black
+    ReaderBackground.GRAY -> Color(0xFF202125)
+    ReaderBackground.WHITE -> Color.White
+}

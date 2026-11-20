@@ -17,6 +17,15 @@ sealed interface HistoryLoadState {
     data class Failed(val message: String) : HistoryLoadState
 }
 
+/** 返回键消费结果（顺序照 `LibrarySession.consumeBack`）：UI 只关心是否已被本页吃掉。 */
+enum class HistoryBackOutcome {
+    /** 清掉了多选，页面不动。 */
+    ClearedSelection,
+
+    /** 本层无可清状态，交回导航栈 / 平台。 */
+    NotConsumed,
+}
+
 /** One date group in the history list; [date] is null for entries without a recorded time. */
 data class HistorySection(
     val date: kotlinx.datetime.LocalDate?,
@@ -91,6 +100,13 @@ class HistorySession(
     var showFavoritesOnly: Boolean by mutableStateOf(false)
         private set
 
+    /**
+     * 多选集合（三元键 `(sourceKey, workId)`）。非空时顶栏切选择模式并隐藏外壳
+     * （由装配层读取，与书架多选同一语义）。
+     */
+    var selection: Set<Pair<String, String>> by mutableStateOf(emptySet())
+        private set
+
     /** Entries after local hide/favorite/source filtering, before the query filter. */
     fun visibleEntries(): List<HistoryEntry> = entries.filter { entry ->
         val key = entry.sourceKey to entry.workId
@@ -135,7 +151,61 @@ class HistorySession(
         }
         hiddenKeys = entries.map { it.sourceKey to it.workId }.toSet()
         favoriteKeys = emptySet()
+        selection = emptySet()
     }
+
+    // region 多选与批量删除（键 (sourceKey, workId)）
+
+    fun isSelected(entry: HistoryEntry): Boolean = selection.contains(entry.sourceKey to entry.workId)
+
+    fun toggleSelect(entry: HistoryEntry) {
+        val key = entry.sourceKey to entry.workId
+        selection = if (selection.contains(key)) selection - key else selection + key
+    }
+
+    /** 全选当前可见行；默认取过滤后的可见集，界面可传入已叠加查询的列表。 */
+    fun selectAllVisible(entries: List<HistoryEntry> = visibleEntries()) {
+        selection = entries.map { it.sourceKey to it.workId }.toSet()
+    }
+
+    /** 反选当前可见行（只翻转可见范围内，范围外的选择保留）。 */
+    fun invertSelection(entries: List<HistoryEntry> = visibleEntries()) {
+        val visible = entries.map { it.sourceKey to it.workId }.toSet()
+        val keptOutside = selection - visible
+        selection = keptOutside + (visible - selection)
+    }
+
+    fun clearSelection() {
+        selection = emptySet()
+    }
+
+    /** 返回键是否应被历史页消费（多选非空时消费）。 */
+    val wantsBack: Boolean
+        get() = selection.isNotEmpty()
+
+    /** 返回键规则（顺序照书架）：先清多选，再无本层可清状态交回导航。 */
+    fun consumeBack(): HistoryBackOutcome = when {
+        selection.isNotEmpty() -> {
+            clearSelection()
+            HistoryBackOutcome.ClearedSelection
+        }
+        else -> HistoryBackOutcome.NotConsumed
+    }
+
+    /**
+     * 批量删除所选：逐条走 [delete]，单项失败只记 `errorMessage` 并继续整批，
+     * 失败项保留在选择集内以便重试；成功项从选择集移除。
+     */
+    suspend fun deleteSelected() {
+        val targets = entries.filter { isSelected(it) }
+        for (entry in targets) {
+            delete(entry)
+            val key = entry.sourceKey to entry.workId
+            if (hiddenKeys.contains(key)) selection = selection - key
+        }
+    }
+
+    // endregion
 
     /** Toggles the heart state: persisted to the shared library record when supported. */
     suspend fun toggleFavorite(entry: HistoryEntry) {
@@ -198,6 +268,8 @@ class HistorySession(
             // 删除/清空的行继续隐藏直到重启或再次阅读。
             val visible = entries.map { it.sourceKey to it.workId }.toSet()
             hiddenKeys = hiddenKeys.filterNot { it in visible }.toSet()
+            // 选择集收敛到仍存在的行：已消失的行不再占计数。
+            selection = selection.filter { it in visible }.toSet()
             loadState = HistoryLoadState.Ready
         } catch (cancelled: kotlinx.coroutines.CancellationException) {
             throw cancelled

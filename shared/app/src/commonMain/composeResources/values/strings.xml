@@ -56,6 +56,15 @@
     <string name="browse_show_less">Show less</string>
     <string name="browse_badge_description">%1$d extension updates</string>
 
+    <string name="global_search_title">Global search</string>
+    <string name="global_search_hint">Search all sources</string>
+    <string name="global_search_prompt">Type a keyword to search every installed source in parallel.</string>
+    <string name="global_search_empty">No results in any source.</string>
+    <string name="global_search_failed">Search failed: %1$s</string>
+    <string name="global_search_retry">Retry</string>
+    <string name="global_search_source_failed">Failed: %1$s</string>
+    <string name="global_search_result_count">%1$d results</string>
+
     <!-- Extension details -->
     <string name="extension_details_title">Extension info</string>
     <string name="extension_details_missing">This extension is no longer available.</string>
@@ -158,6 +167,13 @@
     <string name="history_clear_all">Clear all</string>
     <string name="history_clear_confirm_title">Clear all history?</string>
     <string name="history_clear_confirm_body">All reading history on this device will be removed. This cannot be undone.</string>
+    <string name="history_selection_count">%1$d selected</string>
+    <string name="history_select_all">Select all</string>
+    <string name="history_invert_selection">Invert selection</string>
+    <string name="history_clear_selection">Clear selection</string>
+    <string name="history_delete_selected_title">Delete selected history?</string>
+    <string name="history_delete_selected_body">%1$d entries will be removed from this device. This cannot be undone.</string>
+    <string name="history_delete_selected_confirm">Delete</string>
     <string name="history_clear_confirm">Clear</string>
     <string name="stores_cancel">Cancel</string>
     <string name="stores_remove_confirm">Remove</string>

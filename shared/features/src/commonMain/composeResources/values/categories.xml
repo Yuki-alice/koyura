@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="categories_title">Categories</string>
+    <string name="categories_add">New category</string>
+    <string name="categories_name">Name</string>
+    <string name="categories_create_title">New category</string>
+    <string name="categories_rename_title">Rename category</string>
+    <string name="categories_delete_title">Delete category?</string>
+    <string name="categories_delete_body">%1$s will be removed. Works keep their other categories and their reading progress.</string>
+    <string name="categories_delete_confirm">Delete</string>
+    <string name="categories_empty">You have no categories. Tap the button below to create one for organizing your library.</string>
+    <string name="categories_hide">Hide category</string>
+    <string name="categories_unhide">Show category</string>
+    <string name="categories_load_failed">Could not load categories: %1$s</string>
+    <string name="categories_retry">Retry</string>
+</resources>

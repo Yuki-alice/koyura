@@ -14,4 +14,18 @@
     <string name="updates_errors_title">Update errors</string>
     <string name="updates_errors_empty">No failed updates</string>
     <string name="updates_retry_failures">Retry all</string>
+    <string name="updates_smart_settings">Smart update settings</string>
+    <string name="updates_policy_enabled">Smart updates</string>
+    <string name="updates_policy_enabled_subtitle">Skip works that do not need a new-chapter check</string>
+    <string name="updates_policy_skip_completed">Skip completed works</string>
+    <string name="updates_policy_skip_completed_subtitle">No new chapters once a work is marked completed</string>
+    <string name="updates_policy_skip_unread">Skip works with unread chapters</string>
+    <string name="updates_policy_skip_unread_subtitle">Catch up on unread chapters before checking for new ones</string>
+    <string name="updates_policy_skip_not_started">Skip works you have not started</string>
+    <string name="updates_policy_skip_not_started_subtitle">Only check works you have already opened</string>
+    <string name="updates_policy_skip_outside_window">Skip works outside their release window</string>
+    <string name="updates_policy_skip_outside_window_subtitle">Honour the next update date reported by the source</string>
+    <string name="updates_policy_excluded_title">Excluded title keywords</string>
+    <string name="updates_policy_excluded_hint">One keyword per line; a work is skipped when its title contains any of them</string>
+    <string name="updates_policy_save">Save</string>
 </resources>

@@ -68,6 +68,7 @@ import app.koyura.app.resources.browse_unavailable_body
 import app.koyura.app.resources.browse_unavailable_title
 import app.koyura.app.resources.browse_unpin
 import app.koyura.app.resources.browse_update_all
+import app.koyura.app.resources.global_search_title
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 
@@ -82,6 +83,7 @@ internal const val BrowseEmptyTag = "browse-empty"
 internal const val BrowseSourceQueryTag = "browse-source-query"
 internal const val BrowseExtensionQueryTag = "browse-extension-query"
 internal const val BrowseManageStoresTag = "browse-manage-stores"
+internal const val BrowseGlobalSearchTag = "browse-global-search"
 
 internal fun extensionRowTag(key: String) = "browse-extension-$key"
 internal fun extensionActionTag(key: String, action: String) = "browse-extension-$key-$action"
@@ -99,6 +101,7 @@ fun BrowseScreen(
     onManageStores: (String?) -> Unit,
     onOpenSource: (sourceKey: String, sourceName: String) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier,
+    onGlobalSearch: (() -> Unit)? = null,
 ) {
     val state = session.state
     val scope = rememberCoroutineScope()
@@ -113,6 +116,14 @@ fun BrowseScreen(
         TopAppBar(
             title = { Text(stringResource(Res.string.browse_title)) },
             actions = {
+                // 全局搜索入口：无装配回调时禁用（保留锚点，生产由外壳推新路由）。
+                ActionIconButton(
+                    icon = ActionIcon.Search,
+                    label = stringResource(Res.string.global_search_title),
+                    onClick = { onGlobalSearch?.invoke() },
+                    enabled = onGlobalSearch != null,
+                    modifier = Modifier.testTag(BrowseGlobalSearchTag),
+                )
                 if (state.pane == BrowsePane.Extensions) {
                     ActionIconButton(
                         icon = ActionIcon.Sync,

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="categories_title">分类</string>
+    <string name="categories_add">新建分类</string>
+    <string name="categories_name">名称</string>
+    <string name="categories_create_title">新建分类</string>
+    <string name="categories_rename_title">重命名分类</string>
+    <string name="categories_delete_title">删除分类？</string>
+    <string name="categories_delete_body">将移除「%1$s」。作品保留其它分类归属，阅读进度不受影响。</string>
+    <string name="categories_delete_confirm">删除</string>
+    <string name="categories_empty">暂无分类。点下方按钮新建一个，用于整理书架。</string>
+    <string name="categories_hide">隐藏分类</string>
+    <string name="categories_unhide">取消隐藏</string>
+    <string name="categories_load_failed">分类加载失败：%1$s</string>
+    <string name="categories_retry">重试</string>
+</resources>

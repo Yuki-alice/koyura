@@ -24,7 +24,13 @@ class FakeHistoryService(
         return entries
     }
 
+    /** 命中这些键的删除抛错（批量删除「失败续删」用例）。 */
+    var failDeleteKeys: Set<Pair<String, String>> = emptySet()
+
     override suspend fun deleteEntry(sourceKey: String, workId: String) {
+        if (failDeleteKeys.contains(sourceKey to workId)) {
+            throw BrowseServiceException("delete failed")
+        }
         deletedKeys += sourceKey to workId
         entries = entries.filterNot { it.sourceKey == sourceKey && it.workId == workId }
     }

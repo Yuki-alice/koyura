@@ -36,11 +36,16 @@ import app.koyura.app.browse.BrowseSession
 import app.koyura.app.browse.ProvideCoverPipeline
 import app.koyura.features.downloads.DownloadsScreen
 import app.koyura.features.downloads.rememberDownloadsSession
+import app.koyura.categories.CategoriesScreen
 import app.koyura.features.more.MoreScreen
 import app.koyura.features.more.rememberMoreSession
+import app.koyura.features.statistics.StatisticsScreen
+import app.koyura.features.statistics.rememberStatisticsSession
 import app.koyura.features.updates.UpdatesScreen
 import app.koyura.features.updates.rememberUpdatesSession
 import app.koyura.app.browse.ExtensionDetailsScreen
+import app.koyura.app.browse.globalsearch.GlobalSearchScreen
+import app.koyura.app.browse.globalsearch.GlobalSearchSession
 import app.koyura.app.browse.ExtensionStoresScreen
 import app.koyura.app.browse.LocalBrowseSession
 import app.koyura.app.browse.SourceDetailScreen
@@ -57,11 +62,14 @@ import app.koyura.features.reader.comic.ReaderSession
 import app.koyura.features.reader.comic.rememberReaderSession
 import app.koyura.app.browse.rememberBrowseSession
 import app.koyura.app.navigation.AppNavigationState
+import app.koyura.app.navigation.CategoriesRoute
 import app.koyura.app.navigation.DetailRoute
 import app.koyura.app.navigation.DownloadQueueRoute
 import app.koyura.app.navigation.ExtensionDetailsRoute
+import app.koyura.app.navigation.GlobalSearchRoute
 import app.koyura.app.navigation.ComicReaderRoute
 import app.koyura.app.navigation.SourceDetailRoute
+import app.koyura.app.navigation.StatisticsRoute
 import app.koyura.app.navigation.SourceSearchRoute
 import app.koyura.app.navigation.ExtensionStoresRoute
 import app.koyura.app.navigation.TabRootRoute
@@ -100,11 +108,12 @@ internal fun AppScaffold(
     val activeReaderSession = readerSession ?: rememberReaderSession(readerService)
     val activeHistorySession = historySession ?: rememberHistorySession(historyService, browseService)
     val activeUpdatesSession = rememberUpdatesSession()
+    val statisticsSession = rememberStatisticsSession()
     val activeMoreSession = rememberMoreSession()
     val activeDownloadsSession = rememberDownloadsSession()
     val librarySession = rememberLibrarySession()
 
-    BackToLibraryHandler(navigation, librarySession)
+    BackToLibraryHandler(navigation, librarySession, activeHistorySession)
 
     // The bar and rail branches have different layout shapes, so recomposing one into the other
     // would dispose the content subtree and rebuild it from saved state. Moving the subtree with
@@ -123,6 +132,8 @@ internal fun AppScaffold(
                     activeUpdatesSession,
                     activeMoreSession,
                     activeDownloadsSession,
+                    statisticsSession,
+                    browseService,
                 )
             }
         }
@@ -132,7 +143,8 @@ internal fun AppScaffold(
     // hides the tab bar/rail while a chapter is open. Library multi-select hides them the same
     // way (Komikku parity: selection mode owns the chrome).
     val isReaderOpen = navigation.currentStack.lastOrNull() is ComicReaderRoute
-    val hideChrome = navigation.selectedTab == NavTab.Library && librarySession.selection.isNotEmpty()
+    val hideChrome = (navigation.selectedTab == NavTab.Library && librarySession.selection.isNotEmpty()) ||
+        (navigation.selectedTab == NavTab.History && activeHistorySession.selection.isNotEmpty())
     if (isReaderOpen || hideChrome) {
         Box(modifier = Modifier.fillMaxSize()) {
             appContent(navigation, saveableStateHolder, activeBrowseSession)
@@ -194,6 +206,7 @@ internal fun AppScaffold(
 private fun BackToLibraryHandler(
     navigation: AppNavigationState,
     librarySession: LibrarySession?,
+    historySession: app.koyura.app.history.HistorySession?,
 ) {
     BackHandler(enabled = navigation.returnsToLibraryOnBack()) {
         navigation.handleBack()
@@ -203,6 +216,12 @@ private fun BackToLibraryHandler(
         navigation.currentStack.size <= 1 && librarySession?.wantsBack == true
     BackHandler(enabled = consumeLibrary) {
         librarySession?.consumeBack()
+    }
+    // 历史页多选：返回键先清选择态，不直接交平台（与书架同序）。
+    val consumeHistory = navigation.selectedTab == NavTab.History &&
+        navigation.currentStack.size <= 1 && historySession?.wantsBack == true
+    BackHandler(enabled = consumeHistory) {
+        historySession?.clearSelection()
     }
 }
 
@@ -225,6 +244,8 @@ private fun AppNavigationContent(
     updatesSession: app.koyura.features.updates.UpdatesSession,
     moreSession: app.koyura.features.more.MoreSession,
     downloadsSession: app.koyura.features.downloads.DownloadsSession,
+    statisticsSession: app.koyura.features.statistics.StatisticsSession,
+    browseService: BrowseService?,
 ) {
     val entryProvider = remember(
         navigation,
@@ -235,6 +256,8 @@ private fun AppNavigationContent(
         updatesSession,
         moreSession,
         downloadsSession,
+        statisticsSession,
+        browseService,
     ) {
         entryProvider<NavKey> {
             entry<TabRootRoute> { route ->
@@ -247,6 +270,7 @@ private fun AppNavigationContent(
                             onOpenSource = { sourceKey, sourceName ->
                                 navigation.push(SourceSearchRoute(sourceKey))
                             },
+                            onGlobalSearch = { navigation.push(GlobalSearchRoute) },
                         )
                     }
                 } else if (route.tab == NavTab.Library) {
@@ -254,6 +278,7 @@ private fun AppNavigationContent(
                         navigation = navigation,
                         session = librarySession,
                         browseSession = browseSession,
+                        onGlobalSearch = { navigation.push(GlobalSearchRoute) },
                     )
                 } else if (route.tab == NavTab.History) {
                     HistoryScreen(
@@ -289,6 +314,12 @@ private fun AppNavigationContent(
                         onOpenDownloadQueue = {
                             navigation.push(DownloadQueueRoute)
                         },
+                        onOpenCategories = {
+                            navigation.push(CategoriesRoute)
+                        },
+                        onOpenStatistics = {
+                            navigation.push(StatisticsRoute)
+                        },
                     )
                 } else {
                     TabRootScreen(
@@ -305,6 +336,28 @@ private fun AppNavigationContent(
             entry<DownloadQueueRoute> {
                 DownloadsScreen(
                     session = downloadsSession,
+                    onBack = { navigation.popCurrentChild() },
+                )
+            }
+            entry<CategoriesRoute> {
+                CategoriesScreen(onBack = { navigation.popCurrentChild() })
+            }
+            entry<GlobalSearchRoute> {
+                // 每次进入重新开一次会话：结果页是独立子路由，返回即弃。
+                val globalSearchSession = remember(browseService) { GlobalSearchSession(browseService) }
+                CompositionLocalProvider(LocalBrowseSession provides browseSession) {
+                    GlobalSearchScreen(
+                        session = globalSearchSession,
+                        onBack = { navigation.popCurrentChild() },
+                        onOpenWork = { sourceKey, workId, title ->
+                            navigation.push(SourceDetailRoute(sourceKey, workId, title))
+                        },
+                    )
+                }
+            }
+            entry<StatisticsRoute> {
+                StatisticsScreen(
+                    session = statisticsSession,
                     onBack = { navigation.popCurrentChild() },
                 )
             }

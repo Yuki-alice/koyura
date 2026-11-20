@@ -36,4 +36,18 @@
     <string name="reader_chrome_fit_width">适应宽度</string>
     <string name="reader_chrome_fit_height">适应高度</string>
     <string name="reader_chrome_fit_original">原始尺寸</string>
+    <string name="reader_chrome_background">阅读背景</string>
+    <string name="reader_chrome_background_automatic">跟随主题</string>
+    <string name="reader_chrome_background_black">纯黑</string>
+    <string name="reader_chrome_background_gray">深灰</string>
+    <string name="reader_chrome_background_white">纯白</string>
+    <string name="reader_chrome_tap_zone_title">点击区</string>
+    <string name="reader_chrome_tap_zone">布局</string>
+    <string name="reader_chrome_tap_zone_block">三分区</string>
+    <string name="reader_chrome_tap_zone_left_right">左右两分</string>
+    <string name="reader_chrome_tap_zone_kindle">偏下一页</string>
+    <string name="reader_chrome_tap_zone_edge">仅边缘</string>
+    <string name="reader_chrome_tap_zone_l_shape">L 形</string>
+    <string name="reader_chrome_tap_zone_disabled">关闭</string>
+    <string name="reader_chrome_tap_zone_invert">反转上/下一页</string>
 </resources>

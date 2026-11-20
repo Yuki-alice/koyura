@@ -55,15 +55,17 @@ fun moreSwitchTag(key: String) = "more-switch-$key"
  * 图标 primary、标题 16sp；开关行同式 + M3 Switch；底部赞助按钮
  * 2dp primary 边框 small 圆角居中（Code: Sponsor）。
  *
- * 本轮导航行全部禁用：下载队列面板（7.12）本期不做，其余目标页
- * （分类/统计/更新错误/数据与存储/批量添加/设置/关于/帮助）随后续
- * 轮次落地后再启用；两个开关为真实页内状态。
+ * 本轮导航行按落地进度启用：下载队列与分类是真实页面；其余目标页
+ * （统计/更新错误/数据与存储/批量添加/设置/关于/帮助）随后续轮次落地后再启用；
+ * 两个开关为真实页内状态。
  */
 @Composable
 fun MoreScreen(
     session: MoreSession,
     modifier: Modifier = Modifier,
     onOpenDownloadQueue: (() -> Unit)? = null,
+    onOpenCategories: (() -> Unit)? = null,
+    onOpenStatistics: (() -> Unit)? = null,
 ) {
     Column(
         modifier = modifier
@@ -96,8 +98,18 @@ fun MoreScreen(
             title = stringResource(Res.string.more_download_queue),
             onClick = onOpenDownloadQueue,
         )
-        MoreNavRow(key = "categories", icon = ActionIcon.Categories, title = stringResource(Res.string.more_categories))
-        MoreNavRow(key = "statistics", icon = ActionIcon.Statistics, title = stringResource(Res.string.more_statistics))
+        MoreNavRow(
+            key = "categories",
+            icon = ActionIcon.Categories,
+            title = stringResource(Res.string.more_categories),
+            onClick = onOpenCategories,
+        )
+        MoreNavRow(
+            key = "statistics",
+            icon = ActionIcon.Statistics,
+            title = stringResource(Res.string.more_statistics),
+            onClick = onOpenStatistics,
+        )
         MoreNavRow(
             key = "update-errors",
             icon = ActionIcon.UpdateErrors,
