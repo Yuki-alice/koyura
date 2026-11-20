@@ -26,6 +26,7 @@ import app.koyura.app.ExtensionApp
 import app.koyura.app.NavigationBarTestTag
 import app.koyura.app.NavigationRailTestTag
 import app.koyura.app.browse.BrowseSourcesTabTag
+import app.koyura.app.browse.DetailFabTag
 import app.koyura.app.browse.SourceSearchQueryTag
 import app.koyura.app.browse.SourceSearchSubmitTag
 import app.koyura.app.browse.sourceResultTag
@@ -144,8 +145,8 @@ class VeneraReaderRestartTest {
                 }
             }
             openDetail()
-            awaitTag("reading-continue")
-            onNodeWithTag("reading-continue").performClick()
+            awaitTag(DetailFabTag)
+            onNodeWithTag(DetailFabTag).performClick()
             awaitThirdPage()
         }
         assertChapterRequests(requests)

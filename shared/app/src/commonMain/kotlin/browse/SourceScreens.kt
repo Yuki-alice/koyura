@@ -633,9 +633,9 @@ fun SourceDetailScreen(
                         val unreadExists = loaded.chapters.any { chapter ->
                             !(readStates[chapter.id] ?: (progress?.chapterId == chapter.id))
                         }
-                        if (readerService != null && loaded.chapters.isNotEmpty() &&
-                            selectedIds.isEmpty() && unreadExists
-                        ) {
+                        // 无分章作品同样可开始阅读（bookless 源），与原内联钮行为一致。
+                        val canStart = loaded.chapters.isEmpty() || unreadExists
+                        if (readerService != null && selectedIds.isEmpty() && canStart) {
                             val savedId = progress?.chapterId?.takeIf { it in chapterIds }
                             val targetId = savedId ?: chapterIds.firstOrNull()
                             DetailReadFab(
@@ -649,8 +649,9 @@ fun SourceDetailScreen(
                                     stringResource(Res.string.reading_start)
                                 },
                                 layoutWidthPx = with(LocalDensity.current) { maxWidth.toPx() },
+                                // 无分章作品以 null 章 id 进入阅读器（既有契约）。
                                 onOpen = {
-                                    targetId?.let { onOpenChapter(it, chapterIds, chapterTitles) }
+                                    onOpenChapter(targetId, chapterIds, chapterTitles)
                                 },
                                 onSnap = { start ->
                                     fabDragAtStart = start
