@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -48,14 +49,17 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.movableContentOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.luminance
@@ -66,6 +70,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import app.koyura.app.LocalAppearance
 import app.koyura.app.LocalReaderService
 import app.koyura.app.resources.Res
@@ -78,6 +83,12 @@ import app.koyura.app.resources.source_detail_back
 import app.koyura.app.resources.source_detail_chapters
 import app.koyura.app.resources.source_detail_chapters_selected
 import app.koyura.app.resources.source_detail_clear_selection
+import app.koyura.app.resources.source_detail_chapter_filter
+import app.koyura.app.resources.source_detail_filter_all
+import app.koyura.app.resources.source_detail_filter_downloaded
+import app.koyura.app.resources.source_detail_filter_not_downloaded
+import app.koyura.app.resources.source_detail_filter_read
+import app.koyura.app.resources.source_detail_filter_unread
 import app.koyura.app.resources.source_detail_download
 import app.koyura.app.resources.source_detail_empty
 import app.koyura.app.resources.source_detail_error
@@ -110,12 +121,16 @@ import app.koyura.designsystem.components.AppButton
 import app.koyura.designsystem.components.AppCircularProgress
 import app.koyura.designsystem.components.AppDivider
 import app.koyura.designsystem.components.AppExtendedFab
-import app.koyura.designsystem.components.AppSuggestionChip
 import app.koyura.designsystem.components.AppSurface
 import app.koyura.designsystem.components.AppText
+import app.koyura.designsystem.components.ChapterDownloadIndicator
+import app.koyura.designsystem.components.ChapterDownloadState
 import app.koyura.designsystem.components.AppTextButton
 import app.koyura.designsystem.components.ProvideUiContentColor
+import app.koyura.designsystem.components.ModalReaderSheet
 import app.koyura.designsystem.components.ReaderTopAppBar
+import app.koyura.designsystem.components.SettingsItem
+import app.koyura.designsystem.components.TagChip
 import app.koyura.designsystem.components.ReaderTopAppBarHeight
 import app.koyura.designsystem.components.UiTheme
 import app.koyura.designsystem.rememberCoverBitmap
@@ -605,13 +620,15 @@ fun SourceDetailScreen(
                                 }
 
                                 val appBarHeightPx = with(LocalDensity.current) { ReaderTopAppBarHeight.toPx() }
-                                val scrollFraction = (
-                                    maxOf(infoScroll.value, if (wide) chaptersScroll.value else 0) / appBarHeightPx
-                                ).coerceIn(0f, 1f)
+                                // 双 alpha（白皮书 04 §4.6 / 09 坑 6）：
+                                // 背景在「开始滚动」时就到位，标题要等首项（AppBar 高度）完全滚出。
+                                val scrollValue = maxOf(infoScroll.value, if (wide) chaptersScroll.value else 0)
+                                val backgroundFraction = (scrollValue / (appBarHeightPx * 0.25f)).coerceIn(0f, 1f)
+                                val titleFraction = (scrollValue / appBarHeightPx).coerceIn(0f, 1f)
                                 ReaderTopAppBar(
                                     title = loaded.title.ifEmpty { fallbackTitle },
-                                    scrollFraction = scrollFraction,
-                                    titleAlpha = scrollFraction,
+                                    scrollFraction = backgroundFraction,
+                                    titleAlpha = titleFraction,
                                     navigationIcon = {
                                         ActionIconButton(
                                             icon = ActionIcon.Back,
@@ -729,6 +746,7 @@ private fun DetailAction(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     active: Boolean = false,
+    highlightAlways: Boolean = false,
 ) {
     AppTextButton(
         onClick = onClick,
@@ -831,6 +849,7 @@ private fun DetailInfoColumn(
             label = stringResource(Res.string.source_detail_progress),
             onClick = onContinue,
             enabled = canContinue,
+            highlightAlways = true,
             modifier = Modifier.weight(1f).testTag("detail-progress"),
         )
         DetailAction(
@@ -838,6 +857,7 @@ private fun DetailInfoColumn(
             label = stringResource(Res.string.source_detail_webview),
             onClick = {},
             enabled = false,
+            highlightAlways = true,
             modifier = Modifier.weight(1f).testTag("detail-webview"),
         )
     }
@@ -848,12 +868,29 @@ private fun DetailInfoColumn(
             .padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.ExtraSmall),
         verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.ExtraSmall),
     ) {
-        AppText(
-            text = body,
-            style = UiTheme.typography.bodyMedium,
-            maxLines = if (expanded) Int.MAX_VALUE else 3,
-            overflow = TextOverflow.Ellipsis,
-        )
+        Box(Modifier.fillMaxWidth()) {
+            AppText(
+                text = body,
+                style = UiTheme.typography.bodyMedium,
+                maxLines = if (expanded) Int.MAX_VALUE else 3,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (!expanded) {
+                // 折叠时底部 24dp 渐隐到页面底色，暗示还有内容（白皮书 07 §7.11）。
+                Box(
+                    Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .height(DesignTokens.Spacing.Large)
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(Color.Transparent, UiTheme.colorScheme.surface),
+                            ),
+                            RoundedCornerShape(bottomStart = 0.dp, bottomEnd = 0.dp),
+                        ),
+                )
+            }
+        }
         if (detail.description.isNotEmpty()) {
             Box(Modifier.align(Alignment.CenterHorizontally)) {
                 ActionIconButton(
@@ -885,15 +922,9 @@ private fun DetailInfoColumn(
                     val chipText = if (multiGroup) "$group · $value" else value
                     // 类型标签 = M3 SuggestionChip（small 圆角 + labelLarge + 描边容器），
                     // Code: Chip.kt:50（shape = shapes.small）经 NamespaceTags 用于详情标签区。
-                    AppSuggestionChip(
+                    TagChip(
+                        label = chipText,
                         onClick = {},
-                        label = {
-                            AppText(
-                                text = chipText,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        },
                         modifier = Modifier.testTag("detail-chip-$group-$index"),
                     )
                 }
@@ -949,9 +980,68 @@ private fun DetailChapterList(
     onMarkRead: (Set<String>, Boolean) -> Unit,
     onOpen: (WorkChapter) -> Unit,
 ) {
-    app.koyura.designsystem.ListGroupHeader(
-        text = stringResource(Res.string.source_detail_chapters, chapters.size),
-    )
+    var filter by remember { mutableStateOf(ChapterFilter.ALL) }
+    var showFilter by remember { mutableStateOf(false) }
+    val visibleChapters = chapters.filter { chapter ->
+        val read = readStates[chapter.id] ?: (fallbackReadChapterId == chapter.id)
+        when (filter) {
+            ChapterFilter.ALL -> true
+            ChapterFilter.UNREAD -> !read
+            ChapterFilter.READ -> read
+            // 下载轨未接通前，「已下载」「未下载」都只按未下载处理（如实展示，不伪造状态）。
+            ChapterFilter.DOWNLOADED -> false
+            ChapterFilter.NOT_DOWNLOADED -> true
+        }
+    }
+    // 章节数头部：16sp + ▤，点击打开筛选弹层（白皮书 07 §7.12；平板图 tablet/37）。
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { showFilter = true }
+            .padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.Small)
+            .testTag("detail-chapter-filter-open"),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        AppText(
+            text = "▤",
+            style = UiTheme.typography.titleMedium.copy(fontSize = 16.sp),
+            color = UiTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.width(DesignTokens.Spacing.Small))
+        AppText(
+            text = stringResource(Res.string.source_detail_chapters, visibleChapters.size),
+            style = UiTheme.typography.titleMedium.copy(fontSize = 16.sp),
+            color = UiTheme.colorScheme.onSurfaceVariant,
+            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+        )
+        Spacer(Modifier.weight(1f))
+        if (filter != ChapterFilter.ALL) {
+            AppText(
+                text = filter.label(),
+                style = UiTheme.typography.bodySmall,
+                color = UiTheme.colorScheme.primary,
+            )
+        }
+    }
+    if (showFilter) {
+        ModalReaderSheet(onDismissRequest = { showFilter = false }) {
+            AppText(
+                text = stringResource(Res.string.source_detail_chapter_filter),
+                modifier = Modifier.padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.Small),
+                style = UiTheme.typography.titleMedium,
+            )
+            ChapterFilter.entries.forEach { option ->
+                SettingsItem(
+                    title = option.label(),
+                    selected = option == filter,
+                    onClick = {
+                        filter = option
+                        showFilter = false
+                    },
+                )
+            }
+        }
+    }
     if (selectedIds.isNotEmpty()) {
         Row(
             modifier = Modifier
@@ -983,7 +1073,7 @@ private fun DetailChapterList(
             ) { AppText(stringResource(Res.string.source_detail_mark_unread)) }
         }
     }
-    chapters.forEach { chapter ->
+    visibleChapters.forEach { chapter ->
         val read = readStates[chapter.id] ?: (fallbackReadChapterId == chapter.id)
         MangaChapterRow(
             chapter = chapter,
@@ -1026,21 +1116,21 @@ private fun MangaChapterRow(
             .padding(DesignTokens.Sizes.ChapterItemPadding),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (selected) {
-            DecorativeActionIcon(
+        when {
+            selected -> DecorativeActionIcon(
                 ActionIcon.Checklist,
                 modifier = Modifier.padding(end = DesignTokens.Spacing.Small).size(DesignTokens.Spacing.Medium),
                 tint = UiTheme.colorScheme.primary,
             )
-        } else {
-            // 未读点 8dp primary（白皮书 06 §6.10；Code MangaChapterListItem.kt:128）。
-            Box(
-                Modifier.padding(end = DesignTokens.Spacing.Small).size(DesignTokens.Spacing.Small)
-                    .background(
-                        if (read) UiTheme.colorScheme.outlineVariant else UiTheme.colorScheme.primary,
-                        CircleShape,
-                    ),
+
+            // 未读点 8dp primary；已读不画点（白皮书 06 §6.7 / MangaChapterListItem.kt:128）。
+            !read -> Box(
+                Modifier.padding(end = DesignTokens.Spacing.Small)
+                    .size(DesignTokens.Sizes.UnreadDot)
+                    .background(UiTheme.colorScheme.primary, CircleShape),
             )
+
+            else -> Spacer(Modifier.width(DesignTokens.Sizes.UnreadDot + DesignTokens.Spacing.Small))
         }
         Column(
             modifier = Modifier.weight(1f),
@@ -1049,10 +1139,11 @@ private fun MangaChapterRow(
             AppText(
                 text = chapter.title,
                 style = UiTheme.typography.bodyMedium,
-                color = if (selected) {
-                    UiTheme.colorScheme.primary
-                } else {
-                    UiTheme.colorScheme.onSurface
+                color = when {
+                    selected -> UiTheme.colorScheme.primary
+                    // 已读标题 38% 前景（白皮书 06 §6.7）。
+                    read -> UiTheme.colorScheme.onSurface.copy(alpha = DesignTokens.Alpha.Disabled)
+                    else -> UiTheme.colorScheme.onSurface
                 },
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -1061,7 +1152,7 @@ private fun MangaChapterRow(
                 text = chapterSecondaryLine(chapter),
                 style = UiTheme.typography.bodySmall,
                 color = UiTheme.colorScheme.onSurfaceVariant.copy(
-                    alpha = DesignTokens.Alpha.Secondary,
+                    alpha = if (read) DesignTokens.Alpha.Disabled else DesignTokens.Alpha.Secondary,
                 ),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -1075,14 +1166,32 @@ private fun MangaChapterRow(
                 modifier = Modifier.padding(horizontal = DesignTokens.Spacing.ExtraSmall),
             )
         }
-        ActionIconButton(
-            icon = ActionIcon.Download,
-            label = stringResource(Res.string.source_detail_download),
-            onClick = {},
-            enabled = false,
-            modifier = Modifier.testTag("detail-chapter-download-${chapter.id}"),
-        )
+        // 状态层 40dp 包住 26dp 指示器（白皮书 06 §6.7「状态层 40dp」）。
+        Box(
+            modifier = Modifier
+                .size(DesignTokens.Sizes.SelectionMarker)
+                .testTag("detail-chapter-download-${chapter.id}"),
+            contentAlignment = Alignment.Center,
+        ) {
+            ChapterDownloadIndicator(state = ChapterDownloadState.NOT_DOWNLOADED)
+        }
     }
+}
+
+/** 章节筛选选项（白皮书 07 §7.12；平板截图 tablet/37，手机按同一结构类推）。 */
+private enum class ChapterFilter {
+    ALL, UNREAD, READ, DOWNLOADED, NOT_DOWNLOADED;
+
+    @Composable
+    fun label(): String = stringResource(
+        when (this) {
+            ALL -> Res.string.source_detail_filter_all
+            UNREAD -> Res.string.source_detail_filter_unread
+            READ -> Res.string.source_detail_filter_read
+            DOWNLOADED -> Res.string.source_detail_filter_downloaded
+            NOT_DOWNLOADED -> Res.string.source_detail_filter_not_downloaded
+        },
+    )
 }
 
 private fun chapterSecondaryLine(chapter: WorkChapter): String {

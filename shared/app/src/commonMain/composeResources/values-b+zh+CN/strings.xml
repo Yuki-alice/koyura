@@ -145,6 +145,12 @@
     <string name="source_detail_clear_selection">清除</string>
     <string name="source_detail_mark_read">标为已读</string>
     <string name="source_detail_mark_unread">标为未读</string>
+    <string name="source_detail_chapter_filter">章节筛选</string>
+    <string name="source_detail_filter_all">全部章节</string>
+    <string name="source_detail_filter_unread">未读</string>
+    <string name="source_detail_filter_read">已读</string>
+    <string name="source_detail_filter_downloaded">已下载</string>
+    <string name="source_detail_filter_not_downloaded">未下载</string>
     <string name="source_detail_download">下载</string>
     <string name="source_detail_download_desc">下载章节（即将上线）</string>
     <string name="source_detail_read">已读</string>

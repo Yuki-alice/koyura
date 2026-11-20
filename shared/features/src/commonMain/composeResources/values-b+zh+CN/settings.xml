@@ -136,4 +136,18 @@
     <string name="settings_weekly">每周</string>
     <string name="settings_where_downloaded_chapters_are_stored">保存已下载章节的位置</string>
     <string name="settings_title">设置</string>
+    <string name="settings_hourly">每小时</string>
+    <string name="settings_chinese">中文</string>
+    <string name="settings_japanese">日文</string>
+    <string name="settings_gray">灰色</string>
+    <string name="settings_white">白色</string>
+    <string name="settings_http">HTTP</string>
+    <string name="settings_socks5">SOCKS5</string>
+    <string name="settings_storage_usage_format">%1$d 部作品 · %2$d 个分类</string>
+    <string name="settings_licenses_body">Kotlin、Compose Multiplatform、Kotlinx、Coil、ZoomImage、MaterialKolor。完整许可文本随应用发布。</string>
+    <string name="settings_help_body">文档与问题反馈入口见项目仓库。</string>
+    <string name="settings_picker_unavailable">该选择器在当前平台尚未接入，本轮不伪造结果。</string>
+    <string name="settings_cache_cleared">临时文件已清理。</string>
+    <string name="settings_backup_unavailable">恢复备份需要文件选择器，当前尚未接入。</string>
+    <string name="settings_cache_noop">当前构建还没有独立的图片缓存层，清理暂不会改变磁盘占用。</string>
 </resources>
