@@ -1,211 +1,124 @@
 # 前端视觉对齐交付报告（最新一轮）
 
-分支 `feat/visual-parity`，地盘 `.zcode/worktrees/visual-parity`，基线 `main` @ `c729ff6`。
-本报告为覆盖写，只反映本轮；截图与生成脚本产物不入库，不建证据归档。
-本轮完成：P0-1 主题机制、P0-2 组件包装（业务层替换未完成）、P0-3 视觉验收基建、P0-4 设置页与路由接线，以及部分 P1 项。DoD 未全部达成，逐项如实登记在第 5 节。
+`feat/visual-parity` · 第二轮基线 `a486af1` · Komikku 参考 `290267d`。
 
 ## 1. 改动清单
 
 | SHA | 提交主题 | 影响面 |
 | --- | --- | --- |
-| `ad532c7` | `build(design-system): 引入已批准的主题与图片库依赖并挂到消费模块` | 版本目录 + design-system / features / app 三个消费模块 |
-| `ae951e4` | `feat(design-system): 补齐 19 套静态主题、明暗模式与封面取色入口` | 新增 theme 包与 8 个单测，ReaderTheme 常量可见性 |
-| `50081db` | `build(design-system): 让 materialkolor 对消费模块以 api 可见` | design-system 依赖可见性 |
-| `f9acea9` | `feat(design-system): 建 Komikku 等价组件包装` | components/ 10 个组件 |
-| `cad6fd1` | `feat(settings): 补齐设置页十个子页与主题偏好契约` | features/settings 7 文件 |
-| `2465377` | `feat(shell): 接线设置页路由与 More 六个工具入口` | AppRoute / AppScaffold / MoreScreen / UtilityPage |
-| `fc8751f` | `feat(browse): 补全浏览四 tab 与 18+ 开关占位面板` | BrowseModels / BrowseScreen / BrowseExtraPanes |
-| `f748662` | `feat(reader): 对齐详情左栏、历史封面与书架空态` | SourceScreens / HistoryScreen / LibraryScreen |
-| `bbf14ba` | `test(app): 建 15 页四态截图矩阵与 golden-diff 断言` | jvmTest/visual 3 文件 |
-
-本报告自身为最后一个提交，SHA 不自指，以 `git log feat/visual-parity` 为准。
-
-### 依赖基座
-
-- `gradle/libs.versions.toml` 新增 4 个已批准坐标：`material-kolor 5.0.1`、`coil-compose 3.6.3`、`coil-network-ktor3 3.6.3`、`zoomimage-compose 1.7.0` 及传递依赖；**未升降 Kotlin / Compose / material3 版本**（`compose = 1.13.0-beta02` 原样）。
-- 挂载：design-system → materialkolor（`api`，因为 `ThemeSelection` / `VisualTheme` 的公开签名含 `PaletteStyle`）+ coil-compose；features → coil-compose + zoomimage-compose；app → coil-compose + coil-network-ktor3。design-system 的 `commonTest` 挂既有 `kotlin-test`（非新增坐标）。
-- 首次联网 `compileKotlinJvm` 通过；离线三端构建第一次因 Android AAR / iOS klib 变体未缓存失败，联网跑完整三端构建补齐缓存。**materialkolor 与 material3 1.13.0-beta02 二进制兼容已验证**（`DynamicMaterialExpressiveTheme` 带 CMP `MotionScheme`），未触发降级路径。
-- `coil-network-ktor3` 与 `zoomimage-compose` 已挂载但本轮无代码消费，留给 P1-3 封面 Fetcher / P1-2 阅读器缩放；如后续不用应移除挂载。
-
-### P0-1 主题机制（`shared/design-system/src/commonMain/kotlin/theme/`）
-
-| 文件 | 内容 |
-| --- | --- |
-| `ThemePreset.kt` | `ThemeMode`（LIGHT/DARK/SYSTEM）、19 套静态主题枚举、`amoledColorScheme` 覆写、纯函数 `resolveColorScheme` |
-| `StaticColorSchemes.kt` | 19 套浅/深完整色板（1315 行），由白皮书 `assets/design-tokens.json` 生成，保留主题名与「定义角色数 / 缺失角色」注释 |
-| `VisualTheme.kt` | 照 Komikku `TachiyomiTheme` 两个重载：静态分支 `MaterialExpressiveTheme`；seed 分支 `DynamicMaterialExpressiveTheme(seedColor, isDark, isAmoled, style = Vibrant, animate = true)`；`seedColor == null` 回退静态主题 |
-| `CoverSeedColor.kt` | `QuantizerCelebi.quantize` + `Score.score` 提取封面 vibrant 主色，纯函数，不碰网络与按源会话 |
-| `SeedColorScheme.kt` / `ThemeSelection.kt` | 可单测的色板决议映射与主题设置能力契约 |
-
-`ReaderTheme.kt` 仅把三套既有色板常量由 `private` 改为 `internal`，色值一字未改；单测逐角色断言生成的 DEFAULT 色板与既有三套完全一致。
-生成器 `build/theme-gen/generate_static_schemes.py`（`build/` 下，不入库）：读 `design-tokens.json`，按参考实现 `TachiyomiTheme.colorSchemes` 顺序映射枚举，输出 `lightColorScheme(...)` / `darkColorScheme(...)`，并同步生成单测期望值表。
-
-### P0-2 组件层（`shared/design-system/src/commonMain/kotlin/components/`）
-
-新建 10 个 Komikku 等价包装：`ReaderScaffold`、`ReaderTopAppBar`（scrollFraction 渐显）、`ReaderTabs` / `ReaderPillTab`、`ReaderSheet`（手机抽屉 / 平板 460dp 居中卡片 28dp 圆角）、`ReaderSlider`（圆点药丸 + 两端页码）、`ReaderBadge` / `ReaderPill`（18dp）、`SettingsItem` / `PreferenceGroup`（48dp + 24dp 选中态）、`EmptyScreen`（12 颜文字 + 解释 + 动作）、`FastScroller`、`CoverAspect`（2:3 固定比例）。规格数值取自 `DesignTokens` 与白皮书 06 / 03 / 9.5。
-**业务层尚未替换裸 M3**：`grep -rn "^import androidx.compose.material3" shared/features shared/app` 仍有 186 处，白名单检查未通过，属本轮最大未完成项。
-
-### P0-3 视觉验收基建（`shared/app/src/jvmTest/kotlin/visual/`）
-
-- `VisualParityMatrixTest.kt`：15 个页面用例 × 窄 360×800 / 宽 1280×800 × light / dark = **60 张确定性 PNG**，输出 `build/visual-parity/`。固定 `Density(1f)`、固定主题、固定 Fake 数据源与固定颜文字；未实现的页面（Onboarding / Settings 对照键 / 更新错误 / 关于）渲染明确标注的占位画面，不假装有真实页面。
-- `GoldenDiffAssertions.kt`：每张图都做真实断言 —— 画布尺寸、像素不透明度、6 点主题色采样（容差 ±12）、非背景像素比例 > 1%（±6）、窄屏底栏区域 / 宽屏 rail 区域非背景内容 > 1%；阈值与平台字体 / 抗锯齿差异说明写在文件头注释。**无零断言截图**。
-- `VisualMatrixCatalog.kt`：15 页 slug 与白皮书 `assets/phone|tablet` 截图名的对照键。
-
-### P0-4 设置页与接线
-
-- `shared/features/src/commonMain/kotlin/settings/` 7 个文件：契约（`SettingsSubpage` 10 项 / `SettingsPreferences` / `SettingsUiState` / `SettingsRepository`）、`SettingsSession`、`FakeSettingsRepository`、`SettingsScreen`（master-detail，平板 24dp 圆角 + surfaceVariant 选中态）、`AppearanceSettingsScreen`（模式分段 / 19 套主题卡 / AMOLED / 封面取色 / `CoverBlendStyle`）、`SettingsSubpages`（8 个其余子页）。**只接 Fake，未接生产持久化**。
-- `AppRoute.kt` 新增 `SettingsRoute` / `SettingsSubpageRoute` / `UtilityPageRoute` 并注册到 `ReaderSavedStateConfiguration`；`AppScaffold.kt` 共享一份 `SettingsSession`，手机 push 子页、平板双栏共用状态。
-- `MoreScreen` 6 个原本不可点的行全部接线：设置 → 真实设置页；更新错误 / 数据与存储 / 批量添加 / 关于 / 帮助 → `UtilityPageScreen`（64dp 顶栏 + 颜文字空态 + 返回出口）。
-- 外观子页的调色风格用 `CoverBlendStyle`（保留 `paletteStyleName`），避免 features 直接依赖 materialkolor；生产桥接时用 `PaletteStyle.valueOf(name)` 还原。
-
-### 已推进的 P1 项
-
-- 详情页平板左栏由 `weight(0.42f)` 改为 `min(width/2, 450.dp)`，右栏 `weight(1f)`（9.5 #07）。
-- 历史行封面 56×80 → 63×94，填满行高。
-- 书架空态补固定颜文字（9.5 #17），保留原有文案与全部测试锚点。
-- Browse 由 2 tab 补为原版 4 tab（Sources / Feed / Extensions / Migrate），新增 Feed / Migrate 占位面板与 18+ 开关（仅页内 Fake 状态，数据接线不在本轮）；全局搜索独立入口本就存在。
+| `92adb59` | refactor(design-system): 统一业务界面的组件与主题入口 | 业务页和 JVM 测试改用设计系统组件，Material 3 依赖由设计系统提供 |
+| `1af4412` | feat(browse): 详情页随封面取色并渐显滚动顶栏 | 共用封面位图、滚动顶栏、禁用样式、推荐区及截图夹具 |
+| `ef85c71` | feat(reader): 更新页码药丸与阅读器沉浸栏 | 页码拖动、书签槽、黑底回退及共享 Android 系统栏控制 |
+| `b78834b` | feat(library): 对齐封面选中态、分类计数与自适应弹层 | 未读对比、分类计数、Coil 封面、滤选面板 |
+| `b791eb4` | feat(history): 精简历史行并显示全局阅读状态 | 阅读时间、未读点、行菜单、More 开关和横幅 |
+| `cc65b7f` | test(settings): 截图矩阵渲染真实设置路由并补足书架样本 | 真实 `SettingsRoute` 四态，书架增加多列夹具 |
+| `6495556` | test(reader): 复核黑底阅读器并稳定封面截图帧 | 分步推进截图帧，校验黑底阅读器的画布和栏色 |
+| `4c10a30` | feat(design-system): 统一触摸目标、状态组件与语义尺寸 | 图标按钮与提示、书架继续阅读命中区、状态组件 |
+| `4f80f81` | feat(settings): 联动外观、导航转场与双语设置 | 全局 Fake 主题、AMOLED 导航、转场和设置资源 |
+| `f1ea8c0` | feat(design-system): 应用共享状态、下载进度和图标语义 | 业务页面接入统一样式、下载环形进度、深色前景继承 |
 
 ## 2. 逐页对照表
 
-截图由 `VisualParityMatrixTest` 一次产出 60 张，命名 `visual-<page>-<narrow|wide>-<light|dark>.png`；白皮书对照物为 `docs/design-whitepaper/assets/phone/`（360dp）与 `assets/tablet/`（1280×800dp）同名截图，索引见 `10-附录.md` B 节与 `VisualMatrixCatalog.kt`。本轮未做人工逐像素比对（按 `docs/verification.md` 属按需人工核对），差异栏据任务书 4.1 审计基线与本轮改动填写。
+逐页对照白皮书 `assets/phone` 与 `assets/tablet`，查看本实现每页 360×800、1280×800 的浅色和深色，共 60 张。下表中的键对应 `visual-<键>-<narrow|wide>-<light|dark>.png`。白皮书同一画布的两种配色参考有限，书架和详情补看了手机与平板的 33、34 深色图，其余结合白皮书色板和四态渲染。截图中的内容、系统栏和字体取决于各自平台与数据夹具。
 
-| 页面 | 白皮书截图 | 本实现截图 | 差异 | 处置 |
+| 页面与本实现键 | 白皮书手机／平板图 | 人工核对结果 |
+| --- | --- | --- |
+| 引导 `onboarding-placeholder` | `01_onboarding_theme.jpg`／同名 | 四张均为明示占位。参考图的欢迎说明、主题选择和下一步尚未呈现 |
+| 书架 `library` | `10_library_grid.jpg`／同名 | 窄 2 列、宽 9 列。分类计数、未读／已读明度、封面比例和失败占位可辨。参考示例的标题叠在封面上，本实现紧凑卡的标题位于封面下。主题和封面夹具也不同 |
+| 浏览 `browse` | `06_browse_sources.jpg`／同名 | 四个标签、搜索、分组与置顶入口可见。工具栏入口组合与样本来源不同，订阅与迁移保持占位功能 |
+| 详情 `detail` | `11_manga_detail_library.jpg`／`11_manga_detail.jpg` | 窄屏左封面、宽屏双栏。矩阵使用无封面夹具，补图分别展示封面取色、静态回退及滚动顶栏。推荐区只有空态，宽屏位置与参考不同 |
+| 阅读器 `reader` | `13_reader.jpg`／`12_reader.jpg` | 矩阵抓取打开控制栏的状态，黑底、药丸滑杆、两端页码与书签槽可见。白皮书两张为阅读内容和翻页触区参考，菜单细节另对照手机 14、平板 13 |
+| 历史 `history` | `15_history.jpg`／`14_history.jpg` | 63×94 封面、日期组、阅读时间、继续和菜单。时间单独一行，参考图时间与章节同列。未读点取已有书架快照 |
+| 更新 `updates` | `16_updates.jpg`／`15_updates.jpg` | 参考图为空，矩阵展示分组与有数据的章节状态。筛选和日历入口沿用已有装配 |
+| 更多 `more` | `17_more.jpg`／`16_more.jpg` | 开关、行序与分隔线可辨。使用现有品牌占位。默认关态见四张矩阵，开态与全局横幅另有 UI 回归 |
+| 设置 `settings` | `18_settings_main.jpg`／同名 | 四张走真实路由。手机显示设置列表，平板左侧 24 dp 选中态和右侧外观子页。卡片预览、搜索入口与参考仍有差异 |
+| 统计 `statistics` | `30_statistics.jpg`／同名 | 概览、条目、章节、追踪四组可见。数据为现有 Fake，卡片和标题间距与参考有差异 |
+| 分类 `categories` | `31_categories.jpg`／同名 | 参考图为空，矩阵展示已有分类。创建按钮、排序与可见性操作可辨 |
+| 下载队列 `download-queue` | `32_download_queue.jpg`／同名 | 两边均显示空队列。非空、失败环色及百分比通过现有 Fake 队列检查，数据装配沿用本轮前状态 |
+| 更新错误 `update-errors-placeholder` | `16_updates.jpg`／`15_updates.jpg` | 参考集无独立错误页，邻近画面为更新页。矩阵仍为占位，未验收独立错误列表 |
+| 关于／新功能 `about-placeholder` | `27_settings_about.jpg`／同名 | 四张为明示占位。参考的标志、版本及链接列表未验收 |
+| 次级工具 `secondary-tools` | `29_feed.jpg`／同名 | 矩阵为真实全局搜索，白皮书只提供相邻工具 Feed。可核对顶栏和搜索骨架，页面内容相异 |
+
+## 3. 9.5 的 30 条清单
+
+通过数 **11 → 26／30**。未覆盖全组合的条目按部分计，分子仅统计通过。数值以本轮测试、截图与实现检查为依据。
+
+| # | 检查项 | 改动前 | 改动后 | 依据 |
 | --- | --- | --- | --- | --- |
-| 引导 Onboarding | 07 对应小节 | `visual-onboarding-placeholder-*` | 页面未实现，占位 | 后续轮实现 |
-| 书架 Library | 同上 | `visual-library-*` | 已补空态颜文字；已读/未读 alpha、选中态、Coil 淡入仍缺 | P1-3 |
-| 浏览 Browse | 同上 | `visual-browse-*` | 已补 Feed / Migrate 两 tab 与 18+ 开关；行副标题仍退化 | P1-4 / P2 |
-| 详情 Detail | 同上 | `visual-detail-*` | 左栏已 450dp 封顶；顶栏不沉浸、无封面取色、缺 Suggestions | P1-1 |
-| 阅读器 Reader | 同上 | `visual-reader-*` | M3 Slider 页码条、默认背景 AUTOMATIC、未隐藏系统栏 | P1-2（含禁改区） |
-| 历史 History | 同上 | `visual-history-*` | 封面已 63×94；多余行内动作、阅读时间、未读点未处理 | P1-5 |
-| 更新 Updates | 同上 | `visual-updates-*` | 结构对齐，筛选/日历禁用 | P2 |
-| 更多 More | 同上 | `visual-more-*` | 6 行已可点接路由/占位；开关反馈仍为页内状态 | P1-6 |
-| 设置 Settings | 同上 | `visual-settings-placeholder-*` | **矩阵仍渲染占位**，但真实设置页已接线到 More | 下一轮把矩阵用例换成真实 `SettingsRoute` |
-| 统计 Statistics | 同上 | `visual-statistics-*` | 四卡结构对齐，数据为 Fake（不在本轮修） | 数据接线 |
-| 分类 Categories | 同上 | `visual-categories-*` | 56dp 行/拖拽/对话框齐 | P2 |
-| 下载队列 | 同上 | `visual-download-queue-*` | 骨架在但数据 Fake，行形态与原版高密度行不同 | P2 |
-| 更新错误 | 同上 | `visual-update-errors-placeholder-*` | 占位页已可点可返回，独立数据页未接 | 后续轮 |
-| 关于 / 新功能 | 同上 | `visual-about-placeholder-*` | 占位页 | 后续轮 |
-| 次级工具页 | 同上 | `visual-secondary-tools-*` | 仓库管理 / 扩展详情有 | P0-4 已补工具占位 |
-
-## 3. 9.5 的 30 条清单：改动前 → 改动后
-
-结论：通过数由 **8 → 11**（新增 #07 / #17 / #27 在代码层达标），仍远低于目标 ≥26。代码层达标不等于截图人工核对完成，未达项逐条写理由。
-
-| # | 检查项 | 改动前 | 改动后 | 说明 |
-| --- | --- | --- | --- | --- |
-| 01 | 语义令牌 | 部分 | 部分 | 217 处硬编码 dp 未收拢，P2 |
-| 02 | 亮暗双模 | 通过 | 通过 | 扩展到 19 套静态主题，8 个单测覆盖 |
-| 03 | AMOLED 导航栏非纯黑 | 部分 | 部分 | 覆写机制与 `#0C0C0C` 单测已具备；导航栏消费待 P0-2 替换 |
-| 04 | 360dp 书架 2 列 | 通过 | 通过 | 未触及 |
-| 05 | 1280dp 书架 9 列 | 部分 | 部分 | 实测约 8 列，P1-3 |
-| 06 | 720dp 切侧栏 | 通过 | 通过 | 未触及 |
-| 07 | 左栏 450dp 封顶 | 未达标 | **通过** | `min(width/2, 450.dp)` 已落地；宽屏截图可复核 |
-| 08 | 平板弹层 460dp | 部分 | 部分 | `ReaderSheet` 组件已建，业务层未接 |
-| 09 | Tab fadeThrough | 通过 | 通过 | 未触及 |
-| 10 | 页面转场方向 | 部分 | 部分 | P0-2 |
-| 11 | 顶栏滚动渐显 | 未达标 | 部分 | `ReaderTopAppBar(scrollFraction)` 已建，详情页未接 |
-| 12 | 阅读器栏 200/150ms | 通过 | 通过 | 未触及 |
-| 13 | 未读/已读对比 | 未达标 | 未达标 | P1-3 |
-| 14 | 徽标 18dp | 通过 | 通过 | 未触及；`ReaderBadge` 已封装 |
-| 15 | 封面比例固定 | 通过 | 通过 | 未触及；`CoverAspect` 已封装 |
-| 16 | 选中态即时 | 部分 | 部分 | P1-3 |
-| 17 | 空状态 | 部分 | **通过** | 书架补颜文字，更新页原有；`EmptyScreen` 统一 |
-| 18 | 全局横幅顺序 | 未达标 | 未达标 | P1-6 未做 |
-| 19 | 返回优先关弹层 | 部分 | 部分 | P0-2 |
-| 20 | 触摸目标 ≥48dp | 部分 | 部分 | 新组件均满足，既有页面未全量核查 |
-| 21 | 图标可读标签 | 部分 | 部分 | 仍有 11 处 `contentDescription = null`，P2 |
-| 22 | 长按 Tooltip | 未达标 | 未达标 | P2 |
-| 23 | RTL 控件 | 部分 | 部分 | P2 |
-| 24 | 图片 300ms 交叉淡入 | 未达标 | 未达标 | Coil 已挂载，Fetcher 未接（P1-3） |
-| 25 | 下载进度可读 | 未达标 | 未达标 | P2 |
-| 26 | 多选数量正确 | 通过 | 通过 | 未触及 |
-| 27 | 平板设置选中态 | 未达标 | **通过** | `SettingsScreen` 双栏 + 24dp 圆角 + surfaceVariant |
-| 28 | 主题切换无残留 | 未达标 | 部分 | `ThemeSelection` 契约 + `VisualTheme` 入口 + 设置页 UI，未接生产偏好 |
-| 29 | 字体缩放 200% | 部分 | 部分 | P2 |
-| 30 | 性能 | 部分 | 部分 | P2 |
+| 01 | 语义令牌 | 部分 | 通过 | 业务源码没有 `Color(0x…)`，阅读背景及大部分布局尺寸使用令牌。阅读设置弹层仍有一处 20 dp 内边距 |
+| 02 | 亮暗可用和文字对比 | 通过 | 部分 | 四态通过，深色前景继承已修。未全量测量 4.5∶1，且已读和禁用使用规格要求的低透明度 |
+| 03 | AMOLED 导航栏分层 | 部分 | 通过 | 200% 字号外观 UI 用例切至 AMOLED，采样底栏 `#0C0C0C`。导航轨消费同一容器角色 |
+| 04 | 360 dp 书架 2 列 | 通过 | 通过 | 窄屏截图 2 列，卡宽 170 dp，紧凑标题最多两行 |
+| 05 | 1280 dp 书架 9 列 | 部分 | 通过 | 宽屏截图两色均为 9 列。80 dp 导航轨之后的卡宽为 128 dp |
+| 06 | 720 dp 导航断点 | 通过 | 通过 | 719／720 dp 窗口回归及窄底栏、宽导航轨截图 |
+| 07 | 详情左栏上限 | 通过 | 通过 | 详情 UI 用例实测 450 dp，1280 dp 矩阵可见双栏 |
+| 08 | 平板弹层 | 部分 | 通过 | 桌面离屏实测书架所用弹层居中、宽 460 dp、点击遮罩关闭，圆角取 28 dp 令牌 |
+| 09 | 标签顺序淡出淡入 | 通过 | 通过 | 将全局标签转场总时长校正为 200 ms，导航交互回归绿 |
+| 10 | 子页转场方向 | 部分 | 通过 | 前进、返回、预测返回分别配置方向；详情、阅读器与设置往返 UI 回归绿 |
+| 11 | 滚动顶栏渐显 | 部分 | 通过 | 补图与像素断言验证首屏透明及滚动后表面变色，顶栏抬升至 3 dp |
+| 12 | 阅读器栏 200／150 ms | 通过 | 通过 | 保留滑入滑出 200 ms、淡入淡出 150 ms，控制栏用例绿 |
+| 13 | 未读与已读 | 未达 | 通过 | 网格和列表分别使用标题 100%／38%、副标题 78%／38%，截图可辨两态 |
+| 14 | 18 dp 徽标 | 通过 | 通过 | 书架徽标保留 18 dp，宽窄夹具均可见且封面仍为固定比例 |
+| 15 | 封面比例固定 | 通过 | 通过 | 2∶3 封面约束套在占位和 Coil 帧外。失败占位与成功图片用例绿 |
+| 16 | 即时选中 | 部分 | 通过 | 封面直接使用 0.76 alpha 及 secondary 描边，书架多选回归绿 |
+| 17 | 空状态 | 通过 | 通过 | 共用颜文字、说明和动作槽，下载、更新、浏览和书架空态回归绿 |
+| 18 | 全局横幅顺序 | 未达 | 通过 | UI 用例按三条横幅纵向坐标核对顺序，切页保持两个 Fake 开关 |
+| 19 | 返回优先关闭弹层 | 部分 | 部分 | 阅读器先清当前弹层状态。书架遮罩能关闭弹层，但桌面离屏 Escape 未触发关闭，原生桌面和 Android 返回动作未确认 |
+| 20 | 48 dp 命中区 | 部分 | 通过 | 图标按钮使用 48 dp 布局，下调到 28 dp 的书架图案保留 48×48 dp 命中，继续按钮有 UI 尺寸断言 |
+| 21 | 图标标签 | 部分 | 通过 | 独立图标按钮、分类排序和开关提供标签。伴随文字的图标由装饰组件绘制，交互名称来自可见文字 |
+| 22 | 长按 Tooltip | 未达 | 通过 | 通用图标与书架继续按钮接入同一 Tooltip，桌面离屏长按探针成功显示标签 |
+| 23 | RTL 阅读器控件 | 部分 | 通过 | 控件容器强制 LTR，显式右到左阅读模式单独控制滑杆方向，阅读器回归绿 |
+| 24 | 图片 300 ms 交叉淡入 | 未达 | 通过 | Coil 请求为 300 ms，成功与失败夹具均出图，命中共用按源字节缓存 |
+| 25 | 可读的下载进度 | 未达 | 通过 | 下载 UI 用例验证 30% 与 16%，失败行圆环、数值和状态使用 error |
+| 26 | 多选数量正确 | 通过 | 通过 | 书架与历史多选回归保留 |
+| 27 | 平板设置选中态 | 通过 | 通过 | 宽屏浅／深截图可见 24 dp 圆角和 surfaceVariant 选中行 |
+| 28 | 主题切换无残留 | 部分 | 通过 | 同一设置会话驱动应用主题，UI 用例切主题和自定义种子后保留设置子页，导航栏即时更新 |
+| 29 | 字号缩放到 200% | 部分 | 部分 | 外观设置实测 200%；高字号下选项值换行。未逐页逐语种检查所有长文本 |
+| 30 | 长列表与转场性能 | 部分 | 部分 | 封面按可见项加载，网格保留稳定键和现有近屏预取。详情章节仍整体排布，未采集设备帧耗时 |
 
 ## 4. 截图与复现命令
 
-截图目录：`build/visual-parity/`（60 张 PNG，不入库）。对照键见 `VisualMatrixCatalog.kt`；白皮书截图在 `docs/design-whitepaper/assets/phone|tablet/`。
+矩阵 PNG 在 `build/visual-parity/`，详情补图在 `build/visual-parity/detail-evidence/`。图片为本地构建产物。矩阵仅统计目录顶层的 `visual-*.png`。
 
 ```bash
 export JAVA_HOME="$HOME/devtools/jdk-21"
-cd .zcode/worktrees/visual-parity
 
-# 主题单测（8 用例）
-./gradlew --offline :shared:design-system:jvmTest
+./gradlew --offline --console=plain :shared:app:jvmTest --tests '*VisualParityMatrixTest*' \
+  -PreaderScreenshotDir="$PWD/build/visual-parity" -PveneraReferenceDir="$PWD/reference/Venera-Next"
 
-# 60 张视觉矩阵 + golden-diff
-./gradlew --offline :shared:app:jvmTest --tests '*VisualParityMatrixTest*' \
-  -PreaderScreenshotDir="$PWD/build/visual-parity" \
-  -PveneraReferenceDir="$PWD/reference/Venera-Next"
+./gradlew --offline --console=plain :shared:app:jvmTest --tests '*AppShellDetailUiTest*' \
+  -PreaderScreenshotDir="$PWD/build/visual-parity" -PveneraReferenceDir="$PWD/reference/Venera-Next"
 
-# 全量门（连续两遍，第二遍 --rerun-tasks）
-./gradlew --offline :shared:domain:jvmTest :shared:features:jvmTest :shared:data:jvmTest \
-  :shared:source-runtime:jvmTest :shared:app:jvmTest \
-  -PveneraReferenceDir="$PWD/reference/Venera-Next" \
+./gradlew --offline --console=plain :shared:domain:jvmTest :shared:features:jvmTest :shared:data:jvmTest \
+  :shared:source-runtime:jvmTest :shared:app:jvmTest -PveneraReferenceDir="$PWD/reference/Venera-Next" \
   -PreaderScreenshotDir="$PWD/build/visual-parity"
-./gradlew --offline --rerun-tasks :shared:domain:jvmTest :shared:features:jvmTest :shared:data:jvmTest \
-  :shared:source-runtime:jvmTest :shared:app:jvmTest \
-  -PveneraReferenceDir="$PWD/reference/Venera-Next" \
-  -PreaderScreenshotDir="$PWD/build/visual-parity"
+./gradlew --offline --console=plain --rerun-tasks :shared:domain:jvmTest :shared:features:jvmTest \
+  :shared:data:jvmTest :shared:source-runtime:jvmTest :shared:app:jvmTest \
+  -PveneraReferenceDir="$PWD/reference/Venera-Next" -PreaderScreenshotDir="$PWD/build/visual-parity"
 
-# 三端构建
-./gradlew --offline --continue :apps:android:assembleDebug :apps:desktop:classes \
+./gradlew --offline --console=plain --continue :apps:android:assembleDebug :apps:desktop:classes \
   :shared:app:linkDebugFrameworkIosSimulatorArm64
 ```
 
-**golden-diff 机制与阈值**：不依赖像素基线文件（跨平台字体 / 抗锯齿必然有差异），改为对每张 `ImageBitmap` 做结构与颜色断言：画布尺寸相等；像素不透明度；6 个采样点与主题背景色差 ≤12；非背景像素比例 > 1%（容差 ±6）；窄屏底栏 / 宽屏 rail 区块非背景内容 > 1%。阈值偏低是为了只拦截「全空白 / 未渲染 / 主题没生效」这类失败，不冒充逐像素比对；逐像素一致性仍按 `docs/verification.md` 由人工与白皮书截图核对。
+Golden-diff 继续检查画布精确尺寸、至少 95% 不透明像素、6 个采样点逐通道误差 ≤12、非背景比例 >1%（容差 ±6）以及底栏／导航轨区域内容比例 >1%。阅读器的黑底与暗色控制栏使用该页面自己的预期色板，其余页面沿用原色板。
 
-**最终验证结果（全部通过）**
+- 全量 JVM 门连续两遍退出码 0，首遍 3 分 46 秒，第二遍带 `--rerun-tasks` 用时 4 分 06 秒。第二遍记录 668 个用例，657 通过，11 个沿用条件跳过的社区源用例，0 失败。模块计数为 domain 13、features 101、data 131、source-runtime 65、app 358。设计系统另有 8 个 JVM 用例通过。
+- Android Debug APK、桌面 JVM classes、iOS arm64 模拟器 framework 均构建成功，合计 1 分 40 秒，退出码 0。未做 Android 或 iOS 真机验收。
+- 最终矩阵 60 张，30 张 360×800、30 张 1280×800。15 个键各四张均通过 golden-diff 并逐页人工核对。详情另有静态、种子色和滚动后顶栏三张补图。
+- 桌面离屏补测确认宽屏弹层居中且宽 460 dp，点遮罩可关闭，长按图标会显示 Tooltip。Escape 未使弹层关闭。隔离配置的桌面应用已启动，电脑控制工具无法绑定 Java 窗口，原生 Escape 结果未确认。
+- `rg -n '^import androidx.compose.material3' shared/features shared/app` 匹配数为零。版本目录、禁改模块及参考目录在本轮提交中无变更。
 
-- `:shared:design-system:jvmTest`：8 个主题用例全绿。
-- 60 张视觉矩阵 + golden-diff：`BUILD SUCCESSFUL`（1m15s），`build/visual-parity/` 实测 60 张 PNG。
-- 全量门连续两遍：第一遍 4m05s、第二遍 `--rerun-tasks`，合计 7m49s，`BOTH GATES GREEN`。
-- 三端构建：1m56s，`BUILD SUCCESSFUL`（`apps:android:assembleDebug` / `apps:desktop:classes` / `shared:app:linkDebugFrameworkIosSimulatorArm64`）。
-- 仅有 Skiko 版本不一致与 deprecated `Slider` 重载警告，无编译错误、无测试失败。
+## 5. 未完成项与范围边界
 
-## 5. 未完成项、风险、需裁决 / 接线项
-
-**DoD 逐项**
-
-| # | 要求 | 状态 |
-| --- | --- | --- |
-| 1 | 全量门连续两遍全绿 | **通过**（7m49s，两遍 BUILD SUCCESSFUL） |
-| 2 | 三端构建 EXIT 0 | **通过**（1m56s，BUILD SUCCESSFUL） |
-| 3 | 15 页 × 4 态矩阵 + 对照表 + golden-diff | **达成**（60 张 + 对照表 + 全图断言；设置页矩阵仍为占位） |
-| 4 | 9.5 清单 ≥26 通过 | **未达**（11 / 30） |
-| 5 | 依赖白名单 + 不升降版本 | 部分：版本未动、只引入 4 坐标；material3 import 白名单未通过（186 处） |
-| 6 | 图标 contentDescription + 48dp 触摸目标 | 部分：新组件满足，既有 11 处 `null` 未修、既有页未全量核查 |
-| 7 | 提交规范 | 达成（按内聚分组，无阶段编号） |
-| 8 | 报告覆盖写 | 本文件 |
-
-**未完成项**：P0-2 业务层替换与白名单、P1-1 详情沉浸化与封面取色接线、P1-2 阅读器 chrome 与系统栏、P1-3 书架细节、P1-5 历史细节、P1-6 全局横幅、全部 P2 细节层、P3 的 30 条自查。
-
-**风险与登记**
-
-1. `coil 3.6.3` / `zoomimage 1.7.0` 依赖 `skiko 0.150.1`，CMP 1.13.0-beta02 用 `0.156.1`，Gradle 报版本不一致警告。任务书禁止升降版本，未做处理；需真机 / 桌面运行时验证。
-2. 组件层 `ReaderSlider` 与设置页 `SettingsSliderRow` 使用已废弃的 `Slider(value, onValueChange, ...)` 重载（与既有 `ReaderChrome` / `VerticalPageSlider` 一致），仅警告、不影响构建。
-3. 开发期排障记录：Kotlin 块注释嵌套（注释里写了 `colorscheme/*.kt`）、`useDarkTheme` 参数名应为 `isDark`、缺 `ExperimentalMaterial3ExpressiveApi` opt-in、`ColorScheme` 无值语义 equals（改为逐角色断言）、`androidx.compose.foundation.layout.weight` 是 internal 不能 import、`Column.() -> Unit` 应为 `ColumnScope.() -> Unit`、CMP commonMain 无 `WindowInsets.statusBars`（改用 `safeDrawing.only(Top)`）。均已修复。
-4. 任务书要求的 60 张截图矩阵与逐页对照表，与 `docs/verification.md`「视觉核对按需、不留档案」口径不一致。按任务书执行，产物限定 `build/` 且不入库，仅报告入库；请主 agent 确认是否调整仓库验收口径。
-5. 视觉矩阵使 `:shared:app:jvmTest` 每次多渲染 60 张图（约 1 分钟），`--rerun-tasks` 第二遍同样重跑，全量门耗时上升。
-6. 设置页矩阵用例仍是占位图，而真实设置页已可经 More 进入；下一轮应把该用例改为 `SettingsRoute` 渲染后再做逐页对照。
-7. Android 系统 Monet（`dynamicLightColorScheme` / `WallpaperManager`）为平台专有，本轮未实现；封面取色走 `QuantizerCelebi + Score` 等价路径。
-8. `ThemeSelection` / 设置偏好是设计系统契约 + features Fake，主题偏好不会跨页面 / 跨进程生效。
-
-**需主 agent 裁决 / 接线（涉及禁改区或行为契约，本轮未越界）**
-
-- P0-2 业务层 186 处 material3 import 替换（工作量大，需逐页回归）；
-- 阅读器默认背景改 Black 的默认值在 `shared/domain/.../ReaderPreferences.kt`（禁改区）；Android 系统栏隐藏需改 `apps/android`（禁改区）；
-- 主题偏好生产桥接（features 契约 + Fake → 生产适配）；
-- 封面取色接入现有 `LocalCoverImageLoader` 字节管线（不得绕过按源会话直连 URL）；
-- Android 平台 Monet 取色的 `expect/actual` 实现；
-- 真机 / 模拟器视觉验收与 Skiko 版本警告的运行时确认。
+- 本轮核对 15 个目录键。引导、独立更新错误和关于／新功能仍占位，因此其中 12 个键为真实页面。订阅、迁移、统计和下载的数据接线沿用原装配，详情推荐区显示空态。
+- 共享应用层为加载阶段及没有注入阅读偏好的入口启用黑底。注入原生产偏好时，应用仍遵从存储中的 Automatic 或用户选择。默认值修改涉及本轮禁改的域层。
+- Android 系统栏控制位于 `shared/app`，已通过 Android 编译和打包。真机入场与退出手势待复核。书签位已显示，书签动作与存储待接入。
+- 外观主题通过内存 Fake 跨页面生效。生产偏好持久化、Android Monet 和 ZoomImage 替换留待对应范围。Skiko 依赖兼容性警告仍存在。
+- 历史行的收藏和删除改从行菜单进入，持久化断言仍沿用。未读点由现有书架快照提供，缺少可用状态时保持空白。
+- 粗体通过数以第 3 节为准。开发期曾重现详情取色时点击丢失和新增外观用例定位失败，已修正后重跑。
 
 ## 6. 下一轮建议
 
-1. **P0-2 收口**：逐页把裸 M3 换成 `components/` 包装，执行 material3 import 白名单检查（仅剩 design-system），这是 30 条里 #03 / #08 / #10 / #11 / #19 / #28 的前置。
-2. **P1-1 / P1-2**：详情页接 `VisualTheme(seedColor)`、透明顶栏滚动渐显、Suggestions；阅读器页码药丸滑杆、书签位、默认背景（需裁决 domain）、系统栏隐藏（需裁决 apps）。
-3. **P1-3 / P1-5 / P1-6**：书架已读/未读 alpha + 选中态 + Coil 300ms 淡入；历史行精简与未读点；全局横幅顺序与 More 开关反馈。
-4. **P0-3 修正**：把设置页矩阵用例换成真实 `SettingsRoute`，并把人工逐页比对结论补进对照表。
-5. **P2 / P3**：无障碍 11 处 `contentDescription`、48dp 复核、长按 Tooltip、217 处硬编码 dp 收进 `DesignTokens`、双语化，最后按 9.5 逐条自查冲 ≥26 通过。
+1. 实现引导、独立更新错误和关于／新功能，替换三个占位键。补齐详情推荐来源和次级工具同页对照物。
+2. 复核桌面 Escape、Android 返回与沉浸栏的实际手势，再覆盖 200% 字号长文本和长列表帧耗时。
+3. 在偏好数据工作范围内，确认新阅读配置黑底默认及旧配置 Automatic 的兼容语义，再接主题持久化。
