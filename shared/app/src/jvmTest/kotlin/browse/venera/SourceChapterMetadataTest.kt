@@ -12,6 +12,7 @@ class SourceChapterMetadataTest {
         val fixture = VeneraHarness()
         try {
             fixture.service.open()
+            fixture.service.restore()
             fixture.service.installFromContent("flat.js", source("flat", """{a: "One", b: "Two"}"""))
             fixture.service.installFromContent("grouped.js", source("grouped",
                 """{volume1: {a: "One"}, volume2: {b: "Two"}}"""))

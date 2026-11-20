@@ -74,7 +74,6 @@ class SourceBrowseService internal constructor(
         val callbacks = live.registeredSources().firstOrNull { it.key == key }?.callbacks
             ?: throw ExtensionFailure.MissingExtension(key)
         val (callback, position) = if (VeneraCallback.Search in callbacks) {
-            require(next == null) { "Numbered search does not accept a cursor" }
             VeneraCallback.Search to JsonPrimitive(positivePage(page))
         } else {
             positivePage(page)
