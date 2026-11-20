@@ -16,13 +16,12 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -41,7 +40,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -97,14 +95,6 @@ const val ReaderChromeVerticalSliderTag = "reader-chrome-vertical-slider"
 const val ReaderChromePageJumpDialogTag = "reader-chrome-page-jump"
 const val ReaderChromePageInputTag = "reader-chrome-page-input"
 const val ReaderChromePageGoTag = "reader-chrome-page-go"
-
-/**
- * Length of the vertical strip slider (layout width before the 90-degree rotation turns it
- * upright). The rail itself is 64dp wide; the bar does not clip so the rotated slider overflows
- * symmetrically and lands centered.
- */
-private const val VERTICAL_SLIDER_LENGTH_DP = 280
-private const val VERTICAL_SLIDER_RAIL_DP = 64
 
 /**
  * Top/bottom reader chrome: back, titles, 1-based page indicator, prev/next chapter, chapter
@@ -377,18 +367,13 @@ fun ReaderChrome(
             exit = fadeOut(animationSpec = tween(DesignTokens.Motion.ReaderBarsFadeMs)),
             modifier = Modifier.align(Alignment.CenterEnd),
         ) {
-            Box(
-                modifier = Modifier
-                    .width(VERTICAL_SLIDER_RAIL_DP.dp)
-                    .height((VERTICAL_SLIDER_LENGTH_DP + 20).dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                VerticalPageSlider(
-                    pageIndex = state.pageIndex,
-                    pageCount = state.pageCount,
-                    onJump = { onAction(ReaderChromeAction.JumpToPage(it)) },
-                )
-            }
+            // 自适应竖向轨（原版 ChapterNavigator）：整条高度随画布，宽度由内容决定。
+            VerticalPageSlider(
+                pageIndex = state.pageIndex,
+                pageCount = state.pageCount,
+                onJump = { onAction(ReaderChromeAction.JumpToPage(it)) },
+                modifier = Modifier.fillMaxHeight(),
+            )
         }
 
     when (state.dialog) {
@@ -541,40 +526,6 @@ private fun pageRangeLabel(pageIndex: Int, spreadEnd: Int?, pageCount: Int): Str
             pageCount,
         )
     }
-
-/**
- * Vertical strip slider for WEBTOON/CONTINUOUS_VERTICAL (Komikku NavBarType.VerticalLeft/Right).
- *
- * A stock horizontal slider rotated 90 degrees clockwise: the minimum end lands at the top and
- * the maximum at the bottom, so dragging down advances pages like a scrollbar. Touch handling
- * rotates with the layer, no custom gesture math involved.
- */
-@Composable
-private fun VerticalPageSlider(
-    pageIndex: Int,
-    pageCount: Int,
-    onJump: (Int) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    var preview by remember(pageIndex, pageCount) { mutableStateOf(pageIndex) }
-    val haptic = LocalHapticFeedback.current
-    Slider(
-        value = (preview + 1).toFloat(),
-        onValueChange = {
-            preview = (it.toInt() - 1).coerceIn(0, pageCount - 1)
-            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-        },
-        onValueChangeFinished = {
-            if (preview != pageIndex) onJump(preview)
-        },
-        valueRange = 1f..pageCount.toFloat(),
-        steps = (pageCount - 2).coerceAtLeast(0),
-        modifier = modifier
-            .requiredWidth(VERTICAL_SLIDER_LENGTH_DP.dp)
-            .graphicsLayer { rotationZ = 90f }
-            .testTag(ReaderChromeVerticalSliderTag),
-    )
-}
 
 /** Page-number jump dialog with range validation; invalid input never emits. */
 @Composable

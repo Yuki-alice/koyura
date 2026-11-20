@@ -1,5 +1,8 @@
 package app.koyura.features.statistics
 
+import androidx.compose.ui.semantics.SemanticsNode
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -16,6 +19,7 @@ import app.koyura.features.statistics.StatisticsSession
 import app.koyura.features.statistics.statisticsMetricTag
 import app.koyura.features.statistics.statisticsSectionTag
 import kotlin.test.Test
+import kotlin.test.assertTrue
 
 /**
  * 统计页结构回归：四张卡片、三列数值、格式串与失败重试。
@@ -35,11 +39,15 @@ class StatisticsUiTest {
         listOf("overview", "entries", "chapters", "trackers").forEach { section ->
             onNodeWithTag(statisticsSectionTag(section)).performScrollTo().assertIsDisplayed()
         }
-        // 数值列与格式串：阅读时长按 4m 13s 呈现，平均分缺省为 N/A。
+        // 数值列与格式串：阅读时长按 4m 13s 呈现，平均分缺省值非空（精确格式由
+        // commonTest 按语言无关默认值断言，此处只断渲染与非空）。
         onNodeWithTag(statisticsMetricTag("overview", "readDuration")).assertIsDisplayed()
         onNodeWithText("4m 13s").assertIsDisplayed()
-        onNodeWithTag(statisticsMetricTag("trackers", "meanScore")).performScrollTo()
-        onNodeWithText("N/A").assertIsDisplayed()
+        val meanScoreTexts = onNodeWithTag(statisticsMetricTag("trackers", "meanScore"))
+            .performScrollTo()
+            .fetchSemanticsNode()
+            .allTexts()
+        assertTrue(meanScoreTexts.any { it.isNotBlank() })
     }
 
     @Test
@@ -60,4 +68,9 @@ class StatisticsUiTest {
 
         onNodeWithTag(statisticsSectionTag("overview")).assertIsDisplayed()
     }
+}
+
+private fun SemanticsNode.allTexts(): List<String> {
+    val own = config.getOrNull(SemanticsProperties.Text)?.map { it.text }.orEmpty()
+    return own + children.flatMap { it.allTexts() }
 }

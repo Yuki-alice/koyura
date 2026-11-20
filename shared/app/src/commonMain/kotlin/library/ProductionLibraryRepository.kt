@@ -19,6 +19,8 @@ import app.koyura.features.library.LibraryKind
 import app.koyura.features.library.LibraryPrefs
 import app.koyura.features.library.LibraryRepository as FeaturesLibraryRepository
 import app.koyura.features.library.LibraryRepositoryException
+import app.koyura.features.library.ReadButtonEnd
+import app.koyura.features.library.ReadButtonStart
 import app.koyura.features.library.LibrarySnapshot
 import app.koyura.features.library.LibrarySortType
 import app.koyura.features.library.LibraryTriState
@@ -240,6 +242,7 @@ class ProductionLibraryRepository(
         store.setPref(LibraryPrefsKeys.SHOW_CATEGORY_LABELS, serialized.showCategoryLabels)
         store.setPref(LibraryPrefsKeys.SHOW_HIDDEN_CATEGORIES, serialized.showHiddenCategories)
         store.setPref(LibraryPrefsKeys.SHOW_WORK_COUNT, serialized.showWorkCount)
+        store.setPref(ReadButtonPositionKey, serialized.readButtonPosition)
         load()
     }
 
@@ -327,9 +330,13 @@ internal data class SerializedPrefs(
     val showCategoryLabels: String,
     val showHiddenCategories: String,
     val showWorkCount: String,
+    val readButtonPosition: String,
 )
 
-/** 落盘格式（`library_prefs` 十一键）：filter 为六个三态 ordinal 逗号分隔，sort 为 `TYPE,asc,seed`，七开关为 `true/false`。列数键已退役：老库残留键不再读写，无害。 */
+/** Komikku `reading_button_position` 键：详情 FAB 吸附侧，应用层自有键（domain 未定义）。 */
+internal const val ReadButtonPositionKey = "reading_button_position"
+
+/** 落盘格式（`library_prefs` 十二键）：filter 为六个三态 ordinal 逗号分隔，sort 为 `TYPE,asc,seed`，七开关为 `true/false`，继续阅读钮位置为 `Start`/`End`。列数键已退役：老库残留键不再读写，无害。 */
 internal fun serializePrefs(prefs: LibraryPrefs): SerializedPrefs = SerializedPrefs(
     mode = prefs.displayMode.serialize(),
     filters = listOf(
@@ -349,6 +356,7 @@ internal fun serializePrefs(prefs: LibraryPrefs): SerializedPrefs = SerializedPr
     showCategoryLabels = prefs.showCategoryLabels.toString(),
     showHiddenCategories = prefs.showHiddenCategories.toString(),
     showWorkCount = prefs.showWorkCount.toString(),
+    readButtonPosition = prefs.readButtonPosition,
 )
 
 internal suspend fun parsePrefs(get: suspend (String) -> String?): LibraryPrefs {
@@ -379,6 +387,8 @@ internal suspend fun parsePrefs(get: suspend (String) -> String?): LibraryPrefs 
         showCategoryLabels = bool(LibraryPrefsKeys.SHOW_CATEGORY_LABELS, true),
         showHiddenCategories = bool(LibraryPrefsKeys.SHOW_HIDDEN_CATEGORIES, false),
         showWorkCount = bool(LibraryPrefsKeys.SHOW_WORK_COUNT, true),
+        // 只认 Start/End，其余回缺省（Komikku 存 FabPosition 字符串同理）。
+        readButtonPosition = get(ReadButtonPositionKey)?.takeIf { it == ReadButtonStart || it == ReadButtonEnd } ?: ReadButtonEnd,
     )
 }
 

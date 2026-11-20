@@ -19,5 +19,7 @@
     <string name="statistics_used">Used</string>
     <string name="statistics_refresh">Refresh</string>
     <string name="statistics_load_failed">Could not load statistics: %1$s</string>
+    <string name="statistics_none">None</string>
+    <string name="statistics_not_applicable">N/A</string>
     <string name="statistics_retry">Retry</string>
 </resources>

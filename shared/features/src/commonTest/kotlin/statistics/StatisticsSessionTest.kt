@@ -20,7 +20,7 @@ class StatisticsSessionTest {
         assertEquals(StatisticsLoadState.Ready, session.loadState)
         assertEquals(3, session.snapshot.overview.inLibrary)
         assertEquals(9, session.snapshot.chapters.total)
-        assertEquals(null, session.snapshot.trackers.meanScore)
+        assertTrue(session.snapshot.trackers.meanScore.isNaN())
         assertEquals(1, repository.loadCount)
     }
 
@@ -44,12 +44,18 @@ class StatisticsSessionTest {
 
     @Test
     fun readDurationAndMeanScoreFormatting() {
-        assertEquals("0s", formatReadDuration(0))
-        assertEquals("13s", formatReadDuration(13))
-        assertEquals("4m 13s", formatReadDuration(4 * 60 + 13))
-        assertEquals("1h 2m", formatReadDuration(3600 + 2 * 60 + 5))
-        assertEquals("N/A", formatMeanScore(null))
-        assertEquals("7.8", formatMeanScore(7.84))
-        assertTrue(formatReadDuration(-5) == "0s")
+        // 原版 DateUtils 短单位语义（毫秒入参；零值回 fallback）。
+        assertEquals("None", formatReadDuration(0))
+        assertEquals("13s", formatReadDuration(13_000))
+        assertEquals("4m 13s", formatReadDuration((4 * 60 + 13) * 1000L))
+        assertEquals("1h 2m", formatReadDuration((3600 + 2 * 60 + 5) * 1000L))
+        assertEquals("1h", formatReadDuration(3600 * 1000L))
+        assertEquals("1d 1h", formatReadDuration((86400 + 3600) * 1000L))
+        assertEquals("无", formatReadDuration(-5, fallback = "无"))
+        // 原版 "%.2f ★" 英式两位小数；无追踪或 NaN 回 N/A。
+        assertEquals("N/A", formatMeanScore(Double.NaN, 0))
+        assertEquals("N/A", formatMeanScore(7.84, 0))
+        assertEquals("7.84 ★", formatMeanScore(7.84, 3))
+        assertEquals("8.50 ★", formatMeanScore(8.5, 1))
     }
 }

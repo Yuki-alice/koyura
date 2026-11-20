@@ -1,12 +1,15 @@
 package app.koyura.features.reader.comic.chrome
 
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.v2.runComposeUiTest
 import app.koyura.designsystem.ReaderTheme
 import app.koyura.domain.reader.preferences.ReaderBackground
 import app.koyura.domain.reader.preferences.ReaderSettings
+import app.koyura.domain.reader.preferences.ReaderTapZone
 import app.koyura.domain.reader.preferences.OverrideField
 import app.koyura.domain.reader.preferences.WorkReaderOverride
 import app.koyura.features.reader.comic.chrome.ReaderChromeAction
@@ -14,7 +17,6 @@ import app.koyura.features.reader.comic.chrome.ReaderChromeState
 import app.koyura.features.reader.comic.chrome.ReaderSettingsDialog
 import app.koyura.features.reader.comic.chrome.readerChromeGlobalOptionTag
 import app.koyura.features.reader.comic.chrome.readerChromeOverrideOptionTag
-import app.koyura.features.reader.comic.viewer.ComicTapZoneMode
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -26,8 +28,6 @@ class ReaderSettingsDialogTest {
     private fun state(
         global: ReaderSettings = ReaderSettings(),
         override: WorkReaderOverride? = null,
-        tapZone: ComicTapZoneMode = ComicTapZoneMode.DEFAULT,
-        invertTapZone: Boolean = false,
     ) = ReaderChromeState(
         workTitle = "星图",
         chapterId = "c1",
@@ -39,8 +39,6 @@ class ReaderSettingsDialogTest {
         hasNextChapter = false,
         global = global,
         override = override,
-        tapZone = tapZone,
-        invertTapZone = invertTapZone,
     )
 
     @Test
@@ -98,7 +96,7 @@ class ReaderSettingsDialogTest {
     }
 
     @Test
-    fun tapZoneChipEmitsSetTapZoneAndInvertToggle() = runComposeUiTest {
+    fun tapZoneWritesGlobalAndInvertToggle() = runComposeUiTest {
         val actions = mutableListOf<ReaderChromeAction>()
         setContent {
             ReaderTheme {
@@ -111,21 +109,60 @@ class ReaderSettingsDialogTest {
         }
         waitForIdle()
 
+        // 全局段：点击区分区改走整份替换写偏好链。
         onNodeWithTag(readerChromeGlobalOptionTag("tapZone", "KINDLE"))
             .performScrollTo()
             .performClick()
-        assertEquals(
-            ReaderChromeAction.SetTapZone(ComicTapZoneMode.KINDLE),
-            actions.filterIsInstance<ReaderChromeAction.SetTapZone>().single(),
-        )
+        val global = actions.filterIsInstance<ReaderChromeAction.ChangeGlobalSettings>().single()
+        assertEquals(ReaderTapZone.KINDLE, global.settings.tapZone)
+        assertEquals(ReaderSettings().mode, global.settings.mode)
 
         onNodeWithTag(readerChromeGlobalOptionTag("tapZoneInvert", "false"))
             .performScrollTo()
             .performClick()
-        assertEquals(
-            ReaderChromeAction.SetInvertTapZone(true),
-            actions.filterIsInstance<ReaderChromeAction.SetInvertTapZone>().single(),
-        )
+        val toggled = actions.filterIsInstance<ReaderChromeAction.ChangeGlobalSettings>().last()
+        assertTrue(toggled.settings.invertTapZone)
         assertTrue(actions.isNotEmpty())
+    }
+
+    @Test
+    fun tapZoneOverridePatchAndClear() = runComposeUiTest {
+        val actions = mutableListOf<ReaderChromeAction>()
+        setContent {
+            ReaderTheme {
+                ReaderSettingsDialog(
+                    state = state(
+                        global = ReaderSettings(tapZone = ReaderTapZone.DEFAULT),
+                        override = null,
+                    ),
+                    onAction = { actions += it },
+                    onDismiss = {},
+                )
+            }
+        }
+        waitForIdle()
+
+        // 覆盖段：设分区写字段补丁，「跟随全局」清回继承。
+        // 注：跟随全局 chip 与 DEFAULT 选项 chip 同 tag（沿用 InheritEnumRow 惯例），
+        // 用文本区分。
+        onNodeWithTag(readerChromeOverrideOptionTag("tapZone", "LEFT_RIGHT"))
+            .performScrollTo()
+            .performClick()
+        val set = actions.filterIsInstance<ReaderChromeAction.ChangeWorkOverride>().last()
+        assertEquals(OverrideField.Set(ReaderTapZone.LEFT_RIGHT), set.patch.tapZone)
+
+        // 覆盖段 tapZone 行：「跟随全局」chip 与 DEFAULT 选项 chip 同 tag
+        //（InheritEnumRow 惯例），按组合顺序取首个（跟随全局在前）。
+        onAllNodesWithTag(readerChromeOverrideOptionTag("tapZone", "DEFAULT"))[0]
+            .performScrollTo()
+            .performClick()
+        val clear = actions.filterIsInstance<ReaderChromeAction.ChangeWorkOverride>().last()
+        assertEquals(OverrideField.Clear, clear.patch.tapZone)
+
+        onNodeWithTag(readerChromeOverrideOptionTag("tapZoneInvert", "false"))
+            .performScrollTo()
+            .performClick()
+        val invert = actions.filterIsInstance<ReaderChromeAction.ChangeWorkOverride>().last()
+        assertEquals(OverrideField.Set(false), invert.patch.invertTapZone)
     }
 }

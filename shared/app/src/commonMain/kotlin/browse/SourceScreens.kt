@@ -9,13 +9,17 @@ import app.koyura.designsystem.ActionIcon
 import app.koyura.designsystem.ActionIconButton
 import app.koyura.designsystem.DesignTokens
 import app.koyura.designsystem.SearchField
+import app.koyura.features.library.ReadButtonEnd
+import app.koyura.features.library.ReadButtonStart
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -23,6 +27,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -36,6 +41,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SmallExtendedFloatingActionButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Text
@@ -45,6 +51,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -53,9 +61,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import kotlin.math.roundToInt
 import app.koyura.app.LocalReaderService
 import app.koyura.app.resources.Res
 import app.koyura.app.resources.browse_retry
@@ -356,6 +369,9 @@ fun SourceDetailScreen(
     }
     var selectedIds by remember(sourceKey, workId) { mutableStateOf(setOf<String>()) }
     var readStates by remember(sourceKey, workId) { mutableStateOf(mapOf<String, Boolean>()) }
+    // FAB 吸附侧：优先书架偏好（Komikku `reading_button_position`），拖动后本地覆盖即时生效。
+    var fabDragAtStart by rememberSaveable(sourceKey, workId) { mutableStateOf<Boolean?>(null) }
+    val fabAtStart = fabDragAtStart ?: library.snapshot.prefs.readButtonAtStart
 
     LaunchedEffect(sourceKey, workId, reloadTick) {
         loading = true
@@ -495,14 +511,12 @@ fun SourceDetailScreen(
                                         onContinue = {
                                             val saved = progress
                                             if (saved != null) {
-                                                onOpenChapter(saved.chapterId, chapterIds, chapterTitles)
+                                                val target = saved.chapterId?.takeIf { it in chapterIds }
+                                                    ?: chapterIds.firstOrNull()
+                                                onOpenChapter(target, chapterIds, chapterTitles)
                                             }
                                         },
-                                        readerService = readerService,
-                                        chapterIds = chapterIds,
-                                        chapterTitles = chapterTitles,
                                         progress = progress,
-                                        onOpenChapter = onOpenChapter,
                                     )
                                 }
                                 Column(modifier = Modifier.weight(0.58f).fillMaxSize()) {
@@ -574,14 +588,12 @@ fun SourceDetailScreen(
                                     onContinue = {
                                         val saved = progress
                                         if (saved != null) {
-                                            onOpenChapter(saved.chapterId, chapterIds, chapterTitles)
+                                            val target = saved.chapterId?.takeIf { it in chapterIds }
+                                                ?: chapterIds.firstOrNull()
+                                            onOpenChapter(target, chapterIds, chapterTitles)
                                         }
                                     },
-                                    readerService = readerService,
-                                    chapterIds = chapterIds,
-                                    chapterTitles = chapterTitles,
                                     progress = progress,
-                                    onOpenChapter = onOpenChapter,
                                 )
                                 DetailChapterList(
                                     chapters = loaded.chapters,
@@ -614,6 +626,48 @@ fun SourceDetailScreen(
                                     },
                                 )
                             }
+                        }
+                        // 继续阅读悬浮钮（Komikku MangaScreen.kt:532 FAB 语义）：
+                        // 有未读章节 + 非多选 + 阅读器已接线时出现；点击直达继续/首章，
+                        // 横向拖动松手按中心过半左右吸边并落盘（书架偏好）。
+                        val unreadExists = loaded.chapters.any { chapter ->
+                            !(readStates[chapter.id] ?: (progress?.chapterId == chapter.id))
+                        }
+                        // 无分章作品同样可开始阅读（bookless 源），与原内联钮行为一致。
+                        val canStart = loaded.chapters.isEmpty() || unreadExists
+                        if (readerService != null && selectedIds.isEmpty() && canStart) {
+                            val savedId = progress?.chapterId?.takeIf { it in chapterIds }
+                            val targetId = savedId ?: chapterIds.firstOrNull()
+                            DetailReadFab(
+                                atStart = fabAtStart,
+                                label = if (savedId != null) {
+                                    stringResource(
+                                        Res.string.reading_continue,
+                                        (progress?.pageIndex ?: 0) + 1,
+                                    )
+                                } else {
+                                    stringResource(Res.string.reading_start)
+                                },
+                                layoutWidthPx = with(LocalDensity.current) { maxWidth.toPx() },
+                                // 无分章作品以 null 章 id 进入阅读器（既有契约）。
+                                onOpen = {
+                                    onOpenChapter(targetId, chapterIds, chapterTitles)
+                                },
+                                onSnap = { start ->
+                                    fabDragAtStart = start
+                                    scope.launch {
+                                        library.updatePrefs {
+                                            it.copy(
+                                                readButtonPosition = if (start) {
+                                                    ReadButtonStart
+                                                } else {
+                                                    ReadButtonEnd
+                                                },
+                                            )
+                                        }
+                                    }
+                                },
+                            )
                         }
                     }
                 }
@@ -710,11 +764,7 @@ private fun DetailInfoColumn(
     onToggleLibrary: () -> Unit,
     canContinue: Boolean,
     onContinue: () -> Unit,
-    readerService: ReaderService?,
-    chapterIds: List<String>,
-    chapterTitles: List<String>,
     progress: app.koyura.domain.reader.ReaderProgress?,
-    onOpenChapter: (chapterId: String?, chapterIds: List<String>, chapterTitles: List<String>) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
     val title = detail.title.ifEmpty { fallbackTitle }
@@ -813,18 +863,6 @@ private fun DetailInfoColumn(
                 modifier = Modifier.align(Alignment.CenterHorizontally),
             )
         }
-    }
-    if (readerService != null) {
-        ReadingButtons(
-            progress = progress,
-            chapterIds = chapterIds,
-            chapterTitles = chapterTitles,
-            onStart = { ids, titles ->
-                onOpenChapter(ids.firstOrNull(), ids, titles)
-            },
-            onContinue = { chapterId, ids, titles -> onOpenChapter(chapterId, ids, titles) },
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-        )
     }
     if (detail.tags.isNotEmpty()) {
         Text(
@@ -1063,38 +1101,59 @@ private fun formatChapterDate(millis: Long): String = try {
     millis.toString()
 }
 
+/** 详情页继续阅读悬浮钮的测试锚点（Komikku MangaScreen.kt:532 一带）。 */
+internal const val DetailFabTag = "detail-fab"
+
 /**
- * Start/continue actions driven by the saved progress. Shown only when a reader service is wired;
- * without one the detail page stays a plain info screen.
+ * 左右吸边判定（Komikku 手势结尾规则）：FAB 中心过半即吸附右侧。
+ * 纯函数，单测直接断言。
+ */
+internal fun snapFabToStart(fabCenterX: Float, layoutWidth: Float): Boolean =
+    fabCenterX < layoutWidth / 2f
+
+/**
+ * 详情页继续阅读悬浮钮：SmallExtendedFAB + Play 图标 + Start/Resume 文案。
+ *
+ * 横向拖动松手后按中心位置左右吸边（[snapFabToStart]），吸附结果由调用方
+ * 持久化到书架偏好（`reading_button_position`）；点击直达继续/首章。
  */
 @Composable
-private fun ReadingButtons(
-    progress: app.koyura.domain.reader.ReaderProgress?,
-    chapterIds: List<String>,
-    chapterTitles: List<String>,
-    onStart: (chapterIds: List<String>, chapterTitles: List<String>) -> Unit,
-    onContinue: (chapterId: String?, chapterIds: List<String>, chapterTitles: List<String>) -> Unit,
-    modifier: Modifier = Modifier,
+private fun BoxScope.DetailReadFab(
+    atStart: Boolean,
+    label: String,
+    layoutWidthPx: Float,
+    onOpen: () -> Unit,
+    onSnap: (Boolean) -> Unit,
 ) {
-    androidx.compose.foundation.layout.Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Button(
-            onClick = { onStart(chapterIds, chapterTitles) },
-            modifier = Modifier.testTag("reading-start"),
-        ) {
-            Text(stringResource(Res.string.reading_start))
-        }
-        val saved = progress
-        if (saved != null && (saved.chapterId == null || saved.chapterId in chapterIds)) {
-            val label = stringResource(Res.string.reading_continue, saved.pageIndex + 1)
-            Button(
-                onClick = { onContinue(saved.chapterId, chapterIds, chapterTitles) },
-                modifier = Modifier.testTag("reading-continue"),
-            ) {
-                Text(label)
+    var offsetX by remember { mutableFloatStateOf(0f) }
+    var fabWidth by remember { mutableIntStateOf(0) }
+    SmallExtendedFloatingActionButton(
+        text = { Text(label) },
+        icon = { ActionIcon(ActionIcon.Play, null) },
+        onClick = onOpen,
+        modifier = Modifier
+            .align(if (atStart) Alignment.BottomStart else Alignment.BottomEnd)
+            .padding(DesignTokens.Spacing.Medium)
+            .offset { IntOffset(offsetX.roundToInt(), 0) }
+            .onGloballyPositioned { coordinates ->
+                fabWidth = coordinates.size.width
             }
-        }
-    }
+            .pointerInput(atStart, layoutWidthPx) {
+                detectHorizontalDragGestures(
+                    onDragEnd = {
+                        val leftEdge = if (atStart) 0f else layoutWidthPx - fabWidth
+                        val snapped = snapFabToStart(
+                            leftEdge + offsetX + fabWidth / 2f,
+                            layoutWidthPx,
+                        )
+                        offsetX = 0f
+                        if (snapped != atStart) onSnap(snapped)
+                    },
+                ) { change, dragAmount ->
+                    change.consume()
+                    offsetX += dragAmount
+                }
+            }
+            .testTag(DetailFabTag),
+    )
 }

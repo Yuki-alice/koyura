@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import app.koyura.app.AppScaffold
 import app.koyura.app.browse.BrowseService
 import app.koyura.app.browse.BrowseSession
+import app.koyura.app.browse.DetailFabTag
 import app.koyura.app.browse.FakeBrowseService
 import app.koyura.app.browse.WorkDetail
 import app.koyura.app.browse.WorkChapter
@@ -127,13 +128,11 @@ class ReaderFlowTest {
 
         // No progress yet: only Start is offered, and nothing has been saved.
         // 宽屏两栏下开始按钮在左侧滚动列中，先滚到可见再断言（窄屏同语义）。
-        onNodeWithTag("reading-start").performScrollTo()
-        onNodeWithTag("reading-start").assertIsDisplayed()
-        assertTrue(onAllNodesWithTag("reading-continue").fetchSemanticsNodes().isEmpty())
+        onNodeWithTag(DetailFabTag).assertIsDisplayed()
         assertTrue(reader.saveCalls.isEmpty())
 
         // Start reading: the initial page restores nothing and writes nothing.
-        onNodeWithTag("reading-start").performClick()
+        onNodeWithTag(DetailFabTag).performClick()
         awaitIndicator("1 / 5")
         assertTrue(reader.saveCalls.isEmpty(), "initial page must not be written, got ${reader.saveCalls}")
         onNodeWithTag(readerPageTag(0)).assertIsDisplayed()
@@ -167,9 +166,9 @@ class ReaderFlowTest {
                 )
             }
         }
-        onNodeWithTag("reading-continue").performScrollTo()
-        onNodeWithTag("reading-continue").assertIsDisplayed()
-        onNodeWithTag("reading-continue").performClick()
+        // 继续入口现为悬浮钮（同一锚点），标签为 Continue reading · Page N。
+        onNodeWithTag(DetailFabTag).assertIsDisplayed()
+        onNodeWithTag(DetailFabTag).performClick()
         awaitIndicator("3 / 5")
         onNodeWithTag(readerPageTag(2)).assertIsDisplayed()
     }
@@ -216,7 +215,7 @@ class ReaderFlowTest {
             }
         }
 
-        onNodeWithTag("reading-start").performClick()
+        onNodeWithTag(DetailFabTag).performClick()
         onNodeWithTag(ReaderPageIndicatorTag).assertTextEquals("1 / 2")
         onNodeWithTag(ReaderPrevChapterTag).assertIsNotEnabled()
         onNodeWithTag(ReaderNextChapterTag).assertIsNotEnabled()
@@ -260,8 +259,7 @@ class ReaderFlowTest {
             }
         }
 
-        onNodeWithTag("reading-start").performScrollTo()
-        onNodeWithTag("reading-start").performClick()
+        onNodeWithTag(DetailFabTag).performClick()
         onNodeWithTag("reader-page-retry-p0").assertIsDisplayed()
         readerSession.retryPage("p0")
         waitForIdle()
@@ -308,7 +306,7 @@ class ReaderFlowTest {
             }
         }
 
-        onNodeWithTag("reading-start").performClick()
+        onNodeWithTag(DetailFabTag).performClick()
         onNodeWithTag(ReaderPrevChapterTag).assertIsNotEnabled()
         onNodeWithTag(ReaderNextChapterTag).assertIsEnabled()
         onNodeWithTag(ReaderNextChapterTag).performClick()
@@ -339,8 +337,7 @@ class ReaderFlowTest {
             }
         }
 
-        onNodeWithTag("reading-start").performScrollTo()
-        onNodeWithTag("reading-start").performClick()
+        onNodeWithTag(DetailFabTag).performClick()
         awaitIndicator("1 / 5")
         onNodeWithTag(ComicViewerRootTag).performKeyInput {
             pressKey(Key.DirectionRight)
