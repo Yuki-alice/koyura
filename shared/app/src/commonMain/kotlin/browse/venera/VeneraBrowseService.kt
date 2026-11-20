@@ -240,30 +240,50 @@ class VeneraBrowseService(
     }
 
     override suspend fun searchWorks(sourceKey: String, query: String, page: Int): WorkSearchPage =
-        runService {
-            val result = search?.search(sourceKey, query, page)
-                ?: extensions.call(
-                    sourceKey,
-                    VeneraCallback.Search,
-                    JsonArray(listOf(JsonPrimitive(query), JsonArray(emptyList()), JsonPrimitive(page))),
-                ).jsonObject
-            val comics = result["comics"]?.jsonArray
-                ?: throw BrowseServiceException("Malformed search response from $sourceKey")
-            val maxPage = result["maxPage"]?.jsonPrimitive?.intOrNull ?: 1
-            WorkSearchPage(
-                works = comics.map { item ->
-                    val comic = item.jsonObject
-                    WorkSummary(
-                        id = comic.string("id"),
-                        title = comic.string("title"),
-                        subtitle = comic.optionalString("subtitle"),
-                        cover = comic.optionalString("cover"),
-                        tags = comic["tags"]?.jsonArray?.mapNotNull { textOrNull(it) }.orEmpty(),
-                    )
-                },
-                maxPage = maxPage,
-            )
+        searchWorksPage(sourceKey, query, page, next = null).let { WorkSearchPage(it.works, it.maxPage ?: page) }
+
+    internal suspend fun searchWorksPage(
+        sourceKey: String,
+        query: String,
+        page: Int,
+        next: String?,
+    ): SourceSearchPage = runService {
+        require(page > 0)
+        val service = search
+        val result = if (service != null) {
+            service.search(sourceKey, query, page, next)
+        } else {
+            require(next == null) { "Cursor pagination requires the source search service" }
+            extensions.call(
+                sourceKey,
+                VeneraCallback.Search,
+                JsonArray(listOf(JsonPrimitive(query), JsonArray(emptyList()), JsonPrimitive(page))),
+            ).jsonObject
         }
+        parseSearchPage(sourceKey, result, page)
+    }
+
+    private fun parseSearchPage(sourceKey: String, result: JsonObject, page: Int): SourceSearchPage {
+        val comics = result["comics"] as? JsonArray
+            ?: throw BrowseServiceException("Malformed search response from $sourceKey")
+        val maximum = (result["maxPage"] as? JsonPrimitive)?.intOrNull
+        val continuation = if (maximum == null) textOrNull(result["next"]) else null
+        return SourceSearchPage(
+            works = comics.map { item ->
+                val comic = item as? JsonObject ?: throw BrowseServiceException("Malformed comic from $sourceKey")
+                WorkSummary(
+                    id = comic.string("id"),
+                    title = comic.string("title"),
+                    subtitle = comic.optionalString("subtitle"),
+                    cover = comic.optionalString("cover"),
+                    tags = (comic["tags"] as? JsonArray)?.mapNotNull(::textOrNull).orEmpty(),
+                )
+            },
+            page = page,
+            maxPage = maximum ?: if ("next" in result) null else page,
+            next = continuation,
+        )
+    }
 
     /** 源搜索选项与当前持久化取值；未注入搜索通道（测试装配）返回 null，调用方整块隐藏。 */
     suspend fun sourceSearchOptions(sourceKey: String): SourceSearchOptions? =
@@ -285,6 +305,21 @@ class VeneraBrowseService(
     /** 删除保存搜索；未注入通道时返回 false。 */
     suspend fun deleteSavedSearch(id: Long): Boolean =
         search?.savedSearches?.delete(id) ?: false
+
+    suspend fun savedSearch(id: Long): SavedSearch? = search?.savedSearches?.get(id)
+
+    /** Renaming or editing the text preserves the saved option snapshot. */
+    suspend fun updateSavedSearch(id: Long, name: String, query: String): SavedSearch? {
+        val service = search ?: return null
+        val saved = service.savedSearches.get(id) ?: return null
+        return service.savedSearches.update(id, name, query, saved.options)
+    }
+
+    suspend fun searchSavedWorks(id: Long, page: Int = 1, next: String? = null): SourceSearchPage = runService {
+        val service = search ?: throw BrowseServiceException("Saved search is unavailable")
+        val saved = service.savedSearches.get(id) ?: throw BrowseServiceException("Saved search was removed")
+        parseSearchPage(saved.sourceKey, service.searchSaved(saved, page, next), page)
+    }
 
     override suspend fun loadWorkDetail(sourceKey: String, workId: String): WorkDetail {
         val loaded = runService {
