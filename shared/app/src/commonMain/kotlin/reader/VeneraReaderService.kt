@@ -1,6 +1,8 @@
 package app.koyura.app.reader
 
+import app.koyura.data.downloads.DownloadTriggers
 import app.koyura.data.history.HistoryStore
+import app.koyura.domain.downloads.DownloadChapter
 import app.koyura.data.reading.ComicReadingService
 import app.koyura.domain.reader.ChapterContent
 import app.koyura.domain.reader.ReaderProgress
@@ -9,6 +11,7 @@ import app.koyura.domain.reader.ReadingDurationRecorder
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlin.time.Clock
 import kotlinx.coroutines.withContext
 
@@ -16,7 +19,10 @@ internal class VeneraReaderService(
     private val reading: ComicReadingService,
     private val history: HistoryStore? = null,
     private val library: app.koyura.data.library.LibraryStore? = null,
+    private val downloadTriggers: DownloadTriggers? = null,
 ) : ReaderService, ReadingDurationRecorder {
+    private val displayedChapter = MutableStateFlow<Pair<DownloadChapter, Int>?>(null)
+
     override suspend fun recordReadingDuration(sourceKey: String, workId: String, chapterId: String?, elapsedMillis: Long) {
         history?.addReadDuration(sourceKey, workId, chapterId, elapsedMillis)
     }
@@ -30,6 +36,7 @@ internal class VeneraReaderService(
         withContext(Dispatchers.IO) {
             val chapter = reading.openChapter(sourceKey, workId, chapterId)
             val latest = reading.readLatestProgress(sourceKey, workId)
+            displayedChapter.value = DownloadChapter(sourceKey, workId, chapter.chapterId) to chapter.pages.size
             ChapterContent(
                 chapterId = chapter.chapterId,
                 title = "",
@@ -90,5 +97,18 @@ internal class VeneraReaderService(
                 }
             }
         }
+        val displayed = displayedChapter.value
+        if (chapterId != null && displayed?.first == DownloadChapter(sourceKey, workId, chapterId)
+            && (pageIndex + 1L) * 4 > displayed.second
+        ) {
+            try {
+                downloadTriggers?.enqueueAheadFrom(sourceKey, workId, chapterId)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                // The position is already committed; the next page can try the optional prefetch again.
+            }
+        }
+        Unit
     }
 }

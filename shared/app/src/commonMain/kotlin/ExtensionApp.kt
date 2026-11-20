@@ -153,6 +153,7 @@ internal fun ExtensionApp(
                 reading = session.comicReading,
                 history = session.history,
                 library = session.library,
+                downloadTriggers = session.downloadTriggers,
             )
         }
         val history = remember(session) { VeneraHistoryService(session.history, session.library) }
