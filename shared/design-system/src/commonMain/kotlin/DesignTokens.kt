@@ -1,6 +1,7 @@
 package app.koyura.designsystem
 
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
@@ -11,9 +12,20 @@ import androidx.compose.ui.unit.dp
  * 语义常量，不直接写 dp/alpha/ms 数值（白皮书 02 复刻检查清单第 1、6 条）。
  */
 object DesignTokens {
+    object ReaderColors {
+        val BlackBackground = Color.Black
+        val GrayBackground = Color(0xFF202125)
+        val WhiteBackground = Color.White
+    }
+
 
     // Spacing — whitepaper 02 §2.7 间距令牌 / tokens.json `spacing` (Code).
     object Spacing {
+        val Hairline = 1.dp
+        val Tight = 2.dp
+        val Compact = 6.dp
+        val Row = 10.dp
+        val Regular = 12.dp
         val ExtraSmall = 4.dp
         val Small = 8.dp
         val Medium = 16.dp
@@ -64,6 +76,9 @@ object DesignTokens {
     // Elevation — whitepaper 02 §2.7 高度 / tokens.json `elevation` (Code).
     // AppBar 静息/滚动与导航轨 tonal elevation 见 NavigationBar.kt / NavigationRail.kt。
     object Elevation {
+        val Flat = 0.dp
+        val Raised = 2.dp
+        val Dialog = 6.dp
         val AppBarResting = 0.dp
         val AppBarScrolled = 3.dp
         val Rail = 3.dp
@@ -98,6 +113,11 @@ object DesignTokens {
         val SheetMaxWidth: Dp = 460.dp
         val DialogMinWidth: Dp = 280.dp
         val DialogMaxWidth: Dp = 560.dp
+        val SettingsMasterWidth = 320.dp
+        val CatalogResultsMaxHeight = 320.dp
+        val UpdatePolicyMaxHeight = 420.dp
+        val DetailCoverMinWidth = 100.dp
+        val DetailCoverMaxWidth = 240.dp
     }
 
     // Sizes — whitepaper 02 §2.7 高度/尺寸 / tokens.json `sizes` (Code).
@@ -115,6 +135,27 @@ object DesignTokens {
         val HistoryCoverWidth = 63.dp
         val HistoryCoverHeight = 94.dp
         val UnreadDot = 6.dp
+        val DownloadProgress = 24.dp
+        val ProgressStroke = 2.dp
+        val TopBarHeight = 64.dp
+        val BrandLogo = 64.dp
+        val BrandHeaderPadding = 56.dp
+        val BrowseIcon = 40.dp
+        val SelectionMarker = 40.dp
+        val SearchCoverWidth = 48.dp
+        val SearchCoverHeight = 72.dp
+        val DetailCoverWidth = 96.dp
+        val DetailCoverHeight = 144.dp
+        val LibraryListCoverWidth = 56.dp
+        val LibraryListCoverHeight = 80.dp
+        val PanoramaCoverHeight = 160.dp
+        val ThemePreviewCard = 112.dp
+        val ThemePreviewSwatch = 40.dp
+        val CatalogInputMinHeight = 120.dp
+        val ModeCardWidth = 104.dp
+        val ModeIconWidth = 44.dp
+        val ModeIconHeight = 32.dp
+        val PagedStripGap = 15.dp
         val ListItemHeight = 56.dp
         val BadgeHeight = 18.dp
         // 徽标文字内边距 — Badges.kt:62,107 `padding(horizontal = 3.dp, vertical = 1.dp)`，

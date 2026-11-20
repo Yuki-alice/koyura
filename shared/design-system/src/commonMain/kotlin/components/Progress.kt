@@ -25,3 +25,18 @@ fun AppLinearProgress(modifier: Modifier = Modifier, progress: (() -> Float)? = 
         LinearProgressIndicator(progress = progress, modifier = modifier)
     }
 }
+
+@Composable
+fun AppCircularProgress(
+    progress: () -> Float,
+    modifier: Modifier = Modifier,
+    strokeWidth: Dp = ProgressIndicatorDefaults.CircularStrokeWidth,
+    color: Color = UiTheme.colorScheme.primary,
+) {
+    CircularProgressIndicator(
+        progress = progress,
+        modifier = modifier,
+        strokeWidth = strokeWidth,
+        color = color,
+    )
+}

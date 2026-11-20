@@ -1,5 +1,6 @@
 package app.koyura.features.library
 
+import app.koyura.designsystem.DesignTokens
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -18,7 +19,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import app.koyura.designsystem.components.AppAlertDialog
 import app.koyura.designsystem.components.AppCheckbox
 import app.koyura.designsystem.components.AppFilterChip
@@ -139,9 +139,9 @@ fun LibraryFilterPage(
     }
     Column(
         modifier = Modifier.fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.Small)
             .testTag(LibraryFilterSheetTag),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.ExtraSmall),
     ) {
         AppText(stringResource(Res.string.library_filter), style = UiTheme.typography.titleMedium)
         LibraryTriStateRow(
@@ -198,7 +198,7 @@ private fun LibraryTriStateRow(
 ) {
     Row(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).testTag(tag)
-            .padding(vertical = 10.dp),
+            .padding(vertical = DesignTokens.Spacing.Row),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         AppText(
@@ -238,15 +238,15 @@ fun LibrarySortPage(session: LibrarySession) {
     val prefs = session.snapshot.prefs
     Column(
         modifier = Modifier.fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.Small)
             .testTag(LibrarySortSheetTag),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.ExtraSmall),
     ) {
         AppText(stringResource(Res.string.library_sort), style = UiTheme.typography.titleMedium)
         Row(
             modifier = Modifier.fillMaxWidth().clickable {
                 scope.launch { session.updatePrefs { it.copy(ascending = !it.ascending) } }
-            }.testTag(LibrarySortDirectionTag).padding(vertical = 10.dp),
+            }.testTag(LibrarySortDirectionTag).padding(vertical = DesignTokens.Spacing.Row),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             AppText(
@@ -265,7 +265,7 @@ fun LibrarySortPage(session: LibrarySession) {
             Row(
                 modifier = Modifier.fillMaxWidth().clickable {
                     scope.launch { session.updatePrefs { it.copy(sortType = row.type) } }
-                }.testTag(librarySortRowTag(row.type)).padding(vertical = 10.dp),
+                }.testTag(librarySortRowTag(row.type)).padding(vertical = DesignTokens.Spacing.Row),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 AppText(
@@ -295,9 +295,9 @@ fun LibraryDisplayPage(session: LibrarySession) {
     }
     Column(
         modifier = Modifier.fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.Small)
             .testTag(LibraryDisplaySheetTag),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small),
     ) {
         AppText(stringResource(Res.string.library_display), style = UiTheme.typography.titleMedium)
         @Composable
@@ -311,11 +311,11 @@ fun LibraryDisplayPage(session: LibrarySession) {
                 modifier = Modifier.testTag(libraryModeChipTag(mode)),
             )
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small)) {
             modeChip(LibraryDisplayMode.COMPACT_GRID, Res.string.library_mode_compact)
             modeChip(LibraryDisplayMode.COMFORTABLE_GRID, Res.string.library_mode_comfortable)
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small)) {
             modeChip(LibraryDisplayMode.COMFORTABLE_GRID_PANORAMA, Res.string.library_mode_panorama)
             modeChip(LibraryDisplayMode.LIST, Res.string.library_mode_list)
             modeChip(LibraryDisplayMode.COVER_ONLY_GRID, Res.string.library_mode_cover_only)
@@ -395,9 +395,9 @@ fun LibraryGroupPage(session: LibrarySession) {
     val groupBy = session.snapshot.prefs.groupBy
     Column(
         modifier = Modifier.fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.Small)
             .testTag(LibraryGroupSheetTag),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.ExtraSmall),
     ) {
         AppText(stringResource(Res.string.library_group), style = UiTheme.typography.titleMedium)
         LibraryGroupRow(
@@ -436,7 +436,7 @@ private fun LibraryGroupRow(
 ) {
     Row(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).testTag(tag)
-            .padding(vertical = 10.dp),
+            .padding(vertical = DesignTokens.Spacing.Row),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         AppText(
@@ -463,9 +463,9 @@ fun LibraryCategoriesPage(session: LibrarySession) {
     var renameText by remember { mutableStateOf("") }
     Column(
         modifier = Modifier.fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.Small)
             .testTag(LibraryCategoriesSheetTag),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.ExtraSmall),
     ) {
         AppText(stringResource(Res.string.library_categories_title), style = UiTheme.typography.titleMedium)
         if (session.snapshot.orderedCategories.isEmpty()) {
@@ -509,7 +509,7 @@ fun LibraryCategoriesPage(session: LibrarySession) {
                 if (renaming == category.id) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small),
                     ) {
                         AppTextField(
                             value = renameText,
@@ -530,7 +530,7 @@ fun LibraryCategoriesPage(session: LibrarySession) {
                     }
                 } else {
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.ExtraSmall),
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         AppTextButton(
@@ -587,8 +587,8 @@ fun LibraryCategoriesPage(session: LibrarySession) {
         }
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small),
+            modifier = Modifier.fillMaxWidth().padding(top = DesignTokens.Spacing.Small),
         ) {
             AppTextField(
                 value = newName,

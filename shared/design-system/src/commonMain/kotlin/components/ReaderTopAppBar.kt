@@ -107,8 +107,8 @@ fun ReaderTopAppBar(
 }
 
 // M3 SmallTopAppBar 默认 64dp（白皮书 06 §6.1）；图标槽 48dp 满足 9.5 #20 触摸目标。
-val ReaderTopAppBarHeight = 64.dp
-private val NavigationSlotSize = 48.dp
+val ReaderTopAppBarHeight = DesignTokens.Sizes.TopBarHeight
+private val NavigationSlotSize = DesignTokens.Sizes.MinimumTouchTarget
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable

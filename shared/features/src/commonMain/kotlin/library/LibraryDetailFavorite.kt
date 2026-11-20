@@ -1,5 +1,6 @@
 package app.koyura.features.library
 
+import app.koyura.designsystem.DesignTokens
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.runtime.Composable
@@ -10,7 +11,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.unit.dp
 import app.koyura.designsystem.components.AppButton
 import app.koyura.designsystem.components.AppOutlinedButton
 import app.koyura.designsystem.components.AppText
@@ -58,7 +58,7 @@ fun LibraryDetailFavoriteRow(
     val favorite = session.isFavorite(key)
     Row(
         modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small),
     ) {
         if (favorite) {
             AppButton(

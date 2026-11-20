@@ -1,12 +1,16 @@
 package app.koyura.designsystem.components
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExtendedFloatingActionButton
-import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.OutlinedButton
@@ -14,9 +18,13 @@ import androidx.compose.material3.SmallExtendedFloatingActionButton
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.unit.Dp
+import app.koyura.designsystem.ActionTooltip
+import app.koyura.designsystem.DesignTokens
 
 @Composable
 fun AppButton(
@@ -64,22 +72,31 @@ fun AppTextButton(
 @Composable
 fun AppFilledIconButton(
     onClick: () -> Unit,
+    label: String,
     shape: Shape,
     containerColor: Color,
     contentColor: Color,
+    visualSize: Dp,
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
-    FilledIconButton(
-        onClick = onClick,
-        shape = shape,
-        modifier = modifier,
-        colors = IconButtonDefaults.filledIconButtonColors(
-            containerColor = containerColor,
-            contentColor = contentColor,
-        ),
-        content = content,
-    )
+    ActionTooltip(label) {
+        IconButton(
+            onClick = onClick,
+            modifier = modifier.sizeIn(
+                minWidth = DesignTokens.Sizes.MinimumTouchTarget,
+                minHeight = DesignTokens.Sizes.MinimumTouchTarget,
+            ),
+            colors = IconButtonDefaults.iconButtonColors(contentColor = contentColor),
+        ) {
+            Box(
+                modifier = Modifier.size(visualSize).background(containerColor, shape),
+                contentAlignment = Alignment.Center,
+            ) {
+                content()
+            }
+        }
+    }
 }
 
 @Composable

@@ -1,6 +1,7 @@
 package app.koyura.features.library
 
 import app.koyura.designsystem.ActionIcon
+import app.koyura.designsystem.DecorativeActionIcon
 import app.koyura.designsystem.ActionIconButton
 import app.koyura.designsystem.components.ModalReaderSheet
 import app.koyura.designsystem.components.ReaderPill
@@ -32,6 +33,7 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -59,6 +61,9 @@ import app.koyura.designsystem.CoverCornerRadius
 import app.koyura.designsystem.CoverDecoder
 import app.koyura.designsystem.CoverImageLoader
 import app.koyura.designsystem.DesignTokens
+import app.koyura.designsystem.components.EmptyScreen
+import app.koyura.designsystem.components.ErrorScreen
+import app.koyura.designsystem.components.LoadingScreen
 import app.koyura.designsystem.ListGroupHeader
 import app.koyura.designsystem.LocalCoverDecoder
 import app.koyura.designsystem.LocalCoverImageLoader
@@ -229,10 +234,10 @@ fun LibraryScreen(
         LibraryCategoryTabs(session = session)
         session.actionError?.let { message ->
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
+                modifier = Modifier.fillMaxWidth().padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.ExtraSmall)
                     .testTag(LibraryActionErrorTag),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small),
             ) {
                 AppText(
                     text = stringResource(Res.string.library_action_failed, message),
@@ -247,20 +252,11 @@ fun LibraryScreen(
         }
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
             when (val load = session.loadState) {
-                LibraryLoadState.Loading -> Box(
-                    modifier = Modifier.fillMaxSize().testTag(LibraryLoadingTag),
-                    contentAlignment = Alignment.Center,
+                LibraryLoadState.Loading -> LoadingScreen(Modifier.testTag(LibraryLoadingTag))
+                is LibraryLoadState.Failed -> ErrorScreen(
+                    message = stringResource(Res.string.library_load_failed, load.message),
+                    modifier = Modifier.testTag(LibraryErrorTag),
                 ) {
-                    AppCircularProgress()
-                }
-                is LibraryLoadState.Failed -> Column(
-                    modifier = Modifier.fillMaxSize().padding(24.dp).testTag(LibraryErrorTag),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    AppText(
-                        text = stringResource(Res.string.library_load_failed, load.message),
-                        color = UiTheme.colorScheme.error,
-                    )
                     AppButton(
                         onClick = { scope.launch { session.refresh() } },
                         modifier = Modifier.testTag(LibraryRetryTag),
@@ -320,7 +316,7 @@ private fun LibraryToolbar(
             title = {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small),
                 ) {
                     AppText(
                         text = stringResource(Res.string.library_title),
@@ -329,12 +325,12 @@ private fun LibraryToolbar(
                         modifier = Modifier.weight(1f, fill = false).testTag(LibraryTitleTag),
                     )
                     if (session.snapshot.prefs.showWorkCount) {
-                        AppSurface(shape = UiTheme.shapes.small, tonalElevation = 2.dp) {
+                        AppSurface(shape = UiTheme.shapes.small, tonalElevation = DesignTokens.Elevation.Raised) {
                             AppText(
                                 // 同一可见范围：隐藏关闭时仅归属隐藏分类的作品不计入总数。
                                 text = session.countForTab(null).toString(),
                                 style = UiTheme.typography.labelMedium,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                modifier = Modifier.padding(horizontal = DesignTokens.Spacing.Small, vertical = DesignTokens.Spacing.ExtraSmall)
                                     .testTag(LibraryCountTag),
                             )
                         }
@@ -397,7 +393,7 @@ private fun LibraryToolbar(
                         )
                     }
                 },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+                modifier = Modifier.fillMaxWidth().padding(horizontal = DesignTokens.Spacing.Medium)
                     .testTag(LibrarySearchTag),
             )
         }
@@ -422,7 +418,7 @@ private fun LibraryOverflowDialog(
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+                verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.ExtraSmall),
             ) {
                 LibraryOverflowRow(
                     label = stringResource(Res.string.library_sort),
@@ -547,7 +543,7 @@ private fun LibraryCategoryTabs(session: LibrarySession) {
     AppScrollableTabBar(
         selectedTabIndex = selected,
         modifier = Modifier.fillMaxWidth().testTag(LibraryTabsTag),
-        edgePadding = 16.dp,
+        edgePadding = DesignTokens.Spacing.Medium,
     ) {
         tabs.forEachIndexed { index, category ->
             // 同一可见范围：页签计数按隐藏开关过滤，仅归属隐藏的在“全部”中不计。
@@ -558,7 +554,7 @@ private fun LibraryCategoryTabs(session: LibrarySession) {
                 modifier = Modifier.testTag(libraryTabTag(category?.id)),
                 text = {
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Compact),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         AppText(
@@ -600,15 +596,15 @@ private fun LibraryContent(
     }
     if (session.visibleEntries.isEmpty()) {
         Column(
-            modifier = Modifier.fillMaxSize().padding(24.dp).testTag(LibraryNoResultsTag),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.fillMaxSize().padding(DesignTokens.Spacing.Large).testTag(LibraryNoResultsTag),
+            verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Regular),
         ) {
             AppText(
                 text = stringResource(Res.string.library_no_results),
                 style = UiTheme.typography.bodyMedium,
                 color = UiTheme.colorScheme.onSurfaceVariant,
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Regular)) {
                 AppButton(
                     onClick = { session.updateQuery("") },
                     modifier = Modifier.testTag(LibraryNoResultsClearTag),
@@ -658,52 +654,38 @@ private fun LibraryEmptyState(
     onGlobalSearch: (() -> Unit)?,
     onGuide: (() -> Unit)?,
 ) {
-    Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp).testTag(LibraryEmptyTag),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        // 空状态颜文字（白皮书 06 §6.8 / 9.5 #17）：固定文案保证离屏截图确定性。
-        AppText(
-            text = "(・∀・)",
-            style = UiTheme.typography.displayMedium,
-            color = UiTheme.colorScheme.onSurfaceVariant.copy(
-                alpha = DesignTokens.Alpha.Secondary,
-            ),
-            modifier = Modifier.testTag("library-empty-kaomoji"),
-        )
-        AppText(
-            text = stringResource(Res.string.library_empty),
-            style = UiTheme.typography.headlineSmall,
-        )
-        AppText(
-            text = stringResource(Res.string.library_empty_body),
-            style = UiTheme.typography.bodyMedium,
-            color = UiTheme.colorScheme.onSurfaceVariant,
-        )
-        AppButton(
-            onClick = onOpenBrowse,
-            modifier = Modifier.testTag(LibraryEmptyBrowseTag),
-        ) {
-            AppText(stringResource(Res.string.library_empty_browse))
-        }
-        // 指南与全局搜索暂无生产目的地：无回调时禁用（保留测试锚点），空书架浏览始终可用。
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            AppTextButton(
-                onClick = { onGuide?.invoke() },
-                enabled = onGuide != null,
-                modifier = Modifier.testTag(LibraryEmptyGuideTag),
+    EmptyScreen(
+        emoji = "(・∀・)",
+        message = stringResource(Res.string.library_empty),
+        supportingText = stringResource(Res.string.library_empty_body),
+        illustrationModifier = Modifier.testTag("library-empty-kaomoji"),
+        modifier = Modifier.testTag(LibraryEmptyTag),
+        actions = {
+            AppButton(
+                onClick = onOpenBrowse,
+                modifier = Modifier.testTag(LibraryEmptyBrowseTag),
             ) {
-                AppText(stringResource(Res.string.library_empty_guide))
+                AppText(stringResource(Res.string.library_empty_browse))
             }
-            AppTextButton(
-                onClick = { onGlobalSearch?.invoke() },
-                enabled = onGlobalSearch != null,
-                modifier = Modifier.testTag(LibraryGlobalSearchTag),
-            ) {
-                AppText(stringResource(Res.string.library_global_search))
+            // 指南与全局搜索暂无生产目的地：无回调时禁用（保留测试锚点），空书架浏览始终可用。
+            Row(horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Regular)) {
+                AppTextButton(
+                    onClick = { onGuide?.invoke() },
+                    enabled = onGuide != null,
+                    modifier = Modifier.testTag(LibraryEmptyGuideTag),
+                ) {
+                    AppText(stringResource(Res.string.library_empty_guide))
+                }
+                AppTextButton(
+                    onClick = { onGlobalSearch?.invoke() },
+                    enabled = onGlobalSearch != null,
+                    modifier = Modifier.testTag(LibraryGlobalSearchTag),
+                ) {
+                    AppText(stringResource(Res.string.library_global_search))
+                }
             }
-        }
-    }
+        },
+    )
 }
 
 @Composable
@@ -811,7 +793,7 @@ private fun LibraryListContent(
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize().testTag(LibraryListTag),
-        contentPadding = PaddingValues(vertical = 8.dp),
+        contentPadding = PaddingValues(vertical = DesignTokens.Spacing.Small),
     ) {
         sections.forEach { section ->
             if (section.title.isNotEmpty()) {
@@ -844,8 +826,8 @@ private fun LibraryPanoramaContent(
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize().testTag(LibraryPanoramaTag),
-        contentPadding = PaddingValues(12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(DesignTokens.Spacing.Regular),
+        verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Regular),
     ) {
         session.visibleSections.forEach { section ->
             if (section.title.isNotEmpty()) {
@@ -995,34 +977,18 @@ private fun BoxScope.LibraryCoverBadges(
     if (session.selection.contains(entry.key)) {
         Box(
             modifier = Modifier.align(Alignment.Center)
-                .size(40.dp)
-                .clip(RoundedCornerShape(20.dp))
+                .size(DesignTokens.Sizes.SelectionMarker)
+                .clip(CircleShape)
                 .background(UiTheme.colorScheme.primary),
             contentAlignment = Alignment.Center,
         ) {
-            ActionIcon(ActionIcon.Checklist, null, tint = UiTheme.colorScheme.onPrimary)
+            DecorativeActionIcon(ActionIcon.Checklist, tint = UiTheme.colorScheme.onPrimary)
         }
     } else if (prefs.showContinueButton && entry.canContinue) {
         // 白皮书 06 §6.6 Continue 钮：small 圆角、primaryContainer 90% 容器；
         // 尺寸按 Code（CommonMangaItem.kt:62,65 小尺寸档 28dp 钮 / 16dp 图标）。
-        AppFilledIconButton(
-            onClick = { onContinue(entry) },
-            shape = RoundedCornerShape(DesignTokens.Radius.Small),
-            containerColor = UiTheme.colorScheme.primaryContainer.copy(
-                alpha = DesignTokens.Alpha.ContinueReading,
-            ),
-            contentColor = UiTheme.colorScheme.onPrimaryContainer,
-            modifier = Modifier.align(Alignment.BottomEnd).padding(DesignTokens.Spacing.ExtraSmall)
-                .size(DesignTokens.Sizes.ContinueButtonSize)
-                .testTag(libraryContinueTag(entry.sourceKey, entry.workId)),
-        ) {
-            ActionIcon(
-                icon = ActionIcon.Play,
-                contentDescription = stringResource(
-                    if (entry.hasStarted) Res.string.library_continue else Res.string.library_start,
-                ),
-                modifier = Modifier.size(DesignTokens.Sizes.ContinueButtonIconSize),
-            )
+        Box(Modifier.align(Alignment.BottomEnd)) {
+            LibraryContinueButton(entry, onContinue)
         }
     }
 }
@@ -1062,7 +1028,7 @@ private fun LibraryCompactCard(
             style = UiTheme.typography.bodyMedium,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 4.dp).testTag(libraryCardTitleTag(entry.sourceKey, entry.workId)),
+            modifier = Modifier.padding(top = DesignTokens.Spacing.ExtraSmall).testTag(libraryCardTitleTag(entry.sourceKey, entry.workId)),
         )
     }
 }
@@ -1092,7 +1058,7 @@ private fun LibraryComfortableCard(
             fontWeight = FontWeight.SemiBold,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 6.dp).testTag(libraryCardTitleTag(entry.sourceKey, entry.workId)),
+            modifier = Modifier.padding(top = DesignTokens.Spacing.Compact).testTag(libraryCardTitleTag(entry.sourceKey, entry.workId)),
         )
         AppText(
             text = entry.sourceName,
@@ -1138,7 +1104,7 @@ private fun LibraryListRow(
         modifier = LibraryCardModifier(entry, session, onOpenWork)
             .fillMaxWidth()
             .heightIn(min = DesignTokens.Sizes.HistoryItemHeight)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.Small),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box {
@@ -1146,7 +1112,7 @@ private fun LibraryListRow(
                 entry = entry,
                 session = session,
                 decodeCover = decodeCover,
-                modifier = Modifier.size(width = 56.dp, height = 80.dp),
+                modifier = Modifier.size(width = DesignTokens.Sizes.LibraryListCoverWidth, height = DesignTokens.Sizes.LibraryListCoverHeight),
             )
             if (session.selection.contains(entry.key)) {
                 // 多选态：secondary 16–22% 行叠加（白皮书 02 §2.7 / 08 §8.2），亮暗按 surface 明度区分。
@@ -1156,7 +1122,7 @@ private fun LibraryListRow(
                     DesignTokens.Alpha.SelectedBackgroundLight
                 }
                 Box(
-                    modifier = Modifier.size(width = 56.dp, height = 80.dp)
+                    modifier = Modifier.size(width = DesignTokens.Sizes.LibraryListCoverWidth, height = DesignTokens.Sizes.LibraryListCoverHeight)
                         .background(UiTheme.colorScheme.secondary.copy(alpha = selectedOverlay)),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -1165,8 +1131,8 @@ private fun LibraryListRow(
             }
         }
         Column(
-            modifier = Modifier.weight(1f).padding(start = 16.dp, end = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
+            modifier = Modifier.weight(1f).padding(start = DesignTokens.Spacing.Medium, end = DesignTokens.Spacing.Small),
+            verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Tight),
         ) {
             AppText(
                 text = entry.displayTitle,
@@ -1202,25 +1168,28 @@ private fun LibraryListRow(
             )
         }
         if (session.snapshot.prefs.showContinueButton && entry.canContinue) {
-            AppFilledIconButton(
-                onClick = { onContinue(entry) },
-                shape = RoundedCornerShape(DesignTokens.Radius.Small),
-                containerColor = UiTheme.colorScheme.primaryContainer.copy(
-                    alpha = DesignTokens.Alpha.ContinueReading,
-                ),
-                contentColor = UiTheme.colorScheme.onPrimaryContainer,
-                modifier = Modifier.size(DesignTokens.Sizes.ContinueButtonSize)
-                    .testTag(libraryContinueTag(entry.sourceKey, entry.workId)),
-            ) {
-                ActionIcon(
-                    icon = ActionIcon.Play,
-                    contentDescription = stringResource(
-                        if (entry.hasStarted) Res.string.library_continue else Res.string.library_start,
-                    ),
-                    modifier = Modifier.size(DesignTokens.Sizes.ContinueButtonIconSize),
-                )
-            }
+            LibraryContinueButton(entry, onContinue)
         }
+    }
+}
+
+@Composable
+private fun LibraryContinueButton(
+    entry: LibraryEntry,
+    onContinue: (LibraryEntry) -> Unit,
+) {
+    val label = stringResource(if (entry.hasStarted) Res.string.library_continue else Res.string.library_start)
+    val scheme = UiTheme.colorScheme
+    AppFilledIconButton(
+        onClick = { onContinue(entry) },
+        label = label,
+        shape = RoundedCornerShape(DesignTokens.Radius.Small),
+        containerColor = scheme.primaryContainer.copy(alpha = DesignTokens.Alpha.ContinueReading),
+        contentColor = scheme.onPrimaryContainer,
+        visualSize = DesignTokens.Sizes.ContinueButtonSize,
+        modifier = Modifier.testTag(libraryContinueTag(entry.sourceKey, entry.workId)),
+    ) {
+        ActionIcon(ActionIcon.Play, label, modifier = Modifier.size(DesignTokens.Sizes.ContinueButtonIconSize))
     }
 }
 
@@ -1235,7 +1204,7 @@ private fun LibraryPanoramaCard(
     Box(
         modifier = LibraryCardModifier(entry, session, onOpenWork)
             .fillMaxWidth()
-            .height(160.dp)
+            .height(DesignTokens.Sizes.PanoramaCoverHeight)
             .clip(RoundedCornerShape(CoverCornerRadius)),
     ) {
         LibraryCoverImage(
@@ -1256,7 +1225,7 @@ private fun LibraryPanoramaCard(
             fontWeight = FontWeight.SemiBold,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.align(Alignment.BottomStart).padding(12.dp)
+            modifier = Modifier.align(Alignment.BottomStart).padding(DesignTokens.Spacing.Regular)
                 .testTag(libraryCardTitleTag(entry.sourceKey, entry.workId)),
         )
     }
@@ -1274,12 +1243,12 @@ private fun LibraryBottomMenu(
 ) {
     val scope = rememberCoroutineScope()
     AppSurface(
-        tonalElevation = 3.dp,
+        tonalElevation = DesignTokens.Elevation.AppBarScrolled,
         modifier = Modifier.fillMaxWidth().testTag(LibraryBottomMenuTag),
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = DesignTokens.Spacing.Small, vertical = DesignTokens.Spacing.Small),
+            horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.ExtraSmall),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             ActionIconButton(
@@ -1364,7 +1333,7 @@ private fun LibrarySheetHost(
                 modifier = Modifier.fillMaxWidth()
                     .heightIn(max = DesignTokens.Breakpoints.DialogMaxWidth)
                     .verticalScroll(rememberScrollState())
-                    .padding(vertical = 8.dp),
+                    .padding(vertical = DesignTokens.Spacing.Small),
             ) {
                 when (sheet) {
                     LibrarySheet.FILTER -> LibraryFilterPage(
@@ -1380,7 +1349,7 @@ private fun LibrarySheetHost(
                 AppTextButton(
                     onClick = onDismiss,
                     modifier = Modifier.align(Alignment.CenterHorizontally)
-                        .padding(bottom = 8.dp)
+                        .padding(bottom = DesignTokens.Spacing.Small)
                         .testTag(LibrarySheetCloseTag),
                 ) {
                     AppText(stringResource(Res.string.library_close))

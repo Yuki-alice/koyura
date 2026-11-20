@@ -2,7 +2,10 @@ package app.koyura.app.library
 
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.test.longClick
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertWidthIsAtLeast
+import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -170,6 +173,7 @@ class LibraryScreenTest {
         node(libraryDownloadBadgeTag("srcA", "w1")).assertIsDisplayed()
         node(libraryLanguageBadgeTag("srcA", "w1")).assertIsDisplayed()
         node(libraryContinueTag("srcA", "w1")).assertIsDisplayed()
+            .assertWidthIsAtLeast(48.dp).assertHeightIsAtLeast(48.dp)
         // 点卡进详情（回调带三参）。
         node(libraryCardTag("srcA", "w1")).performClick()
         assertEquals(Triple("srcA", "w1", "同名作品"), opened)

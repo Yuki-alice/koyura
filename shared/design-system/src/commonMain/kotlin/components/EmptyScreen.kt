@@ -1,6 +1,7 @@
 package app.koyura.designsystem.components
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -10,6 +11,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
 import app.koyura.designsystem.DesignTokens
 
 /** 12 个颜文字，随机挑一个作为空态插画（白皮书 06 §6.8「12 个随机颜文字」）。 */
@@ -51,27 +53,30 @@ fun EmptyScreen(
     modifier: Modifier = Modifier,
     actionLabel: String? = null,
     onAction: (() -> Unit)? = null,
+    illustrationModifier: Modifier = Modifier,
+    supportingText: String? = null,
+    actions: (@Composable () -> Unit)? = null,
 ) {
     val muted = MaterialTheme.colorScheme.onSurfaceVariant.copy(
         alpha = DesignTokens.Alpha.Secondary,
     )
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(horizontal = DesignTokens.Spacing.Large),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Medium),
-    ) {
+    StatusContent(modifier) {
         Text(
             text = emoji,
+            modifier = illustrationModifier,
             style = MaterialTheme.typography.displayMedium,
             color = muted,
         )
         Text(
             text = message,
+            textAlign = TextAlign.Center,
             style = MaterialTheme.typography.bodyMedium,
             color = muted,
         )
+        if (supportingText != null) {
+            Text(supportingText, color = muted, textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyMedium)
+        }
+        actions?.invoke()
         if (actionLabel != null && onAction != null) {
             TextButton(
                 onClick = onAction,
@@ -81,4 +86,33 @@ fun EmptyScreen(
             }
         }
     }
+}
+
+
+@Composable
+fun LoadingScreen(modifier: Modifier = Modifier) {
+    Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        AppCircularProgress()
+    }
+}
+
+@Composable
+fun ErrorScreen(
+    message: String,
+    modifier: Modifier = Modifier,
+    actions: @Composable () -> Unit,
+) {
+    StatusContent(modifier) {
+        AppText(message, color = UiTheme.colorScheme.error, textAlign = TextAlign.Center)
+        actions()
+    }
+}
+
+@Composable
+private fun StatusContent(modifier: Modifier, content: @Composable () -> Unit) {
+    Column(
+        modifier = modifier.fillMaxSize().padding(horizontal = DesignTokens.Spacing.Large),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Medium, Alignment.CenterVertically),
+    ) { content() }
 }
