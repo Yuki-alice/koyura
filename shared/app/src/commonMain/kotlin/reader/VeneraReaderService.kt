@@ -22,6 +22,7 @@ internal class VeneraReaderService(
     private val downloadTriggers: DownloadTriggers? = null,
 ) : ReaderService, ReadingDurationRecorder {
     private val displayedChapter = MutableStateFlow<Pair<DownloadChapter, Int>?>(null)
+    internal val duration = ReadingDurationTracker(this)
 
     override suspend fun recordReadingDuration(sourceKey: String, workId: String, chapterId: String?, elapsedMillis: Long) {
         history?.addReadDuration(sourceKey, workId, chapterId, elapsedMillis)
@@ -34,18 +35,23 @@ internal class VeneraReaderService(
 
     override suspend fun openChapter(sourceKey: String, workId: String, chapterId: String?): ChapterContent =
         withContext(Dispatchers.IO) {
+            duration.setChapter(null)
             val chapter = reading.openChapter(sourceKey, workId, chapterId)
             val latest = reading.readLatestProgress(sourceKey, workId)
             displayedChapter.value = DownloadChapter(sourceKey, workId, chapter.chapterId) to chapter.pages.size
+            if (chapter.pages.isNotEmpty()) {
+                duration.setChapter(ReadingDurationTracker.Chapter(sourceKey, workId, chapter.chapterId))
+            }
             ChapterContent(
                 chapterId = chapter.chapterId,
                 title = "",
                 pageKeys = chapter.pages.map { it.pageKey },
                 startPageIndex = chapter.startIndex,
                 imageKeys = chapter.pages.filter { it.imageKey != it.pageKey }.associate { it.pageKey to it.imageKey },
-                saveInitialPosition = chapter.startPageKey != null && (
+                saveInitialPosition = chapter.pages.isNotEmpty() && (
                     latest == null || latest.chapterId != chapter.chapterId ||
-                        latest.pageKey != chapter.startPageKey || latest.pageIndex != chapter.startIndex
+                        latest.pageKey != chapter.pages.getOrNull(chapter.startIndex)?.pageKey ||
+                        latest.pageIndex != chapter.startIndex
                 ),
             )
         }
@@ -80,6 +86,7 @@ internal class VeneraReaderService(
                 chapterTitle = chapterTitle?.takeIf { it.isNotBlank() },
             )
         }
+        duration.positionSaved(ReadingDurationTracker.Chapter(sourceKey, workId, chapterId))
         // 读到末页时记录章节已读，中途页只更新进度；章节表缺失时不建行（目录同步负责建行）。
         if (isLastPage) {
             val store = library
@@ -109,6 +116,5 @@ internal class VeneraReaderService(
                 // The position is already committed; the next page can try the optional prefetch again.
             }
         }
-        Unit
     }
 }

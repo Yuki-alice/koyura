@@ -8,6 +8,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.snapshotFlow
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -22,9 +25,14 @@ import app.koyura.domain.reader.ReaderService
 import app.koyura.domain.reader.preferences.ReaderPreferences
 import app.koyura.app.navigation.rememberAppNavigationState
 import app.koyura.app.navigation.TabletUiMode
+import app.koyura.app.navigation.ComicReaderRoute
 import app.koyura.app.library.LocalProductionSettings
+import app.koyura.app.reader.VeneraReaderService
 import app.koyura.domain.appearance.ThemeMode
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.withContext
 import app.koyura.app.navigation.usesNavigationRailForWindow
 import app.koyura.designsystem.DesignTokens
 import app.koyura.designsystem.ReaderTheme
@@ -126,6 +134,21 @@ internal fun AppShell(
     tabletMode: TabletUiMode = TabletUiMode.AUTOMATIC,
 ) {
     val navigation = rememberAppNavigationState(onTabReselect)
+    val duration = (LocalReaderService.current as? VeneraReaderService)?.duration
+    if (duration != null) {
+        val lifecycle = LocalLifecycleOwner.current.lifecycle
+        LaunchedEffect(navigation, duration, lifecycle) {
+            try {
+                combine(
+                    snapshotFlow { navigation.currentStack.lastOrNull() is ComicReaderRoute },
+                    lifecycle.currentStateFlow,
+                ) { visible, state -> visible to state.isAtLeast(Lifecycle.State.RESUMED) }
+                    .collect { (visible, resumed) -> duration.setVisibility(visible, resumed) }
+            } finally {
+                withContext(NonCancellable) { duration.setVisibility(visible = false, resumed = false) }
+            }
+        }
+    }
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         AppScaffold(
             navigation = navigation,
