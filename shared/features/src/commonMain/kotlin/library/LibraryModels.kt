@@ -189,7 +189,19 @@ data class LibraryPrefs(
     val showWorkCount: Boolean = true,
     /** 随机排序的确定性种子：同一种子同数据顺序必同（单测断言用）。 */
     val randomSeed: Long = 0L,
-)
+    /**
+     * 详情页继续阅读钮吸附侧（Komikku `reading_button_position`，`"Start"` 左、`"End"` 右，
+     * 缺省右；非法值回缺省，见 `parsePrefs` 容错）。
+     */
+    val readButtonPosition: String = ReadButtonEnd,
+) {
+    /** 是否吸附左侧（仅 `"Start"` 为真，其余一律按右侧处理）。 */
+    val readButtonAtStart: Boolean get() = readButtonPosition == ReadButtonStart
+}
+
+/** 详情 FAB 吸附侧取值（Komikku `FabPosition` 字符串）。 */
+const val ReadButtonStart = "Start"
+const val ReadButtonEnd = "End"
 
 /** 收藏入库时的写入载荷（分类归属可选，缺省进入默认分类）。 */
 data class NewLibraryEntry(
