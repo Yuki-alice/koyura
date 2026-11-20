@@ -106,6 +106,7 @@ object DesignTokens {
     object Sizes {
         val MinimumTouchTarget = 48.dp
         val DetailActionIcon = 20.dp
+        val SelectionOutline = 2.dp
         val NavigationBarHeight = 80.dp
         val NavigationRailMinWidth = 80.dp
         val SettingsItemMinHeight = 56.dp

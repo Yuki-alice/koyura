@@ -1,7 +1,6 @@
 package app.koyura.designsystem.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.height
@@ -14,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -84,15 +84,16 @@ fun ReaderPill(
     modifier: Modifier = Modifier,
     countStyle: Boolean = false,
 ) {
-    val contentColor = if (countStyle) {
-        val alpha = if (isSystemInDarkTheme()) {
+    val scheme = MaterialTheme.colorScheme
+    val container = if (countStyle) {
+        val alpha = if (scheme.surface.luminance() < 0.5f) {
             DesignTokens.Alpha.PillCountDark
         } else {
             DesignTokens.Alpha.PillCountLight
         }
-        MaterialTheme.colorScheme.onBackground.copy(alpha = alpha)
+        scheme.onBackground.copy(alpha = alpha)
     } else {
-        MaterialTheme.colorScheme.onSurface
+        scheme.surfaceContainerHigh
     }
     val textStyle = if (countStyle) {
         MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp)
@@ -103,13 +104,13 @@ fun ReaderPill(
     Box(
         modifier = modifier
             .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .background(container)
             .padding(PillContentPadding),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             text = text,
-            color = contentColor,
+            color = scheme.onSurface,
             style = textStyle,
             maxLines = 1,
         )

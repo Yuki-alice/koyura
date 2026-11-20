@@ -6,9 +6,11 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.runtime.staticCompositionLocalOf
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -447,7 +449,8 @@ class LibrarySession(
      */
     suspend fun coverBytes(entry: LibraryEntry): ByteArray {
         ensureCover(entry)
-        val ready = covers[coverCacheKey(entry.sourceKey, entry.coverUrl)] as? LibraryCoverState.Ready
+        val key = coverCacheKey(entry.sourceKey, entry.coverUrl)
+        val ready = snapshotFlow { covers[key] }.first { it != LibraryCoverState.Loading } as? LibraryCoverState.Ready
         return ready?.bytes ?: throw LibraryRepositoryException("Cover unavailable")
     }
 

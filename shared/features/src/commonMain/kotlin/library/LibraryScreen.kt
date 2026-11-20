@@ -2,9 +2,12 @@ package app.koyura.features.library
 
 import app.koyura.designsystem.ActionIcon
 import app.koyura.designsystem.ActionIconButton
+import app.koyura.designsystem.components.ModalReaderSheet
+import app.koyura.designsystem.components.ReaderPill
 import app.koyura.designsystem.components.ReaderTopAppBar
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -41,15 +44,17 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import app.koyura.designsystem.Cover
+import app.koyura.designsystem.CrossfadingCover
+import app.koyura.designsystem.CrossfadingCoverScope
 import app.koyura.designsystem.CoverCornerRadius
 import app.koyura.designsystem.CoverDecoder
 import app.koyura.designsystem.CoverImageLoader
@@ -265,15 +270,17 @@ fun LibraryScreen(
                 }
                 LibraryLoadState.Unavailable,
                 LibraryLoadState.Ready,
-                -> LibraryContent(
-                    session = session,
-                    decodeCover = decodeCover,
-                    onOpenWork = onOpenWork,
-                    onContinue = onContinue,
-                    onOpenBrowse = onOpenBrowse,
-                    onGlobalSearch = onGlobalSearch,
-                    onGuide = onGuide,
-                )
+                -> CrossfadingCoverScope {
+                    LibraryContent(
+                        session = session,
+                        decodeCover = decodeCover,
+                        onOpenWork = onOpenWork,
+                        onContinue = onContinue,
+                        onOpenBrowse = onOpenBrowse,
+                        onGlobalSearch = onGlobalSearch,
+                        onGuide = onGuide,
+                    )
+                }
             }
         }
         if (session.selection.isNotEmpty()) {
@@ -560,11 +567,7 @@ private fun LibraryCategoryTabs(session: LibrarySession) {
                             overflow = TextOverflow.Ellipsis,
                         )
                         if (session.snapshot.prefs.showWorkCount) {
-                            AppText(
-                                text = count.toString(),
-                                style = UiTheme.typography.labelSmall,
-                                color = UiTheme.colorScheme.onSurfaceVariant,
-                            )
+                            ReaderPill(text = count.toString(), countStyle = true)
                         }
                     }
                 },
@@ -895,9 +898,9 @@ private fun LibraryCoverImage(
 ) {
     // 书架封面走全仓唯一 A 轨管线：加载器委托会话单次取图（失败抛错转 null 回退占位），
     // 解码器沿用调用方注入的平台实现；内存缓存沿用默认按源隔离实例。
-    val loader = remember(entry.sourceKey, entry.coverUrl) {
+    val loader = remember(session, entry.sourceKey, entry.coverUrl) {
         CoverImageLoader { _, _ ->
-            runCatching { session.coverBytes(entry) }.getOrNull()
+            session.coverBytes(entry)
         }
     }
     val decoder = remember(decodeCover) {
@@ -907,12 +910,23 @@ private fun LibraryCoverImage(
         LocalCoverImageLoader provides loader,
         LocalCoverDecoder provides decoder,
     ) {
-        Cover(
-            sourceKey = entry.sourceKey,
-            coverUrl = entry.coverUrl,
-            label = entry.displayTitle,
-            modifier = modifier,
-        )
+        val selected = entry.key in session.selection
+        val outline = if (selected) {
+            Modifier.border(DesignTokens.Sizes.SelectionOutline, UiTheme.colorScheme.secondary, RoundedCornerShape(CoverCornerRadius))
+        } else {
+            Modifier
+        }
+        Box(modifier) {
+            CrossfadingCover(
+                sourceKey = entry.sourceKey,
+                coverUrl = entry.coverUrl,
+                label = entry.displayTitle,
+                modifier = Modifier.matchParentSize().alpha(
+                    if (selected) DesignTokens.Alpha.GridSelectedCover else 1f,
+                ),
+            )
+            if (selected) Box(Modifier.matchParentSize().then(outline))
+        }
     }
 }
 
@@ -1014,6 +1028,17 @@ private fun BoxScope.LibraryCoverBadges(
 }
 
 @Composable
+private fun libraryLabelColor(entry: LibraryEntry, secondary: Boolean = false): Color {
+    val read = entry.unreadCount == 0L && (entry.totalChapters > 0 || entry.hasStarted)
+    val alpha = when {
+        read -> DesignTokens.Alpha.Disabled
+        secondary -> DesignTokens.Alpha.Secondary
+        else -> 1f
+    }
+    return UiTheme.colorScheme.onSurface.copy(alpha = alpha)
+}
+
+@Composable
 private fun LibraryCompactCard(
     entry: LibraryEntry,
     session: LibrarySession,
@@ -1033,8 +1058,9 @@ private fun LibraryCompactCard(
         }
         AppText(
             text = entry.displayTitle,
+            color = libraryLabelColor(entry),
             style = UiTheme.typography.bodyMedium,
-            maxLines = 1,
+            maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 4.dp).testTag(libraryCardTitleTag(entry.sourceKey, entry.workId)),
         )
@@ -1061,6 +1087,7 @@ private fun LibraryComfortableCard(
         }
         AppText(
             text = entry.displayTitle,
+            color = libraryLabelColor(entry),
             style = UiTheme.typography.bodyLarge,
             fontWeight = FontWeight.SemiBold,
             maxLines = 2,
@@ -1070,7 +1097,7 @@ private fun LibraryComfortableCard(
         AppText(
             text = entry.sourceName,
             style = UiTheme.typography.bodySmall,
-            color = UiTheme.colorScheme.onSurfaceVariant,
+            color = libraryLabelColor(entry, secondary = true),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -1110,7 +1137,7 @@ private fun LibraryListRow(
     Row(
         modifier = LibraryCardModifier(entry, session, onOpenWork)
             .fillMaxWidth()
-            .height(96.dp)
+            .heightIn(min = DesignTokens.Sizes.HistoryItemHeight)
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -1143,6 +1170,7 @@ private fun LibraryListRow(
         ) {
             AppText(
                 text = entry.displayTitle,
+                color = libraryLabelColor(entry),
                 style = UiTheme.typography.bodyMedium,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 2,
@@ -1160,7 +1188,7 @@ private fun LibraryListRow(
                 AppText(
                     text = secondary,
                     style = UiTheme.typography.bodySmall,
-                    color = UiTheme.colorScheme.onSurfaceVariant,
+                    color = libraryLabelColor(entry, secondary = true),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -1168,7 +1196,7 @@ private fun LibraryListRow(
             AppText(
                 text = entry.sourceName,
                 style = UiTheme.typography.labelSmall,
-                color = UiTheme.colorScheme.onSurfaceVariant,
+                color = libraryLabelColor(entry, secondary = true),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -1223,6 +1251,7 @@ private fun LibraryPanoramaCard(
         LibraryCoverBadges(entry = entry, session = session, onContinue = onContinue)
         AppText(
             text = entry.displayTitle,
+            color = libraryLabelColor(entry),
             style = UiTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
             maxLines = 2,
@@ -1330,36 +1359,31 @@ private fun LibrarySheetHost(
             },
             onDismiss = onDismiss,
         )
-        else -> Dialog(onDismissRequest = onDismiss) {
-            AppSurface(
-                shape = RoundedCornerShape(16.dp),
-                tonalElevation = 6.dp,
+        else -> ModalReaderSheet(onDismissRequest = onDismiss) {
+            Column(
+                modifier = Modifier.fillMaxWidth()
+                    .heightIn(max = DesignTokens.Breakpoints.DialogMaxWidth)
+                    .verticalScroll(rememberScrollState())
+                    .padding(vertical = 8.dp),
             ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth()
-                        .heightIn(max = 560.dp)
-                        .verticalScroll(rememberScrollState())
-                        .padding(vertical = 8.dp),
+                when (sheet) {
+                    LibrarySheet.FILTER -> LibraryFilterPage(
+                        session = session,
+                        onEditCategories = { onOpenSheet(LibrarySheet.CATEGORIES) },
+                    )
+                    LibrarySheet.SORT -> LibrarySortPage(session = session)
+                    LibrarySheet.DISPLAY -> LibraryDisplayPage(session = session)
+                    LibrarySheet.GROUP -> LibraryGroupPage(session = session)
+                    LibrarySheet.CATEGORIES -> LibraryCategoriesPage(session = session)
+                    else -> Unit
+                }
+                AppTextButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                        .padding(bottom = 8.dp)
+                        .testTag(LibrarySheetCloseTag),
                 ) {
-                    when (sheet) {
-                        LibrarySheet.FILTER -> LibraryFilterPage(
-                            session = session,
-                            onEditCategories = { onOpenSheet(LibrarySheet.CATEGORIES) },
-                        )
-                        LibrarySheet.SORT -> LibrarySortPage(session = session)
-                        LibrarySheet.DISPLAY -> LibraryDisplayPage(session = session)
-                        LibrarySheet.GROUP -> LibraryGroupPage(session = session)
-                        LibrarySheet.CATEGORIES -> LibraryCategoriesPage(session = session)
-                        else -> Unit
-                    }
-                    AppTextButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.align(Alignment.CenterHorizontally)
-                            .padding(bottom = 8.dp)
-                            .testTag(LibrarySheetCloseTag),
-                    ) {
-                        AppText(stringResource(Res.string.library_close))
-                    }
+                    AppText(stringResource(Res.string.library_close))
                 }
             }
         }

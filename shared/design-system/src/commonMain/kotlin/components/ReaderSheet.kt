@@ -29,6 +29,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import app.koyura.designsystem.DesignTokens
 
 /**
@@ -152,3 +154,17 @@ private val AutoTabletMinWidth = 600.dp
 
 // 弹层垂直内边距 16dp（白皮书 06 §6.7 / 03 §3.7）。
 private val SheetVerticalPadding = DesignTokens.Spacing.Medium
+
+/** Presents an adaptive sheet in its own focus scope so Back dismisses the sheet first. */
+@Composable
+fun ModalReaderSheet(
+    onDismissRequest: () -> Unit,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Dialog(
+        onDismissRequest = onDismissRequest,
+        properties = DialogProperties(dismissOnClickOutside = false, usePlatformDefaultWidth = false),
+    ) {
+        ReaderSheet(onDismissRequest = onDismissRequest, content = content)
+    }
+}
