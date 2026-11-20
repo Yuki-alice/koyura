@@ -9,6 +9,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -23,6 +24,8 @@ import app.koyura.app.reader.VeneraReaderService
 import app.koyura.app.browse.venera.VeneraBrowseService
 import app.koyura.app.history.VeneraHistoryService
 import app.koyura.app.library.ProductionLibraryRepository
+import app.koyura.app.library.LocalProductionDownloads
+import app.koyura.app.library.ProductionDownloadQueueRepository
 import app.koyura.app.account.ProductionAccountRepository
 import app.koyura.app.updates.ProductionUpdatesRepository
 import app.koyura.app.updates.ProductionUpdatePolicyRepository
@@ -90,8 +93,6 @@ internal fun ExtensionApp(
 
     val session = openedSession
     if (session != null) {
-        // 更新扫描出新章后的自动下载钩子（偏好默认关闭，开启后新章自动入队）。
-        session.updates.setNewChaptersDownloadHook(session.downloadTriggers)
         // 后台更新调度：进程内时间驱动 + 启动补跑；作用域随会话销毁，前台唤醒由平台接线补充。
         val sessionScope = remember(session) { CoroutineScope(SupervisorJob() + Dispatchers.Default) }
         LaunchedEffect(session) { session.updateScheduler.start(sessionScope) }
@@ -144,18 +145,21 @@ internal fun ExtensionApp(
             )
         }
         val history = remember(session) { VeneraHistoryService(session.history, session.library) }
-        App(
-            browseService = browse,
-            readerService = reader,
-            historyService = history,
-            readerPreferences = session.readerPreferences,
-            libraryRepository = library,
-            updatesRepository = updates,
-            updatePolicyRepository = updatePolicy,
-            accountRepository = accounts,
-            searchSourceFilter = { session.discovery.searchSourceKeys() },
-            sourceUiHost = uiHost,
-        )
+        val downloads = remember(session) { ProductionDownloadQueueRepository(session.downloadQueue) }
+        CompositionLocalProvider(LocalProductionDownloads provides downloads) {
+            App(
+                browseService = browse,
+                readerService = reader,
+                historyService = history,
+                readerPreferences = session.readerPreferences,
+                libraryRepository = library,
+                updatesRepository = updates,
+                updatePolicyRepository = updatePolicy,
+                accountRepository = accounts,
+                searchSourceFilter = { session.discovery.searchSourceKeys() },
+                sourceUiHost = uiHost,
+            )
+        }
     } else {
         ReaderTheme {
             Surface(modifier = Modifier.fillMaxSize()) {

@@ -57,22 +57,24 @@ class ExtensionSession internal constructor(
     val comicReading = ComicReadingService(driver, service, httpClient).apply {
         attachLocalContent(packages, isOnline)
     }
-    private val queue = ChapterDownloadStore(
+    val downloadQueue = ChapterDownloadStore(
         driver, packages,
         openChapter = { chapter -> comicReading.openOnlineChapter(chapter.sourceKey, chapter.workId, chapter.chapterId) },
         loadPage = { chapter, page ->
             comicReading.loadOnlineImageBytes(chapter.sourceKey, chapter.workId, chapter.chapterId, page.imageKey)
         },
     )
-    val downloads: ChapterDownloads get() = queue
+    val downloads: ChapterDownloads get() = downloadQueue
 
-    internal suspend fun startDownloads() = queue.start()
+    internal suspend fun startDownloads() = downloadQueue.start()
     val history = HistoryStore(driver)
     val library = LibraryStore(driver)
     val discovery = SourceDiscoveryService(library, service.browse)
     val feed = SourceFeedService(library, service.browse, discovery)
     val downloadTriggers = DownloadTriggers(library, downloads)
-    val updates = LibraryUpdateScanner(driver, library, service)
+    val updates = LibraryUpdateScanner(driver, library, service).apply {
+        setNewChaptersDownloadHook(downloadTriggers)
+    }
     val updateScheduler = LibraryUpdateScheduler(
         readPreference = { withContext(Dispatchers.IO) { library.getPref(LibraryUpdateScheduler.PREFERENCE) } },
         writePreference = { value -> withContext(Dispatchers.IO) { library.setPref(LibraryUpdateScheduler.PREFERENCE, value) } },
@@ -96,7 +98,7 @@ class ExtensionSession internal constructor(
         if (!doClose) return
         withContext(NonCancellable) {
             runCatching { updateScheduler.close() }
-            runCatching { queue.close() }
+            runCatching { downloadQueue.close() }
             runCatching { service.close() }
             runCatching { httpClient.close() }
             runCatching { driver.close() }

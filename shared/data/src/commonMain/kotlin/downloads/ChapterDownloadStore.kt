@@ -33,7 +33,9 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlin.uuid.Uuid
 
-internal class ChapterDownloadStore(
+data class QueuedChapter(val job: DownloadJob, val workTitle: String, val chapterTitle: String)
+
+class ChapterDownloadStore internal constructor(
     driver: SqlDriver,
     private val packages: ChapterContentPackages,
     private val openChapter: suspend (DownloadChapter) -> OpenedChapter,
@@ -49,7 +51,7 @@ internal class ChapterDownloadStore(
     private var active: Pair<String, Job>? = null
     private var closed = false
 
-    suspend fun start() = withContext(Dispatchers.IO) {
+    internal suspend fun start() = withContext(Dispatchers.IO) {
         val rows = queries.selectAllDownloads().executeAsList()
         packages.discardOrphans(rows.mapTo(hashSetOf()) { it.id })
         for (row in rows) {
@@ -91,6 +93,29 @@ internal class ChapterDownloadStore(
         Unit
     }
 
+    suspend fun loadQueue(): List<QueuedChapter> = withContext(Dispatchers.IO) {
+        queries.selectVisibleDownloadQueue().executeAsList().map {
+            val job = DownloadJob(
+                it.id, DownloadChapter(it.source_key, it.work_id, it.chapter_id.ifEmpty { null }),
+                DownloadStatus.valueOf(it.status), it.completed_pages.toInt(), it.total_pages?.toInt(),
+            )
+            QueuedChapter(job, it.work_title, it.chapter_title)
+        }
+    }
+
+    suspend fun resume(id: String) = mutate {
+        val row = queries.selectDownload(id).executeAsOneOrNull()
+        if (row?.status == DownloadStatus.PAUSED.name) mark(id, DownloadStatus.QUEUED)
+    }
+
+    suspend fun clearQueue() {
+        val task = mutate {
+            queries.cancelVisibleDownloads()
+            active?.second.also { it?.cancel() }
+        }
+        task?.join()
+    }
+
     override fun observe(chapter: DownloadChapter) = jobs.map { values ->
         values.firstOrNull { it.chapter == chapter }
     }.distinctUntilChanged()
@@ -106,7 +131,7 @@ internal class ChapterDownloadStore(
         }
 
     override suspend fun enqueue(chapter: DownloadChapter): DownloadJob =
-        enqueueAll(chapter.sourceKey, chapter.workId, listOf(chapter.chapterId)).single()
+        enqueueChapters(chapter.sourceKey, chapter.workId, listOf(chapter.chapterId), false, null, true).single()
 
     override suspend fun enqueueAll(
         sourceKey: String,
@@ -114,6 +139,15 @@ internal class ChapterDownloadStore(
         chapterIds: List<String?>,
         unreadOnly: Boolean,
         limit: Int?,
+    ): List<DownloadJob> = enqueueChapters(sourceKey, workId, chapterIds, unreadOnly, limit, false)
+
+    private suspend fun enqueueChapters(
+        sourceKey: String,
+        workId: String,
+        chapterIds: List<String?>,
+        unreadOnly: Boolean,
+        limit: Int?,
+        restartCancelled: Boolean,
     ): List<DownloadJob> {
         require(sourceKey.isNotBlank() && workId.isNotBlank())
         require(limit == null || limit >= 0)
@@ -128,7 +162,11 @@ internal class ChapterDownloadStore(
                     .filterNot { it in read }.take(limit ?: chapterIds.size)
                 selected.map { id ->
                     queries.insertDownload(Uuid.random().toString(), sourceKey, workId, id)
-                    queries.selectDownloadForChapter(sourceKey, workId, id).executeAsOne().toJob()
+                    val row = queries.selectDownloadForChapter(sourceKey, workId, id).executeAsOne()
+                    if (restartCancelled && row.status == DownloadStatus.CANCELLED.name) {
+                        mark(row.id, DownloadStatus.QUEUED)
+                        queries.selectDownload(row.id).executeAsOne().toJob()
+                    } else row.toJob()
                 }.toList()
             }
         }
@@ -156,7 +194,7 @@ internal class ChapterDownloadStore(
         task?.join()
     }
 
-    suspend fun close() {
+    internal suspend fun close() {
         mutex.withLock {
             closed = true
             wake.close()
