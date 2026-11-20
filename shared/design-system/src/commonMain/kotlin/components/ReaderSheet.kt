@@ -10,6 +10,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -27,6 +28,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -108,7 +110,9 @@ fun ReaderSheet(
                 } else {
                     SheetCard(
                         topOnlyCorners = true,
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .swipeDownToDismiss(onDismissRequest),
                         content = content,
                     )
                 }
@@ -167,4 +171,25 @@ fun ModalReaderSheet(
     ) {
         ReaderSheet(onDismissRequest = onDismissRequest, content = content)
     }
+}
+
+/**
+ * 手机底部弹层的下滑关闭：累计向下拖动超过 56dp 即关闭（白皮书 06 §6.13）。
+ *
+ * 只做阈值判定，不做跟手位移——跟手位移需要把偏移暴露给父布局，会和 sheet 内滚动争手势；
+ * 参考实现也是「过阈值即关闭」。
+ */
+private fun Modifier.swipeDownToDismiss(onDismiss: () -> Unit): Modifier = this.pointerInput(Unit) {
+    var accumulated = 0f
+    detectVerticalDragGestures(
+        onDragStart = { accumulated = 0f },
+        onVerticalDrag = { change, dragAmount ->
+            change.consume()
+            accumulated += dragAmount
+        },
+        onDragEnd = {
+            if (accumulated > DesignTokens.Sizes.SheetDismissThreshold.toPx()) onDismiss()
+        },
+        onDragCancel = { accumulated = 0f },
+    )
 }
