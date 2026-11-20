@@ -531,7 +531,7 @@ private fun HistoryRow(
             sourceKey = entry.sourceKey,
             coverUrl = entry.cover,
             label = entry.displayTitle,
-            // 原版历史行封面约 63×94，填满行高（白皮书 07 §7.6）。
+            // 96dp 行高减去上下 8dp → 80dp，2:3 → 53dp（白皮书 06 §6.8 裁决表）。
             modifier = Modifier.size(width = DesignTokens.Sizes.HistoryCoverWidth, height = DesignTokens.Sizes.HistoryCoverHeight),
         )
         Column(
@@ -551,7 +551,7 @@ private fun HistoryRow(
                     val label = stringResource(Res.string.history_unread)
                     Box(
                         Modifier.size(DesignTokens.Sizes.UnreadDot)
-                            .background(UiTheme.colorScheme.secondary, CircleShape)
+                            .background(UiTheme.colorScheme.primary, CircleShape)
                             .semantics { contentDescription = label },
                     )
                 }
@@ -565,16 +565,31 @@ private fun HistoryRow(
                     modifier = Modifier.weight(1f).testTag(historyRowTitleTag(entry.sourceKey, entry.workId)),
                 )
             }
-            AppText(
-                text = "$chapterLabel · " + stringResource(Res.string.history_page, entry.pageIndex + 1),
-                style = UiTheme.typography.bodySmall,
-                color = UiTheme.colorScheme.onSurfaceVariant.copy(
-                    alpha = DesignTokens.Alpha.Secondary,
-                ),
+            // 一行：● 章节 · 时间 · 页码（白皮书 06 §6.8）。
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.ExtraSmall),
                 modifier = Modifier.testTag(historyRowDetailTag(entry.sourceKey, entry.workId)),
-            )
-            if (readTime != null) {
-                AppText(readTime, style = UiTheme.typography.bodySmall, color = UiTheme.colorScheme.onSurfaceVariant)
+            ) {
+                if (hasUnread) {
+                    Box(
+                        Modifier.size(DesignTokens.Sizes.UnreadDot)
+                            .background(UiTheme.colorScheme.primary, CircleShape),
+                    )
+                }
+                AppText(
+                    text = listOfNotNull(
+                        chapterLabel,
+                        readTime,
+                        stringResource(Res.string.history_page, entry.pageIndex + 1),
+                    ).joinToString(" · "),
+                    style = UiTheme.typography.bodySmall,
+                    color = UiTheme.colorScheme.onSurfaceVariant.copy(
+                        alpha = DesignTokens.Alpha.Secondary,
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
         // 选择态只留勾选框：行级动作隐藏，避免与批量动作抢同一个点击区。
@@ -585,35 +600,26 @@ private fun HistoryRow(
                 onClick = onContinue,
                 modifier = Modifier.testTag(historyContinueTag(entry.sourceKey, entry.workId)),
             )
-            var menuOpen by remember { mutableStateOf(false) }
-            Box {
-                ActionIconButton(
-                    icon = ActionIcon.More,
-                    label = stringResource(Res.string.history_row_actions),
-                    onClick = { menuOpen = true },
-                    modifier = Modifier.testTag(historyRowActionsTag(entry.sourceKey, entry.workId)),
-                )
-                AppMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                    val favoriteLabel = stringResource(
-                        if (favorited) Res.string.history_favorite_remove else Res.string.history_favorite_add,
-                    )
-                    AppMenuItem(
-                        text = { AppText(favoriteLabel) },
-                        onClick = {
-                            menuOpen = false
-                            onToggleFavorite()
-                        },
+            // 行尾直接动作（白皮书 06 §6.8）：未收藏时显示收藏，删除常驻。
+            // 外层仍保留更多动作锚点，兼容既有 UI 测试的「先点动作区」路径。
+            Row(
+                modifier = Modifier.testTag(historyRowActionsTag(entry.sourceKey, entry.workId)),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (!favorited) {
+                    ActionIconButton(
+                        icon = ActionIcon.FavoriteBorder,
+                        label = stringResource(Res.string.history_favorite_add),
+                        onClick = onToggleFavorite,
                         modifier = Modifier.testTag(historyFavoriteTag(entry.sourceKey, entry.workId)),
                     )
-                    AppMenuItem(
-                        text = { AppText(stringResource(Res.string.history_delete)) },
-                        onClick = {
-                            menuOpen = false
-                            onDelete()
-                        },
-                        modifier = Modifier.testTag(historyDeleteTag(entry.sourceKey, entry.workId)),
-                    )
                 }
+                ActionIconButton(
+                    icon = ActionIcon.Delete,
+                    label = stringResource(Res.string.history_delete),
+                    onClick = onDelete,
+                    modifier = Modifier.testTag(historyDeleteTag(entry.sourceKey, entry.workId)),
+                )
             }
         }
     }

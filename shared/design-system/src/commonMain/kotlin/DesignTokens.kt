@@ -134,8 +134,9 @@ object DesignTokens {
         val SettingsItemMinHeight = 56.dp
         val ChapterItemPadding = PaddingValues(start = 16.dp, top = 12.dp, end = 8.dp, bottom = 12.dp)
         val HistoryItemHeight = 96.dp
-        val HistoryCoverWidth = 63.dp
-        val HistoryCoverHeight = 94.dp
+        // 历史行封面按行高推导：96 − 2×8 = 80dp 高，2:3 → 53dp 宽（白皮书 06 §6.8 裁决表）。
+        val HistoryCoverWidth = 53.dp
+        val HistoryCoverHeight = 80.dp
         // 章节未读点 / 历史未完成点 — 白皮书 09 §9.1：MangaChapterListItem.kt:128、
         // HistoryItem.kt:178 都是 height(8.dp)。
         val UnreadDot = 8.dp
