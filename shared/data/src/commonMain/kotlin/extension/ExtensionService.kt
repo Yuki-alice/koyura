@@ -1,5 +1,6 @@
 package app.koyura.data.extension
 
+import app.koyura.data.search.SavedSearchStore
 import app.cash.sqldelight.db.SqlDriver
 import app.koyura.data.extension.ExtensionDb
 import app.koyura.domain.extension.SourceAccountConfig
@@ -112,7 +113,7 @@ class ExtensionService(
 ) {
     internal val sourceTransport = KtorVeneraHttpTransport(httpClient, sessions = sourceSessions)
     val accounts = SourceAccountService(this, webLoginBrowser)
-    val browse = SourceBrowseService(this)
+    val browse = SourceBrowseService(this, SavedSearchStore(driver))
 
     private val db = ExtensionDb(driver)
     private val mutex = Mutex()

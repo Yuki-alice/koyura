@@ -215,5 +215,8 @@ private fun ensureSchema(driver: SqlDriver) {
             ExtensionDb.Schema.migrate(driver, 8, 9).value
         }
         if (tableColumns(driver, "library_update_metadata").isEmpty()) ExtensionDb.Schema.migrate(driver, 9, 10).value
+        if (tableColumns(driver, "saved_search").isEmpty() || tableColumns(driver, "source_search_options").isEmpty()) {
+            ExtensionDb.Schema.migrate(driver, 10, 11).value
+        }
     }
 }

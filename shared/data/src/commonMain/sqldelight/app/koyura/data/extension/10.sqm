@@ -1,0 +1,14 @@
+CREATE TABLE IF NOT EXISTS saved_search (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_key TEXT NOT NULL,
+    name TEXT NOT NULL,
+    query_text TEXT NOT NULL,
+    option_snapshot TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS saved_search_source ON saved_search(source_key, id);
+
+CREATE TABLE IF NOT EXISTS source_search_options (
+    source_key TEXT NOT NULL PRIMARY KEY,
+    current_options TEXT NOT NULL
+);
