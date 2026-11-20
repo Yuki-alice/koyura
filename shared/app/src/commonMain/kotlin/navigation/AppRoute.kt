@@ -74,6 +74,10 @@ data class SettingsSubpageRoute(val subpageName: String) : AppRoute
 @Serializable
 data class UtilityPageRoute(val key: String) : AppRoute
 
+/** First-run guide; also reachable again from Settings → About. */
+@Serializable
+data object OnboardingRoute : AppRoute
+
 /** Statistics page, pushed from the More tab. Fake-driven until the data layer aggregates it. */
 @Serializable
 data object StatisticsRoute : AppRoute
@@ -99,6 +103,7 @@ val ReaderSavedStateConfiguration: SavedStateConfiguration = SavedStateConfigura
             subclass(GlobalSearchRoute::class, GlobalSearchRoute.serializer())
             subclass(SettingsRoute::class, SettingsRoute.serializer())
             subclass(SettingsSubpageRoute::class, SettingsSubpageRoute.serializer())
+            subclass(OnboardingRoute::class, OnboardingRoute.serializer())
             subclass(UtilityPageRoute::class, UtilityPageRoute.serializer())
         }
     }

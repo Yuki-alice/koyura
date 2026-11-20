@@ -41,6 +41,7 @@ import app.koyura.features.resources.settings_off
 import app.koyura.features.resources.settings_monthly
 import app.koyura.features.resources.settings_english
 import app.koyura.features.resources.settings_back
+import app.koyura.features.resources.settings_show_onboarding
 import app.koyura.features.resources.settings_background_color
 import app.koyura.features.resources.settings_backup
 import app.koyura.features.resources.settings_backup_frequency
@@ -125,6 +126,7 @@ internal fun SettingsSubpageContent(
     modifier: Modifier = Modifier,
     onBack: (() -> Unit)? = null,
     showBackButton: Boolean = false,
+    onOpenOnboarding: (() -> Unit)? = null,
 ) {
     Column(modifier = modifier.fillMaxSize()) {
         Row(
@@ -160,7 +162,7 @@ internal fun SettingsSubpageContent(
                 SettingsSubpage.BROWSE -> BrowseSettingsScreen(session)
                 SettingsSubpage.DATA_STORAGE -> DataStorageSettingsScreen(session)
                 SettingsSubpage.ADVANCED -> AdvancedSettingsScreen(session)
-                SettingsSubpage.ABOUT -> AboutSettingsScreen()
+                SettingsSubpage.ABOUT -> AboutSettingsScreen(onOpenOnboarding = onOpenOnboarding)
             }
         }
     }
@@ -620,6 +622,7 @@ internal fun AdvancedSettingsScreen(
 @Composable
 internal fun AboutSettingsScreen(
     modifier: Modifier = Modifier,
+    onOpenOnboarding: (() -> Unit)? = null,
 ) {
     var showLicenses by remember { mutableStateOf(false) }
     var showHelp by remember { mutableStateOf(false) }
@@ -643,6 +646,12 @@ internal fun AboutSettingsScreen(
             title = stringResource(Res.string.settings_help),
             onClick = { showHelp = true },
         )
+        if (onOpenOnboarding != null) {
+            SettingsRow(
+                title = stringResource(Res.string.settings_show_onboarding),
+                onClick = onOpenOnboarding,
+            )
+        }
         if (showLicenses) {
             SettingsMessageDialog(
                 title = stringResource(Res.string.settings_licenses),
