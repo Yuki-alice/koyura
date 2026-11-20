@@ -27,6 +27,8 @@ import app.koyura.app.library.ProductionLibraryRepository
 import app.koyura.app.library.LocalProductionDownloads
 import app.koyura.app.library.ProductionDownloadQueueRepository
 import app.koyura.app.library.ProductionStatisticsRepository
+import app.koyura.app.library.LocalProductionSettings
+import app.koyura.app.library.ProductionSettingsRepository
 import app.koyura.features.statistics.LocalStatisticsRepository
 import app.koyura.app.account.ProductionAccountRepository
 import app.koyura.app.updates.ProductionUpdatesRepository
@@ -149,7 +151,11 @@ internal fun ExtensionApp(
         val history = remember(session) { VeneraHistoryService(session.history, session.library) }
         val downloads = remember(session) { ProductionDownloadQueueRepository(session.downloadQueue) }
         val statistics = remember(session) { ProductionStatisticsRepository(session.statistics) }
+        val settings = remember(session) {
+            ProductionSettingsRepository(session.library, session.readerPreferences, session.downloadTriggers, session.updateScheduler)
+        }
         CompositionLocalProvider(
+            LocalProductionSettings provides settings,
             LocalProductionDownloads provides downloads,
             LocalStatisticsRepository provides statistics,
         ) {
@@ -157,7 +163,7 @@ internal fun ExtensionApp(
                 browseService = browse,
                 readerService = reader,
                 historyService = history,
-                readerPreferences = session.readerPreferences,
+                readerPreferences = settings,
                 libraryRepository = library,
                 updatesRepository = updates,
                 updatePolicyRepository = updatePolicy,
