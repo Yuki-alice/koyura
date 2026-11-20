@@ -6,6 +6,7 @@ import app.koyura.data.extension.WebLoginBrowser
 import app.koyura.network.createDefaultHttpClient
 import app.koyura.source.runtime.VeneraEnvironment
 import app.koyura.source.runtime.VeneraUiHost
+import co.touchlab.sqliter.JournalMode
 import kotlinx.cinterop.ExperimentalForeignApi
 import okio.FileSystem
 import okio.Path
@@ -47,7 +48,7 @@ suspend fun openExtensionSession(
     sourceUi: VeneraUiHost = VeneraUiHost.Headless,
 ): ExtensionSession {
     FileSystem.SYSTEM.createDirectories(appDataDir)
-    val driver = NativeSqliteDriver(ExtensionDb.Schema, "extensions.db")
+    val driver = createExtensionDriver()
     return openExtensionSession(
         driver = driver,
         fileSystem = FileSystem.SYSTEM,
@@ -59,3 +60,20 @@ suspend fun openExtensionSession(
         secrets = IosSourceSecretStore(),
     )
 }
+
+internal fun createExtensionDriver(
+    name: String = ExtensionDatabaseName,
+    basePath: String? = null,
+): NativeSqliteDriver = NativeSqliteDriver(
+    schema = ExtensionDb.Schema,
+    name = name,
+    onConfiguration = { config ->
+        config.copy(
+            journalMode = JournalMode.WAL,
+            extendedConfig = config.extendedConfig.copy(
+                busyTimeout = ExtensionDatabaseBusyTimeoutMillis,
+                basePath = basePath ?: config.extendedConfig.basePath,
+            ),
+        )
+    },
+)

@@ -1,6 +1,7 @@
 package app.koyura.data.session
 
 import android.content.Context
+import androidx.sqlite.db.SupportSQLiteDatabase
 import app.cash.sqldelight.driver.android.AndroidSqliteDriver
 import app.koyura.data.extension.ExtensionDb
 import app.koyura.data.extension.WebLoginBrowser
@@ -24,7 +25,7 @@ suspend fun Context.openExtensionSession(environment: VeneraEnvironment,
     sourceUi: VeneraUiHost = VeneraUiHost.Headless,
 ): ExtensionSession {
     val appDataDir = File(filesDir, "venera-ext").toOkioPath()
-    val driver = AndroidSqliteDriver(ExtensionDb.Schema, this, "extensions.db")
+    val driver = createExtensionDriver(this)
     return openExtensionSession(
         driver = driver,
         fileSystem = FileSystem.SYSTEM,
@@ -35,4 +36,20 @@ suspend fun Context.openExtensionSession(environment: VeneraEnvironment,
         sourceUi = sourceUi,
         secrets = AndroidSourceSecretStore(this),
     )
+}
+
+internal fun createExtensionDriver(context: Context, name: String = ExtensionDatabaseName): AndroidSqliteDriver {
+    val callback = object : AndroidSqliteDriver.Callback(ExtensionDb.Schema) {
+        override fun onConfigure(db: SupportSQLiteDatabase) {
+            check(db.enableWriteAheadLogging()) { "Cannot enable write-ahead logging for $name" }
+            val busyTimeout = "PRAGMA busy_timeout = $ExtensionDatabaseBusyTimeoutMillis"
+            if (db.isExecPerConnectionSQLSupported) {
+                db.execPerConnectionSQL(busyTimeout, emptyArray())
+            } else {
+                // On Android versions without a connection initializer, set the writer timeout at open.
+                db.query(busyTimeout).use { it.moveToFirst() }
+            }
+        }
+    }
+    return AndroidSqliteDriver(ExtensionDb.Schema, context, name, callback = callback)
 }
