@@ -47,6 +47,8 @@ import app.koyura.features.resources.statistics_in_library
 import app.koyura.features.resources.statistics_load_failed
 import app.koyura.features.resources.statistics_local
 import app.koyura.features.resources.statistics_mean_score
+import app.koyura.features.resources.statistics_none
+import app.koyura.features.resources.statistics_not_applicable
 import app.koyura.features.resources.statistics_overview
 import app.koyura.features.resources.statistics_read_duration
 import app.koyura.features.resources.statistics_refresh
@@ -182,7 +184,10 @@ private fun StatisticsContent(snapshot: StatisticsSnapshot) {
                 ),
                 Metric(
                     key = "readDuration",
-                    value = formatReadDuration(snapshot.overview.readDurationSeconds),
+                    value = formatReadDuration(
+                        snapshot.overview.readDurationMillis,
+                        fallback = stringResource(Res.string.statistics_none),
+                    ),
                     label = stringResource(Res.string.statistics_read_duration),
                     icon = ActionIcon.Hourglass,
                 ),
@@ -247,7 +252,11 @@ private fun StatisticsContent(snapshot: StatisticsSnapshot) {
                 ),
                 Metric(
                     key = "meanScore",
-                    value = formatMeanScore(snapshot.trackers.meanScore),
+                    value = formatMeanScore(
+                        snapshot.trackers.meanScore,
+                        snapshot.trackers.trackedEntries,
+                        notApplicable = stringResource(Res.string.statistics_not_applicable),
+                    ),
                     label = stringResource(Res.string.statistics_mean_score),
                 ),
                 Metric(

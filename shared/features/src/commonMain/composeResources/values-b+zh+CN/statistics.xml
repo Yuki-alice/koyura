@@ -19,5 +19,7 @@
     <string name="statistics_used">使用数</string>
     <string name="statistics_refresh">刷新</string>
     <string name="statistics_load_failed">统计加载失败：%1$s</string>
+    <string name="statistics_none">无</string>
+    <string name="statistics_not_applicable">不适用</string>
     <string name="statistics_retry">重试</string>
 </resources>

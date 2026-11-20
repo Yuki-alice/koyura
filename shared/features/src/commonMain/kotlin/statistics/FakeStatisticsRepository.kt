@@ -1,7 +1,7 @@
 package app.koyura.features.statistics
 
 /**
- * 统计页内存数据源（与 FakeUpdatesRepository 同一写法）：默认返回白皮书截图同形的样例，
+ * 统计页内存数据源（与 FakeUpdatesRepository 同一写法）：默认返回与白皮书截图同时长同形的样例（4m 13s），
  * 便于 UI 回归；`failure` 注入后下一次读取抛错，用于三态测试。
  */
 class FakeStatisticsRepository(
@@ -31,12 +31,13 @@ class FakeStatisticsRepository(
         fun sampleSnapshot(): StatisticsSnapshot = StatisticsSnapshot(
             overview = StatisticsOverview(
                 inLibrary = 3,
-                readDurationSeconds = 4 * 60 + 13,
+                readDurationMillis = (4 * 60 + 13) * 1000L,
                 completedEntries = 0,
             ),
             entries = StatisticsEntries(inGlobalUpdate = 0, started = 0, local = 3),
             chapters = StatisticsChapters(total = 9, read = 0, downloaded = 0),
-            trackers = StatisticsTrackers(trackedEntries = 0, meanScore = null, used = 0),
+            // 未追踪（trackedEntries == 0）时 meanScore 为 NaN，与原版一致，界面显示 N/A。
+            trackers = StatisticsTrackers(trackedEntries = 0, meanScore = Double.NaN, used = 0),
         )
 
         fun emptySnapshot(): StatisticsSnapshot = StatisticsSnapshot()
