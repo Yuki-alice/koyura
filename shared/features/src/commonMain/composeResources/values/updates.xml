@@ -28,4 +28,5 @@
     <string name="updates_policy_excluded_title">Excluded title keywords</string>
     <string name="updates_policy_excluded_hint">One keyword per line; a work is skipped when its title contains any of them</string>
     <string name="updates_policy_save">Save</string>
+    <string name="updates_last_updated">Last updated in this session</string>
 </resources>

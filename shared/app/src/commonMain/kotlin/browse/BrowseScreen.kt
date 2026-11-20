@@ -104,6 +104,7 @@ fun BrowseScreen(
     onOpenSource: (sourceKey: String, sourceName: String) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier,
     onGlobalSearch: (() -> Unit)? = null,
+    onOpenWork: (sourceKey: String, workId: String, title: String) -> Unit = { _, _, _ -> },
 ) {
     val state = session.state
     val scope = rememberCoroutineScope()
@@ -188,7 +189,7 @@ fun BrowseScreen(
                     },
                     onTogglePin = session::toggleSourcePinned,
                 )
-                BrowsePane.Feed -> FeedPanePlaceholder()
+                BrowsePane.Feed -> FeedPane(onOpenWork = onOpenWork)
                 BrowsePane.Extensions -> ExtensionsPane(
                     session = session,
                     state = state,
@@ -197,7 +198,7 @@ fun BrowseScreen(
                     onManageStores = onManageStores,
                     scope = scope,
                 )
-                BrowsePane.Migrate -> MigratePanePlaceholder()
+                BrowsePane.Migrate -> MigratePane(onOpenSource = onOpenSource)
             }
         }
     }

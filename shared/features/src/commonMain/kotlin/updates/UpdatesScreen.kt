@@ -52,6 +52,7 @@ import app.koyura.features.resources.updates_empty
 import app.koyura.features.resources.updates_errors_empty
 import app.koyura.features.resources.updates_errors_title
 import app.koyura.features.resources.updates_filter
+import app.koyura.features.resources.updates_last_updated
 import app.koyura.features.resources.updates_load_failed
 import app.koyura.features.resources.updates_refresh
 import app.koyura.features.resources.updates_retry
@@ -224,6 +225,23 @@ fun UpdatesScreen(
                         LazyColumn(
                             modifier = Modifier.fillMaxSize().testTag(UpdatesListTag),
                         ) {
+                            // 「Last updated」斜体行（bodyMedium + Italic，16/8 内边距，白皮书 07 §7.4）。
+                            item(key = "updates-last-updated") {
+                                AppText(
+                                    // 仓储没有 lastChecked 字段：只声明「本次会话」，不编造时间戳。
+                                    text = stringResource(Res.string.updates_last_updated),
+                                    style = UiTheme.typography.bodyMedium.copy(
+                                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                                    ),
+                                    color = UiTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(
+                                            horizontal = DesignTokens.Spacing.Medium,
+                                            vertical = DesignTokens.Spacing.Small,
+                                        ),
+                                )
+                            }
                             items(session.entries, key = { "${it.sourceKey}-${it.workId}" }) { work ->
                                 UpdateLeaderRow(
                                     work = work,
@@ -252,7 +270,7 @@ fun UpdatesScreen(
 @Composable
 private fun UpdatesEmptyState() {
     EmptyScreen(
-        emoji = "(˘･_･˘)",
+        emoji = "Σ(ಠ_ಠ)",
         message = stringResource(Res.string.updates_empty),
         modifier = Modifier.testTag(UpdatesEmptyTag),
     )

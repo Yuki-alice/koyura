@@ -28,4 +28,5 @@
     <string name="updates_policy_excluded_title">标题排除词</string>
     <string name="updates_policy_excluded_hint">每行一个关键词；标题包含任一关键词即跳过</string>
     <string name="updates_policy_save">保存</string>
+    <string name="updates_last_updated">本次会话已更新</string>
 </resources>
