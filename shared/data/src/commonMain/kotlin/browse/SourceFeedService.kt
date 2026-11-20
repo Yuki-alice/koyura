@@ -15,10 +15,15 @@ import kotlinx.serialization.json.Json
 class SourceFeedService internal constructor(
     private val library: LibraryRepository,
     private val browse: SourceBrowseService,
+    private val discovery: SourceDiscoveryService,
 ) {
     private val mutex = Mutex()
 
-    suspend fun feedItems(): List<SourceFeedItem> = feedSettings().filter { it.enabled }
+    suspend fun feedItems(): List<SourceFeedItem> {
+        val enabled = feedSettings().filter { it.enabled }
+        val visible = discovery.visibleKeys(enabled.mapTo(hashSetOf()) { it.sourceKey })
+        return enabled.filter { it.sourceKey in visible }
+    }
 
     suspend fun feedSettings(): List<SourceFeedItem> = update { preferences, _ -> preferences }
 

@@ -85,6 +85,9 @@ class SourceBrowseService internal constructor(
     suspend fun explorePages(key: String): List<SourceExplorePage> =
         decodeExplorePages(configuration(key, SourceConfigField.Explore))
 
+    internal suspend fun registeredSources() =
+        extensions.withBrowseRuntime { it?.registeredSources().orEmpty() }
+
     internal suspend fun feedDeclarations(): Map<String, List<SourceFeedItem>> = extensions.withBrowseRuntime { live ->
         if (live == null) return@withBrowseRuntime emptyMap()
         buildMap {
