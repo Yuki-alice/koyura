@@ -45,7 +45,9 @@ import app.koyura.features.updates.UpdatesScreen
 import app.koyura.features.updates.rememberUpdatesSession
 import app.koyura.app.browse.ExtensionDetailsScreen
 import app.koyura.app.browse.globalsearch.GlobalSearchScreen
+import app.koyura.app.browse.globalsearch.GlobalSearchService
 import app.koyura.app.browse.globalsearch.GlobalSearchSession
+import app.koyura.app.browse.globalsearch.LocalSearchSourceFilter
 import app.koyura.app.browse.ExtensionStoresScreen
 import app.koyura.app.browse.LocalBrowseSession
 import app.koyura.app.browse.SourceDetailScreen
@@ -344,7 +346,14 @@ private fun AppNavigationContent(
             }
             entry<GlobalSearchRoute> {
                 // 每次进入重新开一次会话：结果页是独立子路由，返回即弃。
-                val globalSearchSession = remember(browseService) { GlobalSearchSession(browseService) }
+                // 过滤走生产装配（Local NSFW/隐藏偏好），失败回退全量扇出（见服务注释）。
+                val searchSourceFilter = LocalSearchSourceFilter.current
+                val globalSearchSession = remember(browseService, searchSourceFilter) {
+                    GlobalSearchSession(
+                        browseService,
+                        GlobalSearchService(browseService, searchSourceFilter),
+                    )
+                }
                 CompositionLocalProvider(LocalBrowseSession provides browseSession) {
                     GlobalSearchScreen(
                         session = globalSearchSession,

@@ -113,4 +113,40 @@ class GlobalSearchSessionTest {
         assertEquals("Browse is not connected", session.error)
         assertTrue(session.hasSearched)
     }
+
+    @Test
+    fun filteredSourcesOnlyFanOutToAllowedKeys() = runTest {
+        val browse = FakeBrowseService().apply {
+            searchPages = mapOf("星" to page("星图"))
+        }
+        val service = GlobalSearchService(browse) { setOf("src:en:manga") }
+        val session = GlobalSearchSession(browse, service)
+        session.updateQuery("星")
+
+        session.submit()
+
+        // 被过滤的源不铺分组也不扇出，只请求允许集。
+        assertEquals(listOf("src:en:manga"), session.groups.map { it.sourceKey })
+        assertEquals(1, session.resultCount)
+        assertEquals(
+            1,
+            browse.calls.filterKeys { it.startsWith("search:") }.values.sum(),
+        )
+    }
+
+    @Test
+    fun filterFailureFallsBackToFullFanOut() = runTest {
+        val browse = FakeBrowseService().apply {
+            searchPages = mapOf("星" to page("星图"))
+        }
+        val service = GlobalSearchService(browse) { error("prefs unavailable") }
+        val session = GlobalSearchSession(browse, service)
+        session.updateQuery("星")
+
+        session.submit()
+
+        // 过滤层异常不湮没搜索：回退全量扇出。
+        assertEquals(listOf("src:en:manga", "src:ja:manga"), session.groups.map { it.sourceKey })
+        assertEquals(2, session.resultCount)
+    }
 }

@@ -71,7 +71,7 @@ class GlobalSearchSession(
         error = null
     }
 
-    /** 提交当前查询：逐源并发搜索，返回时所有源都已落定。 */
+    /** 提交当前查询：对过滤后的逐源并发搜索，返回时所有源都已落定。 */
     suspend fun submit() {
         val needle = query.trim()
         if (needle.isEmpty()) {
@@ -84,10 +84,12 @@ class GlobalSearchSession(
         error = null
         try {
             val sources = service.sources()
-            groups = sources.map { GlobalSearchGroup(it.id, it.name, GlobalSearchSourceState.Loading) }
+            // 按允许集收缩候选：被全局开关/隐藏过滤的源不铺分组也不扇出。
+            val targets = service.filterSources(sources)
+            groups = targets.map { GlobalSearchGroup(it.id, it.name, GlobalSearchSourceState.Loading) }
             hasSearched = true
             coroutineScope {
-                sources.forEach { source ->
+                targets.forEach { source ->
                     launch {
                         apply(service.searchOne(source.id, source.name, needle))
                     }

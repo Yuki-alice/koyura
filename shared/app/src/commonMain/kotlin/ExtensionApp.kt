@@ -153,6 +153,7 @@ internal fun ExtensionApp(
             updatesRepository = updates,
             updatePolicyRepository = updatePolicy,
             accountRepository = accounts,
+            searchSourceFilter = { session.discovery.searchSourceKeys() },
             sourceUiHost = uiHost,
         )
     } else {

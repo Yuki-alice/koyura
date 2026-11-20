@@ -25,6 +25,7 @@ import app.koyura.designsystem.ReaderTheme
 import app.koyura.designsystem.navigation.NavTab
 import app.koyura.features.account.AccountRepository
 import app.koyura.features.account.LocalAccountRepository
+import app.koyura.app.browse.globalsearch.LocalSearchSourceFilter
 import app.koyura.features.library.LocalLibraryRepository
 import app.koyura.features.library.LibraryRepository as FeaturesLibraryRepository
 import app.koyura.features.updates.LocalUpdatePolicyRepository
@@ -70,6 +71,7 @@ fun App(
     updatesRepository: UpdatesRepository? = null,
     updatePolicyRepository: UpdatePolicyRepository? = null,
     accountRepository: AccountRepository? = null,
+    searchSourceFilter: (suspend () -> Set<String>)? = null,
     sourceUiHost: SourceUiHost? = null,
 ) {
     ReaderTheme {
@@ -82,6 +84,7 @@ fun App(
             LocalUpdatesRepository provides updatesRepository,
             LocalUpdatePolicyRepository provides updatePolicyRepository,
             LocalAccountRepository provides accountRepository,
+            LocalSearchSourceFilter provides searchSourceFilter,
             LocalSourceUiHost provides sourceUiHost,
         ) {
             Surface(modifier = Modifier.fillMaxSize()) {
