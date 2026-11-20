@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -473,10 +474,12 @@ fun SourceDetailScreen(
                     }
                     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
                         if (maxWidth >= DetailWideWidthThreshold) {
+                            // 左栏 min(width/2, 450dp)：白皮书 03/07 与参考 TwoPanelBox.kt。
+                            val masterWidth = minOf(maxWidth / 2, 450.dp)
                             Row(modifier = Modifier.fillMaxSize()) {
                                 Column(
                                     modifier = Modifier
-                                        .weight(0.42f)
+                                        .width(masterWidth)
                                         .fillMaxSize()
                                         .verticalScroll(rememberScrollState()),
                                 ) {
@@ -519,7 +522,7 @@ fun SourceDetailScreen(
                                         progress = progress,
                                     )
                                 }
-                                Column(modifier = Modifier.weight(0.58f).fillMaxSize()) {
+                                Column(modifier = Modifier.weight(1f).fillMaxSize()) {
                                     DetailChapterList(
                                         chapters = loaded.chapters,
                                         enabled = readerService != null,

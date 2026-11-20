@@ -524,7 +524,8 @@ private fun HistoryRow(
             sourceKey = entry.sourceKey,
             coverUrl = entry.cover,
             label = entry.displayTitle,
-            modifier = Modifier.size(width = 56.dp, height = 80.dp),
+            // 原版历史行封面约 63×94，填满行高（白皮书 07 §7.6）。
+            modifier = Modifier.size(width = 63.dp, height = 94.dp),
         )
         Column(
             modifier = Modifier

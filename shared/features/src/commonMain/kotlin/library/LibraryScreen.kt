@@ -662,6 +662,15 @@ private fun LibraryEmptyState(
         modifier = Modifier.fillMaxSize().padding(24.dp).testTag(LibraryEmptyTag),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        // 空状态颜文字（白皮书 06 §6.8 / 9.5 #17）：固定文案保证离屏截图确定性。
+        Text(
+            text = "(・∀・)",
+            style = MaterialTheme.typography.displayMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                alpha = DesignTokens.Alpha.Secondary,
+            ),
+            modifier = Modifier.testTag("library-empty-kaomoji"),
+        )
         Text(
             text = stringResource(Res.string.library_empty),
             style = MaterialTheme.typography.headlineSmall,
