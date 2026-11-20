@@ -50,6 +50,8 @@ kotlin {
             implementation(libs.kotlinx.serialization.core)
             implementation(libs.navigation3.runtime)
             implementation(libs.navigation3.ui)
+            implementation(libs.coil.compose)
+            implementation(libs.coil.network.ktor3)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

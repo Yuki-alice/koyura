@@ -31,6 +31,11 @@ kotlin {
             implementation(libs.compose.resources)
             implementation(libs.compose.runtime)
             implementation(libs.compose.ui)
+            implementation(libs.material.kolor)
+            implementation(libs.coil.compose)
+        }
+        commonTest.dependencies {
+            implementation(libs.kotlin.test)
         }
     }
 }
