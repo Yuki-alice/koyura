@@ -7,6 +7,9 @@ import app.koyura.app.sourceui.AndroidClipboard
 import app.koyura.app.sourceui.AndroidUrlOpener
 import app.koyura.app.sourceui.SourceUiHost
 import app.koyura.data.session.openExtensionSession
+import app.koyura.app.updates.AndroidUpdateNetwork
+import app.koyura.app.updates.AndroidLibraryUpdateNotifier
+import app.koyura.app.updates.requestLibraryUpdateNotifications
 
 @Composable
 internal actual fun PlatformExtensionApp() {
@@ -16,7 +19,17 @@ internal actual fun PlatformExtensionApp() {
     val uiHost = remember(context) {
         SourceUiHost(AndroidClipboard(context), AndroidUrlOpener(context))
     }
-    ExtensionApp(uiHost) { host ->
-        context.applicationContext.openExtensionSession(environment, browser, sourceUi = host)
+    val application = context.applicationContext
+    val network = remember(application) { AndroidUpdateNetwork(application) }
+    val notifier = remember(application) { AndroidLibraryUpdateNotifier(application) }
+    ExtensionApp(
+        uiHost = uiHost,
+        networkChanges = network.changes,
+        requestUpdateNotifications = { requestLibraryUpdateNotifications(context) },
+    ) { host ->
+        application.openExtensionSession(
+            environment, browser, sourceUi = host, isOnline = network::isOnline,
+            isUnmetered = network::isUnmetered, updateNotifier = notifier,
+        )
     }
 }

@@ -35,7 +35,12 @@ import app.koyura.app.library.LocalProductionSettings
 import app.koyura.app.library.ProductionSettingsRepository
 import app.koyura.features.statistics.LocalStatisticsRepository
 import app.koyura.app.account.ProductionAccountRepository
+import app.koyura.app.updates.BackgroundLibraryUpdates
 import app.koyura.app.updates.ProductionUpdatesRepository
+import app.koyura.domain.updates.LibraryUpdateScheduleState
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChangedBy
+import kotlinx.coroutines.flow.emptyFlow
 import app.koyura.app.updates.ProductionUpdatePolicyRepository
 import app.koyura.app.resources.Res
 import app.koyura.app.resources.extension_startup_failed
@@ -75,6 +80,10 @@ internal fun extensionEnvironment(platform: String): VeneraEnvironment {
 @Composable
 internal fun ExtensionApp(
     uiHost: SourceUiHost = SourceUiHost(FakeClipboard()),
+    backgroundUpdates: BackgroundLibraryUpdates? = null,
+    networkChanges: Flow<Unit> = emptyFlow(),
+    scheduleBackgroundUpdate: suspend (LibraryUpdateScheduleState) -> Unit = {},
+    requestUpdateNotifications: () -> Unit = {},
     openSession: suspend (SourceUiHost) -> ExtensionSession,
 ) {
     var openedSession by remember { mutableStateOf<ExtensionSession?>(null) }
@@ -85,7 +94,11 @@ internal fun ExtensionApp(
         var session: ExtensionSession? = null
         try {
             // Capture ownership on the opening dispatcher before a cancelled caller can lose it.
-            withContext(Dispatchers.IO) { session = openSession(uiHost) }
+            withContext(Dispatchers.IO) {
+                session = if (backgroundUpdates != null) {
+                    backgroundUpdates.openForeground { openSession(uiHost) }
+                } else openSession(uiHost)
+            }
             openedSession = checkNotNull(session)
             awaitCancellation()
         } catch (cancelled: CancellationException) {
@@ -94,7 +107,9 @@ internal fun ExtensionApp(
             failed = true
         } finally {
             withContext(NonCancellable + Dispatchers.IO) {
-                session?.close()
+                session?.let {
+                    if (backgroundUpdates != null) backgroundUpdates.closeForeground(it) else it.close()
+                }
             }
         }
     }
@@ -103,7 +118,16 @@ internal fun ExtensionApp(
     if (session != null) {
         // 调度随会话启动，恢复前台时重新判断逾期和网络约束。
         val sessionScope = remember(session) { CoroutineScope(SupervisorJob() + Dispatchers.Default) }
-        LaunchedEffect(session) { session.updateScheduler.start(sessionScope) }
+        LaunchedEffect(session) {
+            session.updateScheduler.refreshSchedule()
+            session.updateScheduler.start(sessionScope)
+            session.updateScheduler.state
+                .distinctUntilChangedBy { it.preferences to it.nextUpdateMillis }
+                .collect { scheduleBackgroundUpdate(it) }
+        }
+        LaunchedEffect(session, networkChanges) {
+            networkChanges.collect { session.updateScheduler.onForeground() }
+        }
         LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { session.updateScheduler.onForeground() }
         DisposableEffect(session) {
             onDispose { sessionScope.cancel() }
@@ -160,7 +184,10 @@ internal fun ExtensionApp(
         val downloads = remember(session) { ProductionDownloadQueueRepository(session.downloadQueue) }
         val statistics = remember(session) { ProductionStatisticsRepository(session.statistics) }
         val settings = remember(session) {
-            ProductionSettingsRepository(session.library, session.readerPreferences, session.downloadTriggers, session.updateScheduler)
+            ProductionSettingsRepository(
+                session.library, session.readerPreferences, session.downloadTriggers,
+                session.updateScheduler, requestUpdateNotifications,
+            )
         }
         CompositionLocalProvider(
             LocalProductionSources provides sources,

@@ -9,6 +9,7 @@ import app.koyura.domain.downloads.DownloadTriggerPreferences
 import app.koyura.domain.library.LibraryRepository
 import app.koyura.domain.reader.preferences.ReaderPreferences
 import app.koyura.domain.updates.LibraryUpdateSchedulePreferences
+import app.koyura.domain.updates.LibraryUpdateInterval
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.withContext
@@ -23,6 +24,7 @@ class ProductionSettingsRepository(
     private val reader: ReaderPreferencesStore,
     private val downloads: DownloadTriggers,
     private val schedule: LibraryUpdateScheduler,
+    private val requestUpdateNotifications: () -> Unit = {},
 ) : ReaderPreferences by reader {
     suspend fun appearance(): AppearancePreferences = withContext(Dispatchers.IO) {
         val saved = library.getPref(APPEARANCE) ?: return@withContext AppearancePreferences()
@@ -45,7 +47,11 @@ class ProductionSettingsRepository(
 
     val updateScheduleState get() = schedule.state
     suspend fun updateSchedule() = schedule.preferences()
-    suspend fun setUpdateSchedule(value: LibraryUpdateSchedulePreferences) = schedule.setPreferences(value)
+    suspend fun setUpdateSchedule(value: LibraryUpdateSchedulePreferences) {
+        val previouslyDisabled = schedule.preferences().interval == LibraryUpdateInterval.DISABLED
+        schedule.setPreferences(value)
+        if (previouslyDisabled && value.interval != LibraryUpdateInterval.DISABLED) requestUpdateNotifications()
+    }
     fun onForeground() = schedule.onForeground()
 
     private companion object {
