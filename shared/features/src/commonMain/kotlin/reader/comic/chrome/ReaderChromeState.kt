@@ -44,8 +44,9 @@ data class ReaderChromeState(
     /** Which dialog is open, if any. */
     val dialog: ReaderChromeDialog = ReaderChromeDialog.None,
     /**
-     * 点击区布局（Komikku navigation mode 选择）。契约暂无持久化字段，由宿主持有；
-     * 默认 DEFAULT 即既有三分区行为。
+     * 点击区布局（Komikku navigation mode 选择）。持久化契约已就位
+     * （`ReaderSettings.tapZone/invertTapZone`，含旧配置兼容），由宿主持有、
+     * 阅读器轮次把此会话字段切到偏好读写链；默认 DEFAULT 即既有三分区行为。
      */
     val tapZone: ComicTapZoneMode = ComicTapZoneMode.DEFAULT,
     /** 点击区反转：交换上一页/下一页区域（菜单区不受影响）。 */

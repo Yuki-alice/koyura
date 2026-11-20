@@ -64,6 +64,12 @@ class ReaderPreferencesStoreTest {
             legacy.readGlobal().background,
         )
         assertEquals(ReadingMode.WEBTOON, legacy.readGlobal().mode)
+        // 同一旧文件对点击区契约同理：缺字段回落默认三分区且不反转。
+        assertEquals(
+            app.koyura.domain.reader.preferences.ReaderTapZone.DEFAULT,
+            legacy.readGlobal().tapZone,
+        )
+        assertEquals(false, legacy.readGlobal().invertTapZone)
     }
 
     @Test

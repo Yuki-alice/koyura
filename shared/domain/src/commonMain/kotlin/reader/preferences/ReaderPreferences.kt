@@ -39,6 +39,17 @@ enum class ReaderBackground {
 }
 
 /**
+ * Tap-zone layout (Komikku navigation modes, mirrored by the viewer's tap-zone enum):
+ * Default is thirds along the reading axis (prev / menu / next);
+ * LeftRight halves it without a menu zone; Kindle is mostly-next with a narrow prev strip.
+ */
+enum class ReaderTapZone {
+    DEFAULT,
+    LEFT_RIGHT,
+    KINDLE,
+}
+
+/**
  * Global reader defaults. Unknown JSON fields are ignored and missing fields fall back to these
  * defaults so old configs keep working.
  */
@@ -49,6 +60,10 @@ data class ReaderSettings(
     val fit: ReaderFit = ReaderFit.FIT,
     /** Background around the pages; Automatic follows the app theme. */
     val background: ReaderBackground = ReaderBackground.AUTOMATIC,
+    /** Tap-zone layout; Default is the classic thirds behavior. */
+    val tapZone: ReaderTapZone = ReaderTapZone.DEFAULT,
+    /** Swap the prev/next tap regions (the menu region is unaffected). */
+    val invertTapZone: Boolean = false,
     /** First page is always shown alone, even in double-page layout. */
     val firstPageSingle: Boolean = true,
     /** Pair pages right-to-left in double-page layout. */
@@ -69,6 +84,8 @@ data class WorkReaderOverride(
     val layout: ReaderLayout? = null,
     val fit: ReaderFit? = null,
     val background: ReaderBackground? = null,
+    val tapZone: ReaderTapZone? = null,
+    val invertTapZone: Boolean? = null,
     val firstPageSingle: Boolean? = null,
     val dualPageReversed: Boolean? = null,
     val cropBorders: Boolean? = null,
@@ -76,6 +93,7 @@ data class WorkReaderOverride(
 ) {
     fun isEmpty(): Boolean =
         mode == null && layout == null && fit == null && background == null &&
+            tapZone == null && invertTapZone == null &&
             firstPageSingle == null &&
             dualPageReversed == null && cropBorders == null && zoomOnDoubleTap == null
 
@@ -86,6 +104,8 @@ data class WorkReaderOverride(
             layout = layout ?: base.layout,
             fit = fit ?: base.fit,
             background = background ?: base.background,
+            tapZone = tapZone ?: base.tapZone,
+            invertTapZone = invertTapZone ?: base.invertTapZone,
             firstPageSingle = firstPageSingle ?: base.firstPageSingle,
             dualPageReversed = dualPageReversed ?: base.dualPageReversed,
             cropBorders = cropBorders ?: base.cropBorders,
@@ -117,6 +137,8 @@ data class WorkReaderOverridePatch(
     val layout: OverrideField<ReaderLayout> = OverrideField.Keep,
     val fit: OverrideField<ReaderFit> = OverrideField.Keep,
     val background: OverrideField<ReaderBackground> = OverrideField.Keep,
+    val tapZone: OverrideField<ReaderTapZone> = OverrideField.Keep,
+    val invertTapZone: OverrideField<Boolean> = OverrideField.Keep,
     val firstPageSingle: OverrideField<Boolean> = OverrideField.Keep,
     val dualPageReversed: OverrideField<Boolean> = OverrideField.Keep,
     val cropBorders: OverrideField<Boolean> = OverrideField.Keep,
@@ -125,6 +147,7 @@ data class WorkReaderOverridePatch(
     fun isEmpty(): Boolean =
         mode is OverrideField.Keep && layout is OverrideField.Keep && fit is OverrideField.Keep &&
             background is OverrideField.Keep &&
+            tapZone is OverrideField.Keep && invertTapZone is OverrideField.Keep &&
             firstPageSingle is OverrideField.Keep && dualPageReversed is OverrideField.Keep &&
             cropBorders is OverrideField.Keep && zoomOnDoubleTap is OverrideField.Keep
 }
@@ -142,6 +165,8 @@ fun WorkReaderOverride.patchedWith(patch: WorkReaderOverridePatch): WorkReaderOv
         layout = currentOr(layout, patch.layout),
         fit = currentOr(fit, patch.fit),
         background = currentOr(background, patch.background),
+        tapZone = currentOr(tapZone, patch.tapZone),
+        invertTapZone = currentOr(invertTapZone, patch.invertTapZone),
         firstPageSingle = currentOr(firstPageSingle, patch.firstPageSingle),
         dualPageReversed = currentOr(dualPageReversed, patch.dualPageReversed),
         cropBorders = currentOr(cropBorders, patch.cropBorders),

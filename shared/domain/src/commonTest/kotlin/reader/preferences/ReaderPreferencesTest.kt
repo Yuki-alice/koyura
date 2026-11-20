@@ -92,4 +92,22 @@ class ReaderPreferencesTest {
         assertEquals(null, cleared.background)
         assertEquals(ReaderBackground.AUTOMATIC, ReaderSettings().withOverride(cleared).background)
     }
+
+    @Test
+    fun tapZoneDefaultsAndMergesLikeOtherFields() {
+        assertEquals(ReaderTapZone.DEFAULT, ReaderSettings().tapZone)
+        assertEquals(false, ReaderSettings().invertTapZone)
+        // 覆盖 wins，未动字段继承。
+        val effective = ReaderSettings().withOverride(
+            WorkReaderOverride(tapZone = ReaderTapZone.KINDLE, invertTapZone = true),
+        )
+        assertEquals(ReaderTapZone.KINDLE, effective.tapZone)
+        assertEquals(true, effective.invertTapZone)
+        // Patch 清除回落全局。
+        val cleared = WorkReaderOverride(invertTapZone = true).patchedWith(
+            WorkReaderOverridePatch(invertTapZone = OverrideField.Clear),
+        )
+        assertEquals(null, cleared.invertTapZone)
+        assertEquals(false, ReaderSettings().withOverride(cleared).invertTapZone)
+    }
 }
