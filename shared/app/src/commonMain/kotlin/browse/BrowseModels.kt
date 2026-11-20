@@ -147,6 +147,7 @@ data class BrowseSnapshot(
     val sources: List<SourceInfo> = emptyList(),
     val extensions: List<ExtensionInfo> = emptyList(),
     val stores: List<ExtensionStoreInfo> = emptyList(),
+    val pinnedSourceIds: Set<String>? = null,
 )
 
 enum class BrowsePane {

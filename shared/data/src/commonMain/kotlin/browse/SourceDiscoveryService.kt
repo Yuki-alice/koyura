@@ -51,6 +51,15 @@ class SourceDiscoveryService internal constructor(
 
     suspend fun setPinned(key: String, value: Boolean) = changeSource(key) { it.copy(pinned = value) }
 
+    suspend fun togglePinned(key: String): Boolean {
+        var pinned = false
+        changeSource(key) {
+            pinned = !it.pinned
+            it.copy(pinned = pinned)
+        }
+        return pinned
+    }
+
     suspend fun setHidden(key: String, value: Boolean) = changeSource(key) { it.copy(hidden = value) }
 
     suspend fun setNsfw(key: String, value: Boolean) = changeSource(key) { it.copy(nsfw = value) }

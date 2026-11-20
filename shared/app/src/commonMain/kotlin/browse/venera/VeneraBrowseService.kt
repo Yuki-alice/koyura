@@ -81,10 +81,11 @@ class VeneraBrowseService(
             // A flaky repository must not take down the whole Browse page.
             emptyMap()
         }
-        val visible = sources?.discovery?.sources()?.sources?.map { it.key }
+        val visible = sources?.discovery?.sources()?.sources
         val byKey = installed.associateBy { it.sourceKey }
-        val visibleRecords = visible?.mapNotNull(byKey::get) ?: installed
+        val visibleRecords = visible?.mapNotNull { byKey[it.key] } ?: installed
         BrowseSnapshot(
+            pinnedSourceIds = visible?.filter { it.pinned }?.mapTo(linkedSetOf()) { it.key },
             sources = visibleRecords.map { record ->
                 SourceInfo(
                     id = record.sourceKey,
@@ -126,6 +127,9 @@ class VeneraBrowseService(
             },
         )
     }
+
+    internal suspend fun toggleSourcePinned(sourceKey: String): Boolean? =
+        sources?.discovery?.togglePinned(sourceKey)
 
     override suspend fun addStore(name: String, indexUrl: String): BrowseSnapshot = runService {
         val trimmedUrl = indexUrl.trim()
