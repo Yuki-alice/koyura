@@ -21,6 +21,7 @@ class SourceSearchPaginationTest {
     fun numberedAndCursorPagesReachTheSourceAndFailureStaysLocalToItsSource() = runTest {
         val fixture = VeneraHarness()
         try {
+            fixture.service.open()
             fixture.service.installFromContent("numbered.js", source("numbered",
                 """load: (q, o, p) => ({comics: [{id: "" + p, title: q + p}], maxPage: 3})"""))
             fixture.service.installFromContent("cursor.js", source("cursor",

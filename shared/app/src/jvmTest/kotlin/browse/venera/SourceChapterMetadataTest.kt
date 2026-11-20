@@ -11,6 +11,7 @@ class SourceChapterMetadataTest {
     fun readsFlatGroupedAndEnrichedCatalogsInSourceOrder() = runTest {
         val fixture = VeneraHarness()
         try {
+            fixture.service.open()
             fixture.service.installFromContent("flat.js", source("flat", """{a: "One", b: "Two"}"""))
             fixture.service.installFromContent("grouped.js", source("grouped",
                 """{volume1: {a: "One"}, volume2: {b: "Two"}}"""))
