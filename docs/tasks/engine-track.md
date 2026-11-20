@@ -1,60 +1,58 @@
-# 引擎轨任务书：第四轮（GPT 6.1 / Codex）
+# 引擎轨任务书：第五轮（GPT 6.1 / Codex）
 
-你负责 Koyura 漫画阅读器的核心引擎。前三轮已交付并合入 main：宿主能力全套、按源会话与三平台凭据、网页登录、下载队列与本地优先阅读、更新扫描引擎（智能跳过 + 偏好持久化 + 错误列表）、账号配置暴露、请求缓存与防并发。夜间轨已补齐前端（全局搜索、历史多选、智能更新设置 UI、阅读背景四档）。你的产出由主 agent 审阅后合并，main 只读，禁止 push、禁止 merge、禁止碰 `.zcode/worktrees/ui-parity`。
+你负责 Koyura 漫画阅读器的核心引擎。前四轮已交付并合入 main：宿主能力全套、按源会话与三平台凭据、网页登录、下载队列（单章 + 作品级批量 + 自动触发）、更新扫描（智能跳过 + 错误列表 + 后台调度）、搜索选项与保存搜索。主 agent 已把搜索选项通道、自动下载钩子与调度器接进装配。你的产出由主 agent 审阅后合并，main 只读，禁止 push、禁止 merge、禁止碰 `.zcode/worktrees/ui-parity`。
 
 ## 工作区
 
-- 只在 `/Users/kurisu/project x/.zcode/worktrees/core-engine` 工作，分支 `feat/core-engine`（已含夜间轨合并与主 agent 桥接）。
+- 只在 `/Users/kurisu/project x/.zcode/worktrees/core-engine` 工作，分支 `feat/core-engine`（已含第四轮合并与主 agent 桥接 `967f629`）。
 - 开场先读：`AGENTS.md`、`docs/verification.md`、`docs/technology-stack.md`。
-- JDK 21 在 `~/devtools/jdk-21`；测试必带 `-PveneraReferenceDir="/Users/kurisu/project x/reference/Venera-Next"`；社区脚本回归另带 `-PveneraCommunityFixtureDir`（夹具下载步骤见 verification.md）。
+- JDK 21 在 `~/devtools/jdk-21`；测试必带 `-PveneraReferenceDir="/Users/kurisu/project x/reference/Venera-Next"`；社区脚本回归另带 `-PveneraCommunityFixtureDir`（夹具下载步骤见 verification.md，现有六脚本清单在第四轮报告）。
 
 ## 地盘
 
 可以改：`shared/source-runtime`、`shared/network`、`shared/data`、`shared/domain`、`gradle/libs.versions.toml`（仅加依赖）。
-禁止改：`shared/app` 任何目录（含平台 source set——需要装配改动时在交付说明登记，主 agent 合并时接线）、`apps/`、`shared/design-system`、`shared/features`、`reference/`、`docs/`（交付说明除外）。
+禁止改：`shared/app` 任何目录、`apps/`、`shared/design-system`、`shared/features`、`reference/`、`docs/`（交付说明除外）。
 
-## 任务一：保存搜索与搜索选项的数据层（先做，浏览功能的下一块基石）
+## 任务一：备份与恢复的数据层（先做，本轮头牌）
 
-对照原版语义：`reference/komikku` 的保存搜索（`tachiyomi/data/library` 一带的 saved search 持久化与复用入口）与源筛选。Venera 侧对照 `reference/Venera-Next` 的 `doc/api/comic_source.zh.md` search 段与 `lib/features/comic_source/`：
+对照 `docs/architecture.md` 的设计：「备份用自有版本化清单和数据容器，书架、分类、阅读进度、Feed、保存搜索和设置按选项导出，凭据继续由 `SecretStore` 管理」。要求：
 
-- 确认 Venera 搜索选项契约（`search.options` / 筛选字段的形态与加载语义），把「选项集与当前取值」暴露为可查询、可持久化的域模型。
-- 保存搜索：`(sourceKey, query, 选项快照)` 的增删改查落 `shared/domain` 模型 + `shared/data` 持久化（新表或既有偏好通道，按既有 schema 迁移模式加 `.sqm`）。
-- `SourceBrowseService` 补「按保存搜索执行搜索」的服务路径。
-- 验收：夹具测试覆盖选项形态（无选项源、多类型选项源）、保存搜索 CRUD 与按快照复放；语义有出入的按 Venera 文档为准并在报告登记。
+- **版本化容器格式**：自有格式（清单 JSON + 数据容器，版本字段 + 导出时间 + 生成者标识），不兼容任何上游格式；为未来 WebDAV 同步留条件协商位。加密容器（Cryptography-Kotlin）**不在本轮**，登记后续。
+- **导出**：按选项（书架条目与分类、阅读进度、更新检查元数据、下载队列状态、保存搜索、各偏好通道）选择导出；凭据与源会话**不进**备份（设计红线）。文件写出走 Okio 原子提交模式（临时文件 + 原子移动）。
+- **恢复**：读入校验（版本兼容、清单完整性）后按选项恢复；合并语义明确——同三元键作品「保留较新收藏」、进度取较新写入、分类按名字并合并；冲突不静默丢弃，恢复报告逐项列出（新增/合并/跳过）。
+- 服务层：`shared/domain` 模型 + `shared/data` 实现（驱动与文件系统的既有注入模式），app 装配与 UI 入口由主 agent 后续接线。
+- 验收：夹具测试覆盖全量与部分导出、跨库恢复合并、坏容器拒绝、版本不匹配拒绝、恢复幂等（同备份恢复两遍结果一致）、进度取较新。真 SQLite 两库对拷回归至少一例。
 
-## 任务二：作品级批量下载服务面
+## 任务二：Feed 数据服务
 
-现状：`ExtensionSession.downloads` 已有单章 `enqueue/observe/pause/cancel/retry` 与 `countCompleted`。补齐作品级服务面，语义对照 Komikku 的下载触发偏好（`reference/komikku` 的 `DownloadPreferences` 与 `LibraryDownloadJob` 一带）：
+浏览页的 Feed（Komikku BrowseTab 的源 Feed 卡片）缺数据层：探索定义已有（`SourceBrowseService` 的 explore），补：
 
-- `enqueueAll(sourceKey, workId, 章节列表)` 与「只下未读/排除已读」的入队过滤；重复入队幂等。
-- 详情页逐章状态的批量查询（一次查询返回作品全部章的下载态映射，避免 UI 逐章订阅）。
-- 下载触发偏好（收藏作品更新时自动下载新章 / 下载接下来 N 章）的数据层：偏好读写 + 更新扫描完成后的钩子点（扫描器产新章处留出触发接口，平台/装配接线由主 agent 合并时做）。
-- 验收：夹具测试覆盖批量入队幂等、过滤、状态映射、坏包收敛对计数的影响。
+- Feed 条目的持久化与排序偏好（`library_prefs` 通道）：按源的 explore 子项启停与顺序。
+- `feedItems()` 一次性查询返回浏览 Feed 页需要的全部数据形状（供 UI 后续消费），并为任务一的备份范围接入 Feed 偏好。
+- 验收：启停/排序持久化、声明变更（源升级后 explore 项增减）的收敛语义、重启读取。
 
-## 任务三：后台更新调度
+## 任务三：传输层公网兼容复测
 
-Komikku 的间隔更新（`LibraryPreferences.autoUpdateInterval` + `LibraryUpdateJob`）：做纯 common 调度器，平台接线标注不做 WorkManager：
+第四轮两处公网阻断（ComicWalker 公网搜索返回 `<` 开头内容、MangaDex 公网 302 挑战 + HTML）。先诊断再动：
 
-- 间隔偏好（复用 `library_prefs` 通道，值域对照 Komikku：每 6/12/24 小时与仅 Wi-Fi 占位——网络约束先登记不做）。
-- 调度器：进程内时间驱动触发 `checkNow`、启动/回前台补跑到期检查、`nextUpdateMillis` 与智能更新的发布窗口协同（已有元数据）。
-- 事件流：最近一次检查时间与结果供 UI 观察。
-- 验收：虚拟时钟夹具测试覆盖到期触发、间隔变更重排、补跑一次不重复。
+- 对照 `reference/Venera-Next` 的网络栈（`lib/network/` 的 Dio 配置、User-Agent、重定向与挑战处理）列出差异，判断是 UA/头/重定向语义的兼容缺口还是站点风控。
+- 若为传输层可修（UA、跳转跟随、头透传），在 `shared/network`/`VeneraKtorTransport` 修并公网复测走通；站点风控不可修的如实登记、固定夹具保持覆盖。
+- 验收：修复附最小断言测试（模拟 302/UA 差异的夹具），两源公网复测结果与状态码如实记录。
 
-## 任务四：真实源回归扩展与实机验收准备
+## 弹性任务四：全局搜索的真通道适配核对（时间不足可跳过）
 
-- 从 venera-configs 固定提交再挑 2 个复杂源（图片处理类、账号/评论类各至少一个），入 `CommunitySourceJourneyTest` 固定夹具（沿用既有模式，SHA 记录），在线实测一次并把波动如实记录。
-- 移动端网页登录的实机验收：把 Android / iOS 的验收步骤脚本化程度最大化（安装、进入、取消路径、登录路径、会话隔离、注销清理），写成可执行的检查清单入报告；标注哪些步骤必须真机。
+主 agent 桥接后 `searchWorks` 应用选项默认值：核对 `GlobalSearchService` 扇出路径的行为（应沿用同一通道、无需逐源选项），如语义有偏差给出最小修正；无偏差则登记核对结论即可。
 
 ## 硬性验收
 
 - 五模块 JVM 测试全绿，**交付前连续两遍**。
-- 触碰宿主/会话/网络：Venera 原版脚本回归；改 HTML/会话/图片路径另跑社区脚本回归（含本轮新增源）。
+- 触碰宿主/会话/网络：Venera 原版脚本回归；改网络层另跑社区脚本回归（六源全量）。
 - 三端构建全部 EXIT 0；漫画柜/Komga 至少各跑一遍全链路。
 
 ## 提交规范
 
-`type(scope): 中文主题`（scope 举例：source-runtime、network、data、downloads、updates、search）。主题如实描述；禁止无信息主题与阶段编号；一提交一个内聚逻辑。
+`type(scope): 中文主题`（scope 举例：data、backup、feed、network、search）。主题如实描述；禁止无信息主题与阶段编号；一提交一个内聚逻辑。
 
 ## 交付说明
 
-覆盖写 `docs/tasks/engine-report-latest.md`：改动清单、测试证据（命令 + 结果 + 新增测试类与覆盖场景、社区源清单与 SHA）、需主 agent 桥接/装配的路径（保存搜索服务、批量下载注入、调度器挂载）、待实机验收项与下一轮计划。
+覆盖写 `docs/tasks/engine-report-latest.md`：改动清单、测试证据（命令 + 结果 + 新增测试类与覆盖场景、公网复测状态码）、备份格式规范草案（字段与版本策略，供主 agent 评审后固化进 docs）、需主 agent 桥接/装配的路径与下一轮计划。
