@@ -1,9 +1,11 @@
 package app.koyura.data.updates
 
+import app.koyura.domain.updates.LibraryUpdateNotifier
 import app.koyura.domain.updates.LibraryUpdateInterval
 import app.koyura.domain.updates.LibraryUpdateSchedulePreferences
 import app.koyura.domain.updates.LibraryUpdateScheduleState
 import app.koyura.domain.updates.ScheduledUpdateCheck
+import app.koyura.domain.updates.ScheduledUpdateFailure
 import app.koyura.domain.updates.UpdateScan
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -25,6 +27,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.hours
+import kotlin.time.Duration.Companion.minutes
 
 class LibraryUpdateScheduler internal constructor(
     private val readPreference: suspend () -> String?,
@@ -33,8 +36,11 @@ class LibraryUpdateScheduler internal constructor(
     private val nextReleaseWindow: suspend () -> Long? = { null },
     private val releaseChanges: Flow<Unit> = emptyFlow(),
     private val clock: Clock = Clock.System,
+    private val networkAllowsRun: (LibraryUpdateSchedulePreferences) -> Boolean = { true },
+    private val notifier: LibraryUpdateNotifier? = null,
 ) {
     private val lock = Mutex()
+    private val runLock = Mutex()
     private val wake = Channel<Unit>(Channel.CONFLATED)
     private val status = MutableStateFlow(LibraryUpdateScheduleState())
     val state = status.asStateFlow()
@@ -55,7 +61,9 @@ class LibraryUpdateScheduler internal constructor(
                     when {
                         remaining == null -> wake.receive()
                         remaining > 0 -> withTimeoutOrNull(remaining) { wake.receive() }
-                        else -> checkIfDue()
+                        else -> {
+                            if (!runDue().ran) withTimeoutOrNull(15.minutes) { wake.receive() }
+                        }
                     }
                 }
             } finally {
@@ -103,30 +111,60 @@ class LibraryUpdateScheduler internal constructor(
             current.releaseMillis?.let { it <= now() } == true -> current.releaseMillis
             else -> nextReleaseWindow()
         }
-        val updated = current.copy(releaseMillis = release)
+        val anchor = when (current.preferences.interval) {
+            LibraryUpdateInterval.DISABLED -> null
+            else -> current.anchorMillis ?: current.lastCheck?.checkedAtMillis ?: now()
+        }
+        val updated = current.copy(anchorMillis = anchor, releaseMillis = release)
         if (current != updated) save(updated)
         publish(updated)
         return deadline(updated)
     }
 
-    private suspend fun checkIfDue() {
-        val due = lock.withLock {
-            val deadline = deadline(record())
-            (deadline != null && deadline <= now()).also {
-                if (it) status.update { previous -> previous.copy(checking = true) }
+    /** Shares the execution lock with the process timer, including during a cold background launch. */
+    suspend fun runDue(): ScheduledUpdateRun = runLock.withLock {
+        val blocked = lock.withLock checkDeadline@{
+            check(!closed) { "Library update scheduler is closed" }
+            val deadline = reconcile()
+            if (deadline == null || deadline > now()) return@checkDeadline ScheduledUpdateRun(state.value)
+            if (!networkAllowsRun(record().preferences)) {
+                return@checkDeadline ScheduledUpdateRun(state.value, waitingForNetwork = true)
             }
+            status.update { it.copy(checking = true) }
+            null
         }
-        if (!due) return
+        if (blocked != null) return@withLock blocked
+        try {
+            recordScheduledCheck()
+            ScheduledUpdateRun(state.value, ran = true)
+        } finally {
+            status.update { it.copy(checking = false) }
+        }
+    }
 
+    suspend fun refreshSchedule(): LibraryUpdateScheduleState = lock.withLock {
+        check(!closed) { "Library update scheduler is closed" }
+        reconcile()
+        state.value
+    }
+
+    private suspend fun recordScheduledCheck() {
         val result = try {
             val scan = checkNow()
             ScheduledUpdateCheck(
                 now(), scan.updates.size + scan.failures.size, scan.updates.sumOf { it.newChapterCount },
-                scan.failures.size, scan.skipped.size, downloadTriggerFailures = scan.downloadTriggerFailures.size,
+                scan.failures.size, scan.skipped.size,
+                downloadTriggerFailures = scan.downloadTriggerFailures.size,
+                failureKinds = buildSet {
+                    if (scan.failures.isNotEmpty()) add(ScheduledUpdateFailure.SOURCE_WORKS)
+                    if (scan.downloadTriggerFailures.isNotEmpty()) add(ScheduledUpdateFailure.DOWNLOAD_TRIGGER)
+                },
             )
         } catch (_: Exception) {
             currentCoroutineContext().ensureActive()
-            ScheduledUpdateCheck(now(), 0, 0, 0, 0, failedToRun = true)
+            ScheduledUpdateCheck(
+                now(), 0, 0, 0, 0, failedToRun = true, failureKinds = setOf(ScheduledUpdateFailure.SCAN),
+            )
         }
         lock.withLock {
             val current = record()
@@ -134,6 +172,14 @@ class LibraryUpdateScheduler internal constructor(
             val updated = current.copy(anchorMillis = anchor, releaseMillis = null, lastCheck = result)
             save(updated)
             publish(updated, checking = false)
+        }
+        if (result.newChapters > 0) {
+            try {
+                notifier?.notify(result)
+            } catch (_: Exception) {
+                // The scan and its next deadline have already been committed.
+                currentCoroutineContext().ensureActive()
+            }
         }
     }
 
@@ -171,3 +217,9 @@ class LibraryUpdateScheduler internal constructor(
         val json = Json { ignoreUnknownKeys = true }
     }
 }
+
+data class ScheduledUpdateRun(
+    val state: LibraryUpdateScheduleState,
+    val ran: Boolean = false,
+    val waitingForNetwork: Boolean = false,
+)

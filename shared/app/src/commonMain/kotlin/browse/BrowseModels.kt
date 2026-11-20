@@ -147,6 +147,7 @@ data class BrowseSnapshot(
     val sources: List<SourceInfo> = emptyList(),
     val extensions: List<ExtensionInfo> = emptyList(),
     val stores: List<ExtensionStoreInfo> = emptyList(),
+    val pinnedSourceIds: Set<String>? = null,
 )
 
 /** 原版 Browse 四个一级 tab，顺序与 SourcesScreen 的 TabRow 一致。 */

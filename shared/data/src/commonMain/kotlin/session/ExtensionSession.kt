@@ -17,8 +17,10 @@ import app.koyura.data.extension.RestoreReport
 import app.koyura.data.library.LibraryStore
 import app.koyura.data.library.ensureLibrarySchema
 import app.koyura.data.reading.ComicReadingService
+import app.koyura.data.library.LibraryStatisticsStore
 import app.koyura.data.updates.LibraryUpdateScanner
 import app.koyura.data.updates.LibraryUpdateScheduler
+import app.koyura.domain.updates.LibraryUpdateNotifier
 import app.koyura.data.reader.preferences.ReaderPreferencesStore
 import app.koyura.source.runtime.VeneraEnvironment
 import app.koyura.source.runtime.VeneraUiHost
@@ -53,32 +55,41 @@ class ExtensionSession internal constructor(
     val readerPreferences: ReaderPreferencesStore,
     packages: ChapterContentPackages,
     isOnline: () -> Boolean,
+    isUnmetered: (() -> Boolean)?,
+    updateNotifier: LibraryUpdateNotifier?,
 ) {
     val comicReading = ComicReadingService(driver, service, httpClient).apply {
         attachLocalContent(packages, isOnline)
     }
-    private val queue = ChapterDownloadStore(
+    val downloadQueue = ChapterDownloadStore(
         driver, packages,
         openChapter = { chapter -> comicReading.openOnlineChapter(chapter.sourceKey, chapter.workId, chapter.chapterId) },
         loadPage = { chapter, page ->
             comicReading.loadOnlineImageBytes(chapter.sourceKey, chapter.workId, chapter.chapterId, page.imageKey)
         },
     )
-    val downloads: ChapterDownloads get() = queue
+    val downloads: ChapterDownloads get() = downloadQueue
 
-    internal suspend fun startDownloads() = queue.start()
+    internal suspend fun startDownloads() = downloadQueue.start()
     val history = HistoryStore(driver)
     val library = LibraryStore(driver)
     val discovery = SourceDiscoveryService(library, service.browse)
     val feed = SourceFeedService(library, service.browse, discovery)
     val downloadTriggers = DownloadTriggers(library, downloads)
-    val updates = LibraryUpdateScanner(driver, library, service)
+    val updates = LibraryUpdateScanner(driver, library, service).apply {
+        setNewChaptersDownloadHook(downloadTriggers)
+    }
+    val statistics = LibraryStatisticsStore(driver, updates)
     val updateScheduler = LibraryUpdateScheduler(
         readPreference = { withContext(Dispatchers.IO) { library.getPref(LibraryUpdateScheduler.PREFERENCE) } },
         writePreference = { value -> withContext(Dispatchers.IO) { library.setPref(LibraryUpdateScheduler.PREFERENCE, value) } },
         checkNow = updates::checkNow,
         nextReleaseWindow = updates::nextReleaseWindowMillis,
         releaseChanges = updates.releaseWindowChanges,
+        notifier = updateNotifier,
+        networkAllowsRun = { preferences ->
+            isOnline() && (!preferences.wifiOnly || isUnmetered?.invoke() != false)
+        },
     )
 
     private val mutex = Mutex()
@@ -96,7 +107,7 @@ class ExtensionSession internal constructor(
         if (!doClose) return
         withContext(NonCancellable) {
             runCatching { updateScheduler.close() }
-            runCatching { queue.close() }
+            runCatching { downloadQueue.close() }
             runCatching { service.close() }
             runCatching { httpClient.close() }
             runCatching { driver.close() }
@@ -123,6 +134,8 @@ suspend fun openExtensionSession(
     isOnline: () -> Boolean = { true },
     webLoginBrowser: WebLoginBrowser? = null,
     sourceUi: VeneraUiHost = VeneraUiHost.Headless,
+    isUnmetered: (() -> Boolean)? = null,
+    updateNotifier: LibraryUpdateNotifier? = null,
 ): ExtensionSession {
     val scriptsDir = appDataDir / "scripts"
     val service = ExtensionService(
@@ -135,7 +148,7 @@ suspend fun openExtensionSession(
         val report = service.restore()
         val readerPreferences = ReaderPreferencesStore(appDataDir, fileSystem)
         val packages = ChapterContentPackages(fileSystem, appDataDir / "downloads")
-        val opened = ExtensionSession(service, report, driver, httpClient, readerPreferences, packages, isOnline)
+        val opened = ExtensionSession(service, report, driver, httpClient, readerPreferences, packages, isOnline, isUnmetered, updateNotifier)
         session = opened
         opened.startDownloads()
         return opened
@@ -234,6 +247,9 @@ private fun ensureSchema(driver: SqlDriver) {
         if (tableColumns(driver, "library_update_metadata").isEmpty()) ExtensionDb.Schema.migrate(driver, 9, 10).value
         if (tableColumns(driver, "saved_search").isEmpty() || tableColumns(driver, "source_search_options").isEmpty()) {
             ExtensionDb.Schema.migrate(driver, 10, 11).value
+        }
+        if ("read_duration_ms" !in tableColumns(driver, "reading_progress")) {
+            ExtensionDb.Schema.migrate(driver, 11, 12).value
         }
     }
 }

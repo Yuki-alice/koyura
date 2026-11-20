@@ -76,7 +76,10 @@ class SourceBrowseService internal constructor(
         val (callback, position) = if (VeneraCallback.Search in callbacks) {
             VeneraCallback.Search to JsonPrimitive(positivePage(page))
         } else {
-            require(VeneraCallback.SearchNext in callbacks && page == 1) { "Search requires cursor pagination" }
+            positivePage(page)
+            require(VeneraCallback.SearchNext in callbacks && (page == 1 || next != null)) {
+                "Search requires cursor pagination"
+            }
             VeneraCallback.SearchNext to text(next)
         }
         return live.call(key, callback, args(text(query), options.toArguments(), position)).jsonObject

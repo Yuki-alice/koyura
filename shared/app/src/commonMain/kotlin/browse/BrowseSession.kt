@@ -7,7 +7,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
+import app.koyura.app.browse.venera.VeneraBrowseService
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * Holds the Browse tab's data and per-item operation state.
@@ -26,6 +31,7 @@ import kotlinx.coroutines.CancellationException
 class BrowseSession internal constructor(
     private val service: BrowseService?,
     initialState: BrowseState = BrowseState(),
+    private val scope: CoroutineScope? = null,
 ) {
     var state by mutableStateOf(
         if (service == null) initialState.copy(load = LoadState.Unavailable) else initialState,
@@ -37,6 +43,8 @@ class BrowseSession internal constructor(
      * was in flight, which keeps the oldest stale read from overwriting a newer commit.
      */
     private var settledMutations = 0L
+    private val pinWrites = Mutex()
+    private var pinRevision = 0L
 
     /** Per-target tokens for value operations such as store toggles and catalog previews. */
     private val targetGeneration = mutableMapOf<String, Long>()
@@ -60,10 +68,11 @@ class BrowseSession internal constructor(
             return
         }
         val generation = settledMutations
+        val pinAtStart = pinRevision
         state = state.copy(load = LoadState.Loading)
         try {
             val snapshot = currentService.loadSnapshot()
-            if (generation == settledMutations) applySnapshot(snapshot, LoadState.Ready)
+            if (generation == settledMutations) applySnapshot(snapshot, LoadState.Ready, pinAtStart)
         } catch (cancelled: CancellationException) {
             // A cancelled refresh must not be reported as a load failure.
             if (generation == settledMutations && state.load is LoadState.Loading) {
@@ -104,12 +113,30 @@ class BrowseSession internal constructor(
         state = state.copy(recentSourceIds = next)
     }
 
-    /** Toggles the pin state of one source row (in-memory; persistence follows with prefs). */
     fun toggleSourcePinned(sourceKey: String) {
+        val production = service as? VeneraBrowseService
+        if (production != null && scope != null) {
+            scope.launch {
+                pinWrites.withLock {
+                    try {
+                        val pinned = production.toggleSourcePinned(sourceKey) ?: (sourceKey !in state.pinnedSourceIds)
+                        pinRevision++
+                        applyPin(sourceKey, pinned)
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (failure: Exception) {
+                        state = state.copy(load = LoadState.Failed(failure.userMessage()))
+                    }
+                }
+            }
+        } else {
+            applyPin(sourceKey, sourceKey !in state.pinnedSourceIds)
+        }
+    }
+
+    private fun applyPin(sourceKey: String, pinned: Boolean) {
         val current = state.pinnedSourceIds
-        state = state.copy(
-            pinnedSourceIds = if (current.contains(sourceKey)) current - sourceKey else current + sourceKey,
-        )
+        state = state.copy(pinnedSourceIds = if (pinned) current + sourceKey else current - sourceKey)
     }
 
     /**
@@ -334,6 +361,7 @@ class BrowseSession internal constructor(
 
     private suspend fun reconcilesSnapshot(service: BrowseService) {
         val generation = settledMutations
+        val pinAtStart = pinRevision
         val snapshot = try {
             service.loadSnapshot()
         } catch (cancelled: CancellationException) {
@@ -341,7 +369,7 @@ class BrowseSession internal constructor(
         } catch (_: Exception) {
             return
         }
-        if (generation == settledMutations) applySnapshot(snapshot, LoadState.Ready)
+        if (generation == settledMutations) applySnapshot(snapshot, LoadState.Ready, pinAtStart)
     }
 
     private fun setStatus(target: String, storeTarget: Boolean, status: OperationStatus) {
@@ -352,12 +380,13 @@ class BrowseSession internal constructor(
         }
     }
 
-    private fun applySnapshot(snapshot: BrowseSnapshot, load: LoadState) {
+    private fun applySnapshot(snapshot: BrowseSnapshot, load: LoadState, pinAtStart: Long) {
         state = state.copy(
             load = load,
             sources = snapshot.sources,
             extensions = snapshot.extensions,
             stores = snapshot.stores,
+            pinnedSourceIds = snapshot.pinnedSourceIds.takeIf { pinAtStart == pinRevision } ?: state.pinnedSourceIds,
         )
     }
 
@@ -375,8 +404,10 @@ val LocalBrowseSession = staticCompositionLocalOf<BrowseSession?> { null }
  * bar/rail width switch.
  */
 @Composable
-fun rememberBrowseSession(service: BrowseService? = LocalBrowseService.current): BrowseSession =
-    remember(service) { BrowseSession(service) }
+fun rememberBrowseSession(service: BrowseService? = LocalBrowseService.current): BrowseSession {
+    val scope = rememberCoroutineScope()
+    return remember(service, scope) { BrowseSession(service, scope = scope) }
+}
 
 /** Convenience for launching session work from UI callbacks. */
 @Composable

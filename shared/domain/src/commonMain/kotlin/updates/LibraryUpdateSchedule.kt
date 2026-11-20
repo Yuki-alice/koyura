@@ -14,6 +14,9 @@ data class LibraryUpdateSchedulePreferences(
 )
 
 @Serializable
+enum class ScheduledUpdateFailure { SCAN, SOURCE_WORKS, DOWNLOAD_TRIGGER }
+
+@Serializable
 data class ScheduledUpdateCheck(
     val checkedAtMillis: Long,
     val worksChecked: Int,
@@ -22,6 +25,7 @@ data class ScheduledUpdateCheck(
     val skipped: Int,
     val failedToRun: Boolean = false,
     val downloadTriggerFailures: Int = 0,
+    val failureKinds: Set<ScheduledUpdateFailure> = emptySet(),
 )
 
 data class LibraryUpdateScheduleState(

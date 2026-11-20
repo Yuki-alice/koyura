@@ -18,6 +18,8 @@ import app.koyura.app.browse.WorkSummary
 import app.koyura.app.browse.extensionKey
 import app.koyura.data.extension.ExtensionService
 import app.koyura.data.extension.SourceBrowseService
+import app.koyura.data.extension.SourceChapterEntry
+import app.koyura.data.extension.parseSourceChapterCatalog
 import app.koyura.domain.extension.ExtensionFailure
 import app.koyura.domain.extension.SavedSearch
 import app.koyura.domain.extension.SearchOptionsSnapshot
@@ -27,6 +29,10 @@ import app.koyura.source.runtime.VeneraCatalogEntry
 import app.koyura.source.runtime.isVeneraUpdateAvailable
 import app.koyura.source.runtime.selectCatalogEntry
 import kotlin.coroutines.cancellation.CancellationException
+import kotlin.time.Instant
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.atStartOfDayIn
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -34,7 +40,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.longOrNull
 
 /**
  * Production [BrowseService] backed by the persistent Venera extension lifecycle.
@@ -63,6 +69,7 @@ class VeneraBrowseService(
      * 未注入（测试与旧装配）回退空选项，行为与历史一致。
      */
     private val search: SourceBrowseService? = null,
+    private val sources: ProductionSourceRepository? = null,
 ) : BrowseService {
     override suspend fun loadSnapshot(): BrowseSnapshot = runService {
         val installed = extensions.listInstalled()
@@ -74,8 +81,12 @@ class VeneraBrowseService(
             // A flaky repository must not take down the whole Browse page.
             emptyMap()
         }
+        val visible = sources?.discovery?.sources()?.sources
+        val byKey = installed.associateBy { it.sourceKey }
+        val visibleRecords = visible?.mapNotNull { byKey[it.key] } ?: installed
         BrowseSnapshot(
-            sources = installed.map { record ->
+            pinnedSourceIds = visible?.filter { it.pinned }?.mapTo(linkedSetOf()) { it.key },
+            sources = visibleRecords.map { record ->
                 SourceInfo(
                     id = record.sourceKey,
                     name = record.name,
@@ -116,6 +127,9 @@ class VeneraBrowseService(
             },
         )
     }
+
+    internal suspend fun toggleSourcePinned(sourceKey: String): Boolean? =
+        sources?.discovery?.togglePinned(sourceKey)
 
     override suspend fun addStore(name: String, indexUrl: String): BrowseSnapshot = runService {
         val trimmedUrl = indexUrl.trim()
@@ -236,30 +250,50 @@ class VeneraBrowseService(
     }
 
     override suspend fun searchWorks(sourceKey: String, query: String, page: Int): WorkSearchPage =
-        runService {
-            val result = search?.search(sourceKey, query, page)
-                ?: extensions.call(
-                    sourceKey,
-                    VeneraCallback.Search,
-                    JsonArray(listOf(JsonPrimitive(query), JsonArray(emptyList()), JsonPrimitive(page))),
-                ).jsonObject
-            val comics = result["comics"]?.jsonArray
-                ?: throw BrowseServiceException("Malformed search response from $sourceKey")
-            val maxPage = result["maxPage"]?.jsonPrimitive?.intOrNull ?: 1
-            WorkSearchPage(
-                works = comics.map { item ->
-                    val comic = item.jsonObject
-                    WorkSummary(
-                        id = comic.string("id"),
-                        title = comic.string("title"),
-                        subtitle = comic.optionalString("subtitle"),
-                        cover = comic.optionalString("cover"),
-                        tags = comic["tags"]?.jsonArray?.mapNotNull { textOrNull(it) }.orEmpty(),
-                    )
-                },
-                maxPage = maxPage,
-            )
+        searchWorksPage(sourceKey, query, page, next = null).let { WorkSearchPage(it.works, it.maxPage ?: page) }
+
+    internal suspend fun searchWorksPage(
+        sourceKey: String,
+        query: String,
+        page: Int,
+        next: String?,
+    ): SourceSearchPage = runService {
+        require(page > 0)
+        val service = search
+        val result = if (service != null) {
+            service.search(sourceKey, query, page, next)
+        } else {
+            require(next == null) { "Cursor pagination requires the source search service" }
+            extensions.call(
+                sourceKey,
+                VeneraCallback.Search,
+                JsonArray(listOf(JsonPrimitive(query), JsonArray(emptyList()), JsonPrimitive(page))),
+            ).jsonObject
         }
+        parseSearchPage(sourceKey, result, page)
+    }
+
+    private fun parseSearchPage(sourceKey: String, result: JsonObject, page: Int): SourceSearchPage {
+        val comics = result["comics"] as? JsonArray
+            ?: throw BrowseServiceException("Malformed search response from $sourceKey")
+        val maximum = (result["maxPage"] as? JsonPrimitive)?.intOrNull
+        val continuation = if (maximum == null) textOrNull(result["next"]) else null
+        return SourceSearchPage(
+            works = comics.map { item ->
+                val comic = item as? JsonObject ?: throw BrowseServiceException("Malformed comic from $sourceKey")
+                WorkSummary(
+                    id = comic.string("id"),
+                    title = comic.string("title"),
+                    subtitle = comic.optionalString("subtitle"),
+                    cover = comic.optionalString("cover"),
+                    tags = (comic["tags"] as? JsonArray)?.mapNotNull(::textOrNull).orEmpty(),
+                )
+            },
+            page = page,
+            maxPage = maximum ?: if ("next" in result) null else page,
+            next = continuation,
+        )
+    }
 
     /** 源搜索选项与当前持久化取值；未注入搜索通道（测试装配）返回 null，调用方整块隐藏。 */
     suspend fun sourceSearchOptions(sourceKey: String): SourceSearchOptions? =
@@ -282,6 +316,21 @@ class VeneraBrowseService(
     suspend fun deleteSavedSearch(id: Long): Boolean =
         search?.savedSearches?.delete(id) ?: false
 
+    suspend fun savedSearch(id: Long): SavedSearch? = search?.savedSearches?.get(id)
+
+    /** Renaming or editing the text preserves the saved option snapshot. */
+    suspend fun updateSavedSearch(id: Long, name: String, query: String): SavedSearch? {
+        val service = search ?: return null
+        val saved = service.savedSearches.get(id) ?: return null
+        return service.savedSearches.update(id, name, query, saved.options)
+    }
+
+    suspend fun searchSavedWorks(id: Long, page: Int = 1, next: String? = null): SourceSearchPage = runService {
+        val service = search ?: throw BrowseServiceException("Saved search is unavailable")
+        val saved = service.savedSearches.get(id) ?: throw BrowseServiceException("Saved search was removed")
+        parseSearchPage(saved.sourceKey, service.searchSaved(saved, page, next), page)
+    }
+
     override suspend fun loadWorkDetail(sourceKey: String, workId: String): WorkDetail {
         val loaded = runService {
             val detail = extensions
@@ -296,15 +345,7 @@ class VeneraBrowseService(
                 tags = detail["tags"]?.jsonObject?.mapValues { (_, value) ->
                     value.jsonArray.mapNotNull { textOrNull(it) }
                 }.orEmpty(),
-                chapters = (detail["chapters"] as? JsonObject)?.entries?.flatMap { (id, value) ->
-                    if (value is JsonObject) {
-                        value.entries.mapNotNull { (chapterId, title) ->
-                            textOrNull(title)?.let { WorkChapter(chapterId, it) }
-                        }
-                    } else {
-                        listOfNotNull(textOrNull(value)?.let { WorkChapter(id, it) })
-                    }
-                }.orEmpty(),
+                chapters = parseSourceChapterCatalog(detail["chapters"], strict = false).map { it.toWorkChapter() },
                 updateTime = detail.optionalString("updateTime"),
                 url = detail.optionalString("url"),
             )
@@ -321,6 +362,31 @@ class VeneraBrowseService(
             }
         }
         return loaded
+    }
+
+    private fun SourceChapterEntry.toWorkChapter(): WorkChapter {
+        val date = (metadata?.get("dateMillis") as? JsonPrimitive)?.longOrNull
+            ?: parseChapterDate(textOrNull(metadata?.get("uploadTime")) ?: textOrNull(metadata?.get("date")))
+        return WorkChapter(
+            id = id,
+            title = title,
+            dateMillis = date,
+            scanlator = textOrNull(metadata?.get("scanlator"))?.trim()?.takeIf(String::isNotEmpty),
+            pageCount = (metadata?.get("pageCount") as? JsonPrimitive)?.intOrNull?.takeIf { it > 0 },
+        )
+    }
+
+    private fun parseChapterDate(value: String?): Long? {
+        if (value.isNullOrBlank()) return null
+        return try {
+            Instant.parse(value).toEpochMilliseconds()
+        } catch (_: IllegalArgumentException) {
+            try {
+                LocalDate.parse(value).atStartOfDayIn(TimeZone.UTC).toEpochMilliseconds()
+            } catch (_: IllegalArgumentException) {
+                null
+            }
+        }
     }
 
     private fun installedSourceKey(extensionKey: String): String {

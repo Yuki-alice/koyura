@@ -1,12 +1,12 @@
 package app.koyura.data.session
 
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
-import app.koyura.data.extension.ExtensionDb
 import app.koyura.network.createDefaultHttpClient
 import app.koyura.source.runtime.VeneraEnvironment
 import app.koyura.source.runtime.VeneraUiHost
 import okio.FileSystem
 import okio.Path
+import java.util.Properties
 
 /**
  * Opens the extension session in [appDataDir] (desktop JVM).
@@ -22,7 +22,7 @@ suspend fun openExtensionSession(
     sourceUi: VeneraUiHost = VeneraUiHost.Headless,
 ): ExtensionSession {
     FileSystem.SYSTEM.createDirectories(appDataDir)
-    val driver = JdbcSqliteDriver("jdbc:sqlite:${appDataDir / "extensions.db"}")
+    val driver = createExtensionDriver(appDataDir / ExtensionDatabaseName)
     return openExtensionSession(
         driver = driver,
         fileSystem = FileSystem.SYSTEM,
@@ -33,3 +33,9 @@ suspend fun openExtensionSession(
         secrets = desktopSourceSecretStore(appDataDir),
     )
 }
+
+internal fun createExtensionDriver(path: Path): JdbcSqliteDriver =
+    JdbcSqliteDriver("jdbc:sqlite:$path", Properties().apply {
+        setProperty("journal_mode", "WAL")
+        setProperty("busy_timeout", ExtensionDatabaseBusyTimeoutMillis.toString())
+    })

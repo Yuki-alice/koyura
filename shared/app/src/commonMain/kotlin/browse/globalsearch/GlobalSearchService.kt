@@ -3,6 +3,8 @@ package app.koyura.app.browse.globalsearch
 import app.koyura.app.browse.BrowseService
 import app.koyura.app.browse.SourceInfo
 import app.koyura.app.browse.WorkSummary
+import app.koyura.app.browse.venera.SourceSearchPage
+import app.koyura.app.browse.venera.searchWorks
 import androidx.compose.runtime.staticCompositionLocalOf
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
@@ -18,6 +20,7 @@ data class GlobalSearchSourceResult(
     val sourceName: String,
     val works: List<WorkSummary> = emptyList(),
     val error: String? = null,
+    val searchPage: SourceSearchPage? = null,
 )
 
 /**
@@ -59,6 +62,8 @@ class GlobalSearchService(
      */
     private suspend fun allowedKeysOrNull(): Set<String>? = try {
         allowedSourceKeys?.invoke()
+    } catch (cancelled: CancellationException) {
+        throw cancelled
     } catch (_: Exception) {
         null
     }
@@ -70,12 +75,18 @@ class GlobalSearchService(
     }
 
     /** 单源搜索（键 + 展示名）；失败折成该源错误结果。 */
-    suspend fun searchOne(sourceKey: String, sourceName: String, query: String): GlobalSearchSourceResult {
+    suspend fun searchOne(
+        sourceKey: String,
+        sourceName: String,
+        query: String,
+        page: Int = 1,
+        next: String? = null,
+    ): GlobalSearchSourceResult {
         val service = browse
             ?: return GlobalSearchSourceResult(sourceKey, sourceName, error = "Browse is not connected")
         return try {
-            val page = service.searchWorks(sourceKey, query)
-            GlobalSearchSourceResult(sourceKey, sourceName, page.works)
+            val result = service.searchWorks(sourceKey, query, page, next)
+            GlobalSearchSourceResult(sourceKey, sourceName, result.works, searchPage = result)
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (failure: Exception) {

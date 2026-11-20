@@ -198,6 +198,56 @@ class ChapterDownloadStoreTest {
         }
     }
 
+    @Test
+    fun newChaptersAreQueuedInReadingOrderOnlyWhenEnabled() = runTest {
+        val root = filesRoot()
+        val session = open(root, MockEngine { awaitCancellation() })
+        try {
+            val work = session.library.addToLibrary("download", WorkKind.COMIC, "work", "Demo", addedAtMillis = 1)
+            val update = app.koyura.domain.updates.WorkUpdate(work, 2, listOf("newest", "older").map {
+                app.koyura.domain.updates.DetectedChapter(it, it, 2, false)
+            })
+            session.downloadTriggers.onNewChapters(update)
+            assertTrue(session.downloads.jobs.value.isEmpty())
+            session.downloadTriggers.setPreferences(DownloadTriggerPreferences(downloadNewChapters = true))
+            session.downloadTriggers.onNewChapters(update)
+            session.downloadTriggers.onNewChapters(update)
+            assertEquals(listOf("older", "newest"), session.downloads.jobs.value.map { it.chapter.chapterId })
+        } finally {
+            session.close()
+            files.deleteRecursively(root)
+        }
+    }
+
+    @Test
+    fun readingAheadWaitsForTheNextOfflineChapterAndSkipsReadChapters() = runTest {
+        val root = filesRoot()
+        val session = open(root, MockEngine { respond(byteArrayOf(1, 2, 3)) })
+        try {
+            session.service.installFromContent("download.js", script)
+            session.library.syncChapters("download", WorkKind.COMIC, "work", listOf("chapter", "next", "read", "later").map {
+                LibraryChapter("download", WorkKind.COMIC, "work", it)
+            })
+            session.library.markChapterRead("download", WorkKind.COMIC, "work", "read", true)
+            session.downloadTriggers.setPreferences(DownloadTriggerPreferences(downloadAheadCount = 1))
+            session.downloads.enqueue(chapter)
+            await(session, DownloadStatus.COMPLETE)
+            session.downloadTriggers.enqueueAheadFrom("download", "work", "chapter")
+            assertEquals(setOf("chapter"), session.downloads.statusesForWork("download", "work").keys)
+
+            val next = chapter.copy(chapterId = "next")
+            session.downloads.enqueue(next)
+            withContext(Dispatchers.Default) {
+                withTimeout(10_000) { session.downloads.observe(next).filterNotNull().first { it.status == DownloadStatus.COMPLETE } }
+            }
+            session.downloadTriggers.enqueueAheadFrom("download", "work", "chapter")
+            assertEquals(setOf("chapter", "next", "later"), session.downloads.statusesForWork("download", "work").keys)
+        } finally {
+            session.close()
+            files.deleteRecursively(root)
+        }
+    }
+
     private fun filesRoot(): Path = FileSystem.SYSTEM_TEMPORARY_DIRECTORY / "chapter-download-${Uuid.random()}"
 
     private suspend fun await(session: ExtensionSession, status: DownloadStatus): DownloadJob =

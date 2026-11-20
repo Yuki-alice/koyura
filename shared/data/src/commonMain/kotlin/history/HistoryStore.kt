@@ -3,6 +3,9 @@ package app.koyura.data.history
 import app.cash.sqldelight.db.SqlDriver
 import app.koyura.data.extension.ExtensionDb
 import app.koyura.domain.history.HistoryRecord
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.IO
+import kotlinx.coroutines.withContext
 
 private fun chapterKey(chapterId: String?): String = chapterId ?: ""
 
@@ -22,7 +25,7 @@ class HistoryStore(driver: SqlDriver) {
      * a recorded time sort last; the UI shows them in a separate group instead
      * of inventing a reading date.
      */
-    suspend fun latestEntries(): List<HistoryRecord> =
+    suspend fun latestEntries(): List<HistoryRecord> = withContext(Dispatchers.IO) {
         db.extensionDbQueries.selectHistoryLatest().executeAsList().map { row ->
             HistoryRecord(
                 sourceKey = row.source_key,
@@ -35,6 +38,7 @@ class HistoryStore(driver: SqlDriver) {
                 readAtMillis = row.read_at,
             )
         }
+    }
 
     /**
      * Saves the position and metadata and clears the hidden marker atomically.
@@ -49,7 +53,7 @@ class HistoryStore(driver: SqlDriver) {
         readAtMillis: Long,
         workTitle: String?,
         chapterTitle: String?,
-    ) {
+    ): Unit = withContext(Dispatchers.IO) {
         db.transaction {
             db.extensionDbQueries.upsertProgressWithMeta(
                 source_key = sourceKey,
@@ -65,12 +69,19 @@ class HistoryStore(driver: SqlDriver) {
         }
     }
 
+    /** Adds time measured by the foreground reader after its first position has been persisted. */
+    suspend fun addReadDuration(sourceKey: String, workId: String, chapterId: String?, elapsedMillis: Long) =
+        withContext(Dispatchers.IO) {
+            require(elapsedMillis >= 0)
+            db.extensionDbQueries.addReadDuration(elapsedMillis, sourceKey, workId, chapterKey(chapterId))
+        }
+
     /**
      * 全量最新进度（忽略隐藏标记）：书架继续阅读、详情继续按钮的派生依据。
      * 历史列表展示用 [latestEntries]（尊重隐藏），位置恢复永远读这里，
      * 删除/清空历史不影响任何一处的继续位置。
      */
-    suspend fun latestProgress(): Map<Pair<String, String>, HistoryRecord> =
+    suspend fun latestProgress(): Map<Pair<String, String>, HistoryRecord> = withContext(Dispatchers.IO) {
         db.extensionDbQueries.selectHistoryLatestAll().executeAsList().associate { row ->
             (row.source_key to row.work_id) to HistoryRecord(
                 sourceKey = row.source_key,
@@ -83,13 +94,14 @@ class HistoryStore(driver: SqlDriver) {
                 readAtMillis = row.read_at,
             )
         }
+    }
 
     /**
      * 删除一条历史：只插隐藏标记，`reading_progress` 进度行原样保留。
      * 调用方刷新后列表即不再出现；书架收藏行独立存放，不受影响；
      * 书架续读与历史恢复读的都是进度行，位置不丢失。
      */
-    suspend fun deleteEntry(sourceKey: String, workId: String) {
+    suspend fun deleteEntry(sourceKey: String, workId: String) = withContext(Dispatchers.IO) {
         db.extensionDbQueries.hideHistoryEntry(source_key = sourceKey, work_id = workId)
     }
 
@@ -98,7 +110,7 @@ class HistoryStore(driver: SqlDriver) {
      * 书架 `library_manga` 与分类归属保留，清空后仍可从书架续读，
      * 重新阅读后条目再次出现。
      */
-    suspend fun clearAll() {
+    suspend fun clearAll() = withContext(Dispatchers.IO) {
         db.extensionDbQueries.hideAllHistory()
     }
 }

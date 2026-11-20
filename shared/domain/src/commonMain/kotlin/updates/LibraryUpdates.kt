@@ -1,6 +1,7 @@
 package app.koyura.domain.updates
 
 import app.koyura.domain.library.LibraryManga
+import app.koyura.domain.library.WorkKind
 import kotlinx.serialization.Serializable
 
 data class DetectedChapter(
@@ -19,6 +20,8 @@ data class WorkUpdate(
 }
 
 data class UpdateFailure(val work: LibraryManga, val checkedAtMillis: Long, val message: String)
+
+data class UpdateFailureWorkKey(val sourceKey: String, val kind: WorkKind, val workId: String)
 
 @Serializable
 data class SmartUpdatePreferences(
@@ -56,4 +59,12 @@ interface LibraryUpdates {
     suspend fun retryFailures(): UpdateScan
     suspend fun feed(): List<WorkUpdate>
     suspend fun failures(): List<UpdateFailure>
+
+    suspend fun failuresByWork(): Map<UpdateFailureWorkKey, List<UpdateFailure>> =
+        failures().groupBy { UpdateFailureWorkKey(it.work.sourceKey, it.work.kind, it.work.workId) }
+}
+
+/** Mutable failure history for the dedicated errors page. */
+interface UpdateFailureManagement {
+    suspend fun clearFailures(works: Set<UpdateFailureWorkKey>)
 }

@@ -92,7 +92,7 @@ class HistoryMigrationTest {
             val session = openExtensionSession(driver, FileSystem.SYSTEM, root / "app", quietClient(), readingEnv)
             try {
                 assertEquals(
-                    setOf("source_key", "work_id", "chapter_id", "page_key", "page_index", "read_at", "work_title", "chapter_title"),
+                    setOf("source_key", "work_id", "chapter_id", "page_key", "page_index", "read_at", "work_title", "chapter_title", "read_duration_ms"),
                     tableColumns(driver, "reading_progress"),
                 )
                 val store = HistoryStore(driver)
@@ -126,7 +126,7 @@ class HistoryMigrationTest {
             val session = openExtensionSession(driver, FileSystem.SYSTEM, root / "app", quietClient(), readingEnv)
             try {
                 assertEquals(
-                    setOf("source_key", "work_id", "chapter_id", "page_key", "page_index", "read_at", "work_title", "chapter_title"),
+                    setOf("source_key", "work_id", "chapter_id", "page_key", "page_index", "read_at", "work_title", "chapter_title", "read_duration_ms"),
                     tableColumns(driver, "reading_progress"),
                 )
                 // The legacy extension row and its repository survive the migration.
@@ -160,7 +160,7 @@ class HistoryMigrationTest {
             val session = openExtensionSession(driver, FileSystem.SYSTEM, root / "app", quietClient(), readingEnv)
             try {
                 assertEquals(
-                    setOf("source_key", "work_id", "chapter_id", "page_key", "page_index", "read_at", "work_title", "chapter_title"),
+                    setOf("source_key", "work_id", "chapter_id", "page_key", "page_index", "read_at", "work_title", "chapter_title", "read_duration_ms"),
                     tableColumns(driver, "reading_progress"),
                 )
                 // Existing extensions and repositories keep working after the in-place upgrade.
@@ -176,6 +176,7 @@ class HistoryMigrationTest {
                 assertEquals("ep_1", entry.chapterId)
                 assertEquals(2, entry.pageIndex)
                 assertNull(entry.readAtMillis)
+                assertEquals(0L, session.statistics.load().readDurationMillis)
                 // The unchanged writer still works after migration.
                 ExtensionDb(driver).extensionDbQueries.upsertProgress("example_source", "demo", "ep_1", "https://example.invalid/3.png", 3)
                 assertEquals(3, HistoryStore(driver).latestEntries().single().pageIndex)

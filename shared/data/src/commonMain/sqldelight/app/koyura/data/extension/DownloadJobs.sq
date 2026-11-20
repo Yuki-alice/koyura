@@ -34,3 +34,21 @@ SELECT COUNT(*) FROM download_jobs WHERE source_key = ? AND work_id = ? AND stat
 
 selectDownloadsForWork:
 SELECT * FROM download_jobs WHERE source_key = ? AND work_id = ? ORDER BY rowid;
+
+selectVisibleDownloadQueue:
+SELECT j.*,
+    COALESCE(m.title, p.work_title, j.work_id) AS work_title,
+    COALESCE(NULLIF(c.title, ''), p.chapter_title, NULLIF(j.chapter_id, ''), m.title, j.work_id) AS chapter_title
+FROM download_jobs AS j
+LEFT JOIN library_manga AS m
+    ON m.source_key = j.source_key AND m.work_id = j.work_id AND m.kind = 'COMIC'
+LEFT JOIN library_chapter AS c
+    ON c.source_key = j.source_key AND c.work_id = j.work_id AND c.chapter_id = j.chapter_id AND c.kind = 'COMIC'
+LEFT JOIN reading_progress AS p
+    ON p.source_key = j.source_key AND p.work_id = j.work_id AND p.chapter_id = j.chapter_id
+WHERE j.status NOT IN ('COMPLETE', 'CANCELLED')
+ORDER BY j.rowid;
+
+cancelVisibleDownloads:
+UPDATE download_jobs SET status = 'CANCELLED', completed_pages = 0, total_pages = NULL
+WHERE status IN ('QUEUED', 'DOWNLOADING', 'PAUSED', 'FAILED');

@@ -1,11 +1,11 @@
 package app.koyura.app
 
-import app.koyura.designsystem.DesignTokens
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -16,20 +16,37 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLocale
-import app.koyura.app.account.ProductionAccountRepository
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
+import app.koyura.app.reader.VeneraReaderService
+import app.koyura.app.browse.venera.LocalProductionSources
+import app.koyura.app.browse.venera.ProductionSourceRepository
 import app.koyura.app.browse.venera.VeneraBrowseService
 import app.koyura.app.history.VeneraHistoryService
 import app.koyura.app.library.ProductionLibraryRepository
-import app.koyura.app.reader.VeneraReaderService
+import app.koyura.app.library.LocalProductionDownloads
+import app.koyura.app.library.ProductionDownloadQueueRepository
+import app.koyura.app.library.ProductionStatisticsRepository
+import app.koyura.app.library.LocalProductionSettings
+import app.koyura.app.library.ProductionSettingsRepository
+import app.koyura.features.statistics.LocalStatisticsRepository
+import app.koyura.features.downloads.LocalDownloadQueueRepository
+import app.koyura.app.account.ProductionAccountRepository
+import app.koyura.app.updates.BackgroundLibraryUpdates
+import app.koyura.app.updates.ProductionUpdatesRepository
+import app.koyura.domain.updates.LibraryUpdateScheduleState
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChangedBy
+import kotlinx.coroutines.flow.emptyFlow
+import app.koyura.app.updates.ProductionUpdatePolicyRepository
 import app.koyura.app.resources.Res
 import app.koyura.app.resources.extension_startup_failed
 import app.koyura.app.resources.extension_startup_loading
 import app.koyura.app.resources.extension_startup_retry
 import app.koyura.app.sourceui.FakeClipboard
 import app.koyura.app.sourceui.SourceUiHost
-import app.koyura.app.updates.ProductionUpdatePolicyRepository
-import app.koyura.app.updates.ProductionUpdatesRepository
 import app.koyura.data.session.ExtensionSession
+import app.koyura.designsystem.DesignTokens
 import app.koyura.designsystem.ReaderTheme
 import app.koyura.designsystem.components.AppButton
 import app.koyura.designsystem.components.AppCircularProgress
@@ -64,6 +81,10 @@ internal fun extensionEnvironment(platform: String): VeneraEnvironment {
 @Composable
 internal fun ExtensionApp(
     uiHost: SourceUiHost = SourceUiHost(FakeClipboard()),
+    backgroundUpdates: BackgroundLibraryUpdates? = null,
+    networkChanges: Flow<Unit> = emptyFlow(),
+    scheduleBackgroundUpdate: suspend (LibraryUpdateScheduleState) -> Unit = {},
+    requestUpdateNotifications: () -> Unit = {},
     openSession: suspend (SourceUiHost) -> ExtensionSession,
 ) {
     var openedSession by remember { mutableStateOf<ExtensionSession?>(null) }
@@ -74,7 +95,11 @@ internal fun ExtensionApp(
         var session: ExtensionSession? = null
         try {
             // Capture ownership on the opening dispatcher before a cancelled caller can lose it.
-            withContext(Dispatchers.IO) { session = openSession(uiHost) }
+            withContext(Dispatchers.IO) {
+                session = if (backgroundUpdates != null) {
+                    backgroundUpdates.openForeground { openSession(uiHost) }
+                } else openSession(uiHost)
+            }
             openedSession = checkNotNull(session)
             awaitCancellation()
         } catch (cancelled: CancellationException) {
@@ -83,18 +108,28 @@ internal fun ExtensionApp(
             failed = true
         } finally {
             withContext(NonCancellable + Dispatchers.IO) {
-                session?.close()
+                session?.let {
+                    if (backgroundUpdates != null) backgroundUpdates.closeForeground(it) else it.close()
+                }
             }
         }
     }
 
     val session = openedSession
     if (session != null) {
-        // 更新扫描出新章后的自动下载钩子（偏好默认关闭，开启后新章自动入队）。
-        session.updates.setNewChaptersDownloadHook(session.downloadTriggers)
-        // 后台更新调度：进程内时间驱动 + 启动补跑；作用域随会话销毁，前台唤醒由平台接线补充。
+        // 调度随会话启动，恢复前台时重新判断逾期和网络约束。
         val sessionScope = remember(session) { CoroutineScope(SupervisorJob() + Dispatchers.Default) }
-        LaunchedEffect(session) { session.updateScheduler.start(sessionScope) }
+        LaunchedEffect(session) {
+            session.updateScheduler.refreshSchedule()
+            session.updateScheduler.start(sessionScope)
+            session.updateScheduler.state
+                .distinctUntilChangedBy { it.preferences to it.nextUpdateMillis }
+                .collect { scheduleBackgroundUpdate(it) }
+        }
+        LaunchedEffect(session, networkChanges) {
+            networkChanges.collect { session.updateScheduler.onForeground() }
+        }
+        LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { session.updateScheduler.onForeground() }
         DisposableEffect(session) {
             onDispose { sessionScope.cancel() }
         }
@@ -119,6 +154,7 @@ internal fun ExtensionApp(
         val accounts = remember(session) {
             ProductionAccountRepository(session.service)
         }
+        val sources = remember(session) { ProductionSourceRepository(session.discovery, session.feed, session.service.browse) }
         val browse = remember(session) {
             VeneraBrowseService(
                 extensions = session.service,
@@ -134,6 +170,7 @@ internal fun ExtensionApp(
                     )
                 },
                 search = session.service.browse,
+                sources = sources,
             )
         }
         val reader = remember(session) {
@@ -141,21 +178,38 @@ internal fun ExtensionApp(
                 reading = session.comicReading,
                 history = session.history,
                 library = session.library,
+                downloadTriggers = session.downloadTriggers,
             )
         }
         val history = remember(session) { VeneraHistoryService(session.history, session.library) }
-        App(
-            browseService = browse,
-            readerService = reader,
-            historyService = history,
-            readerPreferences = session.readerPreferences,
-            libraryRepository = library,
-            updatesRepository = updates,
-            updatePolicyRepository = updatePolicy,
-            accountRepository = accounts,
-            searchSourceFilter = { session.discovery.searchSourceKeys() },
-            sourceUiHost = uiHost,
-        )
+        val downloads = remember(session) { ProductionDownloadQueueRepository(session.downloadQueue) }
+        val statistics = remember(session) { ProductionStatisticsRepository(session.statistics) }
+        val settings = remember(session) {
+            ProductionSettingsRepository(
+                session.library, session.readerPreferences, session.downloadTriggers,
+                session.updateScheduler, requestUpdateNotifications,
+            )
+        }
+        CompositionLocalProvider(
+            LocalProductionSources provides sources,
+            LocalProductionSettings provides settings,
+            LocalProductionDownloads provides downloads,
+            LocalDownloadQueueRepository provides downloads,
+            LocalStatisticsRepository provides statistics,
+        ) {
+            App(
+                browseService = browse,
+                readerService = reader,
+                historyService = history,
+                readerPreferences = settings,
+                libraryRepository = library,
+                updatesRepository = updates,
+                updatePolicyRepository = updatePolicy,
+                accountRepository = accounts,
+                searchSourceFilter = { sources.discovery.searchSourceKeys() },
+                sourceUiHost = uiHost,
+            )
+        }
     } else {
         ReaderTheme {
             AppSurface(modifier = Modifier.fillMaxSize()) {

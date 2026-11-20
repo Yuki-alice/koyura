@@ -4,6 +4,7 @@ import app.cash.sqldelight.db.SqlDriver
 import app.koyura.data.extension.ExtensionDb
 import app.koyura.data.extension.ExtensionService
 import app.koyura.data.extension.Library_manga
+import app.koyura.data.extension.parseSourceChapterCatalog
 import app.koyura.data.library.LibraryStore
 import app.koyura.domain.library.LibraryChapter
 import app.koyura.domain.library.LibraryManga
@@ -14,6 +15,8 @@ import app.koyura.domain.updates.NewChaptersDownloadHook
 import app.koyura.domain.updates.SkippedUpdate
 import app.koyura.domain.updates.SmartUpdatePreferences
 import app.koyura.domain.updates.UpdateFailure
+import app.koyura.domain.updates.UpdateFailureManagement
+import app.koyura.domain.updates.UpdateFailureWorkKey
 import app.koyura.domain.updates.UpdateScan
 import app.koyura.domain.updates.UpdateSkipReason
 import app.koyura.domain.updates.UpdateTitleMetadata
@@ -37,7 +40,6 @@ import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
@@ -49,7 +51,7 @@ class LibraryUpdateScanner internal constructor(
     private val library: LibraryStore,
     private val extensions: ExtensionService,
     private val clock: Clock = Clock.System,
-) : LibraryUpdates {
+) : LibraryUpdates, UpdateFailureManagement {
     private val db = ExtensionDb(driver)
     private val libraryQueries = db.extensionDbQueries
     private val queries = db.libraryUpdatesQueries
@@ -93,6 +95,16 @@ class LibraryUpdateScanner internal constructor(
             releaseChanges.tryEmit(Unit)
             Unit
         }
+
+    internal suspend fun globalUpdateWorkCount(): Int = withContext(Dispatchers.IO) {
+        val smart = preferences().takeIf { it.enabled }
+        val releaseWindowEnd = if (smart?.skipOutsideReleasePeriod == true) endOfCurrentDay() else Long.MAX_VALUE
+        db.transactionWithResult {
+            allComics().values.count { work ->
+                work.sourceKey != "local" && (smart == null || skipReason(work, smart, releaseWindowEnd) == null)
+            }
+        }
+    }
 
     /** Earliest local day a work skipped solely for its future release becomes eligible. */
     internal suspend fun nextReleaseWindowMillis(): Long? = withContext(Dispatchers.IO) {
@@ -208,6 +220,15 @@ class LibraryUpdateScanner internal constructor(
     override suspend fun failures(): List<UpdateFailure> =
         withContext(Dispatchers.IO) { db.transactionWithResult { failureRows() } }
 
+    override suspend fun clearFailures(works: Set<UpdateFailureWorkKey>) = withContext(Dispatchers.IO) {
+        if (works.isEmpty()) return@withContext
+        scanMutex.withLock {
+            db.transaction {
+                for (work in works) queries.clearUpdateFailure(work.sourceKey, work.kind.name, work.workId)
+            }
+        }
+    }
+
     private fun failureRows(): List<UpdateFailure> {
         val works = allComics()
         return queries.selectUpdateFailures().executeAsList().mapNotNull {
@@ -265,19 +286,15 @@ class LibraryUpdateScanner internal constructor(
     private fun Boolean.asSqlFlag(): Long = if (this) 1L else 0L
 
     private fun unpackChapters(work: LibraryManga, value: JsonElement?): List<LibraryChapter> {
-        fun chapter(id: String, title: JsonElement): LibraryChapter {
-            require(id.isNotEmpty() && title is JsonPrimitive && title.isString) { "Invalid chapter entry" }
-            return LibraryChapter(work.sourceKey, work.kind, work.workId, id, title.content)
-        }
-        if (value == null || value == JsonNull || (value is JsonObject && value.isEmpty())) {
+        val entries = parseSourceChapterCatalog(value, strict = true)
+        if (value == null || value is kotlinx.serialization.json.JsonNull || (value is JsonObject && value.isEmpty())) {
             return listOf(LibraryChapter(work.sourceKey, work.kind, work.workId, ""))
         }
-        val entries = value.jsonObject
-        val chapters = entries.entries.flatMap { (id, entry) ->
-            if (entry is JsonObject) entry.map { (id, title) -> chapter(id, title) } else listOf(chapter(id, entry))
+        return entries.distinctBy { it.id }.map {
+            LibraryChapter(work.sourceKey, work.kind, work.workId, it.id, it.title)
         }
-        return chapters.distinctBy { it.chapterId }
     }
+
     private companion object {
         const val SMART_UPDATE_PREFERENCE = "updates.smart_scan"
         val preferencesJson = Json { ignoreUnknownKeys = true }
