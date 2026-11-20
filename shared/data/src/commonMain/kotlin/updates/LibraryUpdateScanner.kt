@@ -15,6 +15,8 @@ import app.koyura.domain.updates.NewChaptersDownloadHook
 import app.koyura.domain.updates.SkippedUpdate
 import app.koyura.domain.updates.SmartUpdatePreferences
 import app.koyura.domain.updates.UpdateFailure
+import app.koyura.domain.updates.UpdateFailureManagement
+import app.koyura.domain.updates.UpdateFailureWorkKey
 import app.koyura.domain.updates.UpdateScan
 import app.koyura.domain.updates.UpdateSkipReason
 import app.koyura.domain.updates.UpdateTitleMetadata
@@ -49,7 +51,7 @@ class LibraryUpdateScanner internal constructor(
     private val library: LibraryStore,
     private val extensions: ExtensionService,
     private val clock: Clock = Clock.System,
-) : LibraryUpdates {
+) : LibraryUpdates, UpdateFailureManagement {
     private val db = ExtensionDb(driver)
     private val libraryQueries = db.extensionDbQueries
     private val queries = db.libraryUpdatesQueries
@@ -217,6 +219,15 @@ class LibraryUpdateScanner internal constructor(
 
     override suspend fun failures(): List<UpdateFailure> =
         withContext(Dispatchers.IO) { db.transactionWithResult { failureRows() } }
+
+    override suspend fun clearFailures(works: Set<UpdateFailureWorkKey>) = withContext(Dispatchers.IO) {
+        if (works.isEmpty()) return@withContext
+        scanMutex.withLock {
+            db.transaction {
+                for (work in works) queries.clearUpdateFailure(work.sourceKey, work.kind.name, work.workId)
+            }
+        }
+    }
 
     private fun failureRows(): List<UpdateFailure> {
         val works = allComics()
