@@ -1,6 +1,7 @@
 package app.koyura.designsystem.theme
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import com.materialkolor.quantize.QuantizerCelebi
 import com.materialkolor.score.Score
 
@@ -22,4 +23,21 @@ fun extractCoverSeedColor(pixels: IntArray, maxColors: Int = 128): Color? {
     val ranked = Score.score(quantized, 1)
     val argb = ranked.firstOrNull() ?: return null
     return Color(argb)
+}
+
+/** Samples at most 4096 pixels, ignoring the transparent area of illustrated covers. */
+fun extractCoverSeedColor(bitmap: ImageBitmap): Color? {
+    val columns = minOf(bitmap.width, 64)
+    val rows = minOf(bitmap.height, 64)
+    val pixels = IntArray(columns * rows)
+    val scanline = IntArray(bitmap.width)
+    var count = 0
+    for (row in 0 until rows) {
+        bitmap.readPixels(scanline, startY = row * bitmap.height / rows, height = 1)
+        for (column in 0 until columns) {
+            val argb = scanline[column * bitmap.width / columns]
+            if (argb ushr 24 >= 128) pixels[count++] = argb
+        }
+    }
+    return extractCoverSeedColor(pixels.copyOf(count))
 }

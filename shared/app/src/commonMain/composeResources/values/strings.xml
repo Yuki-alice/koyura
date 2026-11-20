@@ -177,4 +177,6 @@
     <string name="history_clear_confirm">Clear</string>
     <string name="stores_cancel">Cancel</string>
     <string name="stores_remove_confirm">Remove</string>
+    <string name="source_detail_suggestions">Suggestions</string>
+    <string name="source_detail_suggestions_empty">No suggestions available</string>
 </resources>

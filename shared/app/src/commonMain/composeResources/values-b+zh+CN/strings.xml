@@ -176,4 +176,6 @@
     <string name="history_clear_confirm">清空</string>
     <string name="stores_cancel">取消</string>
     <string name="stores_remove_confirm">移除</string>
+    <string name="source_detail_suggestions">推荐作品</string>
+    <string name="source_detail_suggestions_empty">暂无推荐作品</string>
 </resources>

@@ -1,18 +1,29 @@
 package app.koyura.app.browse
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertWidthIsEqualTo
+import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
+import app.koyura.app.reader.pngBytes
 import app.koyura.designsystem.CoverImageTag
+import app.koyura.designsystem.CoverPlaceholderTag
 import app.koyura.designsystem.ReaderTheme
+import java.awt.image.BufferedImage
+import java.io.File
+import javax.imageio.ImageIO
 import kotlin.test.Test
+import kotlin.test.assertNotEquals
 
 /**
  * 详情视觉回归：工具栏返回、四键行、标签 chips、元数据、目录行（富二级行 + 禁用下载位）。
@@ -114,9 +125,67 @@ class AppShellDetailUiTest {
         waitForIdle()
 
         // 宽屏双栏：左信息右目录同屏。
+        onNodeWithTag("detail-master-pane").assertWidthIsEqualTo(450.dp)
         onNodeWithTag("source-detail-heading").assertIsDisplayed()
         onNodeWithTag("source-detail-chapter-ep_1").assertIsDisplayed()
         onNodeWithTag("source-detail-chapter-ep_2").assertIsDisplayed()
+    }
+
+    @Test
+    fun detailThemeAndScrollEvidence() = runComposeUiTest {
+        val service = detailService()
+        val seeded = checkNotNull(service.workDetails["demo"]).copy(
+            cover = "fixture:seed",
+            chapters = List(12) { WorkChapter(id = "chapter-$it", title = "Chapter ${it + 1}") },
+        )
+        service.workDetails = mapOf(
+            "seeded" to seeded,
+            "static" to seeded.copy(cover = ""),
+        )
+        service.coverBytes = mapOf(("src-demo" to seeded.cover) to pngBytes(0x169773))
+        val session = BrowseSession(service)
+        val work = androidx.compose.runtime.mutableStateOf("static")
+        setContent {
+            ReaderTheme(darkTheme = false) {
+                Box(Modifier.size(360.dp, 720.dp)) {
+                    SourceDetailScreen(
+                        session = session,
+                        sourceKey = "src-demo",
+                        workId = work.value,
+                        fallbackTitle = "星图",
+                        onBack = {},
+                    )
+                }
+            }
+        }
+        onNodeWithTag(CoverPlaceholderTag).assertIsDisplayed()
+        val page = onNodeWithTag(SourceDetailTestTag)
+        val staticColor = page.captureToImage().corner()
+        page.captureToImage().saveDetailEvidence("detail-static-top")
+        runOnIdle { work.value = "seeded" }
+        onNodeWithTag(CoverImageTag).assertIsDisplayed()
+        waitUntil(timeoutMillis = 5_000) { page.captureToImage().corner() != staticColor }
+        val seededColor = page.captureToImage().corner()
+        page.captureToImage().saveDetailEvidence("detail-seed-top")
+        onNodeWithTag("detail-suggestions").performScrollTo().assertIsDisplayed()
+        assertNotEquals(seededColor, page.captureToImage().corner())
+        page.captureToImage().saveDetailEvidence("detail-seed-scrolled")
+    }
+
+    private fun ImageBitmap.corner(): Int {
+        val pixels = IntArray(1)
+        readPixels(pixels, startX = width - 4, startY = 4, width = 1, height = 1)
+        return pixels.single()
+    }
+
+    private fun ImageBitmap.saveDetailEvidence(name: String) {
+        val dir = File(System.getProperty("reader.screenshotDir") ?: "build/visual-parity", "detail-evidence")
+        dir.mkdirs()
+        val pixels = IntArray(width * height)
+        readPixels(pixels)
+        val output = BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB)
+        output.setRGB(0, 0, width, height, pixels, 0, width)
+        ImageIO.write(output, "png", File(dir, "$name.png"))
     }
 
     @Test

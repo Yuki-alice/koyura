@@ -104,6 +104,8 @@ object DesignTokens {
     // 底栏 80dp 见 NavigationBar.kt:43；导航轨见 NavigationRail.kt:47；设置项见 PreferenceItem.kt；
     // 章节项内边距见白皮书 02 表格；历史/列表/徽标/滚动条/阅读器滑块/底部菜单见 tokens.json。
     object Sizes {
+        val MinimumTouchTarget = 48.dp
+        val DetailActionIcon = 20.dp
         val NavigationBarHeight = 80.dp
         val NavigationRailMinWidth = 80.dp
         val SettingsItemMinHeight = 56.dp

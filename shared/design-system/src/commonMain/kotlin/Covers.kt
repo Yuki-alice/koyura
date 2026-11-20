@@ -170,7 +170,17 @@ fun Cover(
     modifier: Modifier = Modifier,
     contentDescription: String? = null,
 ) {
-    val bitmap = rememberCoverBitmap(sourceKey, coverUrl)
+    CoverArtwork(rememberCoverBitmap(sourceKey, coverUrl), label, modifier, contentDescription)
+}
+
+/** Renders a previously decoded cover without loading its bytes again. */
+@Composable
+fun CoverArtwork(
+    bitmap: ImageBitmap?,
+    label: String,
+    modifier: Modifier = Modifier,
+    contentDescription: String? = null,
+) {
     if (bitmap != null) {
         Image(
             bitmap = bitmap,

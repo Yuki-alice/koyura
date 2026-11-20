@@ -24,6 +24,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
@@ -44,12 +48,15 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
@@ -79,6 +86,8 @@ import app.koyura.app.resources.source_detail_mark_unread
 import app.koyura.app.resources.source_detail_no_description
 import app.koyura.app.resources.source_detail_progress
 import app.koyura.app.resources.source_detail_read
+import app.koyura.app.resources.source_detail_suggestions
+import app.koyura.app.resources.source_detail_suggestions_empty
 import app.koyura.app.resources.source_detail_tags
 import app.koyura.app.resources.source_detail_tracking
 import app.koyura.app.resources.source_detail_updated
@@ -90,6 +99,7 @@ import app.koyura.app.resources.source_search_hint
 import app.koyura.app.resources.source_search_no_results
 import app.koyura.app.resources.source_search_results
 import app.koyura.designsystem.Cover
+import app.koyura.designsystem.CoverArtwork
 import app.koyura.designsystem.DetailBackdrop
 import app.koyura.designsystem.LocalCoverDecoder
 import app.koyura.designsystem.LocalCoverImageLoader
@@ -102,8 +112,12 @@ import app.koyura.designsystem.components.AppSurface
 import app.koyura.designsystem.components.AppText
 import app.koyura.designsystem.components.AppTextButton
 import app.koyura.designsystem.components.ReaderTopAppBar
+import app.koyura.designsystem.components.ReaderTopAppBarHeight
 import app.koyura.designsystem.components.UiTheme
 import app.koyura.designsystem.rememberCoverBitmap
+import app.koyura.designsystem.theme.ThemeMode
+import app.koyura.designsystem.theme.VisualTheme
+import app.koyura.designsystem.theme.extractCoverSeedColor
 import app.koyura.domain.reader.ReaderService
 import app.koyura.features.library.LibraryEntryKey
 import app.koyura.features.library.LibraryKind
@@ -111,7 +125,9 @@ import app.koyura.features.library.LibrarySession
 import app.koyura.features.library.NewLibraryEntry
 import app.koyura.features.library.rememberLibrarySession
 import kotlin.math.roundToInt
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -360,8 +376,7 @@ fun SourceDetailScreen(
     // 详情与书架同一收藏状态：有装配会话时读已提交快照，无装配时保持页内视觉态。
     val library = librarySession ?: rememberLibrarySession()
     val libraryKey = remember(sourceKey, workId) { LibraryEntryKey(sourceKey, LibraryKind.COMIC, workId) }
-    var visualInLibrary by rememberSaveable(sourceKey, workId) { mutableStateOf(false) }
-    val inLibrary = library?.isFavorite(libraryKey) ?: visualInLibrary
+    val inLibrary = library.isFavorite(libraryKey)
     val sourceName = remember(session.state.sources, sourceKey) {
         session.state.sources.firstOrNull { it.id == sourceKey }?.name.orEmpty()
     }
@@ -379,7 +394,7 @@ fun SourceDetailScreen(
             progress = readerService?.readProgress(sourceKey, workId)
             // 真实已读：书架目录同步后读同一状态；未收藏/无目录即空映射，回退到进度章标读。
             readStates = try {
-                library?.chapterReadStates(libraryKey) ?: emptyMap()
+                library.chapterReadStates(libraryKey)
             } catch (_: Exception) {
                 emptyMap()
             }
@@ -430,147 +445,45 @@ fun SourceDetailScreen(
                 val chapterTitles = remember(loaded) { loaded.chapters.map { it.title } }
                 val canContinue = progress != null &&
                     (progress!!.chapterId == null || progress!!.chapterId in chapterIds)
+                val coverLoader = remember(session) { session.coverLoader() }
                 CompositionLocalProvider(
-                    LocalCoverImageLoader provides session.coverLoader(),
+                    LocalCoverImageLoader provides coverLoader,
                     LocalCoverDecoder provides AppCoverDecoder,
                 ) {
-                    ReaderTopAppBar(
-                        title = {
-                            AppText(
-                                loaded.title.ifEmpty { fallbackTitle },
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        },
-                        navigationIcon = {
-                            ActionIconButton(
-                                icon = ActionIcon.Back,
-                                label = stringResource(Res.string.source_detail_back),
-                                onClick = onBack,
-                                modifier = Modifier.testTag(SourceDetailBackTag),
-                            )
-                        },
-                        modifier = Modifier.testTag(SourceDetailToolbarTag),
-                    )
-                    library?.actionError?.let { libraryError ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            // 点按错误行即清除（与书架页的清除按钮同一语义，避免引入新文案）。
-                            AppText(
-                                text = libraryError,
-                                color = UiTheme.colorScheme.error,
-                                style = UiTheme.typography.bodySmall,
-                                modifier = Modifier.weight(1f)
-                                    .testTag("detail-library-error")
-                                    .clickable { library.clearActionError() },
-                            )
-                        }
-                    }
-                    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-                        if (maxWidth >= DetailWideWidthThreshold) {
-                            // 左栏 min(width/2, 450dp)：白皮书 03/07 与参考 TwoPanelBox.kt。
-                            val masterWidth = minOf(maxWidth / 2, 450.dp)
-                            Row(modifier = Modifier.fillMaxSize()) {
-                                Column(
-                                    modifier = Modifier
-                                        .width(masterWidth)
-                                        .fillMaxSize()
-                                        .verticalScroll(rememberScrollState()),
+                    val artwork = rememberCoverBitmap(sourceKey, loaded.cover)
+                    DetailCoverTheme(artwork) {
+                        Column(Modifier.fillMaxSize().background(UiTheme.colorScheme.surface)) {
+                            library.actionError?.let { libraryError ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 ) {
-                                    DetailInfoColumn(
-                                        detail = loaded,
-                                        sourceKey = sourceKey,
-                                        fallbackTitle = fallbackTitle,
-                                        sourceName = sourceName.ifBlank { sourceKey },
-                                        wide = true,
-                                        inLibrary = inLibrary,
-                                        onToggleLibrary = {
-                                            val repo = library
-                                            if (repo == null) {
-                                                visualInLibrary = !visualInLibrary
-                                            } else {
-                                                scope.launch {
-                                                    repo.setFavorite(
-                                                        NewLibraryEntry(
-                                                            sourceKey = sourceKey,
-                                                            workId = workId,
-                                                            title = loaded.title.ifEmpty { fallbackTitle },
-                                                            coverUrl = loaded.cover,
-                                                            sourceName = sourceName,
-                                                            totalChapters = loaded.chapters.size,
-                                                        ),
-                                                        !inLibrary,
-                                                    )
-                                                }
-                                            }
-                                        },
-                                        canContinue = canContinue,
-                                        onContinue = {
-                                            val saved = progress
-                                            if (saved != null) {
-                                                val target = saved.chapterId?.takeIf { it in chapterIds }
-                                                    ?: chapterIds.firstOrNull()
-                                                onOpenChapter(target, chapterIds, chapterTitles)
-                                            }
-                                        },
-                                        progress = progress,
-                                    )
-                                }
-                                Column(modifier = Modifier.weight(1f).fillMaxSize()) {
-                                    DetailChapterList(
-                                        chapters = loaded.chapters,
-                                        enabled = readerService != null,
-                                        selectedIds = selectedIds,
-                                        onToggleSelect = { id ->
-                                            selectedIds = if (selectedIds.contains(id)) {
-                                                selectedIds - id
-                                            } else {
-                                                selectedIds + id
-                                            }
-                                        },
-                                        onClearSelection = { selectedIds = emptySet() },
-                                        readStates = readStates,
-                                        fallbackReadChapterId = progress?.chapterId,
-                                        canMarkRead = inLibrary && library != null,
-                                        onMarkRead = { ids, read ->
-                                            val repo = library
-                                            if (repo != null) {
-                                                scope.launch {
-                                                    if (repo.markDetailChapters(libraryKey, ids, read)) {
-                                                        // 重读同一映射，保证“提交结果为准”。
-                                                        readStates = repo.chapterReadStates(libraryKey)
-                                                        selectedIds = emptySet()
-                                                    }
-                                                }
-                                            }
-                                        },
-                                        onOpen = { chapter ->
-                                            onOpenChapter(chapter.id, chapterIds, chapterTitles)
-                                        },
+                                    // 点按错误行即清除（与书架页的清除按钮同一语义，避免引入新文案）。
+                                    AppText(
+                                        text = libraryError,
+                                        color = UiTheme.colorScheme.error,
+                                        style = UiTheme.typography.bodySmall,
+                                        modifier = Modifier.weight(1f)
+                                            .testTag("detail-library-error")
+                                            .clickable { library.clearActionError() },
                                     )
                                 }
                             }
-                        } else {
-                            Column(
-                                modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
-                            ) {
-                                DetailInfoColumn(
-                                    detail = loaded,
-                                    sourceKey = sourceKey,
-                                    fallbackTitle = fallbackTitle,
-                                    sourceName = sourceName.ifBlank { sourceKey },
-                                    wide = false,
-                                    inLibrary = inLibrary,
-                                    onToggleLibrary = {
-                                        val repo = library
-                                        if (repo == null) {
-                                            visualInLibrary = !visualInLibrary
-                                        } else {
+                            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                                val infoScroll = rememberScrollState()
+                                val chaptersScroll = rememberScrollState()
+                                val info: @Composable (Boolean) -> Unit = { wide ->
+                                    DetailInfoColumn(
+                                        detail = loaded,
+                                        artwork = artwork,
+                                        fallbackTitle = fallbackTitle,
+                                        sourceName = sourceName.ifBlank { sourceKey },
+                                        wide = wide,
+                                        inLibrary = inLibrary,
+                                        onToggleLibrary = {
                                             scope.launch {
-                                                repo.setFavorite(
+                                                library.setFavorite(
                                                     NewLibraryEntry(
                                                         sourceKey = sourceKey,
                                                         workId = workId,
@@ -582,92 +495,130 @@ fun SourceDetailScreen(
                                                     !inLibrary,
                                                 )
                                             }
-                                        }
-                                    },
-                                    canContinue = canContinue,
-                                    onContinue = {
-                                        val saved = progress
-                                        if (saved != null) {
-                                            val target = saved.chapterId?.takeIf { it in chapterIds }
-                                                ?: chapterIds.firstOrNull()
-                                            onOpenChapter(target, chapterIds, chapterTitles)
-                                        }
-                                    },
-                                    progress = progress,
-                                )
-                                DetailChapterList(
-                                    chapters = loaded.chapters,
-                                    enabled = readerService != null,
-                                    selectedIds = selectedIds,
-                                    onToggleSelect = { id ->
-                                        selectedIds = if (selectedIds.contains(id)) {
-                                            selectedIds - id
-                                        } else {
-                                            selectedIds + id
-                                        }
-                                    },
-                                    onClearSelection = { selectedIds = emptySet() },
-                                    readStates = readStates,
-                                    fallbackReadChapterId = progress?.chapterId,
-                                    canMarkRead = inLibrary && library != null,
-                                    onMarkRead = { ids, read ->
-                                        val repo = library
-                                        if (repo != null) {
+                                        },
+                                        canContinue = canContinue,
+                                        onContinue = {
+                                            progress?.let { saved ->
+                                                val target = saved.chapterId?.takeIf { it in chapterIds }
+                                                    ?: chapterIds.firstOrNull()
+                                                onOpenChapter(target, chapterIds, chapterTitles)
+                                            }
+                                        },
+                                        progress = progress,
+                                    )
+                                }
+                                val chapters: @Composable () -> Unit = {
+                                    DetailChapterList(
+                                        chapters = loaded.chapters,
+                                        enabled = readerService != null,
+                                        selectedIds = selectedIds,
+                                        onToggleSelect = { id ->
+                                            selectedIds = if (id in selectedIds) selectedIds - id else selectedIds + id
+                                        },
+                                        onClearSelection = { selectedIds = emptySet() },
+                                        readStates = readStates,
+                                        fallbackReadChapterId = progress?.chapterId,
+                                        canMarkRead = inLibrary,
+                                        onMarkRead = { ids, read ->
                                             scope.launch {
-                                                if (repo.markDetailChapters(libraryKey, ids, read)) {
-                                                    readStates = repo.chapterReadStates(libraryKey)
+                                                if (library.markDetailChapters(libraryKey, ids, read)) {
+                                                    readStates = library.chapterReadStates(libraryKey)
                                                     selectedIds = emptySet()
                                                 }
                                             }
-                                        }
-                                    },
-                                    onOpen = { chapter ->
-                                        onOpenChapter(chapter.id, chapterIds, chapterTitles)
-                                    },
-                                )
-                            }
-                        }
-                        // 继续阅读悬浮钮（Komikku MangaScreen.kt:532 FAB 语义）：
-                        // 有未读章节 + 非多选 + 阅读器已接线时出现；点击直达继续/首章，
-                        // 横向拖动松手按中心过半左右吸边并落盘（书架偏好）。
-                        val unreadExists = loaded.chapters.any { chapter ->
-                            !(readStates[chapter.id] ?: (progress?.chapterId == chapter.id))
-                        }
-                        // 无分章作品同样可开始阅读（bookless 源），与原内联钮行为一致。
-                        val canStart = loaded.chapters.isEmpty() || unreadExists
-                        if (readerService != null && selectedIds.isEmpty() && canStart) {
-                            val savedId = progress?.chapterId?.takeIf { it in chapterIds }
-                            val targetId = savedId ?: chapterIds.firstOrNull()
-                            DetailReadFab(
-                                atStart = fabAtStart,
-                                label = if (savedId != null) {
-                                    stringResource(
-                                        Res.string.reading_continue,
-                                        (progress?.pageIndex ?: 0) + 1,
+                                        },
+                                        onOpen = { chapter -> onOpenChapter(chapter.id, chapterIds, chapterTitles) },
                                     )
-                                } else {
-                                    stringResource(Res.string.reading_start)
-                                },
-                                layoutWidthPx = with(LocalDensity.current) { maxWidth.toPx() },
-                                // 无分章作品以 null 章 id 进入阅读器（既有契约）。
-                                onOpen = {
-                                    onOpenChapter(targetId, chapterIds, chapterTitles)
-                                },
-                                onSnap = { start ->
-                                    fabDragAtStart = start
-                                    scope.launch {
-                                        library.updatePrefs {
-                                            it.copy(
-                                                readButtonPosition = if (start) {
-                                                    ReadButtonStart
-                                                } else {
-                                                    ReadButtonEnd
-                                                },
-                                            )
+                                }
+                                val wide = maxWidth >= DetailWideWidthThreshold
+                                if (wide) {
+                                    val masterWidth = minOf(maxWidth / 2, DesignTokens.Breakpoints.TwoPaneFirstMax)
+                                    Row(Modifier.fillMaxSize()) {
+                                        Column(
+                                            Modifier.width(masterWidth).fillMaxHeight()
+                                                .testTag("detail-master-pane").verticalScroll(infoScroll),
+                                        ) {
+                                            Spacer(Modifier.height(ReaderTopAppBarHeight))
+                                            info(true)
+                                            DetailSuggestions()
+                                        }
+                                        Column(
+                                            Modifier.weight(1f).fillMaxHeight().verticalScroll(chaptersScroll),
+                                        ) {
+                                            Spacer(Modifier.height(ReaderTopAppBarHeight))
+                                            chapters()
                                         }
                                     }
-                                },
-                            )
+                                } else {
+                                    Column(Modifier.fillMaxSize().testTag("detail-scroll").verticalScroll(infoScroll)) {
+                                        Spacer(Modifier.height(ReaderTopAppBarHeight))
+                                        info(false)
+                                        chapters()
+                                        DetailSuggestions()
+                                    }
+                                }
+                                // 继续阅读悬浮钮（Komikku MangaScreen.kt:532 FAB 语义）：
+                                // 有未读章节 + 非多选 + 阅读器已接线时出现；点击直达继续/首章，
+                                // 横向拖动松手按中心过半左右吸边并落盘（书架偏好）。
+                                val unreadExists = loaded.chapters.any { chapter ->
+                                    !(readStates[chapter.id] ?: (progress?.chapterId == chapter.id))
+                                }
+                                // 无分章作品同样可开始阅读（bookless 源），与原内联钮行为一致。
+                                val canStart = loaded.chapters.isEmpty() || unreadExists
+                                if (readerService != null && selectedIds.isEmpty() && canStart) {
+                                    val savedId = progress?.chapterId?.takeIf { it in chapterIds }
+                                    val targetId = savedId ?: chapterIds.firstOrNull()
+                                    DetailReadFab(
+                                        atStart = fabAtStart,
+                                        label = if (savedId != null) {
+                                            stringResource(
+                                                Res.string.reading_continue,
+                                                (progress?.pageIndex ?: 0) + 1,
+                                            )
+                                        } else {
+                                            stringResource(Res.string.reading_start)
+                                        },
+                                        layoutWidthPx = with(LocalDensity.current) { maxWidth.toPx() },
+                                        // 无分章作品以 null 章 id 进入阅读器（既有契约）。
+                                        onOpen = {
+                                            onOpenChapter(targetId, chapterIds, chapterTitles)
+                                        },
+                                        onSnap = { start ->
+                                            fabDragAtStart = start
+                                            scope.launch {
+                                                library.updatePrefs {
+                                                    it.copy(
+                                                        readButtonPosition = if (start) {
+                                                            ReadButtonStart
+                                                        } else {
+                                                            ReadButtonEnd
+                                                        },
+                                                    )
+                                                }
+                                            }
+                                        },
+                                    )
+                                }
+
+                                val appBarHeightPx = with(LocalDensity.current) { ReaderTopAppBarHeight.toPx() }
+                                val scrollFraction = (
+                                    maxOf(infoScroll.value, if (wide) chaptersScroll.value else 0) / appBarHeightPx
+                                ).coerceIn(0f, 1f)
+                                ReaderTopAppBar(
+                                    title = loaded.title.ifEmpty { fallbackTitle },
+                                    scrollFraction = scrollFraction,
+                                    titleAlpha = scrollFraction,
+                                    navigationIcon = {
+                                        ActionIconButton(
+                                            icon = ActionIcon.Back,
+                                            label = stringResource(Res.string.source_detail_back),
+                                            onClick = onBack,
+                                            modifier = Modifier.testTag(SourceDetailBackTag),
+                                        )
+                                    },
+                                    modifier = Modifier.testTag(SourceDetailToolbarTag),
+                                )
+                            }
                         }
                     }
                 }
@@ -679,6 +630,42 @@ fun SourceDetailScreen(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun DetailCoverTheme(artwork: ImageBitmap?, content: @Composable () -> Unit) {
+    val state = androidx.compose.runtime.key(artwork) {
+        produceState<Color?>(initialValue = null) {
+            if (artwork != null) {
+                value = withContext(Dispatchers.Default) {
+                    runCatching { extractCoverSeedColor(artwork) }.getOrNull()
+                }
+            }
+        }
+    }
+    val seed = state.value
+    val mode = if (UiTheme.colorScheme.surface.luminance() < 0.5f) ThemeMode.DARK else ThemeMode.LIGHT
+    if (seed == null) {
+        content()
+    } else {
+        VisualTheme(seedColor = seed, mode = mode, content = content)
+    }
+}
+
+@Composable
+private fun DetailSuggestions() {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(DesignTokens.Spacing.Medium)
+            .testTag("detail-suggestions"),
+        verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small),
+    ) {
+        AppText(stringResource(Res.string.source_detail_suggestions), style = UiTheme.typography.titleMedium)
+        AppText(
+            stringResource(Res.string.source_detail_suggestions_empty),
+            style = UiTheme.typography.bodyMedium,
+            color = UiTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
@@ -729,7 +716,7 @@ private fun DetailAction(
 ) {
     AppTextButton(
         onClick = onClick,
-        modifier = modifier,
+        modifier = modifier.heightIn(min = DesignTokens.Sizes.MinimumTouchTarget),
         enabled = enabled,
         contentPadding = PaddingValues(horizontal = 2.dp, vertical = 8.dp),
         contentColor = if (active) UiTheme.colorScheme.primary else UiTheme.colorScheme.onSurfaceVariant,
@@ -738,7 +725,7 @@ private fun DetailAction(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            ActionIcon(icon, null, modifier = Modifier.size(24.dp))
+            ActionIcon(icon, null, modifier = Modifier.size(DesignTokens.Sizes.DetailActionIcon))
             AppText(
                 text = label,
                 style = UiTheme.typography.labelMedium,
@@ -754,7 +741,7 @@ private fun DetailAction(
 @Composable
 private fun DetailInfoColumn(
     detail: WorkDetail,
-    sourceKey: String,
+    artwork: ImageBitmap?,
     fallbackTitle: String,
     sourceName: String,
     wide: Boolean,
@@ -766,20 +753,18 @@ private fun DetailInfoColumn(
 ) {
     var expanded by remember { mutableStateOf(false) }
     val title = detail.title.ifEmpty { fallbackTitle }
-    val backdrop = rememberCoverBitmap(sourceKey, detail.cover)
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         // 平板居中封面占宽 65%（白皮书 07 §7.4），240dp 上限保持手机/折叠屏可读。
         val coverWidth = (maxWidth * 0.65f).coerceIn(100.dp, 240.dp)
-        DetailBackdrop(cover = backdrop, modifier = Modifier.matchParentSize())
+        DetailBackdrop(cover = artwork, modifier = Modifier.matchParentSize())
         if (wide) {
             Column(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Cover(
-                    sourceKey = sourceKey,
-                    coverUrl = detail.cover,
+                CoverArtwork(
+                    bitmap = artwork,
                     label = title,
                     modifier = Modifier.size(coverWidth, coverWidth * 1.5f),
                 )
@@ -790,9 +775,8 @@ private fun DetailInfoColumn(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                Cover(
-                    sourceKey = sourceKey,
-                    coverUrl = detail.cover,
+                CoverArtwork(
+                    bitmap = artwork,
                     label = title,
                     modifier = Modifier.size(96.dp, 144.dp),
                 )

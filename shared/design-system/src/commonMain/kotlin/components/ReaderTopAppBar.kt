@@ -6,7 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.safeDrawing
@@ -16,6 +16,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -44,31 +45,30 @@ fun ReaderTopAppBar(
     modifier: Modifier = Modifier,
     scrollFraction: Float = 0f,
     subtitle: String? = null,
+    titleAlpha: Float = 1f,
     navigationIcon: (@Composable () -> Unit)? = null,
     actions: @Composable RowScope.() -> Unit = {},
     contentColor: Color = MaterialTheme.colorScheme.onSurface,
-    scrolledContainerAlpha: Float = DesignTokens.Alpha.ReaderBarLight,
+    scrolledContainerAlpha: Float = 1f,
     // CMP commonMain 没有 statusBars 扩展；用安全区的顶边等价（白皮书 08 edge-to-edge）。
     windowInsets: WindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Top),
 ) {
     val fraction = scrollFraction.coerceIn(0f, 1f)
-    val containerColor = MaterialTheme.colorScheme.surface.copy(
-        alpha = (scrolledContainerAlpha * fraction).coerceIn(0f, 1f),
-    )
     val elevation: Dp = DesignTokens.Elevation.AppBarResting +
         (DesignTokens.Elevation.AppBarScrolled - DesignTokens.Elevation.AppBarResting) * fraction
 
     Surface(
         modifier = modifier.fillMaxWidth(),
-        color = containerColor,
+        color = MaterialTheme.colorScheme.surfaceColorAtElevation(elevation).copy(
+            alpha = (scrolledContainerAlpha * fraction).coerceIn(0f, 1f),
+        ),
         contentColor = contentColor,
-        tonalElevation = elevation,
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .windowInsetsPadding(windowInsets)
-                .height(TopAppBarHeight),
+                .heightIn(min = ReaderTopAppBarHeight),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (navigationIcon != null) {
@@ -84,7 +84,8 @@ fun ReaderTopAppBar(
                 ProvideTextStyle(MaterialTheme.typography.titleLarge) {
                     Text(
                         text = title,
-                        maxLines = 1,
+                        color = contentColor.copy(alpha = titleAlpha),
+                        maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
@@ -106,7 +107,7 @@ fun ReaderTopAppBar(
 }
 
 // M3 SmallTopAppBar 默认 64dp（白皮书 06 §6.1）；图标槽 48dp 满足 9.5 #20 触摸目标。
-private val TopAppBarHeight = 64.dp
+val ReaderTopAppBarHeight = 64.dp
 private val NavigationSlotSize = 48.dp
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
