@@ -94,6 +94,16 @@ class LibraryUpdateScanner internal constructor(
             Unit
         }
 
+    internal suspend fun globalUpdateWorkCount(): Int = withContext(Dispatchers.IO) {
+        val smart = preferences().takeIf { it.enabled }
+        val releaseWindowEnd = if (smart?.skipOutsideReleasePeriod == true) endOfCurrentDay() else Long.MAX_VALUE
+        db.transactionWithResult {
+            allComics().values.count { work ->
+                work.sourceKey != "local" && (smart == null || skipReason(work, smart, releaseWindowEnd) == null)
+            }
+        }
+    }
+
     /** Earliest local day a work skipped solely for its future release becomes eligible. */
     internal suspend fun nextReleaseWindowMillis(): Long? = withContext(Dispatchers.IO) {
         val smart = preferences()

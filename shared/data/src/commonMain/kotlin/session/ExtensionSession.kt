@@ -17,6 +17,7 @@ import app.koyura.data.extension.RestoreReport
 import app.koyura.data.library.LibraryStore
 import app.koyura.data.library.ensureLibrarySchema
 import app.koyura.data.reading.ComicReadingService
+import app.koyura.data.library.LibraryStatisticsStore
 import app.koyura.data.updates.LibraryUpdateScanner
 import app.koyura.data.updates.LibraryUpdateScheduler
 import app.koyura.data.reader.preferences.ReaderPreferencesStore
@@ -75,6 +76,7 @@ class ExtensionSession internal constructor(
     val updates = LibraryUpdateScanner(driver, library, service).apply {
         setNewChaptersDownloadHook(downloadTriggers)
     }
+    val statistics = LibraryStatisticsStore(driver, updates)
     val updateScheduler = LibraryUpdateScheduler(
         readPreference = { withContext(Dispatchers.IO) { library.getPref(LibraryUpdateScheduler.PREFERENCE) } },
         writePreference = { value -> withContext(Dispatchers.IO) { library.setPref(LibraryUpdateScheduler.PREFERENCE, value) } },
@@ -236,6 +238,9 @@ private fun ensureSchema(driver: SqlDriver) {
         if (tableColumns(driver, "library_update_metadata").isEmpty()) ExtensionDb.Schema.migrate(driver, 9, 10).value
         if (tableColumns(driver, "saved_search").isEmpty() || tableColumns(driver, "source_search_options").isEmpty()) {
             ExtensionDb.Schema.migrate(driver, 10, 11).value
+        }
+        if ("read_duration_ms" !in tableColumns(driver, "reading_progress")) {
+            ExtensionDb.Schema.migrate(driver, 11, 12).value
         }
     }
 }

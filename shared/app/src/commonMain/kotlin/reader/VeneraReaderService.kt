@@ -5,6 +5,7 @@ import app.koyura.data.reading.ComicReadingService
 import app.koyura.domain.reader.ChapterContent
 import app.koyura.domain.reader.ReaderProgress
 import app.koyura.domain.reader.ReaderService
+import app.koyura.domain.reader.ReadingDurationRecorder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlin.time.Clock
@@ -14,7 +15,11 @@ internal class VeneraReaderService(
     private val reading: ComicReadingService,
     private val history: HistoryStore? = null,
     private val library: app.koyura.data.library.LibraryStore? = null,
-) : ReaderService {
+) : ReaderService, ReadingDurationRecorder {
+    override suspend fun recordReadingDuration(sourceKey: String, workId: String, chapterId: String?, elapsedMillis: Long) {
+        history?.addReadDuration(sourceKey, workId, chapterId, elapsedMillis)
+    }
+
     override suspend fun readProgress(sourceKey: String, workId: String): ReaderProgress? =
         withContext(Dispatchers.IO) {
             reading.readLatestProgress(sourceKey, workId)?.let { ReaderProgress(it.chapterId, it.pageIndex) }

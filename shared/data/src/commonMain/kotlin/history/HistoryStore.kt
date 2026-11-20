@@ -3,6 +3,9 @@ package app.koyura.data.history
 import app.cash.sqldelight.db.SqlDriver
 import app.koyura.data.extension.ExtensionDb
 import app.koyura.domain.history.HistoryRecord
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.IO
+import kotlinx.coroutines.withContext
 
 private fun chapterKey(chapterId: String?): String = chapterId ?: ""
 
@@ -64,6 +67,13 @@ class HistoryStore(driver: SqlDriver) {
             db.extensionDbQueries.unhideHistoryEntry(source_key = sourceKey, work_id = workId)
         }
     }
+
+    /** Adds time measured by the foreground reader after its first position has been persisted. */
+    suspend fun addReadDuration(sourceKey: String, workId: String, chapterId: String?, elapsedMillis: Long) =
+        withContext(Dispatchers.IO) {
+            require(elapsedMillis >= 0)
+            db.extensionDbQueries.addReadDuration(elapsedMillis, sourceKey, workId, chapterKey(chapterId))
+        }
 
     /**
      * 全量最新进度（忽略隐藏标记）：书架继续阅读、详情继续按钮的派生依据。

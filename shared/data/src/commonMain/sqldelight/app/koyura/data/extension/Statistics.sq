@@ -1,0 +1,24 @@
+libraryStatistics:
+WITH chapter_counts AS (
+    SELECT source_key, work_id, COUNT(*) AS total, COUNT(CASE WHEN is_read != 0 THEN 1 END) AS read
+    FROM library_chapter WHERE kind = 'COMIC' GROUP BY source_key, work_id
+)
+SELECT COUNT(*) AS in_library,
+    COUNT(CASE WHEN metadata.completed = 1 AND COALESCE(chapters.total, 0) = COALESCE(chapters.read, 0) THEN 1 END) AS completed,
+    COUNT(CASE WHEN chapters.read > 0 OR EXISTS (
+        SELECT 1 FROM reading_progress p WHERE p.source_key = manga.source_key AND p.work_id = manga.work_id
+    ) THEN 1 END) AS started,
+    COUNT(CASE WHEN manga.source_key = 'local' THEN 1 END) AS local_works,
+    CAST(COALESCE(SUM(chapters.total), 0) AS INTEGER) AS total_chapters,
+    CAST(COALESCE(SUM(chapters.read), 0) AS INTEGER) AS read_chapters
+FROM library_manga manga
+LEFT JOIN chapter_counts chapters ON chapters.source_key = manga.source_key AND chapters.work_id = manga.work_id
+LEFT JOIN library_update_metadata metadata ON metadata.source_key = manga.source_key
+    AND metadata.work_id = manga.work_id AND metadata.kind = manga.kind
+WHERE manga.kind = 'COMIC';
+
+totalReadDuration:
+SELECT CAST(COALESCE(SUM(read_duration_ms), 0) AS INTEGER) FROM reading_progress;
+
+totalCompletedDownloads:
+SELECT COUNT(*) FROM download_jobs WHERE status = 'COMPLETE';
