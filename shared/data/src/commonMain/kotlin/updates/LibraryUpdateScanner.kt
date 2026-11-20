@@ -10,6 +10,7 @@ import app.koyura.domain.library.LibraryManga
 import app.koyura.domain.library.WorkKind
 import app.koyura.domain.updates.DetectedChapter
 import app.koyura.domain.updates.LibraryUpdates
+import app.koyura.domain.updates.NewChaptersDownloadHook
 import app.koyura.domain.updates.SkippedUpdate
 import app.koyura.domain.updates.SmartUpdatePreferences
 import app.koyura.domain.updates.UpdateFailure
@@ -23,6 +24,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -50,6 +52,11 @@ class LibraryUpdateScanner internal constructor(
     private val libraryQueries = db.extensionDbQueries
     private val queries = db.libraryUpdatesQueries
     private val scanMutex = Mutex()
+    private val downloadHook = MutableStateFlow<NewChaptersDownloadHook?>(null)
+
+    fun setNewChaptersDownloadHook(hook: NewChaptersDownloadHook?) {
+        downloadHook.value = hook
+    }
 
     override suspend fun checkNow(): UpdateScan = scan(onlyFailures = false)
     override suspend fun retryFailures(): UpdateScan = scan(onlyFailures = true)
@@ -87,6 +94,8 @@ class LibraryUpdateScanner internal constructor(
             val updates = mutableListOf<WorkUpdate>()
             val failures = mutableListOf<UpdateFailure>()
             val skipped = mutableListOf<SkippedUpdate>()
+            val triggerFailures = mutableListOf<LibraryManga>()
+            val hook = downloadHook.value
             for (work in works) {
                 currentCoroutineContext().ensureActive()
                 if (smart != null) {
@@ -112,9 +121,19 @@ class LibraryUpdateScanner internal constructor(
                 }
                 currentCoroutineContext().ensureActive()
                 val updated = recordSuccess(work, chapters, completed)
-                if (updated != null) updates += updated
+                if (updated == null) continue
+                updates += updated
+                if (hook != null && updated.newChapters.isNotEmpty()) {
+                    try {
+                        hook.onNewChapters(updated)
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (_: Exception) {
+                        triggerFailures += updated.work
+                    }
+                }
             }
-            UpdateScan(updates, failures, skipped)
+            UpdateScan(updates, failures, skipped, triggerFailures)
         }
     }
 

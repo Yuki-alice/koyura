@@ -49,7 +49,12 @@ class LibraryUpdateScannerTest {
                 val local = listOf("ep_keep", "ep_gone").map { LibraryChapter("updates", WorkKind.COMIC, "normal", it, it) }
                 first.library.syncChapters("updates", WorkKind.COMIC, "normal", local)
                 first.library.markChapterRead("updates", WorkKind.COMIC, "normal", "ep_keep", true)
+                val downloaded = mutableListOf<String>()
+                first.updates.setNewChaptersDownloadHook { update ->
+                    downloaded += update.newChapters.map { it.id }
+                }
                 val initial = first.updates.checkNow()
+                assertEquals(listOf("ep_new"), downloaded)
                 assertEquals(listOf("broken"), initial.failures.map { it.work.workId })
                 assertEquals(listOf("ep_new"), initial.updates.single().newChapters.map { it.id })
                 assertNotNull(initial.failures.single().work.lastUpdateCheckMillis)
