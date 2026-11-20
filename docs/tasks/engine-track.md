@@ -1,64 +1,60 @@
-# 引擎轨任务书：第三轮（GPT 6.1 / Codex）
+# 引擎轨任务书：第四轮（GPT 6.1 / Codex）
 
-你负责 Koyura 漫画阅读器的核心引擎。前两轮已交付并合入 main：HTML/会话/登录/图片/计算宿主、探索分类回调、单章下载与本地优先阅读、作品更新扫描引擎、Android/iOS 网页登录适配、Cookie 防抖与 Windows 加固、脚本对话框与剪贴板宿主。前端视觉由视觉轨并行负责。你的产出由主 agent 审阅后合并，main 只读，禁止 push、禁止 merge、禁止碰 `.zcode/worktrees/ui-parity`。
+你负责 Koyura 漫画阅读器的核心引擎。前三轮已交付并合入 main：宿主能力全套、按源会话与三平台凭据、网页登录、下载队列与本地优先阅读、更新扫描引擎（智能跳过 + 偏好持久化 + 错误列表）、账号配置暴露、请求缓存与防并发。夜间轨已补齐前端（全局搜索、历史多选、智能更新设置 UI、阅读背景四档）。你的产出由主 agent 审阅后合并，main 只读，禁止 push、禁止 merge、禁止碰 `.zcode/worktrees/ui-parity`。
 
 ## 工作区
 
-- 只在 `/Users/kurisu/project x/.zcode/worktrees/core-engine` 工作，分支 `feat/core-engine`（已含第二轮合并与主 agent 桥接）。所有提交落此分支。
-- 开场先读：工作区 `AGENTS.md`、`docs/verification.md`、`docs/technology-stack.md`。
-- JDK 21 在 `~/devtools/jdk-21`；测试必带 `-PveneraReferenceDir="/Users/kurisu/project x/reference/Venera-Next"`；社区脚本回归另带 `-PveneraCommunityFixtureDir`（夹具下载步骤见 `docs/verification.md`）。
+- 只在 `/Users/kurisu/project x/.zcode/worktrees/core-engine` 工作，分支 `feat/core-engine`（已含夜间轨合并与主 agent 桥接）。
+- 开场先读：`AGENTS.md`、`docs/verification.md`、`docs/technology-stack.md`。
+- JDK 21 在 `~/devtools/jdk-21`；测试必带 `-PveneraReferenceDir="/Users/kurisu/project x/reference/Venera-Next"`；社区脚本回归另带 `-PveneraCommunityFixtureDir`（夹具下载步骤见 verification.md）。
 
-## 地盘（上轮对 `apps/` 与 `shared/app` 平台粘合的准入本轮收回）
+## 地盘
 
 可以改：`shared/source-runtime`、`shared/network`、`shared/data`、`shared/domain`、`gradle/libs.versions.toml`（仅加依赖）。
-禁止改：`apps/android`、`apps/ios`、`shared/app` 任何目录（含平台 source set——若确实需要改动，在交付说明登记路径与理由，由主 agent 裁决后处理）、`shared/design-system`、`shared/features`、`reference/`、`docs/`（交付说明除外）。
+禁止改：`shared/app` 任何目录（含平台 source set——需要装配改动时在交付说明登记，主 agent 合并时接线）、`apps/`、`shared/design-system`、`shared/features`、`reference/`、`docs/`（交付说明除外）。
 
-## 任务一：账号配置暴露（先做，视觉轨账号区 UI 依赖它）
+## 任务一：保存搜索与搜索选项的数据层（先做，浏览功能的下一块基石）
 
-现状：`SourceAccountService` 已有 `login`（固定用户名/密码）、`loginWithCookies`、`captureWebLogin`、`logout`；`supportsWebLogin` 可查。但 Venera 的登录表单是**脚本 `account.login` 声明字段后动态渲染**的（`reference/Venera-Next/lib/features/comic_source/comic_source_page.dart:1072-1210`），已登录态显示脚本 `account.infoItems` 的动态信息行（同文件 `:905-980`）。你要把这三块配置暴露出来：
+对照原版语义：`reference/komikku` 的保存搜索（`tachiyomi/data/library` 一带的 saved search 持久化与复用入口）与源筛选。Venera 侧对照 `reference/Venera-Next` 的 `doc/api/comic_source.zh.md` search 段与 `lib/features/comic_source/`：
 
-- **域模型放 `shared/domain`**：账号字段声明（label、类型：用户名/密码/cookies 文本）、`registerWebsite` 外链、`loginWebsite` 是否声明、`infoItems` 声明（title + 动态取值回调）。
-- 从 `ExtensionService` 暴露查询：源的账号配置（无 `account` 声明返回 null）、当前登录态（未登录 / 表单已登录 / 网页已登录——Venera 以 `data["account"]` 是否为 `'ok'`/List 区分，Re-login 行只对表单登录显示）、`infoItems` 的当前取值。
-- `login` 保持兼容固定双字段的既有调用，同时提供按声明字段提交表单的通道（字段值按声明顺序传入）。
-- 对照物：`comic_source_page.dart` 的 `_LoginPage`/`_buildAccount` 渲染语义与 `doc/api/comic_source.zh.md` 的 account 段；`checkLoginStatus`/`onLoginWithWebviewSuccess` 语义上一轮已实现，不要动。
-- 验收：假脚本声明各形态账号配置（纯表单、纯网页、混合、含 infoItems、含 registerWebsite），断言暴露的配置与登录态判定；登录过期重登（Re-login）路径可重放。
+- 确认 Venera 搜索选项契约（`search.options` / 筛选字段的形态与加载语义），把「选项集与当前取值」暴露为可查询、可持久化的域模型。
+- 保存搜索：`(sourceKey, query, 选项快照)` 的增删改查落 `shared/domain` 模型 + `shared/data` 持久化（新表或既有偏好通道，按既有 schema 迁移模式加 `.sqm`）。
+- `SourceBrowseService` 补「按保存搜索执行搜索」的服务路径。
+- 验收：夹具测试覆盖选项形态（无选项源、多类型选项源）、保存搜索 CRUD 与按快照复放；语义有出入的按 Venera 文档为准并在报告登记。
 
-**与视觉轨的对接契约（两边一致，形状以此为准）**：视觉轨按下方形状先行实现 UI，你保证域模型字段能无损映射到它，映射关系写进交付说明，app 层生产桥接由主 agent 合并时完成——
+## 任务二：作品级批量下载服务面
 
-```kotlin
-// 视觉轨 features 层契约（供对齐，不需要你实现）
-data class AccountFieldConfig(val label: String, val type: AccountFieldType) // TEXT / PASSWORD / COOKIES
-data class AccountInfoItem(val title: String, val value: String?)
-sealed interface AccountState {
-    data object NotConfigured : AccountState
-    data class LoggedOut(val fields: List<AccountFieldConfig>, val registerUrl: String?, val webLoginSupported: Boolean) : AccountState
-    data class LoggedIn(val formLogin: Boolean, val infoItems: List<AccountInfoItem>) : AccountState
-}
-```
+现状：`ExtensionSession.downloads` 已有单章 `enqueue/observe/pause/cancel/retry` 与 `countCompleted`。补齐作品级服务面，语义对照 Komikku 的下载触发偏好（`reference/komikku` 的 `DownloadPreferences` 与 `LibraryDownloadJob` 一带）：
 
-## 任务二：短期请求缓存与防并发（上轮盘点标注的剩余兼容项）
+- `enqueueAll(sourceKey, workId, 章节列表)` 与「只下未读/排除已读」的入队过滤；重复入队幂等。
+- 详情页逐章状态的批量查询（一次查询返回作品全部章的下载态映射，避免 UI 逐章订阅）。
+- 下载触发偏好（收藏作品更新时自动下载新章 / 下载接下来 N 章）的数据层：偏好读写 + 更新扫描完成后的钩子点（扫描器产新章处留出触发接口，平台/装配接线由主 agent 合并时做）。
+- 验收：夹具测试覆盖批量入队幂等、过滤、状态映射、坏包收敛对计数的影响。
 
-Venera 请求配置里的 `cache-time`（短期响应缓存）与 `prevent-parallel`（同请求防并发）仍未实现。先确定 Ktor 拦截器与按源缓存的边界（缓存键、body 大小上限、缓存与按源会话的关系、并发去重的等待语义），再实现并配测试。`http_client` 与 Dio 专用 `extra` 确认真实源不需要后登记不做。
+## 任务三：后台更新调度
 
-## 任务三：智能更新的标题跳过规则
+Komikku 的间隔更新（`LibraryPreferences.autoUpdateInterval` + `LibraryUpdateJob`）：做纯 common 调度器，平台接线标注不做 WorkManager：
 
-对照 `reference/komikku` 更新扫描的跳过策略（`app/src/main/java/eu/kanade/tachiyomi/data/library/LibraryUpdateJob.kt` 一带的规则：已读跳过、标题匹配过滤等），在 `LibraryUpdateScanner` 落同语义的过滤开关（偏好可关，默认对齐 Komikku），配夹具测试。后台调度仍不在本轮。
+- 间隔偏好（复用 `library_prefs` 通道，值域对照 Komikku：每 6/12/24 小时与仅 Wi-Fi 占位——网络约束先登记不做）。
+- 调度器：进程内时间驱动触发 `checkNow`、启动/回前台补跑到期检查、`nextUpdateMillis` 与智能更新的发布窗口协同（已有元数据）。
+- 事件流：最近一次检查时间与结果供 UI 观察。
+- 验收：虚拟时钟夹具测试覆盖到期触发、间隔变更重排、补跑一次不重复。
 
-## 任务四：宿主 API 收尾盘点
+## 任务四：真实源回归扩展与实机验收准备
 
-延续上轮的盘点表：确认 `Convert` 全表、定时器边界、`UI` 契约的剩余项在真实社区源（含账号类 Komga）中的实际使用面；有缺口的补齐，确认不做的写明理由。清单更新进交付说明。
+- 从 venera-configs 固定提交再挑 2 个复杂源（图片处理类、账号/评论类各至少一个），入 `CommunitySourceJourneyTest` 固定夹具（沿用既有模式，SHA 记录），在线实测一次并把波动如实记录。
+- 移动端网页登录的实机验收：把 Android / iOS 的验收步骤脚本化程度最大化（安装、进入、取消路径、登录路径、会话隔离、注销清理），写成可执行的检查清单入报告；标注哪些步骤必须真机。
 
-## 硬性验收（每次交付列出你跑过的命令与结果）
+## 硬性验收
 
-- 五模块 JVM 测试全绿，**交付前连续两遍**（第一轮的教训已制度化）。
-- 触碰宿主回调/会话桥/网络：必跑 Venera 原版脚本回归；改 HTML/会话/图片/账号路径另跑社区脚本回归（含 Komga 账号源）。
-- 三端构建 `:apps:android:assembleDebug`、`:apps:desktop:classes`、`:shared:app:linkDebugFrameworkIosSimulatorArm64` 全部 EXIT 0。
-- 真实源在线回归延续前两轮做法：漫画柜/Komga 至少各跑一遍全链路，波动如实记录。
+- 五模块 JVM 测试全绿，**交付前连续两遍**。
+- 触碰宿主/会话/网络：Venera 原版脚本回归；改 HTML/会话/图片路径另跑社区脚本回归（含本轮新增源）。
+- 三端构建全部 EXIT 0；漫画柜/Komga 至少各跑一遍全链路。
 
 ## 提交规范
 
-`type(scope): 中文主题`（scope 举例：source-runtime、network、data、updates、account）。主题如实描述改动与影响面；禁止无信息主题与阶段编号；一提交一个内聚逻辑。
+`type(scope): 中文主题`（scope 举例：source-runtime、network、data、downloads、updates、search）。主题如实描述；禁止无信息主题与阶段编号；一提交一个内聚逻辑。
 
-## 交付说明（每轮末更新，供主 agent 审）
+## 交付说明
 
-覆盖写 `docs/tasks/engine-report-latest.md`：本轮改动清单、测试证据（命令 + 结果 + 新增测试类名与覆盖场景、社区源结果与 SHA）、任务一契约映射表（域字段 → `AccountState` 形状）、需主 agent 裁决/桥接的路径、待实机验收项与下一轮计划。
+覆盖写 `docs/tasks/engine-report-latest.md`：改动清单、测试证据（命令 + 结果 + 新增测试类与覆盖场景、社区源清单与 SHA）、需主 agent 桥接/装配的路径（保存搜索服务、批量下载注入、调度器挂载）、待实机验收项与下一轮计划。
