@@ -7,7 +7,10 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.v2.runComposeUiTest
+import app.koyura.app.AppScaffold
+import app.koyura.app.navigation.createAppNavigationState
 import app.koyura.designsystem.ReaderTheme
+import app.koyura.designsystem.navigation.NavTab
 import app.koyura.features.more.MoreRootTestTag
 import app.koyura.features.more.MoreScreen
 import app.koyura.features.more.MoreSession
@@ -105,6 +108,26 @@ class UpdatesMoreUiTest {
         assertFalse(session.incognito)
         onNodeWithTag(moreSwitchTag("incognito")).performClick()
         assertTrue(session.incognito)
+    }
+
+    @Test
+    fun globalBannersFollowTheMoreSwitchesInOrder() = runComposeUiTest {
+        val navigation = createAppNavigationState().apply { select(NavTab.More) }
+        val session = MoreSession()
+        setContent {
+            ReaderTheme {
+                AppScaffold(navigation = navigation, useRail = false, moreSession = session, indexing = true)
+            }
+        }
+        onNodeWithTag(moreSwitchTag("downloaded-only")).performClick()
+        onNodeWithTag(moreSwitchTag("incognito")).performClick()
+        val positions = listOf("indexing", "downloaded-only", "incognito").map { key ->
+            onNodeWithTag("status-$key").assertIsDisplayed().fetchSemanticsNode().boundsInRoot.top
+        }
+        assertTrue(positions[0] < positions[1] && positions[1] < positions[2])
+        runOnIdle { navigation.select(NavTab.Library) }
+        onNodeWithTag("status-downloaded-only").assertIsDisplayed()
+        onNodeWithTag("status-incognito").assertIsDisplayed()
     }
 
     @Test

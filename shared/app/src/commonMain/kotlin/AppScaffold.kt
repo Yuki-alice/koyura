@@ -1,8 +1,19 @@
 package app.koyura.app
 
+import app.koyura.app.resources.utility_about
+import app.koyura.app.resources.utility_batch_add
+import app.koyura.app.resources.utility_data_storage
+import app.koyura.app.resources.utility_help
+import app.koyura.app.resources.utility_message
+import app.koyura.app.resources.utility_title
+import app.koyura.app.resources.utility_update_errors
+import app.koyura.app.resources.Res
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
@@ -85,6 +96,8 @@ import app.koyura.app.ui.DetailScreen
 import app.koyura.app.ui.TabRootScreen
 import app.koyura.app.ui.UtilityPageScreen
 import app.koyura.designsystem.DesignTokens
+import app.koyura.designsystem.components.ProvideUiContentColor
+import app.koyura.designsystem.components.UiTheme
 import app.koyura.designsystem.navigation.NavTab
 import app.koyura.designsystem.navigation.ReaderNavigationBar
 import app.koyura.designsystem.navigation.ReaderNavigationRail
@@ -93,6 +106,7 @@ import app.koyura.features.library.rememberLibrarySession
 import app.koyura.features.settings.SettingsScreen
 import app.koyura.features.settings.SettingsSubpage
 import app.koyura.features.settings.SettingsSubpageScreen
+import app.koyura.features.settings.SettingsSession
 import app.koyura.features.settings.rememberSettingsSession
 
 internal const val NavigationBarTestTag = "app-navigation-bar"
@@ -127,6 +141,7 @@ internal fun AppScaffold(
     val activeMoreSession = moreSession ?: rememberMoreSession()
     val indexingState = rememberUpdatedState(indexing)
     val activeDownloadsSession = rememberDownloadsSession()
+    val settingsSession = LocalAppSettingsSession.current ?: rememberSettingsSession()
     val librarySession = rememberLibrarySession()
 
     BackToLibraryHandler(navigation, librarySession, activeHistorySession)
@@ -135,30 +150,33 @@ internal fun AppScaffold(
     // would dispose the content subtree and rebuild it from saved state. Moving the subtree with
     // movable content keeps its remember state, including scroll position, across the switch.
     val saveableStateHolder = rememberSaveableStateHolder()
-    val appContent = remember(activeMoreSession) {
+    val appContent = remember(activeMoreSession, settingsSession) {
         movableContentOf<AppNavigationState, SaveableStateHolder, BrowseSession> { state, holder, browse ->
             CompositionLocalProvider(LocalReaderService provides readerService) {
-                Column(Modifier.fillMaxSize()) {
-                    if (state.currentStack.lastOrNull() !is ComicReaderRoute) {
-                        AppStatusBanners(
-                            indexing = indexingState.value,
-                            downloadedOnly = activeMoreSession.downloadedOnly,
-                            incognito = activeMoreSession.incognito,
+                ProvideUiContentColor(UiTheme.colorScheme.onSurface) {
+                    Column(Modifier.fillMaxSize()) {
+                        if (state.currentStack.lastOrNull() !is ComicReaderRoute) {
+                            AppStatusBanners(
+                                indexing = indexingState.value,
+                                downloadedOnly = activeMoreSession.downloadedOnly,
+                                incognito = activeMoreSession.incognito,
+                            )
+                        }
+                        AppNavigationContent(
+                            state,
+                            holder,
+                            browse,
+                            activeReaderSession,
+                            activeHistorySession,
+                            librarySession,
+                            activeUpdatesSession,
+                            activeMoreSession,
+                            activeDownloadsSession,
+                            statisticsSession,
+                            settingsSession,
+                            browseService,
                         )
                     }
-                    AppNavigationContent(
-                        state,
-                        holder,
-                        browse,
-                        activeReaderSession,
-                        activeHistorySession,
-                        librarySession,
-                        activeUpdatesSession,
-                        activeMoreSession,
-                        activeDownloadsSession,
-                        statisticsSession,
-                        browseService,
-                    )
                 }
             }
         }
@@ -271,10 +289,9 @@ private fun AppNavigationContent(
     moreSession: app.koyura.features.more.MoreSession,
     downloadsSession: app.koyura.features.downloads.DownloadsSession,
     statisticsSession: app.koyura.features.statistics.StatisticsSession,
+    settingsSession: SettingsSession,
     browseService: BrowseService?,
 ) {
-    // 设置主页与手机子页共享同一份会话；remember 落在导航内容层，切 tab 不重建。
-    val settingsSession = rememberSettingsSession()
     val entryProvider = remember(
         navigation,
         browseSession,
@@ -285,6 +302,7 @@ private fun AppNavigationContent(
         moreSession,
         downloadsSession,
         statisticsSession,
+        settingsSession,
         browseService,
     ) {
         entryProvider<NavKey> {
@@ -424,7 +442,7 @@ private fun AppNavigationContent(
             entry<UtilityPageRoute> { route ->
                 UtilityPageScreen(
                     title = utilityPageTitle(route.key),
-                    message = "该页面尚未完整落地，先以统一占位承接入口与返回栈。",
+                    message = stringResource(Res.string.utility_message),
                     onBack = { navigation.popCurrentChild() },
                 )
             }
@@ -507,17 +525,9 @@ private fun AppNavigationContent(
     saveableStateHolder.SaveableStateProvider(navigation.selectedTab.name) {        AnimatedContent(
             targetState = navigation.selectedTab,
             transitionSpec = {
-                // Komikku fadeThrough (HomeScreen.TabFadeDuration): the outgoing tab fades out
-                // first, the incoming tab fades in after — never a crossfade. The delayed fade-in
-                // keeps the two 200 ms halves sequential while reusing the single token.
-                fadeIn(
-                    animationSpec = tween(
-                        durationMillis = DesignTokens.Motion.TabFadeThroughMs,
-                        delayMillis = DesignTokens.Motion.TabFadeThroughMs,
-                    ),
-                ) togetherWith fadeOut(
-                    animationSpec = tween(durationMillis = DesignTokens.Motion.TabFadeThroughMs),
-                )
+                val half = DesignTokens.Motion.TabFadeThroughMs / 2
+                fadeIn(animationSpec = tween(durationMillis = half, delayMillis = half)) togetherWith
+                    fadeOut(animationSpec = tween(durationMillis = half))
             },
             label = "tabSwitch",
         ) { tab ->
@@ -525,18 +535,29 @@ private fun AppNavigationContent(
                 backStack = navigation.stackOf(tab),
                 onBack = { navigation.handleBack() },
                 modifier = Modifier.fillMaxSize(),
+                transitionSpec = { childPageTransition(forward = true) },
+                popTransitionSpec = { childPageTransition(forward = false) },
+                predictivePopTransitionSpec = { childPageTransition(forward = false) },
                 entryProvider = entryProvider,
             )
         }
     }
 }
 
-/** More 页工具占位的标题；key 与 `MoreScreen` 的导航行 key 一致。 */
-private fun utilityPageTitle(key: String): String = when (key) {
-    "update-errors" -> "更新错误"
-    "data-storage" -> "数据与存储"
-    "batch-add" -> "批量添加"
-    "about" -> "关于"
-    "help" -> "帮助"
-    else -> "工具页"
+private fun childPageTransition(forward: Boolean): androidx.compose.animation.ContentTransform {
+    val direction = if (forward) 1 else -1
+    val duration = DesignTokens.Motion.TabFadeThroughMs
+    return (slideInHorizontally(tween(duration)) { direction * it / 6 } + fadeIn(tween(duration))) togetherWith
+        (slideOutHorizontally(tween(duration)) { -direction * it / 6 } + fadeOut(tween(duration)))
 }
+
+/** More 页工具占位的标题；key 与 `MoreScreen` 的导航行 key 一致。 */
+@Composable
+private fun utilityPageTitle(key: String): String = stringResource(when (key) {
+    "update-errors" -> Res.string.utility_update_errors
+    "data-storage" -> Res.string.utility_data_storage
+    "batch-add" -> Res.string.utility_batch_add
+    "about" -> Res.string.utility_about
+    "help" -> Res.string.utility_help
+    else -> Res.string.utility_title
+})

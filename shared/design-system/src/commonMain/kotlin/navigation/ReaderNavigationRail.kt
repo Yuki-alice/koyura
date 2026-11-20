@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationRailDefaults
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Surface
@@ -50,7 +51,7 @@ fun ReaderNavigationRail(
     browseBadgeCount: Int = 0,
     windowInsets: WindowInsets = NavigationRailDefaults.windowInsets,
 ) {
-    val containerColor = NavigationRailDefaults.ContainerColor
+    val containerColor = MaterialTheme.colorScheme.surfaceContainer
     Surface(
         color = containerColor,
         contentColor = contentColorFor(containerColor),

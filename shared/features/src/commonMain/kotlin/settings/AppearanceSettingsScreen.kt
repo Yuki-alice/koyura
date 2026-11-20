@@ -7,7 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
@@ -16,10 +16,32 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import app.koyura.features.resources.Res
+import app.koyura.features.resources.settings_app_language_system_default_currently
+import app.koyura.features.resources.settings_app_theme
+import app.koyura.features.resources.settings_cover_based_theme
+import app.koyura.features.resources.settings_cover_color_style
+import app.koyura.features.resources.settings_custom
+import app.koyura.features.resources.settings_custom_seed_color
+import app.koyura.features.resources.settings_custom_theme_style
+import app.koyura.features.resources.settings_dark
+import app.koyura.features.resources.settings_date_format
+import app.koyura.features.resources.settings_derive_colors_from_the_current_cover
+import app.koyura.features.resources.settings_display
+import app.koyura.features.resources.settings_falls_back_to_the_selected_theme_when_not_set
+import app.koyura.features.resources.settings_language
+import app.koyura.features.resources.settings_light
+import app.koyura.features.resources.settings_not_set
+import app.koyura.features.resources.settings_pure_black_dark_theme
+import app.koyura.features.resources.settings_relative_time
+import app.koyura.features.resources.settings_show_timestamps_like_3_hours_ago
+import app.koyura.features.resources.settings_system
+import app.koyura.features.resources.settings_theme
+import app.koyura.features.resources.settings_use_amoled_black_backgrounds_in_dark_mode
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.koyura.designsystem.DesignTokens
 import app.koyura.designsystem.components.AppCard
@@ -28,8 +50,8 @@ import app.koyura.designsystem.components.UiTheme
 import app.koyura.designsystem.theme.ThemeMode
 import app.koyura.designsystem.theme.ThemePreset
 
-private val ThemeCardWidth = 112.dp
-private val ThemeCardHeight = 112.dp
+private val ThemeCardWidth = DesignTokens.Sizes.ThemePreviewCard
+private val ThemeCardHeight = DesignTokens.Sizes.ThemePreviewCard
 
 /** 外观子页（白皮书 7.9）：主题模式分段 + 19 套主题卡 + AMOLED + 封面取色 + 显示/语言占位。 */
 @Composable
@@ -45,7 +67,7 @@ internal fun AppearanceSettingsScreen(
             .fillMaxWidth()
             .verticalScroll(rememberScrollState()),
     ) {
-        SettingsSectionHeader("Theme")
+        SettingsSectionHeader(stringResource(Res.string.settings_theme))
 
         SettingsSegmentedControl(
             items = listOf(ThemeMode.LIGHT, ThemeMode.DARK, ThemeMode.SYSTEM),
@@ -60,7 +82,7 @@ internal fun AppearanceSettingsScreen(
         )
 
         AppText(
-            text = "App theme",
+            text = stringResource(Res.string.settings_app_theme),
             modifier = Modifier.padding(
                 horizontal = DesignTokens.Spacing.Medium,
                 vertical = DesignTokens.Spacing.Small,
@@ -76,7 +98,7 @@ internal fun AppearanceSettingsScreen(
             ),
             horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small),
         ) {
-            items(ThemePreset.entries) { preset ->
+            items(ThemePreset.entries, key = { it.name }) { preset ->
                 ThemePresetCard(
                     preset = preset,
                     selected = preset == prefs.themePreset,
@@ -86,23 +108,23 @@ internal fun AppearanceSettingsScreen(
         }
 
         SettingsSwitchRow(
-            title = "Pure black dark theme",
-            subtitle = "Use AMOLED black backgrounds in dark mode",
+            title = stringResource(Res.string.settings_pure_black_dark_theme),
+            subtitle = stringResource(Res.string.settings_use_amoled_black_backgrounds_in_dark_mode),
             checked = prefs.amoled,
             enabled = prefs.themeMode != ThemeMode.LIGHT,
             onCheckedChange = { checked -> session.update { it.copy(amoled = checked) } },
             testTag = "settings-amoled",
         )
         SettingsSwitchRow(
-            title = "Cover based theme",
-            subtitle = "Derive colors from the current cover",
+            title = stringResource(Res.string.settings_cover_based_theme),
+            subtitle = stringResource(Res.string.settings_derive_colors_from_the_current_cover),
             checked = prefs.coverBased,
             onCheckedChange = { checked -> session.update { it.copy(coverBased = checked) } },
             testTag = "settings-cover-based",
         )
         SettingsChoiceRow(
-            title = "Cover color style",
-            currentValue = prefs.coverBasedStyle.label,
+            title = stringResource(Res.string.settings_cover_color_style),
+            currentValue = settingOptionLabel(prefs.coverBasedStyle.label),
             enabled = prefs.coverBased,
             onClick = {
                 val styles = CoverBlendStyle.entries
@@ -112,9 +134,9 @@ internal fun AppearanceSettingsScreen(
             testTag = "settings-cover-style",
         )
         SettingsChoiceRow(
-            title = "Custom seed color",
-            currentValue = if (prefs.customSeedColor == null) "Not set" else "Custom",
-            subtitle = "Falls back to the selected theme when not set",
+            title = stringResource(Res.string.settings_custom_seed_color),
+            currentValue = if (prefs.customSeedColor == null) stringResource(Res.string.settings_not_set) else stringResource(Res.string.settings_custom),
+            subtitle = stringResource(Res.string.settings_falls_back_to_the_selected_theme_when_not_set),
             onClick = {
                 val next = if (prefs.customSeedColor == null) {
                     fallbackSeed
@@ -126,8 +148,8 @@ internal fun AppearanceSettingsScreen(
             testTag = "settings-custom-seed",
         )
         SettingsChoiceRow(
-            title = "Custom theme style",
-            currentValue = prefs.customStyle.label,
+            title = stringResource(Res.string.settings_custom_theme_style),
+            currentValue = settingOptionLabel(prefs.customStyle.label),
             enabled = prefs.customSeedColor != null,
             onClick = {
                 val styles = CoverBlendStyle.entries
@@ -137,17 +159,17 @@ internal fun AppearanceSettingsScreen(
             testTag = "settings-custom-style",
         )
 
-        SettingsSectionHeader("Display")
+        SettingsSectionHeader(stringResource(Res.string.settings_display))
         SettingsSwitchRow(
-            title = "Relative time",
-            subtitle = "Show timestamps like “3 hours ago”",
+            title = stringResource(Res.string.settings_relative_time),
+            subtitle = stringResource(Res.string.settings_show_timestamps_like_3_hours_ago),
             checked = prefs.relativeTime,
             onCheckedChange = { checked -> session.update { it.copy(relativeTime = checked) } },
             testTag = "settings-relative-time",
         )
         SettingsChoiceRow(
-            title = "Date format",
-            currentValue = prefs.dateFormat.label,
+            title = stringResource(Res.string.settings_date_format),
+            currentValue = settingOptionLabel(prefs.dateFormat.label),
             onClick = {
                 val next = when (prefs.dateFormat) {
                     SettingsDateFormat.RELATIVE -> SettingsDateFormat.ABSOLUTE
@@ -158,11 +180,11 @@ internal fun AppearanceSettingsScreen(
             testTag = "settings-date-format",
         )
 
-        SettingsSectionHeader("Language")
+        SettingsSectionHeader(stringResource(Res.string.settings_language))
         SettingsChoiceRow(
-            title = "Language",
-            subtitle = "App language (system default currently)",
-            currentValue = prefs.language,
+            title = stringResource(Res.string.settings_language),
+            subtitle = stringResource(Res.string.settings_app_language_system_default_currently),
+            currentValue = settingOptionLabel(prefs.language),
             onClick = {
                 val next = if (prefs.language == "System") "English" else "System"
                 session.update { it.copy(language = next) }
@@ -187,11 +209,11 @@ private fun ThemePresetCard(
     AppCard(
         modifier = modifier
             .width(ThemeCardWidth)
-            .height(ThemeCardHeight)
+            .heightIn(min = ThemeCardHeight)
             .clickable(onClick = onClick),
         containerColor = container,
         border = if (selected) {
-            BorderStroke(2.dp, UiTheme.colorScheme.primary)
+            BorderStroke(DesignTokens.Sizes.SelectionOutline, UiTheme.colorScheme.primary)
         } else {
             null
         },
@@ -222,14 +244,15 @@ private fun ThemePresetCard(
                 },
                 style = UiTheme.typography.labelSmall.copy(fontSize = 10.sp),
                 textAlign = TextAlign.Center,
-                maxLines = 1,
+                maxLines = 2,
             )
         }
     }
 }
 
+@Composable
 private fun ThemeMode.label(): String = when (this) {
-    ThemeMode.LIGHT -> "Light"
-    ThemeMode.DARK -> "Dark"
-    ThemeMode.SYSTEM -> "System"
+    ThemeMode.LIGHT -> stringResource(Res.string.settings_light)
+    ThemeMode.DARK -> stringResource(Res.string.settings_dark)
+    ThemeMode.SYSTEM -> stringResource(Res.string.settings_system)
 }

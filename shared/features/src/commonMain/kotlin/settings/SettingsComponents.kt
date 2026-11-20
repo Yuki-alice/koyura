@@ -17,13 +17,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.koyura.designsystem.ActionIcon
+import app.koyura.designsystem.DecorativeActionIcon
 import app.koyura.designsystem.DesignTokens
 import app.koyura.designsystem.components.AppSlider
 import app.koyura.designsystem.components.AppSwitch
@@ -42,7 +43,7 @@ internal fun SettingsSectionHeader(
             .fillMaxWidth()
             .padding(
                 horizontal = DesignTokens.Spacing.Large,
-                vertical = DesignTokens.Spacing.Small + 2.dp,
+                vertical = DesignTokens.Spacing.Small + DesignTokens.Spacing.Tight,
             ),
         color = UiTheme.colorScheme.onSurfaceVariant,
         fontWeight = FontWeight.SemiBold,
@@ -77,9 +78,8 @@ internal fun SettingsRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (icon != null) {
-            ActionIcon(
+            DecorativeActionIcon(
                 icon = icon,
-                contentDescription = null,
                 tint = if (enabled) UiTheme.colorScheme.primary else UiTheme.colorScheme.onSurface,
             )
             Spacer(Modifier.width(DesignTokens.Spacing.Medium))
@@ -93,7 +93,7 @@ internal fun SettingsRow(
                     else -> UiTheme.colorScheme.onSurface
                 },
                 style = UiTheme.typography.titleLarge.copy(fontSize = 16.sp),
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
             if (subtitle != null) {
@@ -101,8 +101,6 @@ internal fun SettingsRow(
                     text = subtitle,
                     color = UiTheme.colorScheme.onSurfaceVariant.copy(alpha = DesignTokens.Alpha.Secondary),
                     style = UiTheme.typography.bodySmall,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }
@@ -153,24 +151,25 @@ internal fun SettingsChoiceRow(
     enabled: Boolean = true,
     testTag: String? = null,
 ) {
+    val stackValue = LocalDensity.current.fontScale >= 1.5f
     SettingsRow(
         title = title,
         modifier = modifier,
         icon = icon,
-        subtitle = subtitle,
+        subtitle = if (stackValue) listOfNotNull(subtitle, currentValue).joinToString("\n") else subtitle,
         onClick = onClick,
         enabled = enabled,
         testTag = testTag,
         trailing = {
-            AppText(
-                text = currentValue,
-                color = UiTheme.colorScheme.onSurfaceVariant,
-                style = UiTheme.typography.bodyMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(Modifier.width(DesignTokens.Spacing.ExtraSmall))
-            ActionIcon(icon = ActionIcon.Next, contentDescription = null)
+            if (!stackValue) {
+                AppText(
+                    text = currentValue,
+                    color = UiTheme.colorScheme.onSurfaceVariant,
+                    style = UiTheme.typography.bodyMedium,
+                )
+                Spacer(Modifier.width(DesignTokens.Spacing.ExtraSmall))
+            }
+            DecorativeActionIcon(icon = ActionIcon.Next)
         },
     )
 }
@@ -256,14 +255,14 @@ internal fun SettingsPreviewSwatch(
         Box(
             Modifier
                 .fillMaxWidth()
-                .height(40.dp)
+                .height(DesignTokens.Sizes.ThemePreviewSwatch)
                 .background(color, RoundedCornerShape(DesignTokens.Radius.Small)),
         )
         Spacer(Modifier.height(DesignTokens.Spacing.ExtraSmall))
         Box(
             Modifier
                 .fillMaxWidth()
-                .height(16.dp)
+                .height(DesignTokens.Spacing.Medium)
                 .background(
                     UiTheme.colorScheme.surfaceVariant,
                     RoundedCornerShape(DesignTokens.Radius.ExtraSmall),
@@ -277,7 +276,7 @@ internal fun SettingsPreviewSwatch(
 internal fun <T> SettingsSegmentedControl(
     items: List<T>,
     selected: T,
-    labelOf: (T) -> String,
+    labelOf: @Composable (T) -> String,
     onSelect: (T) -> Unit,
     modifier: Modifier = Modifier,
     testTagPrefix: String = "settings-segment",
@@ -285,7 +284,7 @@ internal fun <T> SettingsSegmentedControl(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(min = 48.dp)
+            .heightIn(min = DesignTokens.Sizes.MinimumTouchTarget)
             .background(
                 UiTheme.colorScheme.surfaceContainerHigh,
                 shape = RoundedCornerShape(DesignTokens.Radius.Medium),
@@ -306,7 +305,7 @@ internal fun <T> SettingsSegmentedControl(
                 text = labelOf(item),
                 modifier = Modifier
                     .weight(1f)
-                    .heightIn(min = 40.dp)
+                    .heightIn(min = DesignTokens.Sizes.MinimumTouchTarget)
                     .clickable { onSelect(item) }
                     .background(bg, shape = RoundedCornerShape(DesignTokens.Radius.Small))
                     .padding(horizontal = DesignTokens.Spacing.Small, vertical = DesignTokens.Spacing.Small)

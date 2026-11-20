@@ -23,6 +23,7 @@ fun VisualTheme(
     preset: ThemePreset = ThemePreset.DEFAULT,
     mode: ThemeMode = ThemeMode.SYSTEM,
     amoled: Boolean = false,
+    typography: Typography = MaterialTheme.typography,
     content: @Composable () -> Unit,
 ) {
     val systemDark = isSystemInDarkTheme()
@@ -31,6 +32,7 @@ fun VisualTheme(
     }
     MaterialExpressiveTheme(
         colorScheme = colorScheme,
+        typography = typography,
         content = content,
     )
 }
@@ -55,6 +57,7 @@ fun VisualTheme(
             preset = preset,
             mode = mode,
             amoled = amoled,
+            typography = typography,
             content = content,
         )
         return

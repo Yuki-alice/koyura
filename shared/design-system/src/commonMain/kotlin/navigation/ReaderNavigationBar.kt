@@ -54,6 +54,7 @@ fun ReaderNavigationBar(
     NavigationBar(
         modifier = modifier,
         windowInsets = windowInsets,
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
     ) {
         visibleTabs.ordered().forEach { tab ->
             val selected = tab == selectedTab

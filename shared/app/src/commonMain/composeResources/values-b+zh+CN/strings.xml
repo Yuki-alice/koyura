@@ -183,4 +183,17 @@
     <string name="status_indexing">正在建立索引</string>
     <string name="status_downloaded_only">仅显示已下载</string>
     <string name="status_incognito">隐身模式</string>
+    <string name="browse_feed_title">订阅</string>
+    <string name="browse_feed_empty">暂无订阅内容</string>
+    <string name="browse_feed_adult">显示 18+ 内容</string>
+    <string name="browse_migrate_title">迁移</string>
+    <string name="browse_migrate_empty">暂无迁移结果</string>
+    <string name="utility_update_errors">更新错误</string>
+    <string name="utility_data_storage">数据与存储</string>
+    <string name="utility_batch_add">批量添加</string>
+    <string name="utility_about">关于</string>
+    <string name="utility_help">帮助</string>
+    <string name="utility_title">工具</string>
+    <string name="utility_message">此工具暂不可用。</string>
+    <string name="utility_back">返回</string>
 </resources>

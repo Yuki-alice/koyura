@@ -75,23 +75,25 @@ fun App(
     sourceUiHost: SourceUiHost? = null,
 ) {
     ReaderTheme {
-        CompositionLocalProvider(
-            LocalBrowseService provides browseService,
-            LocalReaderService provides readerService,
-            LocalReaderPreferences provides readerPreferences,
-            LocalHistoryService provides historyService,
-            LocalLibraryRepository provides libraryRepository,
-            LocalUpdatesRepository provides updatesRepository,
-            LocalUpdatePolicyRepository provides updatePolicyRepository,
-            LocalAccountRepository provides accountRepository,
-            LocalSearchSourceFilter provides searchSourceFilter,
-            LocalSourceUiHost provides sourceUiHost,
-        ) {
-            AppSurface(modifier = Modifier.fillMaxSize()) {
-                AppShell()
-                val host = sourceUiHost
-                if (host != null) {
-                    SourceUiOverlay(host = host)
+        AppAppearance {
+            CompositionLocalProvider(
+                LocalBrowseService provides browseService,
+                LocalReaderService provides readerService,
+                LocalReaderPreferences provides readerPreferences,
+                LocalHistoryService provides historyService,
+                LocalLibraryRepository provides libraryRepository,
+                LocalUpdatesRepository provides updatesRepository,
+                LocalUpdatePolicyRepository provides updatePolicyRepository,
+                LocalAccountRepository provides accountRepository,
+                LocalSearchSourceFilter provides searchSourceFilter,
+                LocalSourceUiHost provides sourceUiHost,
+            ) {
+                AppSurface(modifier = Modifier.fillMaxSize()) {
+                    AppShell()
+                    val host = sourceUiHost
+                    if (host != null) {
+                        SourceUiOverlay(host = host)
+                    }
                 }
             }
         }

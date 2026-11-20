@@ -15,6 +15,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import app.koyura.features.resources.Res
+import app.koyura.features.resources.settings_back
+import app.koyura.features.resources.settings_title
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -22,6 +26,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.koyura.designsystem.ActionIcon
+import app.koyura.designsystem.DecorativeActionIcon
 import app.koyura.designsystem.ActionIconButton
 import app.koyura.designsystem.DesignTokens
 import app.koyura.designsystem.components.AppText
@@ -32,7 +37,7 @@ const val SettingsMasterPaneTestTag = "settings-master-pane"
 const val SettingsDetailPaneTestTag = "settings-detail-pane"
 const val SettingsSubpageRootTestTag = "settings-subpage-root"
 
-private val SettingsTwoPaneMasterWidth = 320.dp
+private val SettingsTwoPaneMasterWidth = DesignTokens.Breakpoints.SettingsMasterWidth
 
 /**
  * 窗口是否为双栏：沿用导航轨的「最小边」思路，旋转时不抖动；阈值取自 DesignTokens，
@@ -74,6 +79,7 @@ fun SettingsScreen(
                     session = session,
                     isTwoPane = true,
                     onOpenSubpage = null,
+                    onBack = onBack,
                     modifier = Modifier
                         .width(SettingsTwoPaneMasterWidth)
                         .fillMaxSize(),
@@ -136,16 +142,22 @@ private fun SettingsMasterPane(
             .verticalScroll(rememberScrollState())
             .testTag(SettingsMasterPaneTestTag),
     ) {
-        if (!isTwoPane && onBack != null) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = DesignTokens.Sizes.SettingsItemMinHeight)
-                    .padding(horizontal = DesignTokens.Spacing.Small),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                ActionIconButton(icon = ActionIcon.Back, label = "Back", onClick = onBack)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = DesignTokens.Sizes.SettingsItemMinHeight)
+                .padding(horizontal = DesignTokens.Spacing.Small),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (onBack != null) {
+                ActionIconButton(icon = ActionIcon.Back, label = stringResource(Res.string.settings_back), onClick = onBack)
             }
+            AppText(
+                text = stringResource(Res.string.settings_title),
+                style = UiTheme.typography.titleLarge,
+                color = UiTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(start = DesignTokens.Spacing.Small),
+            )
         }
         for (page in SettingsSubpage.entries) {
             val selected = isTwoPane && session.uiState.selectedSubpage == page
@@ -173,20 +185,19 @@ private fun SettingsMasterPane(
                     .testTag("$SettingsMasterPaneTestTag-${page.name}"),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                ActionIcon(
-                    icon = page.icon,
-                    contentDescription = null,
+                DecorativeActionIcon(
+                icon = page.icon,
                     tint = UiTheme.colorScheme.primary,
                 )
                 Spacer(Modifier.width(DesignTokens.Spacing.Medium))
                 Column(modifier = Modifier.weight(1f)) {
                     AppText(
-                        text = page.label,
+                        text = page.displayLabel(),
                         color = UiTheme.colorScheme.onSurface,
                         style = UiTheme.typography.titleLarge.copy(fontSize = 16.sp),
                     )
                     AppText(
-                        text = page.summary,
+                        text = page.displaySummary(),
                         color = UiTheme.colorScheme.onSurfaceVariant.copy(alpha = DesignTokens.Alpha.Secondary),
                         style = UiTheme.typography.bodySmall,
                         maxLines = 2,
