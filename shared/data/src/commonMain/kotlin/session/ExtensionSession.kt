@@ -16,12 +16,15 @@ import app.koyura.data.library.LibraryStore
 import app.koyura.data.library.ensureLibrarySchema
 import app.koyura.data.reading.ComicReadingService
 import app.koyura.data.updates.LibraryUpdateScanner
+import app.koyura.data.updates.LibraryUpdateScheduler
 import app.koyura.data.reader.preferences.ReaderPreferencesStore
 import app.koyura.source.runtime.VeneraEnvironment
 import app.koyura.source.runtime.VeneraUiHost
 import app.koyura.source.runtime.SourceSecretStore
 import app.koyura.source.runtime.SourceSessions
 import io.ktor.client.HttpClient
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.IO
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -66,6 +69,13 @@ class ExtensionSession internal constructor(
     val library = LibraryStore(driver)
     val downloadTriggers = DownloadTriggers(library, downloads)
     val updates = LibraryUpdateScanner(driver, library, service)
+    val updateScheduler = LibraryUpdateScheduler(
+        readPreference = { withContext(Dispatchers.IO) { library.getPref(LibraryUpdateScheduler.PREFERENCE) } },
+        writePreference = { value -> withContext(Dispatchers.IO) { library.setPref(LibraryUpdateScheduler.PREFERENCE, value) } },
+        checkNow = updates::checkNow,
+        nextReleaseWindow = updates::nextReleaseWindowMillis,
+        releaseChanges = updates.releaseWindowChanges,
+    )
 
     private val mutex = Mutex()
     private var closed = false
@@ -81,6 +91,7 @@ class ExtensionSession internal constructor(
         }
         if (!doClose) return
         withContext(NonCancellable) {
+            runCatching { updateScheduler.close() }
             runCatching { queue.close() }
             runCatching { service.close() }
             runCatching { httpClient.close() }

@@ -25,6 +25,8 @@ import kotlinx.coroutines.IO
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -41,6 +43,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import kotlin.time.Clock
+import kotlin.time.Instant
 
 class LibraryUpdateScanner internal constructor(
     driver: SqlDriver,
@@ -53,6 +56,8 @@ class LibraryUpdateScanner internal constructor(
     private val queries = db.libraryUpdatesQueries
     private val scanMutex = Mutex()
     private val downloadHook = MutableStateFlow<NewChaptersDownloadHook?>(null)
+    private val releaseChanges = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    internal val releaseWindowChanges = releaseChanges.asSharedFlow()
 
     fun setNewChaptersDownloadHook(hook: NewChaptersDownloadHook?) {
         downloadHook.value = hook
@@ -70,6 +75,8 @@ class LibraryUpdateScanner internal constructor(
     suspend fun setPreferences(value: SmartUpdatePreferences) = withContext(Dispatchers.IO) {
         val titles = value.excludedTitleTerms.map { it.trim() }.filter { it.isNotEmpty() }.distinctBy { it.lowercase() }
         library.setPref(SMART_UPDATE_PREFERENCE, preferencesJson.encodeToString(value.copy(excludedTitleTerms = titles)))
+        releaseChanges.tryEmit(Unit)
+        Unit
     }
 
     suspend fun setTitleMetadata(sourceKey: String, workId: String, metadata: UpdateTitleMetadata) =
@@ -84,7 +91,24 @@ class LibraryUpdateScanner internal constructor(
                     metadata.nextUpdateMillis,
                 )
             }
+            releaseChanges.tryEmit(Unit)
+            Unit
         }
+
+    /** Earliest local day a work skipped solely for its future release becomes eligible. */
+    internal suspend fun nextReleaseWindowMillis(): Long? = withContext(Dispatchers.IO) {
+        val smart = preferences()
+        if (!smart.enabled || !smart.skipOutsideReleasePeriod) return@withContext null
+        val zone = TimeZone.currentSystemDefault()
+        val endOfToday = endOfCurrentDay()
+        db.transactionWithResult {
+            allComics().values.asSequence()
+                .filter { skipReason(it, smart, endOfToday) == UpdateSkipReason.OUTSIDE_RELEASE_PERIOD }
+                .filterNot { work -> smart.excludedTitleTerms.any { work.title.contains(it, ignoreCase = true) } }
+                .mapNotNull { queries.selectTitleMetadata(it.sourceKey, it.kind.name, it.workId).executeAsOneOrNull()?.next_update }
+                .minOrNull()
+        }?.let { Instant.fromEpochMilliseconds(it).toLocalDateTime(zone).date.atStartOfDayIn(zone).toEpochMilliseconds() }
+    }
 
     private suspend fun scan(onlyFailures: Boolean): UpdateScan = withContext(Dispatchers.IO) {
         scanMutex.withLock {
