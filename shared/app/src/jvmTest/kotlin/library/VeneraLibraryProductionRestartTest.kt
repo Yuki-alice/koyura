@@ -213,8 +213,13 @@ class VeneraLibraryProductionRestartTest {
             awaitTag(LibraryCategoryPickerTag)
             node(libraryPickerRowTag(categoryId)).performClick()
             node(LibraryCategoryPickerConfirmTag).performClick()
+            // 分类写入在 IO dispatcher 完成后才关闭弹层。
+            waitUntil(conditionDescription = "committed category picker closes", timeoutMillis = 15_000) {
+                onAllNodesWithTag(LibraryCategoryPickerTag).fetchSemanticsNodes().isEmpty()
+            }
             // 归类不自动清选择：手动清除后回到常规工具栏。
             node(LibraryClearSelectionTag).performClick()
+            awaitTag(LibraryOverflowTag)
             // 切到该分类页签：作品仍在。
             node(libraryTabTag(categoryId)).performClick()
             awaitTag(libraryCardTag(SourceKey, WorkId))
