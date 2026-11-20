@@ -1,6 +1,7 @@
 package app.koyura.categories
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,15 +24,22 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
+import kotlin.math.roundToInt
 import app.koyura.designsystem.ActionIcon
 import app.koyura.designsystem.ActionIconButton
 import app.koyura.designsystem.DesignTokens
@@ -76,12 +84,23 @@ const val CategoriesDialogConfirmTag = "categories-dialog-confirm"
 const val CategoriesDeleteConfirmTag = "categories-delete-confirm"
 
 fun categoriesRowTag(id: Long) = "categories-row-$id"
+fun categoriesDragHandleTag(id: Long) = "categories-drag-$id"
 fun categoriesUpTag(id: Long) = "categories-up-$id"
 fun categoriesDownTag(id: Long) = "categories-down-$id"
 fun categoriesHideTag(id: Long) = "categories-hide-$id"
 fun categoriesDeleteTag(id: Long) = "categories-delete-$id"
 
 // endregion
+
+/**
+ * 拖拽落点计算：把纵向拖动位移折算成行数，夹到合法下标。
+ * 纯函数，便于单测直接断言（手势路径另在真机验收，见交付报告）。
+ */
+fun dragTargetIndex(
+    fromIndex: Int,
+    dragOffsetRows: Int,
+    itemCount: Int,
+): Int = (fromIndex + dragOffsetRows).coerceIn(0, (itemCount - 1).coerceAtLeast(0))
 
 /** 分类页当前打开的对话框（同一时刻只开一个）。 */
 private sealed interface CategoriesDialog {
@@ -93,9 +112,10 @@ private sealed interface CategoriesDialog {
 /**
  * 分类管理独立页（白皮书 07 §7.11，More → 分类）。
  *
- * 行是 56dp 标准行：名称 bodyMedium + 默认/已隐藏标记，行尾上移/下移与隐藏、删除动作；
+ * 行是 56dp 标准行：名称 bodyMedium + 默认/已隐藏标记，行首拖动手柄（长按拖动排序，
+ * 白皮书 07 §7.11），行尾上移/下移（无障碍替代）、隐藏与删除动作；
  * 点行体打开重命名对话框，右下角扩展 FAB 新建，删除走标准 AlertDialog 确认。
- * 排序用行尾按钮调 `setCategoryOrder`（拖拽不做，见交付报告）。
+ * 拖拽与按钮都调 `setCategoryOrder`，以仓储提交结果为准。
  *
  * 数据直接走 [app.koyura.features.library.LocalLibraryRepository] 提供的真实书架契约：
  * 会话与书架页共用同一仓储，任何一次写入都以仓储提交后的完整快照为准。
@@ -109,6 +129,10 @@ fun CategoriesScreen(
 ) {
     val scope = rememberCoroutineScope()
     var dialog by remember { mutableStateOf<CategoriesDialog?>(null) }
+    // 拖拽排序状态：拖动行 id、累计位移（像素）与行高（首帧测量后用于折算行数）。
+    var draggingId by remember { mutableStateOf<Long?>(null) }
+    var dragOffsetPx by remember { mutableFloatStateOf(0f) }
+    var rowHeightPx by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(Unit) {
         session.refresh()
@@ -172,6 +196,31 @@ fun CategoriesScreen(
                             itemsIndexed(ordered, key = { _, category -> category.id }) { index, category ->
                                 CategoryRow(
                                     category = category,
+                                    index = index,
+                                    dragging = draggingId == category.id,
+                                    dragOffsetPx = if (draggingId == category.id) dragOffsetPx else 0f,
+                                    onDragStart = {
+                                        draggingId = category.id
+                                        dragOffsetPx = 0f
+                                    },
+                                    onDrag = { delta -> dragOffsetPx += delta },
+                                    onDragEnd = {
+                                        val rows = if (rowHeightPx > 0) {
+                                            (dragOffsetPx / rowHeightPx).roundToInt()
+                                        } else {
+                                            0
+                                        }
+                                        val target = dragTargetIndex(index, rows, ordered.size)
+                                        draggingId = null
+                                        dragOffsetPx = 0f
+                                        if (target != index) {
+                                            val ids = ordered.map { it.id }.toMutableList()
+                                            val moved = ids.removeAt(index)
+                                            ids.add(target, moved)
+                                            scope.launch { session.setCategoryOrder(ids) }
+                                        }
+                                    },
+                                    onMeasured = { height -> if (height > 0) rowHeightPx = height },
                                     canMoveUp = index > 0,
                                     canMoveDown = index < ordered.lastIndex,
                                     onMove = { offset ->
@@ -285,10 +334,20 @@ private fun CategoriesEmptyState() {
     }
 }
 
-/** 56dp 标准行：名称 + 标记 + 行尾上移/下移/隐藏/删除。 */
+/**
+ * 56dp 标准行：行首拖动手柄（长按拖动排序）+ 名称/标记 + 行尾上移/下移（无障碍替代）、
+ * 隐藏与删除。拖动中的行随位移下移并在末尾提交新顺序。
+ */
 @Composable
 private fun CategoryRow(
     category: LibraryCategory,
+    index: Int,
+    dragging: Boolean,
+    dragOffsetPx: Float,
+    onDragStart: () -> Unit,
+    onDrag: (Float) -> Unit,
+    onDragEnd: () -> Unit,
+    onMeasured: (Int) -> Unit,
     canMoveUp: Boolean,
     canMoveDown: Boolean,
     onMove: (Int) -> Unit,
@@ -300,6 +359,14 @@ private fun CategoryRow(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = DesignTokens.Sizes.ListItemHeight)
+            .onGloballyPositioned { onMeasured(it.size.height) }
+            .graphicsLayer {
+                if (dragging) {
+                    translationY = dragOffsetPx
+                    shadowElevation = 6.dp.toPx()
+                }
+            }
+            .zIndex(if (dragging) 1f else 0f)
             .clickable(onClick = onRename)
             .padding(
                 start = DesignTokens.Spacing.Medium,
@@ -310,6 +377,24 @@ private fun CategoryRow(
             .testTag(categoriesRowTag(category.id)),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        ActionIcon(
+            icon = ActionIcon.DragHandle,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier
+                .padding(end = DesignTokens.Spacing.Small)
+                .testTag(categoriesDragHandleTag(category.id))
+                .pointerInput(category.id) {
+                    detectDragGesturesAfterLongPress(
+                        onDragStart = { onDragStart() },
+                        onDragEnd = { onDragEnd() },
+                        onDragCancel = { onDragEnd() },
+                    ) { change, dragAmount ->
+                        change.consume()
+                        onDrag(dragAmount.y)
+                    }
+                },
+        )
         Column(
             modifier = Modifier
                 .weight(1f)

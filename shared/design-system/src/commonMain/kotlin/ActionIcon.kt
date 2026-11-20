@@ -21,6 +21,7 @@ import app.koyura.designsystem.resources.action_crop
 import app.koyura.designsystem.resources.action_crop_off
 import app.koyura.designsystem.resources.action_delete
 import app.koyura.designsystem.resources.action_download
+import app.koyura.designsystem.resources.action_drag_handle
 import app.koyura.designsystem.resources.action_expand
 import app.koyura.designsystem.resources.action_favorite
 import app.koyura.designsystem.resources.action_favorite_border
@@ -91,6 +92,7 @@ enum class ActionIcon(internal val resource: DrawableResource) {
     Source(Res.drawable.action_source),
     Close(Res.drawable.action_close),
     Delete(Res.drawable.action_delete),
+    DragHandle(Res.drawable.action_drag_handle),
     Sync(Res.drawable.action_sync),
     Pause(Res.drawable.action_pause),
     Play(Res.drawable.action_play),

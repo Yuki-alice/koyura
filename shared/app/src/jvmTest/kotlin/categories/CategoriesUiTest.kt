@@ -1,7 +1,12 @@
 package app.koyura.categories
 
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.down
+import androidx.compose.ui.test.moveBy
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.up
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextClearance
@@ -136,5 +141,44 @@ class CategoriesUiTest {
         onNodeWithTag(categoriesHideTag(1L)).performClick()
         waitForIdle()
         assertEquals(false, repo.categories.first { it.id == 1L }.isHidden)
+    }
+
+    @Test
+    fun dragTargetIndexClampsAndMapsRows() {
+        assertEquals(0, dragTargetIndex(fromIndex = 1, dragOffsetRows = -5, itemCount = 3))
+        assertEquals(2, dragTargetIndex(fromIndex = 1, dragOffsetRows = 5, itemCount = 3))
+        assertEquals(1, dragTargetIndex(fromIndex = 1, dragOffsetRows = 0, itemCount = 3))
+        assertEquals(1, dragTargetIndex(fromIndex = 0, dragOffsetRows = 1, itemCount = 3))
+        assertEquals(0, dragTargetIndex(fromIndex = 0, dragOffsetRows = 0, itemCount = 0))
+    }
+
+    @Test
+    fun dragHandleLongPressReordersThroughStore() = runComposeUiTest {
+        val repo = repository()
+        setContent {
+            ReaderTheme {
+                CompositionLocalProvider(LocalLibraryRepository provides repo) {
+                    CategoriesScreen(onBack = {})
+                }
+            }
+        }
+        waitForIdle()
+
+        // 长按拖动第一行下移一行 → 顺序变为 2,1,3（与按钮路径同一提交通道）。
+        val rowHeightPx = onNodeWithTag(categoriesRowTag(1L))
+            .fetchSemanticsNode().size.height.toFloat()
+        // 手柄图标无独立语义节点，按未合并树定位。
+        val handle = onNodeWithTag(categoriesDragHandleTag(1L), useUnmergedTree = true)
+        handle.performTouchInput {
+            down(center)
+        }
+        mainClock.advanceTimeBy(1_000)
+        handle.performTouchInput {
+            moveBy(Offset(0f, rowHeightPx))
+            up()
+        }
+        waitForIdle()
+        waitUntil(timeoutMillis = 5_000) { repo.calls["setCategoryOrder"] != null }
+        assertEquals(listOf(2L, 1L, 3L), repo.categories.sortedBy { it.order }.map { it.id })
     }
 }
