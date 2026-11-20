@@ -1,11 +1,11 @@
 package app.koyura.app.browse
 
-import app.koyura.app.resources.browse_clear_search
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.ui.text.style.TextAlign
+import app.koyura.app.resources.browse_clear_search
 import app.koyura.designsystem.ActionIcon
+import app.koyura.designsystem.DecorativeActionIcon
 import app.koyura.designsystem.ActionIconButton
 import app.koyura.designsystem.DesignTokens
 import app.koyura.designsystem.SearchField
@@ -15,8 +15,8 @@ import app.koyura.features.library.ReadButtonStart
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -25,42 +25,40 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SmallExtendedFloatingActionButton
-import androidx.compose.material3.Surface
-import androidx.compose.material3.SuggestionChip
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.movableContentOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
@@ -68,7 +66,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import kotlin.math.roundToInt
+import app.koyura.app.LocalAppearance
 import app.koyura.app.LocalReaderService
 import app.koyura.app.resources.Res
 import app.koyura.app.resources.browse_retry
@@ -91,6 +89,8 @@ import app.koyura.app.resources.source_detail_mark_unread
 import app.koyura.app.resources.source_detail_no_description
 import app.koyura.app.resources.source_detail_progress
 import app.koyura.app.resources.source_detail_read
+import app.koyura.app.resources.source_detail_suggestions
+import app.koyura.app.resources.source_detail_suggestions_empty
 import app.koyura.app.resources.source_detail_tags
 import app.koyura.app.resources.source_detail_tracking
 import app.koyura.app.resources.source_detail_updated
@@ -102,17 +102,36 @@ import app.koyura.app.resources.source_search_hint
 import app.koyura.app.resources.source_search_no_results
 import app.koyura.app.resources.source_search_results
 import app.koyura.designsystem.Cover
+import app.koyura.designsystem.CoverArtwork
 import app.koyura.designsystem.DetailBackdrop
 import app.koyura.designsystem.LocalCoverDecoder
 import app.koyura.designsystem.LocalCoverImageLoader
+import app.koyura.designsystem.components.AppButton
+import app.koyura.designsystem.components.AppCircularProgress
+import app.koyura.designsystem.components.AppDivider
+import app.koyura.designsystem.components.AppExtendedFab
+import app.koyura.designsystem.components.AppSuggestionChip
+import app.koyura.designsystem.components.AppSurface
+import app.koyura.designsystem.components.AppText
+import app.koyura.designsystem.components.AppTextButton
+import app.koyura.designsystem.components.ProvideUiContentColor
+import app.koyura.designsystem.components.ReaderTopAppBar
+import app.koyura.designsystem.components.ReaderTopAppBarHeight
+import app.koyura.designsystem.components.UiTheme
+import app.koyura.designsystem.rememberCoverBitmap
+import app.koyura.designsystem.theme.ThemeMode
+import app.koyura.designsystem.theme.VisualTheme
+import app.koyura.designsystem.theme.extractCoverSeedColor
+import app.koyura.domain.reader.ReaderService
 import app.koyura.features.library.LibraryEntryKey
 import app.koyura.features.library.LibraryKind
 import app.koyura.features.library.LibrarySession
 import app.koyura.features.library.NewLibraryEntry
 import app.koyura.features.library.rememberLibrarySession
-import app.koyura.designsystem.rememberCoverBitmap
-import app.koyura.domain.reader.ReaderService
+import kotlin.math.roundToInt
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -126,7 +145,6 @@ internal const val SourceSearchResultsTag = "source-search-results"
 internal fun sourceResultTag(workId: String) = "source-result-$workId"
 
 /** Search page for one installed source, backed by its `search.load` callback. */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SourceSearchScreen(
     session: BrowseSession,
@@ -191,8 +209,8 @@ fun SourceSearchScreen(
         LocalCoverDecoder provides AppCoverDecoder,
     ) {
         Column(modifier = modifier.fillMaxSize().testTag(SourceSearchTestTag)) {
-            TopAppBar(
-                title = { Text(sourceName, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            ReaderTopAppBar(
+                title = { AppText(sourceName, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = {
                     if (onBack != null) {
                         ActionIconButton(
@@ -205,7 +223,7 @@ fun SourceSearchScreen(
                 },
             )
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.Small),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 SearchField(
@@ -226,38 +244,38 @@ fun SourceSearchScreen(
             when {
                 loading -> {
                     Column(
-                        modifier = Modifier.fillMaxSize().padding(24.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) { CircularProgressIndicator() }
+                        modifier = Modifier.fillMaxSize().padding(DesignTokens.Spacing.Large),
+                        verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small),
+                    ) { AppCircularProgress() }
                 }
                 error != null -> {
                     Column(
-                        modifier = Modifier.fillMaxSize().padding(24.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.fillMaxSize().padding(DesignTokens.Spacing.Large),
+                        verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Regular),
                     ) {
-                        Text(
+                        AppText(
                             text = stringResource(Res.string.source_search_error, error.orEmpty()),
-                            color = MaterialTheme.colorScheme.error,
+                            color = UiTheme.colorScheme.error,
                         )
-                        Button(onClick = { runSearch() }) {
-                            Text(stringResource(Res.string.source_search_button))
+                        AppButton(onClick = { runSearch() }) {
+                            AppText(stringResource(Res.string.source_search_button))
                         }
                     }
                 }
                 submittedQuery == null -> {
-                    Text(
+                    AppText(
                         text = stringResource(Res.string.source_search_empty),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(24.dp),
+                        style = UiTheme.typography.bodyMedium,
+                        color = UiTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(DesignTokens.Spacing.Large),
                     )
                 }
                 results.isEmpty() -> {
-                    Text(
+                    AppText(
                         text = stringResource(Res.string.source_search_no_results),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(24.dp),
+                        style = UiTheme.typography.bodyMedium,
+                        color = UiTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(DesignTokens.Spacing.Large),
                     )
                 }
                 else -> {
@@ -279,43 +297,43 @@ fun SourceSearchScreen(
                                     .fillMaxWidth()
                                     .clickable { onOpenWork(work.id, work.title) }
                                     .testTag(sourceResultTag(work.id))
-                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                                    .padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.Small),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Medium),
                             ) {
                                 Cover(
                                     sourceKey = sourceKey,
                                     coverUrl = work.cover,
                                     label = work.title,
-                                    modifier = Modifier.size(width = 48.dp, height = 72.dp),
+                                    modifier = Modifier.size(width = DesignTokens.Sizes.SearchCoverWidth, height = DesignTokens.Sizes.SearchCoverHeight),
                                 )
                                 Column(
                                     modifier = Modifier.weight(1f),
-                                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                                    verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Tight),
                                 ) {
-                                    Text(
+                                    AppText(
                                         work.title,
-                                        style = MaterialTheme.typography.bodyMedium,
+                                        style = UiTheme.typography.bodyMedium,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis,
                                     )
                                     if (work.subtitle.isNotEmpty()) {
-                                        Text(
+                                        AppText(
                                             work.subtitle,
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
-                                                alpha = app.koyura.designsystem.DesignTokens.Alpha.Secondary,
+                                            style = UiTheme.typography.bodySmall,
+                                            color = UiTheme.colorScheme.onSurfaceVariant.copy(
+                                                alpha = DesignTokens.Alpha.Secondary,
                                             ),
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis,
                                         )
                                     }
                                     if (work.tags.isNotEmpty()) {
-                                        Text(
+                                        AppText(
                                             work.tags.joinToString(" · "),
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
-                                                alpha = app.koyura.designsystem.DesignTokens.Alpha.Secondary,
+                                            style = UiTheme.typography.bodySmall,
+                                            color = UiTheme.colorScheme.onSurfaceVariant.copy(
+                                                alpha = DesignTokens.Alpha.Secondary,
                                             ),
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis,
@@ -323,7 +341,7 @@ fun SourceSearchScreen(
                                     }
                                 }
                             }
-                            HorizontalDivider()
+                            AppDivider()
                         }
                     }
                 }
@@ -340,7 +358,7 @@ internal const val SourceDetailBackTag = "source-detail-back"
 internal val DetailWideWidthThreshold = DesignTokens.Breakpoints.TabletMinSmallestWidthDp.dp
 
 /** Work detail page backed by the source's `comic.loadInfo` callback. */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
 fun SourceDetailScreen(
     session: BrowseSession,
@@ -362,8 +380,7 @@ fun SourceDetailScreen(
     // 详情与书架同一收藏状态：有装配会话时读已提交快照，无装配时保持页内视觉态。
     val library = librarySession ?: rememberLibrarySession()
     val libraryKey = remember(sourceKey, workId) { LibraryEntryKey(sourceKey, LibraryKind.COMIC, workId) }
-    var visualInLibrary by rememberSaveable(sourceKey, workId) { mutableStateOf(false) }
-    val inLibrary = library?.isFavorite(libraryKey) ?: visualInLibrary
+    val inLibrary = library.isFavorite(libraryKey)
     val sourceName = remember(session.state.sources, sourceKey) {
         session.state.sources.firstOrNull { it.id == sourceKey }?.name.orEmpty()
     }
@@ -381,7 +398,7 @@ fun SourceDetailScreen(
             progress = readerService?.readProgress(sourceKey, workId)
             // 真实已读：书架目录同步后读同一状态；未收藏/无目录即空映射，回退到进度章标读。
             readStates = try {
-                library?.chapterReadStates(libraryKey) ?: emptyMap()
+                library.chapterReadStates(libraryKey)
             } catch (_: Exception) {
                 emptyMap()
             }
@@ -403,25 +420,25 @@ fun SourceDetailScreen(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center,
             ) {
-                CircularProgressIndicator()
+                AppCircularProgress()
             }
             error != null -> {
                 Column(
-                    modifier = Modifier.fillMaxSize().padding(24.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxSize().padding(DesignTokens.Spacing.Large),
+                    verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Regular),
                 ) {
-                    Text(
+                    AppText(
                         text = stringResource(Res.string.source_detail_error, error.orEmpty()),
-                        color = MaterialTheme.colorScheme.error,
+                        color = UiTheme.colorScheme.error,
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Button(onClick = onBack) {
-                            Text(stringResource(Res.string.source_detail_back))
+                    Row(horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Regular)) {
+                        AppButton(onClick = onBack) {
+                            AppText(stringResource(Res.string.source_detail_back))
                         }
-                        Button(
+                        AppButton(
                             onClick = { reloadTick++ },
                         ) {
-                            Text(stringResource(Res.string.browse_retry))
+                            AppText(stringResource(Res.string.browse_retry))
                         }
                     }
                 }
@@ -432,145 +449,45 @@ fun SourceDetailScreen(
                 val chapterTitles = remember(loaded) { loaded.chapters.map { it.title } }
                 val canContinue = progress != null &&
                     (progress!!.chapterId == null || progress!!.chapterId in chapterIds)
+                val coverLoader = remember(session) { session.coverLoader() }
                 CompositionLocalProvider(
-                    LocalCoverImageLoader provides session.coverLoader(),
+                    LocalCoverImageLoader provides coverLoader,
                     LocalCoverDecoder provides AppCoverDecoder,
                 ) {
-                    TopAppBar(
-                        title = {
-                            Text(
-                                loaded.title.ifEmpty { fallbackTitle },
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        },
-                        navigationIcon = {
-                            ActionIconButton(
-                                icon = ActionIcon.Back,
-                                label = stringResource(Res.string.source_detail_back),
-                                onClick = onBack,
-                                modifier = Modifier.testTag(SourceDetailBackTag),
-                            )
-                        },
-                        modifier = Modifier.testTag(SourceDetailToolbarTag),
-                    )
-                    library?.actionError?.let { libraryError ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            // 点按错误行即清除（与书架页的清除按钮同一语义，避免引入新文案）。
-                            Text(
-                                text = libraryError,
-                                color = MaterialTheme.colorScheme.error,
-                                style = MaterialTheme.typography.bodySmall,
-                                modifier = Modifier.weight(1f)
-                                    .testTag("detail-library-error")
-                                    .clickable { library.clearActionError() },
-                            )
-                        }
-                    }
-                    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-                        if (maxWidth >= DetailWideWidthThreshold) {
-                            Row(modifier = Modifier.fillMaxSize()) {
-                                Column(
-                                    modifier = Modifier
-                                        .weight(0.42f)
-                                        .fillMaxSize()
-                                        .verticalScroll(rememberScrollState()),
+                    val artwork = rememberCoverBitmap(sourceKey, loaded.cover)
+                    DetailCoverTheme(artwork) {
+                        Column(Modifier.fillMaxSize().background(UiTheme.colorScheme.surface)) {
+                            library.actionError?.let { libraryError ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.ExtraSmall),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small),
                                 ) {
-                                    DetailInfoColumn(
-                                        detail = loaded,
-                                        sourceKey = sourceKey,
-                                        fallbackTitle = fallbackTitle,
-                                        sourceName = sourceName.ifBlank { sourceKey },
-                                        wide = true,
-                                        inLibrary = inLibrary,
-                                        onToggleLibrary = {
-                                            val repo = library
-                                            if (repo == null) {
-                                                visualInLibrary = !visualInLibrary
-                                            } else {
-                                                scope.launch {
-                                                    repo.setFavorite(
-                                                        NewLibraryEntry(
-                                                            sourceKey = sourceKey,
-                                                            workId = workId,
-                                                            title = loaded.title.ifEmpty { fallbackTitle },
-                                                            coverUrl = loaded.cover,
-                                                            sourceName = sourceName,
-                                                            totalChapters = loaded.chapters.size,
-                                                        ),
-                                                        !inLibrary,
-                                                    )
-                                                }
-                                            }
-                                        },
-                                        canContinue = canContinue,
-                                        onContinue = {
-                                            val saved = progress
-                                            if (saved != null) {
-                                                val target = saved.chapterId?.takeIf { it in chapterIds }
-                                                    ?: chapterIds.firstOrNull()
-                                                onOpenChapter(target, chapterIds, chapterTitles)
-                                            }
-                                        },
-                                        progress = progress,
-                                    )
-                                }
-                                Column(modifier = Modifier.weight(0.58f).fillMaxSize()) {
-                                    DetailChapterList(
-                                        chapters = loaded.chapters,
-                                        enabled = readerService != null,
-                                        selectedIds = selectedIds,
-                                        onToggleSelect = { id ->
-                                            selectedIds = if (selectedIds.contains(id)) {
-                                                selectedIds - id
-                                            } else {
-                                                selectedIds + id
-                                            }
-                                        },
-                                        onClearSelection = { selectedIds = emptySet() },
-                                        readStates = readStates,
-                                        fallbackReadChapterId = progress?.chapterId,
-                                        canMarkRead = inLibrary && library != null,
-                                        onMarkRead = { ids, read ->
-                                            val repo = library
-                                            if (repo != null) {
-                                                scope.launch {
-                                                    if (repo.markDetailChapters(libraryKey, ids, read)) {
-                                                        // 重读同一映射，保证“提交结果为准”。
-                                                        readStates = repo.chapterReadStates(libraryKey)
-                                                        selectedIds = emptySet()
-                                                    }
-                                                }
-                                            }
-                                        },
-                                        onOpen = { chapter ->
-                                            onOpenChapter(chapter.id, chapterIds, chapterTitles)
-                                        },
+                                    // 点按错误行即清除（与书架页的清除按钮同一语义，避免引入新文案）。
+                                    AppText(
+                                        text = libraryError,
+                                        color = UiTheme.colorScheme.error,
+                                        style = UiTheme.typography.bodySmall,
+                                        modifier = Modifier.weight(1f)
+                                            .testTag("detail-library-error")
+                                            .clickable { library.clearActionError() },
                                     )
                                 }
                             }
-                        } else {
-                            Column(
-                                modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
-                            ) {
-                                DetailInfoColumn(
-                                    detail = loaded,
-                                    sourceKey = sourceKey,
-                                    fallbackTitle = fallbackTitle,
-                                    sourceName = sourceName.ifBlank { sourceKey },
-                                    wide = false,
-                                    inLibrary = inLibrary,
-                                    onToggleLibrary = {
-                                        val repo = library
-                                        if (repo == null) {
-                                            visualInLibrary = !visualInLibrary
-                                        } else {
+                            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                                val infoScroll = rememberScrollState()
+                                val chaptersScroll = rememberScrollState()
+                                val info: @Composable (Boolean) -> Unit = { wide ->
+                                    DetailInfoColumn(
+                                        detail = loaded,
+                                        artwork = artwork,
+                                        fallbackTitle = fallbackTitle,
+                                        sourceName = sourceName.ifBlank { sourceKey },
+                                        wide = wide,
+                                        inLibrary = inLibrary,
+                                        onToggleLibrary = {
                                             scope.launch {
-                                                repo.setFavorite(
+                                                library.setFavorite(
                                                     NewLibraryEntry(
                                                         sourceKey = sourceKey,
                                                         workId = workId,
@@ -582,103 +499,189 @@ fun SourceDetailScreen(
                                                     !inLibrary,
                                                 )
                                             }
-                                        }
-                                    },
-                                    canContinue = canContinue,
-                                    onContinue = {
-                                        val saved = progress
-                                        if (saved != null) {
-                                            val target = saved.chapterId?.takeIf { it in chapterIds }
-                                                ?: chapterIds.firstOrNull()
-                                            onOpenChapter(target, chapterIds, chapterTitles)
-                                        }
-                                    },
-                                    progress = progress,
-                                )
-                                DetailChapterList(
-                                    chapters = loaded.chapters,
-                                    enabled = readerService != null,
-                                    selectedIds = selectedIds,
-                                    onToggleSelect = { id ->
-                                        selectedIds = if (selectedIds.contains(id)) {
-                                            selectedIds - id
-                                        } else {
-                                            selectedIds + id
-                                        }
-                                    },
-                                    onClearSelection = { selectedIds = emptySet() },
-                                    readStates = readStates,
-                                    fallbackReadChapterId = progress?.chapterId,
-                                    canMarkRead = inLibrary && library != null,
-                                    onMarkRead = { ids, read ->
-                                        val repo = library
-                                        if (repo != null) {
+                                        },
+                                        canContinue = canContinue,
+                                        onContinue = {
+                                            progress?.let { saved ->
+                                                val target = saved.chapterId?.takeIf { it in chapterIds }
+                                                    ?: chapterIds.firstOrNull()
+                                                onOpenChapter(target, chapterIds, chapterTitles)
+                                            }
+                                        },
+                                        progress = progress,
+                                    )
+                                }
+                                val chapters: @Composable () -> Unit = {
+                                    DetailChapterList(
+                                        chapters = loaded.chapters,
+                                        enabled = readerService != null,
+                                        selectedIds = selectedIds,
+                                        onToggleSelect = { id ->
+                                            selectedIds = if (id in selectedIds) selectedIds - id else selectedIds + id
+                                        },
+                                        onClearSelection = { selectedIds = emptySet() },
+                                        readStates = readStates,
+                                        fallbackReadChapterId = progress?.chapterId,
+                                        canMarkRead = inLibrary,
+                                        onMarkRead = { ids, read ->
                                             scope.launch {
-                                                if (repo.markDetailChapters(libraryKey, ids, read)) {
-                                                    readStates = repo.chapterReadStates(libraryKey)
+                                                if (library.markDetailChapters(libraryKey, ids, read)) {
+                                                    readStates = library.chapterReadStates(libraryKey)
                                                     selectedIds = emptySet()
                                                 }
                                             }
-                                        }
-                                    },
-                                    onOpen = { chapter ->
-                                        onOpenChapter(chapter.id, chapterIds, chapterTitles)
-                                    },
-                                )
-                            }
-                        }
-                        // 继续阅读悬浮钮（Komikku MangaScreen.kt:532 FAB 语义）：
-                        // 有未读章节 + 非多选 + 阅读器已接线时出现；点击直达继续/首章，
-                        // 横向拖动松手按中心过半左右吸边并落盘（书架偏好）。
-                        val unreadExists = loaded.chapters.any { chapter ->
-                            !(readStates[chapter.id] ?: (progress?.chapterId == chapter.id))
-                        }
-                        // 无分章作品同样可开始阅读（bookless 源），与原内联钮行为一致。
-                        val canStart = loaded.chapters.isEmpty() || unreadExists
-                        if (readerService != null && selectedIds.isEmpty() && canStart) {
-                            val savedId = progress?.chapterId?.takeIf { it in chapterIds }
-                            val targetId = savedId ?: chapterIds.firstOrNull()
-                            DetailReadFab(
-                                atStart = fabAtStart,
-                                label = if (savedId != null) {
-                                    stringResource(
-                                        Res.string.reading_continue,
-                                        (progress?.pageIndex ?: 0) + 1,
+                                        },
+                                        onOpen = { chapter -> onOpenChapter(chapter.id, chapterIds, chapterTitles) },
                                     )
-                                } else {
-                                    stringResource(Res.string.reading_start)
-                                },
-                                layoutWidthPx = with(LocalDensity.current) { maxWidth.toPx() },
-                                // 无分章作品以 null 章 id 进入阅读器（既有契约）。
-                                onOpen = {
-                                    onOpenChapter(targetId, chapterIds, chapterTitles)
-                                },
-                                onSnap = { start ->
-                                    fabDragAtStart = start
-                                    scope.launch {
-                                        library.updatePrefs {
-                                            it.copy(
-                                                readButtonPosition = if (start) {
-                                                    ReadButtonStart
-                                                } else {
-                                                    ReadButtonEnd
-                                                },
-                                            )
+                                }
+                                val wide = maxWidth >= DetailWideWidthThreshold
+                                if (wide) {
+                                    val masterWidth = minOf(maxWidth / 2, DesignTokens.Breakpoints.TwoPaneFirstMax)
+                                    Row(Modifier.fillMaxSize()) {
+                                        Column(
+                                            Modifier.width(masterWidth).fillMaxHeight()
+                                                .testTag("detail-master-pane").verticalScroll(infoScroll),
+                                        ) {
+                                            Spacer(Modifier.height(ReaderTopAppBarHeight))
+                                            info(true)
+                                            DetailSuggestions()
+                                        }
+                                        Column(
+                                            Modifier.weight(1f).fillMaxHeight().verticalScroll(chaptersScroll),
+                                        ) {
+                                            Spacer(Modifier.height(ReaderTopAppBarHeight))
+                                            chapters()
                                         }
                                     }
-                                },
-                            )
+                                } else {
+                                    Column(Modifier.fillMaxSize().testTag("detail-scroll").verticalScroll(infoScroll)) {
+                                        Spacer(Modifier.height(ReaderTopAppBarHeight))
+                                        info(false)
+                                        chapters()
+                                        DetailSuggestions()
+                                    }
+                                }
+                                // 继续阅读悬浮钮（Komikku MangaScreen.kt:532 FAB 语义）：
+                                // 有未读章节 + 非多选 + 阅读器已接线时出现；点击直达继续/首章，
+                                // 横向拖动松手按中心过半左右吸边并落盘（书架偏好）。
+                                val unreadExists = loaded.chapters.any { chapter ->
+                                    !(readStates[chapter.id] ?: (progress?.chapterId == chapter.id))
+                                }
+                                // 无分章作品同样可开始阅读（bookless 源），与原内联钮行为一致。
+                                val canStart = loaded.chapters.isEmpty() || unreadExists
+                                if (readerService != null && selectedIds.isEmpty() && canStart) {
+                                    val savedId = progress?.chapterId?.takeIf { it in chapterIds }
+                                    val targetId = savedId ?: chapterIds.firstOrNull()
+                                    DetailReadFab(
+                                        atStart = fabAtStart,
+                                        label = if (savedId != null) {
+                                            stringResource(
+                                                Res.string.reading_continue,
+                                                (progress?.pageIndex ?: 0) + 1,
+                                            )
+                                        } else {
+                                            stringResource(Res.string.reading_start)
+                                        },
+                                        layoutWidthPx = with(LocalDensity.current) { maxWidth.toPx() },
+                                        // 无分章作品以 null 章 id 进入阅读器（既有契约）。
+                                        onOpen = {
+                                            onOpenChapter(targetId, chapterIds, chapterTitles)
+                                        },
+                                        onSnap = { start ->
+                                            fabDragAtStart = start
+                                            scope.launch {
+                                                library.updatePrefs {
+                                                    it.copy(
+                                                        readButtonPosition = if (start) {
+                                                            ReadButtonStart
+                                                        } else {
+                                                            ReadButtonEnd
+                                                        },
+                                                    )
+                                                }
+                                            }
+                                        },
+                                    )
+                                }
+
+                                val appBarHeightPx = with(LocalDensity.current) { ReaderTopAppBarHeight.toPx() }
+                                val scrollFraction = (
+                                    maxOf(infoScroll.value, if (wide) chaptersScroll.value else 0) / appBarHeightPx
+                                ).coerceIn(0f, 1f)
+                                ReaderTopAppBar(
+                                    title = loaded.title.ifEmpty { fallbackTitle },
+                                    scrollFraction = scrollFraction,
+                                    titleAlpha = scrollFraction,
+                                    navigationIcon = {
+                                        ActionIconButton(
+                                            icon = ActionIcon.Back,
+                                            label = stringResource(Res.string.source_detail_back),
+                                            onClick = onBack,
+                                            modifier = Modifier.testTag(SourceDetailBackTag),
+                                        )
+                                    },
+                                    modifier = Modifier.testTag(SourceDetailToolbarTag),
+                                )
+                            }
                         }
                     }
                 }
             }
             else -> {
-                Text(
+                AppText(
                     text = stringResource(Res.string.source_detail_empty),
-                    modifier = Modifier.padding(24.dp),
+                    modifier = Modifier.padding(DesignTokens.Spacing.Large),
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun DetailCoverTheme(artwork: ImageBitmap?, content: @Composable () -> Unit) {
+    val appearance = LocalAppearance.current
+    val enableCoverSeed = appearance == null || (appearance.coverBased && appearance.customSeedColor == null)
+    val state = androidx.compose.runtime.key(artwork, enableCoverSeed) {
+        produceState<Color?>(initialValue = null) {
+            if (artwork != null && enableCoverSeed) {
+                value = withContext(Dispatchers.Default) {
+                    runCatching { extractCoverSeedColor(artwork) }.getOrNull()
+                }
+            }
+        }
+    }
+    val scene = remember {
+        movableContentOf<@Composable () -> Unit> { body ->
+            ProvideUiContentColor(UiTheme.colorScheme.onSurface, body)
+        }
+    }
+    val seed = state.value
+    val mode = if (UiTheme.colorScheme.surface.luminance() < 0.5f) ThemeMode.DARK else ThemeMode.LIGHT
+    if (seed == null) {
+        scene(content)
+    } else {
+        VisualTheme(
+            seedColor = seed,
+            mode = mode,
+            amoled = appearance?.amoled == true,
+            paletteStyle = appearance?.coverBasedStyle ?: com.materialkolor.PaletteStyle.Vibrant,
+        ) { scene(content) }
+    }
+}
+
+@Composable
+private fun DetailSuggestions() {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(DesignTokens.Spacing.Medium)
+            .testTag("detail-suggestions"),
+        verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small),
+    ) {
+        AppText(stringResource(Res.string.source_detail_suggestions), style = UiTheme.typography.titleMedium)
+        AppText(
+            stringResource(Res.string.source_detail_suggestions_empty),
+            style = UiTheme.typography.bodyMedium,
+            color = UiTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
@@ -691,27 +694,27 @@ fun SourceDetailScreen(
 private fun DetailHeading(title: String, subtitle: String, sourceName: String, centered: Boolean) {
     Column(
         horizontalAlignment = if (centered) Alignment.CenterHorizontally else Alignment.Start,
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.ExtraSmall),
     ) {
-        Text(
+        AppText(
             text = title,
-            style = MaterialTheme.typography.titleLarge,
+            style = UiTheme.typography.titleLarge,
             textAlign = if (centered) TextAlign.Center else TextAlign.Start,
             modifier = Modifier.testTag("source-detail-heading"),
         )
         if (subtitle.isNotBlank()) {
-            Text(
+            AppText(
                 text = subtitle,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = UiTheme.typography.bodyMedium,
+                color = UiTheme.colorScheme.onSurfaceVariant,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        Text(
+        AppText(
             text = sourceName,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = UiTheme.typography.bodySmall,
+            color = UiTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -727,23 +730,21 @@ private fun DetailAction(
     enabled: Boolean = true,
     active: Boolean = false,
 ) {
-    TextButton(
+    AppTextButton(
         onClick = onClick,
-        modifier = modifier,
+        modifier = modifier.heightIn(min = DesignTokens.Sizes.MinimumTouchTarget),
         enabled = enabled,
-        contentPadding = PaddingValues(horizontal = 2.dp, vertical = 8.dp),
-        colors = ButtonDefaults.textButtonColors(
-            contentColor = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-        ),
+        contentPadding = PaddingValues(horizontal = DesignTokens.Spacing.Tight, vertical = DesignTokens.Spacing.Small),
+        contentColor = if (active) UiTheme.colorScheme.primary else UiTheme.colorScheme.onSurfaceVariant,
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.ExtraSmall),
         ) {
-            ActionIcon(icon, null, modifier = Modifier.size(24.dp))
-            Text(
+            DecorativeActionIcon(icon, modifier = Modifier.size(DesignTokens.Sizes.DetailActionIcon))
+            AppText(
                 text = label,
-                style = MaterialTheme.typography.labelMedium,
+                style = UiTheme.typography.labelMedium,
                 textAlign = TextAlign.Center,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
@@ -756,7 +757,7 @@ private fun DetailAction(
 @Composable
 private fun DetailInfoColumn(
     detail: WorkDetail,
-    sourceKey: String,
+    artwork: ImageBitmap?,
     fallbackTitle: String,
     sourceName: String,
     wide: Boolean,
@@ -768,20 +769,18 @@ private fun DetailInfoColumn(
 ) {
     var expanded by remember { mutableStateOf(false) }
     val title = detail.title.ifEmpty { fallbackTitle }
-    val backdrop = rememberCoverBitmap(sourceKey, detail.cover)
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         // 平板居中封面占宽 65%（白皮书 07 §7.4），240dp 上限保持手机/折叠屏可读。
-        val coverWidth = (maxWidth * 0.65f).coerceIn(100.dp, 240.dp)
-        DetailBackdrop(cover = backdrop, modifier = Modifier.matchParentSize())
+        val coverWidth = (maxWidth * 0.65f).coerceIn(DesignTokens.Breakpoints.DetailCoverMinWidth, DesignTokens.Breakpoints.DetailCoverMaxWidth)
+        DetailBackdrop(cover = artwork, modifier = Modifier.matchParentSize())
         if (wide) {
             Column(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.Medium),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Regular),
             ) {
-                Cover(
-                    sourceKey = sourceKey,
-                    coverUrl = detail.cover,
+                CoverArtwork(
+                    bitmap = artwork,
                     label = title,
                     modifier = Modifier.size(coverWidth, coverWidth * 1.5f),
                 )
@@ -789,14 +788,13 @@ private fun DetailInfoColumn(
             }
         } else {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.Regular),
+                horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Medium),
             ) {
-                Cover(
-                    sourceKey = sourceKey,
-                    coverUrl = detail.cover,
+                CoverArtwork(
+                    bitmap = artwork,
                     label = title,
-                    modifier = Modifier.size(96.dp, 144.dp),
+                    modifier = Modifier.size(DesignTokens.Sizes.DetailCoverWidth, DesignTokens.Sizes.DetailCoverHeight),
                 )
                 Column(Modifier.weight(1f)) {
                     DetailHeading(title, detail.subtitle, sourceName, centered = false)
@@ -810,7 +808,7 @@ private fun DetailInfoColumn(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 8.dp),
+            .padding(horizontal = DesignTokens.Spacing.Small),
         horizontalArrangement = Arrangement.SpaceEvenly,
     ) {
         DetailAction(
@@ -846,49 +844,50 @@ private fun DetailInfoColumn(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+            .padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.ExtraSmall),
+        verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.ExtraSmall),
     ) {
-        Text(
+        AppText(
             text = body,
-            style = MaterialTheme.typography.bodyMedium,
+            style = UiTheme.typography.bodyMedium,
             maxLines = if (expanded) Int.MAX_VALUE else 3,
             overflow = TextOverflow.Ellipsis,
         )
         if (detail.description.isNotEmpty()) {
-            ActionIconButton(
-                icon = if (expanded) ActionIcon.Collapse else ActionIcon.Expand,
-                label = stringResource(if (expanded) Res.string.browse_show_less else Res.string.browse_show_more),
-                onClick = { expanded = !expanded },
-                modifier = Modifier.align(Alignment.CenterHorizontally),
-            )
+            Box(Modifier.align(Alignment.CenterHorizontally)) {
+                ActionIconButton(
+                    icon = if (expanded) ActionIcon.Collapse else ActionIcon.Expand,
+                    label = stringResource(if (expanded) Res.string.browse_show_less else Res.string.browse_show_more),
+                    onClick = { expanded = !expanded },
+                )
+            }
         }
     }
     if (detail.tags.isNotEmpty()) {
-        Text(
+        AppText(
             text = stringResource(Res.string.source_detail_tags),
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+            style = UiTheme.typography.labelLarge,
+            color = UiTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.ExtraSmall),
         )
         val multiGroup = detail.tags.size > 1
         FlowRow(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp)
+                .padding(horizontal = DesignTokens.Spacing.Medium)
                 .testTag("detail-tags"),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small),
+            verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small),
         ) {
             detail.tags.forEach { (group, values) ->
                 values.forEachIndexed { index, value ->
                     val chipText = if (multiGroup) "$group · $value" else value
                     // 类型标签 = M3 SuggestionChip（small 圆角 + labelLarge + 描边容器），
                     // Code: Chip.kt:50（shape = shapes.small）经 NamespaceTags 用于详情标签区。
-                    SuggestionChip(
+                    AppSuggestionChip(
                         onClick = {},
                         label = {
-                            Text(
+                            AppText(
                                 text = chipText,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
@@ -904,22 +903,22 @@ private fun DetailInfoColumn(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 4.dp)
+                .padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.ExtraSmall)
                 .testTag("detail-meta"),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
+            verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Tight),
         ) {
             if (detail.updateTime.isNotEmpty()) {
-                Text(
+                AppText(
                     text = stringResource(Res.string.source_detail_updated, detail.updateTime),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = UiTheme.typography.bodySmall,
+                    color = UiTheme.colorScheme.onSurfaceVariant,
                 )
             }
             if (detail.url.isNotEmpty()) {
-                Text(
+                AppText(
                     text = "${stringResource(Res.string.source_detail_link)}: ${detail.url}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = UiTheme.typography.bodySmall,
+                    color = UiTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -956,31 +955,31 @@ private fun DetailChapterList(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                .padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.ExtraSmall),
+            horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
+            AppText(
                 text = stringResource(Res.string.source_detail_chapters_selected, selectedIds.size),
-                style = MaterialTheme.typography.bodyMedium,
+                style = UiTheme.typography.bodyMedium,
                 modifier = Modifier
                     .weight(1f)
                     .testTag("detail-selection-count"),
             )
-            TextButton(
+            AppTextButton(
                 onClick = onClearSelection,
                 modifier = Modifier.testTag("detail-clear-selection"),
-            ) { Text(stringResource(Res.string.source_detail_clear_selection)) }
-            TextButton(
+            ) { AppText(stringResource(Res.string.source_detail_clear_selection)) }
+            AppTextButton(
                 onClick = { onMarkRead(selectedIds, true) },
                 enabled = canMarkRead,
                 modifier = Modifier.testTag("detail-mark-read"),
-            ) { Text(stringResource(Res.string.source_detail_mark_read)) }
-            TextButton(
+            ) { AppText(stringResource(Res.string.source_detail_mark_read)) }
+            AppTextButton(
                 onClick = { onMarkRead(selectedIds, false) },
                 enabled = canMarkRead,
                 modifier = Modifier.testTag("detail-mark-unread"),
-            ) { Text(stringResource(Res.string.source_detail_mark_unread)) }
+            ) { AppText(stringResource(Res.string.source_detail_mark_unread)) }
         }
     }
     chapters.forEach { chapter ->
@@ -995,7 +994,7 @@ private fun DetailChapterList(
             },
             onToggleSelect = { onToggleSelect(chapter.id) },
         )
-        HorizontalDivider()
+        AppDivider()
     }
 }
 
@@ -1027,53 +1026,52 @@ private fun MangaChapterRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (selected) {
-            ActionIcon(
+            DecorativeActionIcon(
                 ActionIcon.Checklist,
-                null,
-                modifier = Modifier.padding(end = DesignTokens.Spacing.Small).size(16.dp),
-                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(end = DesignTokens.Spacing.Small).size(DesignTokens.Spacing.Medium),
+                tint = UiTheme.colorScheme.primary,
             )
         } else {
             // 未读点 8dp primary（白皮书 06 §6.10；Code MangaChapterListItem.kt:128）。
             Box(
                 Modifier.padding(end = DesignTokens.Spacing.Small).size(DesignTokens.Spacing.Small)
                     .background(
-                        if (read) MaterialTheme.colorScheme.outlineVariant else MaterialTheme.colorScheme.primary,
+                        if (read) UiTheme.colorScheme.outlineVariant else UiTheme.colorScheme.primary,
                         CircleShape,
                     ),
             )
         }
         Column(
             modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Compact),
         ) {
-            Text(
+            AppText(
                 text = chapter.title,
-                style = MaterialTheme.typography.bodyMedium,
+                style = UiTheme.typography.bodyMedium,
                 color = if (selected) {
-                    MaterialTheme.colorScheme.primary
+                    UiTheme.colorScheme.primary
                 } else {
-                    MaterialTheme.colorScheme.onSurface
+                    UiTheme.colorScheme.onSurface
                 },
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Text(
+            AppText(
                 text = chapterSecondaryLine(chapter),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
-                    alpha = app.koyura.designsystem.DesignTokens.Alpha.Secondary,
+                style = UiTheme.typography.bodySmall,
+                color = UiTheme.colorScheme.onSurfaceVariant.copy(
+                    alpha = DesignTokens.Alpha.Secondary,
                 ),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
         }
         if (read) {
-            Text(
+            AppText(
                 text = stringResource(Res.string.source_detail_read),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(horizontal = 4.dp),
+                style = UiTheme.typography.labelSmall,
+                color = UiTheme.colorScheme.primary,
+                modifier = Modifier.padding(horizontal = DesignTokens.Spacing.ExtraSmall),
             )
         }
         ActionIconButton(
@@ -1127,9 +1125,10 @@ private fun BoxScope.DetailReadFab(
 ) {
     var offsetX by remember { mutableFloatStateOf(0f) }
     var fabWidth by remember { mutableIntStateOf(0) }
-    SmallExtendedFloatingActionButton(
-        text = { Text(label) },
-        icon = { ActionIcon(ActionIcon.Play, null) },
+    AppExtendedFab(
+        compact = true,
+        text = { AppText(label) },
+        icon = { DecorativeActionIcon(ActionIcon.Play) },
         onClick = onOpen,
         modifier = Modifier
             .align(if (atStart) Alignment.BottomStart else Alignment.BottomEnd)

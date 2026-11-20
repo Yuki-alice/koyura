@@ -1,5 +1,6 @@
 package app.koyura.features.library
 
+import app.koyura.designsystem.DesignTokens
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -8,14 +9,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -26,7 +19,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
+import app.koyura.designsystem.components.AppAlertDialog
+import app.koyura.designsystem.components.AppCheckbox
+import app.koyura.designsystem.components.AppFilterChip
+import app.koyura.designsystem.components.AppSwitch
+import app.koyura.designsystem.components.AppText
+import app.koyura.designsystem.components.AppTextButton
+import app.koyura.designsystem.components.AppTextField
+import app.koyura.designsystem.components.UiTheme
 import app.koyura.features.resources.Res
 import app.koyura.features.resources.library_action_change_categories
 import app.koyura.features.resources.library_cancel
@@ -139,11 +139,11 @@ fun LibraryFilterPage(
     }
     Column(
         modifier = Modifier.fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.Small)
             .testTag(LibraryFilterSheetTag),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.ExtraSmall),
     ) {
-        Text(stringResource(Res.string.library_filter), style = MaterialTheme.typography.titleMedium)
+        AppText(stringResource(Res.string.library_filter), style = UiTheme.typography.titleMedium)
         LibraryTriStateRow(
             label = stringResource(Res.string.library_filter_downloaded),
             state = filters.downloaded,
@@ -180,11 +180,11 @@ fun LibraryFilterPage(
             tag = libraryFilterRowTag("lewd"),
             onClick = { cycle({ it.lewd }, { f, v -> f.copy(lewd = v) }) },
         )
-        TextButton(
+        AppTextButton(
             onClick = onEditCategories,
             modifier = Modifier.testTag(LibraryEditCategoriesTag),
         ) {
-            Text(stringResource(Res.string.library_edit_categories))
+            AppText(stringResource(Res.string.library_edit_categories))
         }
     }
 }
@@ -198,18 +198,18 @@ private fun LibraryTriStateRow(
 ) {
     Row(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).testTag(tag)
-            .padding(vertical = 10.dp),
+            .padding(vertical = DesignTokens.Spacing.Row),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
+        AppText(
             text = label,
-            style = MaterialTheme.typography.bodyLarge,
+            style = UiTheme.typography.bodyLarge,
             modifier = Modifier.weight(1f),
         )
-        Text(
+        AppText(
             text = stringResource(state.label()),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.primary,
+            style = UiTheme.typography.bodyMedium,
+            color = UiTheme.colorScheme.primary,
         )
     }
 }
@@ -238,23 +238,23 @@ fun LibrarySortPage(session: LibrarySession) {
     val prefs = session.snapshot.prefs
     Column(
         modifier = Modifier.fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.Small)
             .testTag(LibrarySortSheetTag),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.ExtraSmall),
     ) {
-        Text(stringResource(Res.string.library_sort), style = MaterialTheme.typography.titleMedium)
+        AppText(stringResource(Res.string.library_sort), style = UiTheme.typography.titleMedium)
         Row(
             modifier = Modifier.fillMaxWidth().clickable {
                 scope.launch { session.updatePrefs { it.copy(ascending = !it.ascending) } }
-            }.testTag(LibrarySortDirectionTag).padding(vertical = 10.dp),
+            }.testTag(LibrarySortDirectionTag).padding(vertical = DesignTokens.Spacing.Row),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
+            AppText(
                 text = stringResource(if (prefs.ascending) Res.string.library_sort_ascending else Res.string.library_sort_descending),
-                style = MaterialTheme.typography.bodyLarge,
+                style = UiTheme.typography.bodyLarge,
                 modifier = Modifier.weight(1f),
             )
-            Switch(
+            AppSwitch(
                 checked = prefs.ascending,
                 onCheckedChange = { checked ->
                     scope.launch { session.updatePrefs { it.copy(ascending = checked) } }
@@ -265,17 +265,17 @@ fun LibrarySortPage(session: LibrarySession) {
             Row(
                 modifier = Modifier.fillMaxWidth().clickable {
                     scope.launch { session.updatePrefs { it.copy(sortType = row.type) } }
-                }.testTag(librarySortRowTag(row.type)).padding(vertical = 10.dp),
+                }.testTag(librarySortRowTag(row.type)).padding(vertical = DesignTokens.Spacing.Row),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
+                AppText(
                     text = stringResource(row.label),
-                    style = MaterialTheme.typography.bodyLarge,
+                    style = UiTheme.typography.bodyLarge,
                     modifier = Modifier.weight(1f),
                 )
-                Text(
+                AppText(
                     text = if (prefs.sortType == row.type) "●" else "○",
-                    color = MaterialTheme.colorScheme.primary,
+                    color = UiTheme.colorScheme.primary,
                 )
             }
         }
@@ -295,27 +295,27 @@ fun LibraryDisplayPage(session: LibrarySession) {
     }
     Column(
         modifier = Modifier.fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.Small)
             .testTag(LibraryDisplaySheetTag),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small),
     ) {
-        Text(stringResource(Res.string.library_display), style = MaterialTheme.typography.titleMedium)
+        AppText(stringResource(Res.string.library_display), style = UiTheme.typography.titleMedium)
         @Composable
         fun modeChip(mode: LibraryDisplayMode, label: StringResource) {
-            FilterChip(
+            AppFilterChip(
                 selected = prefs.displayMode == mode,
                 onClick = {
                     scope.launch { session.updatePrefs { it.copy(displayMode = mode) } }
                 },
-                label = { Text(stringResource(label)) },
+                label = { AppText(stringResource(label)) },
                 modifier = Modifier.testTag(libraryModeChipTag(mode)),
             )
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small)) {
             modeChip(LibraryDisplayMode.COMPACT_GRID, Res.string.library_mode_compact)
             modeChip(LibraryDisplayMode.COMFORTABLE_GRID, Res.string.library_mode_comfortable)
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small)) {
             modeChip(LibraryDisplayMode.COMFORTABLE_GRID_PANORAMA, Res.string.library_mode_panorama)
             modeChip(LibraryDisplayMode.LIST, Res.string.library_mode_list)
             modeChip(LibraryDisplayMode.COVER_ONLY_GRID, Res.string.library_mode_cover_only)
@@ -376,12 +376,12 @@ private fun LibraryCheckRow(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onToggle).testTag(tag),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
+        AppText(
             text = label,
-            style = MaterialTheme.typography.bodyLarge,
+            style = UiTheme.typography.bodyLarge,
             modifier = Modifier.weight(1f),
         )
-        Checkbox(checked = checked, onCheckedChange = { onToggle() })
+        AppCheckbox(checked = checked, onCheckedChange = { onToggle() })
     }
 }
 
@@ -395,11 +395,11 @@ fun LibraryGroupPage(session: LibrarySession) {
     val groupBy = session.snapshot.prefs.groupBy
     Column(
         modifier = Modifier.fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.Small)
             .testTag(LibraryGroupSheetTag),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.ExtraSmall),
     ) {
-        Text(stringResource(Res.string.library_group), style = MaterialTheme.typography.titleMedium)
+        AppText(stringResource(Res.string.library_group), style = UiTheme.typography.titleMedium)
         LibraryGroupRow(
             label = stringResource(Res.string.library_group_by_category),
             selected = groupBy == LibraryGroupBy.CATEGORY,
@@ -436,17 +436,17 @@ private fun LibraryGroupRow(
 ) {
     Row(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).testTag(tag)
-            .padding(vertical = 10.dp),
+            .padding(vertical = DesignTokens.Spacing.Row),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
+        AppText(
             text = label,
-            style = MaterialTheme.typography.bodyLarge,
+            style = UiTheme.typography.bodyLarge,
             modifier = Modifier.weight(1f),
         )
-        Text(
+        AppText(
             text = if (selected) "●" else "○",
-            color = MaterialTheme.colorScheme.primary,
+            color = UiTheme.colorScheme.primary,
         )
     }
 }
@@ -463,16 +463,16 @@ fun LibraryCategoriesPage(session: LibrarySession) {
     var renameText by remember { mutableStateOf("") }
     Column(
         modifier = Modifier.fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.Small)
             .testTag(LibraryCategoriesSheetTag),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.ExtraSmall),
     ) {
-        Text(stringResource(Res.string.library_categories_title), style = MaterialTheme.typography.titleMedium)
+        AppText(stringResource(Res.string.library_categories_title), style = UiTheme.typography.titleMedium)
         if (session.snapshot.orderedCategories.isEmpty()) {
-            Text(
+            AppText(
                 text = stringResource(Res.string.library_category_empty),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = UiTheme.typography.bodyMedium,
+                color = UiTheme.colorScheme.onSurfaceVariant,
             )
         }
         val ordered = session.snapshot.orderedCategories
@@ -484,56 +484,56 @@ fun LibraryCategoriesPage(session: LibrarySession) {
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text(
+                    AppText(
                         text = category.name,
-                        style = MaterialTheme.typography.bodyLarge,
+                        style = UiTheme.typography.bodyLarge,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f),
                     )
                     if (category.isDefault) {
-                        Text(
+                        AppText(
                             text = stringResource(Res.string.library_category_default),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = UiTheme.typography.labelSmall,
+                            color = UiTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                     if (category.isHidden) {
-                        Text(
+                        AppText(
                             text = stringResource(Res.string.library_category_hidden),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = UiTheme.typography.labelSmall,
+                            color = UiTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
                 if (renaming == category.id) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small),
                     ) {
-                        OutlinedTextField(
+                        AppTextField(
                             value = renameText,
                             onValueChange = { renameText = it },
                             singleLine = true,
                             modifier = Modifier.weight(1f).testTag(LibraryCategoryNameTag),
                         )
-                        TextButton(onClick = {
+                        AppTextButton(onClick = {
                             scope.launch {
                                 if (session.renameCategory(category.id, renameText)) renaming = null
                             }
                         }) {
-                            Text(stringResource(Res.string.library_save))
+                            AppText(stringResource(Res.string.library_save))
                         }
-                        TextButton(onClick = { renaming = null }) {
-                            Text(stringResource(Res.string.library_cancel))
+                        AppTextButton(onClick = { renaming = null }) {
+                            AppText(stringResource(Res.string.library_cancel))
                         }
                     }
                 } else {
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.ExtraSmall),
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        TextButton(
+                        AppTextButton(
                             onClick = {
                                 val ids = ordered.map { it.id }.toMutableList()
                                 if (index > 0) {
@@ -543,9 +543,9 @@ fun LibraryCategoriesPage(session: LibrarySession) {
                             },
                             enabled = index > 0,
                         ) {
-                            Text("↑")
+                            AppText("↑")
                         }
-                        TextButton(
+                        AppTextButton(
                             onClick = {
                                 val ids = ordered.map { it.id }.toMutableList()
                                 if (index < ids.size - 1) {
@@ -555,30 +555,30 @@ fun LibraryCategoriesPage(session: LibrarySession) {
                             },
                             enabled = index < ordered.size - 1,
                         ) {
-                            Text("↓")
+                            AppText("↓")
                         }
-                        TextButton(onClick = {
+                        AppTextButton(onClick = {
                             renaming = category.id
                             renameText = category.name
                         }) {
-                            Text(stringResource(Res.string.library_category_rename))
+                            AppText(stringResource(Res.string.library_category_rename))
                         }
-                        TextButton(onClick = {
+                        AppTextButton(onClick = {
                             scope.launch { session.setCategoryHidden(category.id, !category.isHidden) }
                         }) {
-                            Text(
+                            AppText(
                                 stringResource(
                                     if (category.isHidden) Res.string.library_category_unhide
                                     else Res.string.library_category_hide,
                                 ),
                             )
                         }
-                        TextButton(onClick = {
+                        AppTextButton(onClick = {
                             scope.launch { session.removeCategory(category.id) }
                         }) {
-                            Text(
+                            AppText(
                                 stringResource(Res.string.library_category_delete),
-                                color = MaterialTheme.colorScheme.error,
+                                color = UiTheme.colorScheme.error,
                             )
                         }
                     }
@@ -587,17 +587,17 @@ fun LibraryCategoriesPage(session: LibrarySession) {
         }
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small),
+            modifier = Modifier.fillMaxWidth().padding(top = DesignTokens.Spacing.Small),
         ) {
-            OutlinedTextField(
+            AppTextField(
                 value = newName,
                 onValueChange = { newName = it },
-                label = { Text(stringResource(Res.string.library_category_name)) },
+                label = { AppText(stringResource(Res.string.library_category_name)) },
                 singleLine = true,
                 modifier = Modifier.weight(1f).testTag(LibraryCategoryNameTag),
             )
-            TextButton(
+            AppTextButton(
                 onClick = {
                     scope.launch {
                         if (session.addCategory(newName)) newName = ""
@@ -606,7 +606,7 @@ fun LibraryCategoriesPage(session: LibrarySession) {
                 enabled = newName.isNotBlank(),
                 modifier = Modifier.testTag(LibraryCategoryAddTag),
             ) {
-                Text(stringResource(Res.string.library_category_add))
+                AppText(stringResource(Res.string.library_category_add))
             }
         }
     }
@@ -624,10 +624,10 @@ fun LibraryCategoryPickerDialog(
     onDismiss: () -> Unit,
 ) {
     var checked by remember(initial) { mutableStateOf(initial) }
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
         title = {
-            Text(
+            AppText(
                 stringResource(Res.string.library_favorite_choose),
                 modifier = Modifier.testTag(LibraryCategoryPickerTag),
             )
@@ -637,9 +637,9 @@ fun LibraryCategoryPickerDialog(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
             ) {
                 if (session.snapshot.orderedCategories.isEmpty()) {
-                    Text(
+                    AppText(
                         text = stringResource(Res.string.library_category_empty),
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = UiTheme.typography.bodyMedium,
                     )
                 }
                 session.snapshot.orderedCategories.forEach { category ->
@@ -655,13 +655,13 @@ fun LibraryCategoryPickerDialog(
                             .testTag(libraryPickerRowTag(category.id)),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Checkbox(
+                        AppCheckbox(
                             checked = checked.contains(category.id),
                             onCheckedChange = { on ->
                                 checked = if (on) checked + category.id else checked - category.id
                             },
                         )
-                        Text(
+                        AppText(
                             text = category.name,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -671,16 +671,16 @@ fun LibraryCategoryPickerDialog(
             }
         },
         confirmButton = {
-            TextButton(
+            AppTextButton(
                 onClick = { onConfirm(checked) },
                 modifier = Modifier.testTag(LibraryCategoryPickerConfirmTag),
             ) {
-                Text(stringResource(Res.string.library_action_change_categories))
+                AppText(stringResource(Res.string.library_action_change_categories))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(Res.string.library_cancel))
+            AppTextButton(onClick = onDismiss) {
+                AppText(stringResource(Res.string.library_cancel))
             }
         },
     )
@@ -696,25 +696,25 @@ fun LibraryRemoveDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
         modifier = Modifier.testTag(LibraryRemoveDialogTag),
-        title = { Text(stringResource(Res.string.library_remove_title, count)) },
-        text = { Text(stringResource(Res.string.library_remove_body)) },
+        title = { AppText(stringResource(Res.string.library_remove_title, count)) },
+        text = { AppText(stringResource(Res.string.library_remove_body)) },
         confirmButton = {
-            TextButton(
+            AppTextButton(
                 onClick = onConfirm,
                 modifier = Modifier.testTag(LibraryRemoveConfirmTag),
             ) {
-                Text(
+                AppText(
                     stringResource(Res.string.library_remove_confirm),
-                    color = MaterialTheme.colorScheme.error,
+                    color = UiTheme.colorScheme.error,
                 )
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(Res.string.library_cancel))
+            AppTextButton(onClick = onDismiss) {
+                AppText(stringResource(Res.string.library_cancel))
             }
         },
     )

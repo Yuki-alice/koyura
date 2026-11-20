@@ -1,8 +1,19 @@
 package app.koyura.app
 
+import app.koyura.app.resources.utility_about
+import app.koyura.app.resources.utility_batch_add
+import app.koyura.app.resources.utility_data_storage
+import app.koyura.app.resources.utility_help
+import app.koyura.app.resources.utility_message
+import app.koyura.app.resources.utility_title
+import app.koyura.app.resources.utility_update_errors
+import app.koyura.app.resources.Res
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
@@ -20,6 +31,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.movableContentOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.SaveableStateHolder
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -38,6 +50,7 @@ import app.koyura.features.downloads.DownloadsScreen
 import app.koyura.features.downloads.rememberDownloadsSession
 import app.koyura.categories.CategoriesScreen
 import app.koyura.features.more.MoreScreen
+import app.koyura.features.more.MoreSession
 import app.koyura.features.more.rememberMoreSession
 import app.koyura.features.statistics.StatisticsScreen
 import app.koyura.features.statistics.rememberStatisticsSession
@@ -59,6 +72,7 @@ import app.koyura.app.history.LocalHistoryService
 import app.koyura.app.history.rememberHistorySession
 import app.koyura.app.library.LibraryTabContent
 import app.koyura.domain.reader.ReaderService
+import app.koyura.domain.reader.preferences.ReaderBackground
 import app.koyura.features.reader.comic.ComicReaderScreen
 import app.koyura.features.reader.comic.ReaderSession
 import app.koyura.features.reader.comic.rememberReaderSession
@@ -72,17 +86,28 @@ import app.koyura.app.navigation.GlobalSearchRoute
 import app.koyura.app.navigation.ComicReaderRoute
 import app.koyura.app.navigation.SourceDetailRoute
 import app.koyura.app.navigation.StatisticsRoute
+import app.koyura.app.navigation.SettingsRoute
+import app.koyura.app.navigation.SettingsSubpageRoute
+import app.koyura.app.navigation.UtilityPageRoute
 import app.koyura.app.navigation.SourceSearchRoute
 import app.koyura.app.navigation.ExtensionStoresRoute
 import app.koyura.app.navigation.TabRootRoute
 import app.koyura.app.ui.DetailScreen
 import app.koyura.app.ui.TabRootScreen
+import app.koyura.app.ui.UtilityPageScreen
 import app.koyura.designsystem.DesignTokens
+import app.koyura.designsystem.components.ProvideUiContentColor
+import app.koyura.designsystem.components.UiTheme
 import app.koyura.designsystem.navigation.NavTab
 import app.koyura.designsystem.navigation.ReaderNavigationBar
 import app.koyura.designsystem.navigation.ReaderNavigationRail
 import app.koyura.features.library.LibrarySession
 import app.koyura.features.library.rememberLibrarySession
+import app.koyura.features.settings.SettingsScreen
+import app.koyura.features.settings.SettingsSubpage
+import app.koyura.features.settings.SettingsSubpageScreen
+import app.koyura.features.settings.SettingsSession
+import app.koyura.features.settings.rememberSettingsSession
 
 internal const val NavigationBarTestTag = "app-navigation-bar"
 internal const val NavigationRailTestTag = "app-navigation-rail"
@@ -105,14 +130,18 @@ internal fun AppScaffold(
     readerSession: ReaderSession? = null,
     historyService: HistoryService? = LocalHistoryService.current,
     historySession: HistorySession? = null,
+    moreSession: MoreSession? = null,
+    indexing: Boolean = false,
 ) {
     val activeBrowseSession = browseSession ?: rememberBrowseSession(browseService)
     val activeReaderSession = readerSession ?: rememberReaderSession(readerService)
     val activeHistorySession = historySession ?: rememberHistorySession(historyService, browseService)
     val activeUpdatesSession = rememberUpdatesSession()
     val statisticsSession = rememberStatisticsSession()
-    val activeMoreSession = rememberMoreSession()
+    val activeMoreSession = moreSession ?: rememberMoreSession()
+    val indexingState = rememberUpdatedState(indexing)
     val activeDownloadsSession = rememberDownloadsSession()
+    val settingsSession = LocalAppSettingsSession.current ?: rememberSettingsSession()
     val librarySession = rememberLibrarySession()
 
     BackToLibraryHandler(navigation, librarySession, activeHistorySession)
@@ -121,22 +150,34 @@ internal fun AppScaffold(
     // would dispose the content subtree and rebuild it from saved state. Moving the subtree with
     // movable content keeps its remember state, including scroll position, across the switch.
     val saveableStateHolder = rememberSaveableStateHolder()
-    val appContent = remember {
+    val appContent = remember(activeMoreSession, settingsSession) {
         movableContentOf<AppNavigationState, SaveableStateHolder, BrowseSession> { state, holder, browse ->
             CompositionLocalProvider(LocalReaderService provides readerService) {
-                AppNavigationContent(
-                    state,
-                    holder,
-                    browse,
-                    activeReaderSession,
-                    activeHistorySession,
-                    librarySession,
-                    activeUpdatesSession,
-                    activeMoreSession,
-                    activeDownloadsSession,
-                    statisticsSession,
-                    browseService,
-                )
+                ProvideUiContentColor(UiTheme.colorScheme.onSurface) {
+                    Column(Modifier.fillMaxSize()) {
+                        if (state.currentStack.lastOrNull() !is ComicReaderRoute) {
+                            AppStatusBanners(
+                                indexing = indexingState.value,
+                                downloadedOnly = activeMoreSession.downloadedOnly,
+                                incognito = activeMoreSession.incognito,
+                            )
+                        }
+                        AppNavigationContent(
+                            state,
+                            holder,
+                            browse,
+                            activeReaderSession,
+                            activeHistorySession,
+                            librarySession,
+                            activeUpdatesSession,
+                            activeMoreSession,
+                            activeDownloadsSession,
+                            statisticsSession,
+                            settingsSession,
+                            browseService,
+                        )
+                    }
+                }
             }
         }
     }
@@ -145,6 +186,7 @@ internal fun AppScaffold(
     // hides the tab bar/rail while a chapter is open. Library multi-select hides them the same
     // way (Komikku parity: selection mode owns the chrome).
     val isReaderOpen = navigation.currentStack.lastOrNull() is ComicReaderRoute
+    ReaderSystemBars(hidden = isReaderOpen)
     val hideChrome = (navigation.selectedTab == NavTab.Library && librarySession.selection.isNotEmpty()) ||
         (navigation.selectedTab == NavTab.History && activeHistorySession.selection.isNotEmpty())
     if (isReaderOpen || hideChrome) {
@@ -247,6 +289,7 @@ private fun AppNavigationContent(
     moreSession: app.koyura.features.more.MoreSession,
     downloadsSession: app.koyura.features.downloads.DownloadsSession,
     statisticsSession: app.koyura.features.statistics.StatisticsSession,
+    settingsSession: SettingsSession,
     browseService: BrowseService?,
 ) {
     val entryProvider = remember(
@@ -259,6 +302,7 @@ private fun AppNavigationContent(
         moreSession,
         downloadsSession,
         statisticsSession,
+        settingsSession,
         browseService,
     ) {
         entryProvider<NavKey> {
@@ -285,6 +329,11 @@ private fun AppNavigationContent(
                 } else if (route.tab == NavTab.History) {
                     HistoryScreen(
                         session = historySession,
+                        hasUnread = { entry ->
+                            librarySession.snapshot.entries.any {
+                                it.sourceKey == entry.sourceKey && it.workId == entry.workId && it.unreadCount > 0
+                            }
+                        },
                         onOpenWork = { sourceKey, workId, title ->
                             navigation.push(SourceDetailRoute(sourceKey, workId, title))
                         },
@@ -322,6 +371,8 @@ private fun AppNavigationContent(
                         onOpenStatistics = {
                             navigation.push(StatisticsRoute)
                         },
+                        onOpenSettings = { navigation.push(SettingsRoute) },
+                        onOpenUtility = { key -> navigation.push(UtilityPageRoute(key)) },
                     )
                 } else {
                     TabRootScreen(
@@ -367,6 +418,31 @@ private fun AppNavigationContent(
             entry<StatisticsRoute> {
                 StatisticsScreen(
                     session = statisticsSession,
+                    onBack = { navigation.popCurrentChild() },
+                )
+            }
+            entry<SettingsRoute> {
+                SettingsScreen(
+                    session = settingsSession,
+                    onOpenSubpage = { subpage ->
+                        navigation.push(SettingsSubpageRoute(subpage.name))
+                    },
+                    onBack = { navigation.handleBack() },
+                )
+            }
+            entry<SettingsSubpageRoute> { route ->
+                val subpage = SettingsSubpage.entries.firstOrNull { it.name == route.subpageName }
+                    ?: SettingsSubpage.APPEARANCE
+                SettingsSubpageScreen(
+                    session = settingsSession,
+                    subpage = subpage,
+                    onBack = { navigation.popCurrentChild() },
+                )
+            }
+            entry<UtilityPageRoute> { route ->
+                UtilityPageScreen(
+                    title = utilityPageTitle(route.key),
+                    message = stringResource(Res.string.utility_message),
                     onBack = { navigation.popCurrentChild() },
                 )
             }
@@ -422,6 +498,7 @@ private fun AppNavigationContent(
                     ComicReaderScreen(
                         session = readerSession,
                         preferences = LocalReaderPreferences.current,
+                        fallbackBackground = ReaderBackground.BLACK,
                         installBackHandler = { BackHandler(onBack = it) },
                         sourceKey = route.sourceKey,
                         workId = route.workId,
@@ -448,17 +525,9 @@ private fun AppNavigationContent(
     saveableStateHolder.SaveableStateProvider(navigation.selectedTab.name) {        AnimatedContent(
             targetState = navigation.selectedTab,
             transitionSpec = {
-                // Komikku fadeThrough (HomeScreen.TabFadeDuration): the outgoing tab fades out
-                // first, the incoming tab fades in after — never a crossfade. The delayed fade-in
-                // keeps the two 200 ms halves sequential while reusing the single token.
-                fadeIn(
-                    animationSpec = tween(
-                        durationMillis = DesignTokens.Motion.TabFadeThroughMs,
-                        delayMillis = DesignTokens.Motion.TabFadeThroughMs,
-                    ),
-                ) togetherWith fadeOut(
-                    animationSpec = tween(durationMillis = DesignTokens.Motion.TabFadeThroughMs),
-                )
+                val half = DesignTokens.Motion.TabFadeThroughMs / 2
+                fadeIn(animationSpec = tween(durationMillis = half, delayMillis = half)) togetherWith
+                    fadeOut(animationSpec = tween(durationMillis = half))
             },
             label = "tabSwitch",
         ) { tab ->
@@ -466,8 +535,29 @@ private fun AppNavigationContent(
                 backStack = navigation.stackOf(tab),
                 onBack = { navigation.handleBack() },
                 modifier = Modifier.fillMaxSize(),
+                transitionSpec = { childPageTransition(forward = true) },
+                popTransitionSpec = { childPageTransition(forward = false) },
+                predictivePopTransitionSpec = { childPageTransition(forward = false) },
                 entryProvider = entryProvider,
             )
         }
     }
 }
+
+private fun childPageTransition(forward: Boolean): androidx.compose.animation.ContentTransform {
+    val direction = if (forward) 1 else -1
+    val duration = DesignTokens.Motion.TabFadeThroughMs
+    return (slideInHorizontally(tween(duration)) { direction * it / 6 } + fadeIn(tween(duration))) togetherWith
+        (slideOutHorizontally(tween(duration)) { -direction * it / 6 } + fadeOut(tween(duration)))
+}
+
+/** More 页工具占位的标题；key 与 `MoreScreen` 的导航行 key 一致。 */
+@Composable
+private fun utilityPageTitle(key: String): String = stringResource(when (key) {
+    "update-errors" -> Res.string.utility_update_errors
+    "data-storage" -> Res.string.utility_data_storage
+    "batch-add" -> Res.string.utility_batch_add
+    "about" -> Res.string.utility_about
+    "help" -> Res.string.utility_help
+    else -> Res.string.utility_title
+})

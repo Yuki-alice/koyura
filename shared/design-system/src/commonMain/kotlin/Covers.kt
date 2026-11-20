@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
+import kotlin.coroutines.cancellation.CancellationException
 
 /**
  * 全仓唯一的封面组件（A 轨所有）。
@@ -137,13 +138,8 @@ fun rememberCoverBitmap(sourceKey: String, coverUrl: String): ImageBitmap? {
     }
     if (bytes == null && !failed) {
         LaunchedEffect(sourceKey, coverUrl) {
-            val loaded = try {
-                loader.load(sourceKey, coverUrl)
-            } catch (_: Exception) {
-                null
-            }
+            val loaded = loadCachedCoverBytes(loader, cache, sourceKey, coverUrl)
             if (loaded != null) {
-                cache.put(sourceKey, coverUrl, loaded)
                 bytes = loaded
             } else {
                 failed = true
@@ -154,6 +150,24 @@ fun rememberCoverBitmap(sourceKey: String, coverUrl: String): ImageBitmap? {
     return remember(snapshot) {
         snapshot?.let { runCatching { decoder.decode(it) }.getOrNull() }
     }
+}
+
+internal suspend fun loadCachedCoverBytes(
+    loader: CoverImageLoader,
+    cache: CoverMemoryCache,
+    sourceKey: String,
+    coverUrl: String,
+): ByteArray? {
+    cache.get(sourceKey, coverUrl)?.let { return it }
+    val bytes = try {
+        loader.load(sourceKey, coverUrl)
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: Exception) {
+        null
+    }
+    if (bytes != null) cache.put(sourceKey, coverUrl, bytes)
+    return bytes
 }
 
 /**
@@ -170,7 +184,17 @@ fun Cover(
     modifier: Modifier = Modifier,
     contentDescription: String? = null,
 ) {
-    val bitmap = rememberCoverBitmap(sourceKey, coverUrl)
+    CoverArtwork(rememberCoverBitmap(sourceKey, coverUrl), label, modifier, contentDescription)
+}
+
+/** Renders a previously decoded cover without loading its bytes again. */
+@Composable
+fun CoverArtwork(
+    bitmap: ImageBitmap?,
+    label: String,
+    modifier: Modifier = Modifier,
+    contentDescription: String? = null,
+) {
     if (bitmap != null) {
         Image(
             bitmap = bitmap,

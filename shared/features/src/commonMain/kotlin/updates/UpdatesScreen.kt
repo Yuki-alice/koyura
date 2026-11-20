@@ -14,15 +14,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -43,8 +34,17 @@ import app.koyura.designsystem.Cover
 import app.koyura.designsystem.CoverDecoder
 import app.koyura.designsystem.CoverImageLoader
 import app.koyura.designsystem.DesignTokens
+import app.koyura.designsystem.components.EmptyScreen
 import app.koyura.designsystem.LocalCoverDecoder
 import app.koyura.designsystem.LocalCoverImageLoader
+import app.koyura.designsystem.components.AppCircularProgress
+import app.koyura.designsystem.components.AppDivider
+import app.koyura.designsystem.components.AppMenu
+import app.koyura.designsystem.components.AppMenuItem
+import app.koyura.designsystem.components.AppText
+import app.koyura.designsystem.components.AppTextButton
+import app.koyura.designsystem.components.ReaderTopAppBar
+import app.koyura.designsystem.components.UiTheme
 import app.koyura.features.resources.Res
 import app.koyura.features.resources.updates_calendar
 import app.koyura.features.resources.updates_chapters
@@ -88,7 +88,6 @@ fun updatesFailureTag(sourceKey: String, workId: String) = "updates-failure-$sou
  * 数据侧只有 Fake 仓储：筛选与日历本期禁用（随真实更新引擎启用），刷新真实重读。
  * 章节点击打开作品详情（详情内可进章节），直达阅读器的章节级跳转待真实源后接。
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun UpdatesScreen(
     session: UpdatesSession,
@@ -117,8 +116,8 @@ fun UpdatesScreen(
         LocalCoverDecoder provides coverDecoder,
     ) {
         Column(modifier = modifier.fillMaxSize().testTag(UpdatesRootTestTag)) {
-            TopAppBar(
-                title = { Text(stringResource(Res.string.updates_title)) },
+            ReaderTopAppBar(
+                title = { AppText(stringResource(Res.string.updates_title)) },
                 actions = {
                     // 筛选与日历随真实更新引擎启用（本期 Fake 数据无可筛维度）。
                     ActionIconButton(
@@ -145,13 +144,13 @@ fun UpdatesScreen(
                         onClick = { overflowOpen = true },
                         modifier = Modifier.testTag(UpdatesOverflowTag),
                     )
-                    DropdownMenu(
+                    AppMenu(
                         expanded = overflowOpen,
                         onDismissRequest = { overflowOpen = false },
                     ) {
-                        DropdownMenuItem(
+                        AppMenuItem(
                             text = {
-                                Text(
+                                AppText(
                                     if (showErrors) {
                                         stringResource(Res.string.updates_show_updates)
                                     } else {
@@ -167,8 +166,8 @@ fun UpdatesScreen(
                             },
                             modifier = Modifier.testTag("updates-errors-toggle"),
                         )
-                        DropdownMenuItem(
-                            text = { Text(stringResource(Res.string.updates_smart_settings)) },
+                        AppMenuItem(
+                            text = { AppText(stringResource(Res.string.updates_smart_settings)) },
                             onClick = {
                                 overflowOpen = false
                                 showPolicy = true
@@ -184,7 +183,7 @@ fun UpdatesScreen(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center,
                 ) {
-                    CircularProgressIndicator()
+                    AppCircularProgress()
                 }
                 is UpdatesLoadState.Failed -> Column(
                     modifier = Modifier.fillMaxSize()
@@ -192,20 +191,20 @@ fun UpdatesScreen(
                         .testTag(UpdatesErrorTag),
                     verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small),
                 ) {
-                    Text(
+                    AppText(
                         text = stringResource(Res.string.updates_load_failed, state.message),
-                        color = MaterialTheme.colorScheme.error,
+                        color = UiTheme.colorScheme.error,
                     )
-                    TextButton(onClick = { scope.launch { session.checkNow() } }) {
-                        Text(stringResource(Res.string.updates_retry))
+                    AppTextButton(onClick = { scope.launch { session.checkNow() } }) {
+                        AppText(stringResource(Res.string.updates_retry))
                     }
                 }
                 UpdatesLoadState.Ready -> {
                     session.actionError?.let { message ->
-                        Text(
+                        AppText(
                             text = message,
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodyMedium,
+                            color = UiTheme.colorScheme.error,
+                            style = UiTheme.typography.bodyMedium,
                             modifier = Modifier
                                 .padding(
                                     horizontal = DesignTokens.Spacing.Medium,
@@ -252,28 +251,11 @@ fun UpdatesScreen(
 /** 空态：displayMedium 颜文字（0.78）+ bodyMedium 文案（白皮书 06 §6.8）。 */
 @Composable
 private fun UpdatesEmptyState() {
-    Column(
-        modifier = Modifier.fillMaxSize()
-            .padding(horizontal = DesignTokens.Spacing.Large)
-            .testTag(UpdatesEmptyTag),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Text(
-            text = "(˘･_･˘)",
-            style = MaterialTheme.typography.displayMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
-                alpha = DesignTokens.Alpha.Secondary,
-            ),
-        )
-        Text(
-            text = stringResource(Res.string.updates_empty),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
-                alpha = DesignTokens.Alpha.Secondary,
-            ),
-        )
-    }
+    EmptyScreen(
+        emoji = "(˘･_･˘)",
+        message = stringResource(Res.string.updates_empty),
+        modifier = Modifier.testTag(UpdatesEmptyTag),
+    )
 }
 
 /** 领导者行：48dp 封面 + 标题 + 未读数（Code: UpdatesUiItem.kt:279-298 行边距）。 */
@@ -308,18 +290,18 @@ private fun UpdateLeaderRow(
                 .padding(horizontal = DesignTokens.Spacing.Medium),
             verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.ExtraSmall),
         ) {
-            Text(
+            AppText(
                 text = work.title,
-                style = MaterialTheme.typography.bodyMedium,
+                style = UiTheme.typography.bodyMedium,
                 fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = UiTheme.colorScheme.onSurface,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
-            Text(
+            AppText(
                 text = stringResource(Res.string.updates_chapters, work.chapters.size),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                style = UiTheme.typography.bodySmall,
+                color = UiTheme.colorScheme.onSurfaceVariant.copy(
                     alpha = DesignTokens.Alpha.Secondary,
                 ),
             )
@@ -353,24 +335,24 @@ private fun UpdateChapterRow(
                 modifier = Modifier
                     .padding(end = DesignTokens.Spacing.ExtraSmall)
                     .background(
-                        MaterialTheme.colorScheme.primary,
+                        UiTheme.colorScheme.primary,
                         CircleShape,
                     )
                     .width(DesignTokens.Spacing.Small)
                     .aspectRatio(1f),
             )
             Column(modifier = Modifier.weight(1f)) {
-                Text(
+                AppText(
                     text = chapter.title,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    style = UiTheme.typography.bodyMedium,
+                    color = UiTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Text(
+                AppText(
                     text = chapter.dateText,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                    style = UiTheme.typography.bodySmall,
+                    color = UiTheme.colorScheme.onSurfaceVariant.copy(
                         alpha = DesignTokens.Alpha.Secondary,
                     ),
                     maxLines = 1,
@@ -397,17 +379,17 @@ private fun UpdateFailuresView(
                 ),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
+            AppText(
                 text = stringResource(Res.string.updates_errors_title),
-                style = MaterialTheme.typography.titleMedium,
+                style = UiTheme.typography.titleMedium,
                 modifier = Modifier.weight(1f),
             )
-            TextButton(
+            AppTextButton(
                 onClick = onRetryAll,
                 enabled = failures.isNotEmpty(),
                 modifier = Modifier.testTag(UpdatesRetryFailuresTag),
             ) {
-                Text(stringResource(Res.string.updates_retry_failures))
+                AppText(stringResource(Res.string.updates_retry_failures))
             }
         }
         if (failures.isEmpty()) {
@@ -415,10 +397,10 @@ private fun UpdateFailuresView(
                 modifier = Modifier.fillMaxSize().padding(DesignTokens.Spacing.Large),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(
+                AppText(
                     text = stringResource(Res.string.updates_errors_empty),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = UiTheme.typography.bodyMedium,
+                    color = UiTheme.colorScheme.onSurfaceVariant,
                 )
             }
         } else {
@@ -434,23 +416,23 @@ private fun UpdateFailuresView(
                             ),
                         verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.ExtraSmall),
                     ) {
-                        Text(
+                        AppText(
                             text = failure.title,
-                            style = MaterialTheme.typography.bodyMedium,
+                            style = UiTheme.typography.bodyMedium,
                             fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface,
+                            color = UiTheme.colorScheme.onSurface,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                         )
-                        Text(
+                        AppText(
                             text = failure.message,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error,
+                            style = UiTheme.typography.bodySmall,
+                            color = UiTheme.colorScheme.error,
                             maxLines = 3,
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
-                    HorizontalDivider()
+                    AppDivider()
                 }
             }
         }

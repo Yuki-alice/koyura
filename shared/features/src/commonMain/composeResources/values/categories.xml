@@ -13,4 +13,5 @@
     <string name="categories_unhide">Show category</string>
     <string name="categories_load_failed">Could not load categories: %1$s</string>
     <string name="categories_retry">Retry</string>
+    <string name="categories_reorder">Reorder %1$s</string>
 </resources>

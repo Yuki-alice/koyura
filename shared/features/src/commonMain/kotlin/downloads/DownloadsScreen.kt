@@ -3,21 +3,14 @@ package app.koyura.features.downloads
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SmallExtendedFloatingActionButton
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
@@ -26,8 +19,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import app.koyura.designsystem.ActionIcon
+import app.koyura.designsystem.DecorativeActionIcon
 import app.koyura.designsystem.ActionIconButton
 import app.koyura.designsystem.DesignTokens
+import app.koyura.designsystem.components.EmptyScreen
+import app.koyura.designsystem.components.ErrorScreen
+import app.koyura.designsystem.components.LoadingScreen
+import app.koyura.designsystem.components.AppCircularProgress
+import app.koyura.designsystem.components.AppExtendedFab
+import app.koyura.designsystem.components.AppText
+import app.koyura.designsystem.components.AppTextButton
+import app.koyura.designsystem.components.ReaderTopAppBar
+import app.koyura.designsystem.components.UiTheme
 import app.koyura.features.resources.Res
 import app.koyura.features.resources.downloads_cancel
 import app.koyura.features.resources.downloads_cancel_all
@@ -35,6 +38,7 @@ import app.koyura.features.resources.downloads_empty
 import app.koyura.features.resources.downloads_load_failed
 import app.koyura.features.resources.downloads_pause
 import app.koyura.features.resources.downloads_pause_all
+import app.koyura.features.resources.downloads_progress_percent
 import app.koyura.features.resources.downloads_resume
 import app.koyura.features.resources.downloads_resume_all
 import app.koyura.features.resources.downloads_retry
@@ -67,7 +71,6 @@ fun downloadCancelTag(id: String) = "downloads-cancel-$id"
  * 右下暂停/恢复 FAB 只在非空时出现。数据侧只有 Fake 仓储，状态迁移
  * 对齐 `ChapterDownloadStore`。
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DownloadsScreen(
     session: DownloadsSession,
@@ -81,8 +84,8 @@ fun DownloadsScreen(
     }
 
     Column(modifier = modifier.fillMaxSize().testTag(DownloadsRootTestTag)) {
-        TopAppBar(
-            title = { Text(stringResource(Res.string.downloads_title)) },
+        ReaderTopAppBar(
+            title = { AppText(stringResource(Res.string.downloads_title)) },
             navigationIcon = {
                 ActionIconButton(
                     icon = ActionIcon.Back,
@@ -102,32 +105,21 @@ fun DownloadsScreen(
         )
 
         when (val state = session.loadState) {
-            DownloadQueueLoadState.Loading -> Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center,
+            DownloadQueueLoadState.Loading -> LoadingScreen()
+            is DownloadQueueLoadState.Failed -> ErrorScreen(
+                message = stringResource(Res.string.downloads_load_failed, state.message),
+                modifier = Modifier.testTag(DownloadsErrorTag),
             ) {
-                CircularProgressIndicator()
-            }
-            is DownloadQueueLoadState.Failed -> Column(
-                modifier = Modifier.fillMaxSize()
-                    .padding(DesignTokens.Spacing.Large)
-                    .testTag(DownloadsErrorTag),
-                verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small),
-            ) {
-                Text(
-                    text = stringResource(Res.string.downloads_load_failed, state.message),
-                    color = MaterialTheme.colorScheme.error,
-                )
-                TextButton(onClick = { scope.launch { session.refresh() } }) {
-                    Text(stringResource(Res.string.downloads_retry_load))
+                AppTextButton(onClick = { scope.launch { session.refresh() } }) {
+                    AppText(stringResource(Res.string.downloads_retry_load))
                 }
             }
             DownloadQueueLoadState.Ready -> {
                 session.actionError?.let { message ->
-                    Text(
+                    AppText(
                         text = message,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodyMedium,
+                        color = UiTheme.colorScheme.error,
+                        style = UiTheme.typography.bodyMedium,
                         modifier = Modifier
                             .padding(
                                 horizontal = DesignTokens.Spacing.Medium,
@@ -154,9 +146,10 @@ fun DownloadsScreen(
                                 )
                             }
                         }
-                        SmallExtendedFloatingActionButton(
+                        AppExtendedFab(
+                            compact = true,
                             text = {
-                                Text(
+                                AppText(
                                     stringResource(
                                         if (session.running) Res.string.downloads_pause_all
                                         else Res.string.downloads_resume_all,
@@ -164,9 +157,8 @@ fun DownloadsScreen(
                                 )
                             },
                             icon = {
-                                ActionIcon(
-                                    icon = if (session.running) ActionIcon.Pause else ActionIcon.Play,
-                                    contentDescription = null,
+                                DecorativeActionIcon(
+                icon = if (session.running) ActionIcon.Pause else ActionIcon.Play,
                                 )
                             },
                             onClick = {
@@ -189,28 +181,11 @@ fun DownloadsScreen(
 /** 空态：displayMedium 颜文字（0.78）+ bodyMedium 文案（白皮书 06 §6.8）。 */
 @Composable
 private fun DownloadsEmptyState() {
-    Column(
-        modifier = Modifier.fillMaxSize()
-            .padding(horizontal = DesignTokens.Spacing.Large)
-            .testTag(DownloadsEmptyTag),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Text(
-            text = "(˘･_･˘)",
-            style = MaterialTheme.typography.displayMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
-                alpha = DesignTokens.Alpha.Secondary,
-            ),
-        )
-        Text(
-            text = stringResource(Res.string.downloads_empty),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
-                alpha = DesignTokens.Alpha.Secondary,
-            ),
-        )
-    }
+    EmptyScreen(
+        emoji = "(˘･_･˘)",
+        message = stringResource(Res.string.downloads_empty),
+        modifier = Modifier.testTag(DownloadsEmptyTag),
+    )
 }
 
 /** 队列行：漫画名 + 章节名 + 线性进度条（上方 8dp）+ 右侧状态动作。 */
@@ -236,41 +211,58 @@ private fun DownloadRow(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.ExtraSmall),
         ) {
-            Text(
+            AppText(
                 text = task.workTitle,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
+                style = UiTheme.typography.bodyMedium,
+                color = UiTheme.colorScheme.onSurface,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
-            Text(
+            AppText(
                 text = task.chapterTitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                style = UiTheme.typography.bodySmall,
+                color = UiTheme.colorScheme.onSurfaceVariant.copy(
                     alpha = DesignTokens.Alpha.Secondary,
                 ),
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
             if (task.totalPages > 0) {
-                LinearProgressIndicator(
-                    progress = { task.downloadedPages.toFloat() / task.totalPages },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = DesignTokens.Spacing.Small),
-                )
-            }
-            Text(
-                text = downloadStatusText(task),
-                style = MaterialTheme.typography.bodySmall,
-                color = if (task.status == FakeDownloadStatus.FAILED) {
-                    MaterialTheme.colorScheme.error
+                val progress = (task.downloadedPages.toFloat() / task.totalPages).coerceIn(0f, 1f)
+                val progressColor = if (task.status == FakeDownloadStatus.FAILED) {
+                    UiTheme.colorScheme.error
                 } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                    UiTheme.colorScheme.primary
+                }
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small),
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(top = DesignTokens.Spacing.ExtraSmall),
+                ) {
+                    AppCircularProgress(
+                        progress = { progress },
+                        modifier = Modifier.size(DesignTokens.Sizes.DownloadProgress),
+                        strokeWidth = DesignTokens.Sizes.DownloadProgress / 8,
+                        color = progressColor,
+                    )
+                    AppText(
+                        text = stringResource(Res.string.downloads_progress_percent, (progress * 100).toInt()),
+                        style = UiTheme.typography.labelMedium,
+                        color = progressColor,
+                    )
+                }
+            }
+            AppText(
+                text = downloadStatusText(task),
+                style = UiTheme.typography.bodySmall,
+                color = if (task.status == FakeDownloadStatus.FAILED) {
+                    UiTheme.colorScheme.error
+                } else {
+                    UiTheme.colorScheme.onSurfaceVariant.copy(
                         alpha = DesignTokens.Alpha.Secondary,
                     )
                 },
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
         }

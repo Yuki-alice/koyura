@@ -27,10 +27,17 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             implementation(libs.compose.foundation)
-            implementation(libs.compose.material3)
+            api(libs.compose.material3)
             implementation(libs.compose.resources)
             implementation(libs.compose.runtime)
             implementation(libs.compose.ui)
+            // ThemeSelection/VisualTheme expose PaletteStyle in their public API: consumers
+            // need the materialkolor types on their compile classpath.
+            api(libs.material.kolor)
+            implementation(libs.coil.compose)
+        }
+        commonTest.dependencies {
+            implementation(libs.kotlin.test)
         }
     }
 }

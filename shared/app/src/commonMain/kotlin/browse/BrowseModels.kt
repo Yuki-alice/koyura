@@ -149,9 +149,12 @@ data class BrowseSnapshot(
     val stores: List<ExtensionStoreInfo> = emptyList(),
 )
 
+/** 原版 Browse 四个一级 tab，顺序与 SourcesScreen 的 TabRow 一致。 */
 enum class BrowsePane {
     Sources,
+    Feed,
     Extensions,
+    Migrate,
 }
 
 sealed interface LoadState {

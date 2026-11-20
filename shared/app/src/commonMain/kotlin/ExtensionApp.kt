@@ -1,14 +1,12 @@
 package app.koyura.app
 
+import app.koyura.designsystem.DesignTokens
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -18,22 +16,25 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLocale
-import androidx.compose.ui.unit.dp
-import app.koyura.app.reader.VeneraReaderService
+import app.koyura.app.account.ProductionAccountRepository
 import app.koyura.app.browse.venera.VeneraBrowseService
 import app.koyura.app.history.VeneraHistoryService
 import app.koyura.app.library.ProductionLibraryRepository
-import app.koyura.app.account.ProductionAccountRepository
-import app.koyura.app.updates.ProductionUpdatesRepository
-import app.koyura.app.updates.ProductionUpdatePolicyRepository
+import app.koyura.app.reader.VeneraReaderService
 import app.koyura.app.resources.Res
 import app.koyura.app.resources.extension_startup_failed
 import app.koyura.app.resources.extension_startup_loading
 import app.koyura.app.resources.extension_startup_retry
 import app.koyura.app.sourceui.FakeClipboard
 import app.koyura.app.sourceui.SourceUiHost
+import app.koyura.app.updates.ProductionUpdatePolicyRepository
+import app.koyura.app.updates.ProductionUpdatesRepository
 import app.koyura.data.session.ExtensionSession
 import app.koyura.designsystem.ReaderTheme
+import app.koyura.designsystem.components.AppButton
+import app.koyura.designsystem.components.AppCircularProgress
+import app.koyura.designsystem.components.AppSurface
+import app.koyura.designsystem.components.AppText
 import app.koyura.source.runtime.VeneraEnvironment
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -44,7 +45,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.withContext
-import androidx.compose.runtime.DisposableEffect
 import org.jetbrains.compose.resources.stringResource
 
 @Composable
@@ -158,21 +158,21 @@ internal fun ExtensionApp(
         )
     } else {
         ReaderTheme {
-            Surface(modifier = Modifier.fillMaxSize()) {
+            AppSurface(modifier = Modifier.fillMaxSize()) {
                 Column(
                     modifier = Modifier.fillMaxSize().safeDrawingPadding(),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
+                    verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Medium, Alignment.CenterVertically),
                 ) {
                     if (failed) {
-                        Text(stringResource(Res.string.extension_startup_failed))
-                        Button(onClick = {
+                        AppText(stringResource(Res.string.extension_startup_failed))
+                        AppButton(onClick = {
                             failed = false
                             attempt += 1
-                        }) { Text(stringResource(Res.string.extension_startup_retry)) }
+                        }) { AppText(stringResource(Res.string.extension_startup_retry)) }
                     } else {
-                        CircularProgressIndicator()
-                        Text(stringResource(Res.string.extension_startup_loading))
+                        AppCircularProgress()
+                        AppText(stringResource(Res.string.extension_startup_loading))
                     }
                 }
             }

@@ -1,5 +1,6 @@
 package app.koyura.app.browse
 
+import app.koyura.designsystem.DesignTokens
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,15 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -31,7 +23,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import app.koyura.app.resources.Res
 import app.koyura.app.resources.browse_action_install
 import app.koyura.app.resources.browse_empty_stores
@@ -64,6 +55,15 @@ import app.koyura.app.resources.stores_url_duplicate
 import app.koyura.app.resources.stores_url_empty
 import app.koyura.app.resources.stores_url_field
 import app.koyura.app.resources.stores_url_invalid
+import app.koyura.designsystem.components.AppAlertDialog
+import app.koyura.designsystem.components.AppButton
+import app.koyura.designsystem.components.AppCircularProgress
+import app.koyura.designsystem.components.AppDivider
+import app.koyura.designsystem.components.AppSwitch
+import app.koyura.designsystem.components.AppText
+import app.koyura.designsystem.components.AppTextButton
+import app.koyura.designsystem.components.AppTextField
+import app.koyura.designsystem.components.UiTheme
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 
@@ -105,54 +105,54 @@ fun ExtensionStoresScreen(
 
     Column(modifier = modifier.fillMaxSize().testTag(StoresScreenTestTag)) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.Small),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
+            Column(verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Tight)) {
+                AppText(
                     text = stringResource(Res.string.stores_title),
-                    style = MaterialTheme.typography.headlineMedium,
+                    style = UiTheme.typography.headlineMedium,
                 )
-                TextButton(onClick = onBack, modifier = Modifier.testTag("stores-back")) {
-                    Text(stringResource(Res.string.browse_tab_extensions))
+                AppTextButton(onClick = onBack, modifier = Modifier.testTag("stores-back")) {
+                    AppText(stringResource(Res.string.browse_tab_extensions))
                 }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(
+            Row(horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small)) {
+                AppTextButton(
                     onClick = { scope.launch { session.refresh() } },
                     modifier = Modifier.testTag("stores-refresh"),
-                ) { Text(stringResource(Res.string.stores_refresh)) }
-                Button(
+                ) { AppText(stringResource(Res.string.stores_refresh)) }
+                AppButton(
                     onClick = { dialog = StoreDialog.Add },
                     modifier = Modifier.testTag(StoresAddTag),
-                ) { Text(stringResource(Res.string.stores_add)) }
+                ) { AppText(stringResource(Res.string.stores_add)) }
             }
         }
 
         when (val load = state.load) {
             LoadState.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
+                AppCircularProgress()
             }
             LoadState.Unavailable -> Column(
-                modifier = Modifier.fillMaxSize().padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxSize().padding(DesignTokens.Spacing.Large),
+                verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small),
             ) {
-                Text(
+                AppText(
                     text = stringResource(Res.string.browse_empty_stores),
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = UiTheme.typography.bodyMedium,
                 )
             }
             is LoadState.Failed -> Column(
-                modifier = Modifier.fillMaxSize().padding(24.dp).testTag(StoresErrorTag),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxSize().padding(DesignTokens.Spacing.Large).testTag(StoresErrorTag),
+                verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Regular),
             ) {
-                Text(
+                AppText(
                     text = stringResource(Res.string.browse_operation_failed, load.message),
-                    color = MaterialTheme.colorScheme.error,
+                    color = UiTheme.colorScheme.error,
                 )
-                Button(onClick = { scope.launch { session.refresh() } }) {
-                    Text(stringResource(Res.string.stores_refresh))
+                AppButton(onClick = { scope.launch { session.refresh() } }) {
+                    AppText(stringResource(Res.string.stores_refresh))
                 }
             }
             LoadState.Ready -> if (state.stores.isEmpty()) {
@@ -214,12 +214,12 @@ fun ExtensionStoresScreen(
                 }
             },
         )
-        is StoreDialog.Remove -> AlertDialog(
+        is StoreDialog.Remove -> AppAlertDialog(
             onDismissRequest = { dialog = null },
-            title = { Text(stringResource(Res.string.stores_remove_title, current.store.name)) },
-            text = { Text(stringResource(Res.string.stores_remove_body)) },
+            title = { AppText(stringResource(Res.string.stores_remove_title, current.store.name)) },
+            text = { AppText(stringResource(Res.string.stores_remove_body)) },
             confirmButton = {
-                TextButton(
+                AppTextButton(
                     onClick = {
                         scope.launch {
                             val ok = session.removeStore(current.store.id)
@@ -227,11 +227,11 @@ fun ExtensionStoresScreen(
                         }
                     },
                     modifier = Modifier.testTag(StoreRemoveConfirmTag),
-                ) { Text(stringResource(Res.string.stores_remove_confirm)) }
+                ) { AppText(stringResource(Res.string.stores_remove_confirm)) }
             },
             dismissButton = {
-                TextButton(onClick = { dialog = null }) {
-                    Text(stringResource(Res.string.stores_cancel))
+                AppTextButton(onClick = { dialog = null }) {
+                    AppText(stringResource(Res.string.stores_cancel))
                 }
             },
         )
@@ -269,71 +269,71 @@ private fun StoreRow(
         modifier = Modifier
             .fillMaxWidth()
             .testTag(storeRowTag(store.id))
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+            .padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.Row),
+        verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.ExtraSmall),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Tight)) {
+                AppText(
                     text = store.name,
-                    style = MaterialTheme.typography.bodyLarge,
+                    style = UiTheme.typography.bodyLarge,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Text(
+                AppText(
                     text = store.indexUrl,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = UiTheme.typography.bodySmall,
+                    color = UiTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Text(
+                AppText(
                     text = stringResource(Res.string.stores_count, store.extensionCount),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = UiTheme.typography.bodySmall,
+                    color = UiTheme.colorScheme.onSurfaceVariant,
                 )
-                Text(
+                AppText(
                     text = stringResource(
                         if (store.enabled) Res.string.stores_enabled else Res.string.stores_disabled,
                     ),
-                    style = MaterialTheme.typography.labelSmall,
+                    style = UiTheme.typography.labelSmall,
                     color = if (store.enabled) {
-                        MaterialTheme.colorScheme.primary
+                        UiTheme.colorScheme.primary
                     } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
+                        UiTheme.colorScheme.onSurfaceVariant
                     },
                 )
             }
-            Switch(
+            AppSwitch(
                 checked = store.enabled,
                 onCheckedChange = onToggle,
                 enabled = !running,
                 modifier = Modifier.testTag(storeToggleTag(store.id)),
             )
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            TextButton(
+        Row(horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.ExtraSmall)) {
+            AppTextButton(
                 onClick = onPreview,
                 enabled = !running,
                 modifier = Modifier.testTag(storePreviewTag(store.id)),
-            ) { Text(stringResource(Res.string.stores_preview)) }
-            TextButton(
+            ) { AppText(stringResource(Res.string.stores_preview)) }
+            AppTextButton(
                 onClick = onEdit,
                 enabled = !running,
                 modifier = Modifier.testTag(storeEditTag(store.id)),
-            ) { Text(stringResource(Res.string.stores_edit)) }
-            TextButton(
+            ) { AppText(stringResource(Res.string.stores_edit)) }
+            AppTextButton(
                 onClick = onRemove,
                 enabled = !running,
                 modifier = Modifier.testTag(storeRemoveTag(store.id)),
-            ) { Text(stringResource(Res.string.stores_remove)) }
+            ) { AppText(stringResource(Res.string.stores_remove)) }
         }
         OperationFeedback(status, store.id)
     }
-    HorizontalDivider()
+    AppDivider()
 }
 
 @Composable
@@ -353,37 +353,37 @@ private fun StoreEditDialog(
     val running = status is OperationStatus.Running
     val urlError = validateStoreUrl(url, stores, editingStoreId)
 
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = { if (!running) onDismiss() },
-        title = { Text(title) },
+        title = { AppText(title) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
+            Column(verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Regular)) {
+                AppTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text(stringResource(Res.string.stores_name_field)) },
+                    label = { AppText(stringResource(Res.string.stores_name_field)) },
                     singleLine = true,
                     enabled = !running,
                     modifier = Modifier.testTag("store-name-field"),
                 )
-                OutlinedTextField(
+                AppTextField(
                     value = url,
                     onValueChange = { url = it },
-                    label = { Text(stringResource(Res.string.stores_url_field)) },
+                    label = { AppText(stringResource(Res.string.stores_url_field)) },
                     singleLine = true,
                     enabled = !running,
                     isError = showErrors && urlError != null,
                     modifier = Modifier.testTag("store-url-field"),
                 )
                 if (showErrors && urlError != null) {
-                    Text(
+                    AppText(
                         text = when (urlError) {
                             StoreUrlError.Empty -> stringResource(Res.string.stores_url_empty)
                             StoreUrlError.InvalidScheme -> stringResource(Res.string.stores_url_invalid)
                             StoreUrlError.Duplicate -> stringResource(Res.string.stores_url_duplicate)
                         },
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall,
+                        color = UiTheme.colorScheme.error,
+                        style = UiTheme.typography.bodySmall,
                         modifier = Modifier.testTag("store-url-error"),
                     )
                 }
@@ -391,18 +391,18 @@ private fun StoreEditDialog(
             }
         },
         confirmButton = {
-            TextButton(
+            AppTextButton(
                 onClick = {
                     showErrors = true
                     if (urlError == null) onConfirm(name, url)
                 },
                 enabled = !running,
                 modifier = Modifier.testTag("store-save"),
-            ) { Text(stringResource(Res.string.stores_save)) }
+            ) { AppText(stringResource(Res.string.stores_save)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss, enabled = !running) {
-                Text(stringResource(Res.string.stores_cancel))
+            AppTextButton(onClick = onDismiss, enabled = !running) {
+                AppText(stringResource(Res.string.stores_cancel))
             }
         },
     )
@@ -417,49 +417,49 @@ private fun StoreCatalogDialog(
     onInstall: (CatalogVariantId) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
         modifier = Modifier.testTag(CatalogDialogTag),
         title = {
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(stringResource(Res.string.stores_preview_title))
-                Text(
+            Column(verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Tight)) {
+                AppText(stringResource(Res.string.stores_preview_title))
+                AppText(
                     text = store.name,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = UiTheme.typography.bodySmall,
+                    color = UiTheme.colorScheme.onSurfaceVariant,
                 )
             }
         },
         text = {
             when (catalogState) {
                 null, CatalogState.Loading -> Box(
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = DesignTokens.Sizes.CatalogInputMinHeight),
                     contentAlignment = Alignment.Center,
-                ) { CircularProgressIndicator() }
-                is CatalogState.Failed -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
+                ) { AppCircularProgress() }
+                is CatalogState.Failed -> Column(verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small)) {
+                    AppText(
                         text = stringResource(Res.string.browse_operation_failed, catalogState.message),
-                        color = MaterialTheme.colorScheme.error,
+                        color = UiTheme.colorScheme.error,
                     )
-                    Button(
+                    AppButton(
                         onClick = onRetry,
                         modifier = Modifier.testTag("catalog-retry"),
                     ) {
-                        Text(stringResource(Res.string.stores_refresh))
+                        AppText(stringResource(Res.string.stores_refresh))
                     }
                 }
                 is CatalogState.Ready -> {
                     val refs = catalogState.catalog.variantRefs()
                     if (refs.isEmpty()) {
-                        Text(stringResource(Res.string.stores_preview_empty))
+                        AppText(stringResource(Res.string.stores_preview_empty))
                     } else {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text(
+                        Column(verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small)) {
+                            AppText(
                                 text = stringResource(Res.string.stores_preview_count, refs.size),
-                                style = MaterialTheme.typography.labelMedium,
+                                style = UiTheme.typography.labelMedium,
                             )
                             LazyColumn(
-                                modifier = Modifier.fillMaxWidth().heightIn(max = 320.dp),
+                                modifier = Modifier.fillMaxWidth().heightIn(max = DesignTokens.Breakpoints.CatalogResultsMaxHeight),
                             ) {
                                 items(refs, key = { it.variant.key }) { ref ->
                                     CatalogRow(
@@ -475,8 +475,8 @@ private fun StoreCatalogDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss, modifier = Modifier.testTag("catalog-close")) {
-                Text(stringResource(Res.string.stores_close_preview))
+            AppTextButton(onClick = onDismiss, modifier = Modifier.testTag("catalog-close")) {
+                AppText(stringResource(Res.string.stores_close_preview))
             }
         },
     )
@@ -492,58 +492,58 @@ private fun CatalogRow(
     val running = status is OperationStatus.Running
     Column(
         modifier = Modifier.fillMaxWidth().testTag("catalog-entry-${ref.variant.key}"),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
+        verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Tight),
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+            modifier = Modifier.fillMaxWidth().padding(vertical = DesignTokens.Spacing.Compact),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(Modifier.weight(1f)) {
-                Text(entry.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(
+                AppText(entry.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                AppText(
                     text = listOfNotNull(
                         entry.versionName.takeIf { it.isNotEmpty() },
                         entry.language.takeIf { it.isNotEmpty() },
                         entry.sourceKey.takeIf { it.isNotEmpty() && it != entry.name },
                     ).joinToString(" · "),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = UiTheme.typography.bodySmall,
+                    color = UiTheme.colorScheme.onSurfaceVariant,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
                 if (entry.scriptUrl.isNotEmpty()) {
-                    Text(
+                    AppText(
                         text = entry.scriptUrl,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = UiTheme.typography.labelSmall,
+                        color = UiTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
             }
             when {
-                running -> CircularProgressIndicator(
-                    modifier = Modifier.size(24.dp),
-                    strokeWidth = 2.dp,
+                running -> AppCircularProgress(
+                    modifier = Modifier.size(DesignTokens.Spacing.Large),
+                    strokeWidth = DesignTokens.Sizes.ProgressStroke,
                 )
-                status is OperationStatus.Failed -> TextButton(
+                status is OperationStatus.Failed -> AppTextButton(
                     onClick = onInstall,
                     modifier = Modifier.testTag("catalog-retry-${ref.variant.key}"),
-                ) { Text(stringResource(Res.string.browse_retry)) }
-                status is OperationStatus.Succeeded -> Text(
+                ) { AppText(stringResource(Res.string.browse_retry)) }
+                status is OperationStatus.Succeeded -> AppText(
                     text = stringResource(Res.string.browse_operation_succeeded),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.tertiary,
+                    style = UiTheme.typography.labelMedium,
+                    color = UiTheme.colorScheme.tertiary,
                 )
-                else -> TextButton(
+                else -> AppTextButton(
                     onClick = onInstall,
                     modifier = Modifier.testTag("catalog-install-${ref.variant.key}"),
-                ) { Text(stringResource(Res.string.browse_action_install)) }
+                ) { AppText(stringResource(Res.string.browse_action_install)) }
             }
         }
         OperationFeedback(status, ref.variant.key)
     }
-    HorizontalDivider()
+    AppDivider()
 }
 
 private sealed interface StoreDialog {

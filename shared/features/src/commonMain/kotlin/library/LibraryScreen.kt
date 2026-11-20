@@ -1,12 +1,14 @@
-@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
-
 package app.koyura.features.library
 
 import app.koyura.designsystem.ActionIcon
+import app.koyura.designsystem.DecorativeActionIcon
 import app.koyura.designsystem.ActionIconButton
-import androidx.compose.material3.TopAppBar
+import app.koyura.designsystem.components.ModalReaderSheet
+import app.koyura.designsystem.components.ReaderPill
+import app.koyura.designsystem.components.ReaderTopAppBar
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -31,21 +33,9 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.FilledIconButton
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.IconButtonDefaults
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.ScrollableTabRow
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Tab
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -56,24 +46,40 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import app.koyura.designsystem.CoverDecoder
-import app.koyura.designsystem.DesignTokens
-import app.koyura.designsystem.CoverImageLoader
-import app.koyura.designsystem.Cover
+import app.koyura.designsystem.CrossfadingCover
+import app.koyura.designsystem.CrossfadingCoverScope
 import app.koyura.designsystem.CoverCornerRadius
+import app.koyura.designsystem.CoverDecoder
+import app.koyura.designsystem.CoverImageLoader
+import app.koyura.designsystem.DesignTokens
+import app.koyura.designsystem.components.EmptyScreen
+import app.koyura.designsystem.components.ErrorScreen
+import app.koyura.designsystem.components.LoadingScreen
+import app.koyura.designsystem.ListGroupHeader
 import app.koyura.designsystem.LocalCoverDecoder
 import app.koyura.designsystem.LocalCoverImageLoader
-import app.koyura.designsystem.ListGroupHeader
+import app.koyura.designsystem.components.AppAlertDialog
+import app.koyura.designsystem.components.AppButton
+import app.koyura.designsystem.components.AppCircularProgress
+import app.koyura.designsystem.components.AppDivider
+import app.koyura.designsystem.components.AppFilledIconButton
+import app.koyura.designsystem.components.AppScrollableTabBar
+import app.koyura.designsystem.components.AppSurface
+import app.koyura.designsystem.components.AppTab
+import app.koyura.designsystem.components.AppText
+import app.koyura.designsystem.components.AppTextButton
+import app.koyura.designsystem.components.AppTextField
+import app.koyura.designsystem.components.UiTheme
 import app.koyura.features.resources.Res
-import app.koyura.features.resources.library_menu_refresh
 import app.koyura.features.resources.library_action_change_categories
 import app.koyura.features.resources.library_action_download
 import app.koyura.features.resources.library_action_failed
@@ -96,6 +102,7 @@ import app.koyura.features.resources.library_global_search
 import app.koyura.features.resources.library_group
 import app.koyura.features.resources.library_invert_selection
 import app.koyura.features.resources.library_load_failed
+import app.koyura.features.resources.library_menu_refresh
 import app.koyura.features.resources.library_more
 import app.koyura.features.resources.library_no_results
 import app.koyura.features.resources.library_random_open
@@ -227,56 +234,49 @@ fun LibraryScreen(
         LibraryCategoryTabs(session = session)
         session.actionError?.let { message ->
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
+                modifier = Modifier.fillMaxWidth().padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.ExtraSmall)
                     .testTag(LibraryActionErrorTag),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small),
             ) {
-                Text(
+                AppText(
                     text = stringResource(Res.string.library_action_failed, message),
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall,
+                    color = UiTheme.colorScheme.error,
+                    style = UiTheme.typography.bodySmall,
                     modifier = Modifier.weight(1f),
                 )
-                TextButton(onClick = { session.clearActionError() }) {
-                    Text(stringResource(Res.string.library_cancel))
+                AppTextButton(onClick = { session.clearActionError() }) {
+                    AppText(stringResource(Res.string.library_cancel))
                 }
             }
         }
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
             when (val load = session.loadState) {
-                LibraryLoadState.Loading -> Box(
-                    modifier = Modifier.fillMaxSize().testTag(LibraryLoadingTag),
-                    contentAlignment = Alignment.Center,
+                LibraryLoadState.Loading -> LoadingScreen(Modifier.testTag(LibraryLoadingTag))
+                is LibraryLoadState.Failed -> ErrorScreen(
+                    message = stringResource(Res.string.library_load_failed, load.message),
+                    modifier = Modifier.testTag(LibraryErrorTag),
                 ) {
-                    CircularProgressIndicator()
-                }
-                is LibraryLoadState.Failed -> Column(
-                    modifier = Modifier.fillMaxSize().padding(24.dp).testTag(LibraryErrorTag),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Text(
-                        text = stringResource(Res.string.library_load_failed, load.message),
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                    Button(
+                    AppButton(
                         onClick = { scope.launch { session.refresh() } },
                         modifier = Modifier.testTag(LibraryRetryTag),
                     ) {
-                        Text(stringResource(Res.string.library_retry))
+                        AppText(stringResource(Res.string.library_retry))
                     }
                 }
                 LibraryLoadState.Unavailable,
                 LibraryLoadState.Ready,
-                -> LibraryContent(
-                    session = session,
-                    decodeCover = decodeCover,
-                    onOpenWork = onOpenWork,
-                    onContinue = onContinue,
-                    onOpenBrowse = onOpenBrowse,
-                    onGlobalSearch = onGlobalSearch,
-                    onGuide = onGuide,
-                )
+                -> CrossfadingCoverScope {
+                    LibraryContent(
+                        session = session,
+                        decodeCover = decodeCover,
+                        onOpenWork = onOpenWork,
+                        onContinue = onContinue,
+                        onOpenBrowse = onOpenBrowse,
+                        onGlobalSearch = onGlobalSearch,
+                        onGuide = onGuide,
+                    )
+                }
             }
         }
         if (session.selection.isNotEmpty()) {
@@ -312,25 +312,25 @@ private fun LibraryToolbar(
 ) {
     var overflow by remember { mutableStateOf(false) }
     Column(modifier = Modifier.fillMaxWidth()) {
-        TopAppBar(
+        ReaderTopAppBar(
             title = {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small),
                 ) {
-                    Text(
+                    AppText(
                         text = stringResource(Res.string.library_title),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false).testTag(LibraryTitleTag),
                     )
                     if (session.snapshot.prefs.showWorkCount) {
-                        Surface(shape = MaterialTheme.shapes.small, tonalElevation = 2.dp) {
-                            Text(
+                        AppSurface(shape = UiTheme.shapes.small, tonalElevation = DesignTokens.Elevation.Raised) {
+                            AppText(
                                 // 同一可见范围：隐藏关闭时仅归属隐藏分类的作品不计入总数。
                                 text = session.countForTab(null).toString(),
-                                style = MaterialTheme.typography.labelMedium,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                style = UiTheme.typography.labelMedium,
+                                modifier = Modifier.padding(horizontal = DesignTokens.Spacing.Small, vertical = DesignTokens.Spacing.ExtraSmall)
                                     .testTag(LibraryCountTag),
                             )
                         }
@@ -379,10 +379,10 @@ private fun LibraryToolbar(
             )
         }
         if (searching) {
-            OutlinedTextField(
+            AppTextField(
                 value = session.query,
                 onValueChange = { session.updateQuery(it) },
-                placeholder = { Text(stringResource(Res.string.library_search_hint)) },
+                placeholder = { AppText(stringResource(Res.string.library_search_hint)) },
                 singleLine = true,
                 trailingIcon = {
                     if (session.query.isNotEmpty()) {
@@ -393,7 +393,7 @@ private fun LibraryToolbar(
                         )
                     }
                 },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+                modifier = Modifier.fillMaxWidth().padding(horizontal = DesignTokens.Spacing.Medium)
                     .testTag(LibrarySearchTag),
             )
         }
@@ -412,13 +412,13 @@ private fun LibraryOverflowDialog(
     onGlobalSearch: (() -> Unit)?,
 ) {
     val scope = rememberCoroutineScope()
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(Res.string.library_more)) },
+        title = { AppText(stringResource(Res.string.library_more)) },
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+                verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.ExtraSmall),
             ) {
                 LibraryOverflowRow(
                     label = stringResource(Res.string.library_sort),
@@ -470,8 +470,8 @@ private fun LibraryOverflowDialog(
         },
         confirmButton = {},
         dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(Res.string.library_close))
+            AppTextButton(onClick = onDismiss) {
+                AppText(stringResource(Res.string.library_close))
             }
         },
     )
@@ -484,12 +484,12 @@ private fun LibraryOverflowRow(
     onClick: () -> Unit,
     enabled: Boolean = true,
 ) {
-    TextButton(
+    AppTextButton(
         onClick = onClick,
         enabled = enabled,
         modifier = Modifier.fillMaxWidth().testTag(tag),
     ) {
-        Text(
+        AppText(
             text = label,
             modifier = Modifier.fillMaxWidth(),
         )
@@ -498,9 +498,9 @@ private fun LibraryOverflowRow(
 
 @Composable
 private fun LibrarySelectionToolbar(session: LibrarySession) {
-    TopAppBar(
+    ReaderTopAppBar(
         title = {
-            Text(
+            AppText(
                 text = session.selection.size.toString(),
                 modifier = Modifier.testTag(LibrarySelectionCountTag),
             )
@@ -540,34 +540,30 @@ private fun LibraryCategoryTabs(session: LibrarySession) {
     val tabs = session.tabs
     if (tabs.size <= 1 && session.snapshot.categories.isEmpty()) return
     val selected = tabs.indexOfFirst { it?.id == session.activeCategoryId }.takeIf { it >= 0 } ?: 0
-    ScrollableTabRow(
+    AppScrollableTabBar(
         selectedTabIndex = selected,
         modifier = Modifier.fillMaxWidth().testTag(LibraryTabsTag),
-        edgePadding = 16.dp,
+        edgePadding = DesignTokens.Spacing.Medium,
     ) {
         tabs.forEachIndexed { index, category ->
             // 同一可见范围：页签计数按隐藏开关过滤，仅归属隐藏的在“全部”中不计。
             val count = session.countForTab(category?.id)
-            Tab(
+            AppTab(
                 selected = index == selected,
                 onClick = { session.selectCategory(category?.id) },
                 modifier = Modifier.testTag(libraryTabTag(category?.id)),
                 text = {
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Compact),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(
+                        AppText(
                             category?.name ?: stringResource(Res.string.library_tab_all),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
                         if (session.snapshot.prefs.showWorkCount) {
-                            Text(
-                                text = count.toString(),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
+                            ReaderPill(text = count.toString(), countStyle = true)
                         }
                     }
                 },
@@ -600,28 +596,28 @@ private fun LibraryContent(
     }
     if (session.visibleEntries.isEmpty()) {
         Column(
-            modifier = Modifier.fillMaxSize().padding(24.dp).testTag(LibraryNoResultsTag),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.fillMaxSize().padding(DesignTokens.Spacing.Large).testTag(LibraryNoResultsTag),
+            verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Regular),
         ) {
-            Text(
+            AppText(
                 text = stringResource(Res.string.library_no_results),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = UiTheme.typography.bodyMedium,
+                color = UiTheme.colorScheme.onSurfaceVariant,
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Button(
+            Row(horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Regular)) {
+                AppButton(
                     onClick = { session.updateQuery("") },
                     modifier = Modifier.testTag(LibraryNoResultsClearTag),
                 ) {
-                    Text(stringResource(Res.string.library_search_clear))
+                    AppText(stringResource(Res.string.library_search_clear))
                 }
                 // 全局搜索暂无生产目的地：无回调时禁用（保留测试锚点，生产不响应）。
-                TextButton(
+                AppTextButton(
                     onClick = { onGlobalSearch?.invoke() },
                     enabled = onGlobalSearch != null,
                     modifier = Modifier.testTag(LibraryGlobalSearchTag),
                 ) {
-                    Text(stringResource(Res.string.library_global_search))
+                    AppText(stringResource(Res.string.library_global_search))
                 }
             }
         }
@@ -658,43 +654,38 @@ private fun LibraryEmptyState(
     onGlobalSearch: (() -> Unit)?,
     onGuide: (() -> Unit)?,
 ) {
-    Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp).testTag(LibraryEmptyTag),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Text(
-            text = stringResource(Res.string.library_empty),
-            style = MaterialTheme.typography.headlineSmall,
-        )
-        Text(
-            text = stringResource(Res.string.library_empty_body),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Button(
-            onClick = onOpenBrowse,
-            modifier = Modifier.testTag(LibraryEmptyBrowseTag),
-        ) {
-            Text(stringResource(Res.string.library_empty_browse))
-        }
-        // 指南与全局搜索暂无生产目的地：无回调时禁用（保留测试锚点），空书架浏览始终可用。
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            TextButton(
-                onClick = { onGuide?.invoke() },
-                enabled = onGuide != null,
-                modifier = Modifier.testTag(LibraryEmptyGuideTag),
+    EmptyScreen(
+        emoji = "(・∀・)",
+        message = stringResource(Res.string.library_empty),
+        supportingText = stringResource(Res.string.library_empty_body),
+        illustrationModifier = Modifier.testTag("library-empty-kaomoji"),
+        modifier = Modifier.testTag(LibraryEmptyTag),
+        actions = {
+            AppButton(
+                onClick = onOpenBrowse,
+                modifier = Modifier.testTag(LibraryEmptyBrowseTag),
             ) {
-                Text(stringResource(Res.string.library_empty_guide))
+                AppText(stringResource(Res.string.library_empty_browse))
             }
-            TextButton(
-                onClick = { onGlobalSearch?.invoke() },
-                enabled = onGlobalSearch != null,
-                modifier = Modifier.testTag(LibraryGlobalSearchTag),
-            ) {
-                Text(stringResource(Res.string.library_global_search))
+            // 指南与全局搜索暂无生产目的地：无回调时禁用（保留测试锚点），空书架浏览始终可用。
+            Row(horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Regular)) {
+                AppTextButton(
+                    onClick = { onGuide?.invoke() },
+                    enabled = onGuide != null,
+                    modifier = Modifier.testTag(LibraryEmptyGuideTag),
+                ) {
+                    AppText(stringResource(Res.string.library_empty_guide))
+                }
+                AppTextButton(
+                    onClick = { onGlobalSearch?.invoke() },
+                    enabled = onGlobalSearch != null,
+                    modifier = Modifier.testTag(LibraryGlobalSearchTag),
+                ) {
+                    AppText(stringResource(Res.string.library_global_search))
+                }
             }
-        }
-    }
+        },
+    )
 }
 
 @Composable
@@ -802,7 +793,7 @@ private fun LibraryListContent(
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize().testTag(LibraryListTag),
-        contentPadding = PaddingValues(vertical = 8.dp),
+        contentPadding = PaddingValues(vertical = DesignTokens.Spacing.Small),
     ) {
         sections.forEach { section ->
             if (section.title.isNotEmpty()) {
@@ -820,7 +811,7 @@ private fun LibraryListContent(
                     onOpenWork = onOpenWork,
                     onContinue = onContinue,
                 )
-                HorizontalDivider()
+                AppDivider()
             }
         }
     }
@@ -835,8 +826,8 @@ private fun LibraryPanoramaContent(
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize().testTag(LibraryPanoramaTag),
-        contentPadding = PaddingValues(12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(DesignTokens.Spacing.Regular),
+        verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Regular),
     ) {
         session.visibleSections.forEach { section ->
             if (section.title.isNotEmpty()) {
@@ -889,9 +880,9 @@ private fun LibraryCoverImage(
 ) {
     // 书架封面走全仓唯一 A 轨管线：加载器委托会话单次取图（失败抛错转 null 回退占位），
     // 解码器沿用调用方注入的平台实现；内存缓存沿用默认按源隔离实例。
-    val loader = remember(entry.sourceKey, entry.coverUrl) {
+    val loader = remember(session, entry.sourceKey, entry.coverUrl) {
         CoverImageLoader { _, _ ->
-            runCatching { session.coverBytes(entry) }.getOrNull()
+            session.coverBytes(entry)
         }
     }
     val decoder = remember(decodeCover) {
@@ -901,12 +892,23 @@ private fun LibraryCoverImage(
         LocalCoverImageLoader provides loader,
         LocalCoverDecoder provides decoder,
     ) {
-        Cover(
-            sourceKey = entry.sourceKey,
-            coverUrl = entry.coverUrl,
-            label = entry.displayTitle,
-            modifier = modifier,
-        )
+        val selected = entry.key in session.selection
+        val outline = if (selected) {
+            Modifier.border(DesignTokens.Sizes.SelectionOutline, UiTheme.colorScheme.secondary, RoundedCornerShape(CoverCornerRadius))
+        } else {
+            Modifier
+        }
+        Box(modifier) {
+            CrossfadingCover(
+                sourceKey = entry.sourceKey,
+                coverUrl = entry.coverUrl,
+                label = entry.displayTitle,
+                modifier = Modifier.matchParentSize().alpha(
+                    if (selected) DesignTokens.Alpha.GridSelectedCover else 1f,
+                ),
+            )
+            if (selected) Box(Modifier.matchParentSize().then(outline))
+        }
     }
 }
 
@@ -923,51 +925,51 @@ private fun BoxScope.LibraryCoverBadges(
         verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.ExtraSmall),
     ) {
         if (prefs.showUnreadBadges && entry.unreadCount > 0) {
-            Surface(
+            AppSurface(
                 shape = RoundedCornerShape(DesignTokens.Radius.ExtraSmall),
-                color = MaterialTheme.colorScheme.primary,
+                color = UiTheme.colorScheme.primary,
                 modifier = Modifier.height(DesignTokens.Sizes.BadgeHeight)
                     .testTag(libraryUnreadBadgeTag(entry.sourceKey, entry.workId)),
             ) {
-                Text(
+                AppText(
                     text = stringResource(Res.string.library_unread_chapters, entry.unreadCount.toInt()),
-                    style = MaterialTheme.typography.bodySmall,
+                    style = UiTheme.typography.bodySmall,
                     fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onPrimary,
+                    color = UiTheme.colorScheme.onPrimary,
                     modifier = Modifier.padding(DesignTokens.Sizes.BadgeContentPadding),
                 )
             }
         }
         if (prefs.showDownloadBadges && entry.downloadedCount > 0) {
-            Surface(
+            AppSurface(
                 shape = RoundedCornerShape(DesignTokens.Radius.ExtraSmall),
-                color = MaterialTheme.colorScheme.tertiary,
+                color = UiTheme.colorScheme.tertiary,
                 modifier = Modifier.height(DesignTokens.Sizes.BadgeHeight)
                     .testTag(libraryDownloadBadgeTag(entry.sourceKey, entry.workId)),
             ) {
-                Text(
+                AppText(
                     text = stringResource(Res.string.library_downloaded_chapters, entry.downloadedCount.toInt()),
-                    style = MaterialTheme.typography.bodySmall,
+                    style = UiTheme.typography.bodySmall,
                     fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onTertiary,
+                    color = UiTheme.colorScheme.onTertiary,
                     modifier = Modifier.padding(DesignTokens.Sizes.BadgeContentPadding),
                 )
             }
         }
     }
     if (prefs.showLanguageBadges && (entry.language.isNotBlank() || entry.sourceName.isNotBlank())) {
-        Surface(
+        AppSurface(
             shape = RoundedCornerShape(DesignTokens.Radius.ExtraSmall),
-            color = MaterialTheme.colorScheme.surfaceVariant,
+            color = UiTheme.colorScheme.surfaceVariant,
             modifier = Modifier.align(Alignment.TopEnd).padding(DesignTokens.Spacing.ExtraSmall)
                 .height(DesignTokens.Sizes.BadgeHeight)
                 .testTag(libraryLanguageBadgeTag(entry.sourceKey, entry.workId)),
         ) {
-            Text(
+            AppText(
                 text = entry.language.uppercase().ifBlank { entry.sourceName.take(2).uppercase() },
-                style = MaterialTheme.typography.bodySmall,
+                style = UiTheme.typography.bodySmall,
                 fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = UiTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(DesignTokens.Sizes.BadgeContentPadding),
             )
         }
@@ -975,38 +977,31 @@ private fun BoxScope.LibraryCoverBadges(
     if (session.selection.contains(entry.key)) {
         Box(
             modifier = Modifier.align(Alignment.Center)
-                .size(40.dp)
-                .clip(RoundedCornerShape(20.dp))
-                .background(MaterialTheme.colorScheme.primary),
+                .size(DesignTokens.Sizes.SelectionMarker)
+                .clip(CircleShape)
+                .background(UiTheme.colorScheme.primary),
             contentAlignment = Alignment.Center,
         ) {
-            ActionIcon(ActionIcon.Checklist, null, tint = MaterialTheme.colorScheme.onPrimary)
+            DecorativeActionIcon(ActionIcon.Checklist, tint = UiTheme.colorScheme.onPrimary)
         }
     } else if (prefs.showContinueButton && entry.canContinue) {
         // 白皮书 06 §6.6 Continue 钮：small 圆角、primaryContainer 90% 容器；
         // 尺寸按 Code（CommonMangaItem.kt:62,65 小尺寸档 28dp 钮 / 16dp 图标）。
-        FilledIconButton(
-            onClick = { onContinue(entry) },
-            shape = RoundedCornerShape(DesignTokens.Radius.Small),
-            colors = IconButtonDefaults.filledIconButtonColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(
-                    alpha = DesignTokens.Alpha.ContinueReading,
-                ),
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            ),
-            modifier = Modifier.align(Alignment.BottomEnd).padding(DesignTokens.Spacing.ExtraSmall)
-                .size(DesignTokens.Sizes.ContinueButtonSize)
-                .testTag(libraryContinueTag(entry.sourceKey, entry.workId)),
-        ) {
-            ActionIcon(
-                icon = ActionIcon.Play,
-                contentDescription = stringResource(
-                    if (entry.hasStarted) Res.string.library_continue else Res.string.library_start,
-                ),
-                modifier = Modifier.size(DesignTokens.Sizes.ContinueButtonIconSize),
-            )
+        Box(Modifier.align(Alignment.BottomEnd)) {
+            LibraryContinueButton(entry, onContinue)
         }
     }
+}
+
+@Composable
+private fun libraryLabelColor(entry: LibraryEntry, secondary: Boolean = false): Color {
+    val read = entry.unreadCount == 0L && (entry.totalChapters > 0 || entry.hasStarted)
+    val alpha = when {
+        read -> DesignTokens.Alpha.Disabled
+        secondary -> DesignTokens.Alpha.Secondary
+        else -> 1f
+    }
+    return UiTheme.colorScheme.onSurface.copy(alpha = alpha)
 }
 
 @Composable
@@ -1027,12 +1022,13 @@ private fun LibraryCompactCard(
             )
             LibraryCoverBadges(entry = entry, session = session, onContinue = onContinue)
         }
-        Text(
+        AppText(
             text = entry.displayTitle,
-            style = MaterialTheme.typography.bodyMedium,
-            maxLines = 1,
+            color = libraryLabelColor(entry),
+            style = UiTheme.typography.bodyMedium,
+            maxLines = 2,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 4.dp).testTag(libraryCardTitleTag(entry.sourceKey, entry.workId)),
+            modifier = Modifier.padding(top = DesignTokens.Spacing.ExtraSmall).testTag(libraryCardTitleTag(entry.sourceKey, entry.workId)),
         )
     }
 }
@@ -1055,18 +1051,19 @@ private fun LibraryComfortableCard(
             )
             LibraryCoverBadges(entry = entry, session = session, onContinue = onContinue)
         }
-        Text(
+        AppText(
             text = entry.displayTitle,
-            style = MaterialTheme.typography.bodyLarge,
+            color = libraryLabelColor(entry),
+            style = UiTheme.typography.bodyLarge,
             fontWeight = FontWeight.SemiBold,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 6.dp).testTag(libraryCardTitleTag(entry.sourceKey, entry.workId)),
+            modifier = Modifier.padding(top = DesignTokens.Spacing.Compact).testTag(libraryCardTitleTag(entry.sourceKey, entry.workId)),
         )
-        Text(
+        AppText(
             text = entry.sourceName,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = UiTheme.typography.bodySmall,
+            color = libraryLabelColor(entry, secondary = true),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -1106,8 +1103,8 @@ private fun LibraryListRow(
     Row(
         modifier = LibraryCardModifier(entry, session, onOpenWork)
             .fillMaxWidth()
-            .height(96.dp)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .heightIn(min = DesignTokens.Sizes.HistoryItemHeight)
+            .padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.Small),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box {
@@ -1115,31 +1112,32 @@ private fun LibraryListRow(
                 entry = entry,
                 session = session,
                 decodeCover = decodeCover,
-                modifier = Modifier.size(width = 56.dp, height = 80.dp),
+                modifier = Modifier.size(width = DesignTokens.Sizes.LibraryListCoverWidth, height = DesignTokens.Sizes.LibraryListCoverHeight),
             )
             if (session.selection.contains(entry.key)) {
                 // 多选态：secondary 16–22% 行叠加（白皮书 02 §2.7 / 08 §8.2），亮暗按 surface 明度区分。
-                val selectedOverlay = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) {
+                val selectedOverlay = if (UiTheme.colorScheme.surface.luminance() < 0.5f) {
                     DesignTokens.Alpha.SelectedBackgroundDark
                 } else {
                     DesignTokens.Alpha.SelectedBackgroundLight
                 }
                 Box(
-                    modifier = Modifier.size(width = 56.dp, height = 80.dp)
-                        .background(MaterialTheme.colorScheme.secondary.copy(alpha = selectedOverlay)),
+                    modifier = Modifier.size(width = DesignTokens.Sizes.LibraryListCoverWidth, height = DesignTokens.Sizes.LibraryListCoverHeight)
+                        .background(UiTheme.colorScheme.secondary.copy(alpha = selectedOverlay)),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text("✓", color = MaterialTheme.colorScheme.onSecondary)
+                    AppText("✓", color = UiTheme.colorScheme.onSecondary)
                 }
             }
         }
         Column(
-            modifier = Modifier.weight(1f).padding(start = 16.dp, end = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
+            modifier = Modifier.weight(1f).padding(start = DesignTokens.Spacing.Medium, end = DesignTokens.Spacing.Small),
+            verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Tight),
         ) {
-            Text(
+            AppText(
                 text = entry.displayTitle,
-                style = MaterialTheme.typography.bodyMedium,
+                color = libraryLabelColor(entry),
+                style = UiTheme.typography.bodyMedium,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
@@ -1153,44 +1151,45 @@ private fun LibraryListRow(
                 if (entry.totalChapters > 0) add(entry.totalChapters.toString())
             }.joinToString(" · ")
             if (secondary.isNotEmpty()) {
-                Text(
+                AppText(
                     text = secondary,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = UiTheme.typography.bodySmall,
+                    color = libraryLabelColor(entry, secondary = true),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            Text(
+            AppText(
                 text = entry.sourceName,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = UiTheme.typography.labelSmall,
+                color = libraryLabelColor(entry, secondary = true),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
         }
         if (session.snapshot.prefs.showContinueButton && entry.canContinue) {
-            FilledIconButton(
-                onClick = { onContinue(entry) },
-                shape = RoundedCornerShape(DesignTokens.Radius.Small),
-                colors = IconButtonDefaults.filledIconButtonColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(
-                        alpha = DesignTokens.Alpha.ContinueReading,
-                    ),
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                ),
-                modifier = Modifier.size(DesignTokens.Sizes.ContinueButtonSize)
-                    .testTag(libraryContinueTag(entry.sourceKey, entry.workId)),
-            ) {
-                ActionIcon(
-                    icon = ActionIcon.Play,
-                    contentDescription = stringResource(
-                        if (entry.hasStarted) Res.string.library_continue else Res.string.library_start,
-                    ),
-                    modifier = Modifier.size(DesignTokens.Sizes.ContinueButtonIconSize),
-                )
-            }
+            LibraryContinueButton(entry, onContinue)
         }
+    }
+}
+
+@Composable
+private fun LibraryContinueButton(
+    entry: LibraryEntry,
+    onContinue: (LibraryEntry) -> Unit,
+) {
+    val label = stringResource(if (entry.hasStarted) Res.string.library_continue else Res.string.library_start)
+    val scheme = UiTheme.colorScheme
+    AppFilledIconButton(
+        onClick = { onContinue(entry) },
+        label = label,
+        shape = RoundedCornerShape(DesignTokens.Radius.Small),
+        containerColor = scheme.primaryContainer.copy(alpha = DesignTokens.Alpha.ContinueReading),
+        contentColor = scheme.onPrimaryContainer,
+        visualSize = DesignTokens.Sizes.ContinueButtonSize,
+        modifier = Modifier.testTag(libraryContinueTag(entry.sourceKey, entry.workId)),
+    ) {
+        ActionIcon(ActionIcon.Play, label, modifier = Modifier.size(DesignTokens.Sizes.ContinueButtonIconSize))
     }
 }
 
@@ -1205,7 +1204,7 @@ private fun LibraryPanoramaCard(
     Box(
         modifier = LibraryCardModifier(entry, session, onOpenWork)
             .fillMaxWidth()
-            .height(160.dp)
+            .height(DesignTokens.Sizes.PanoramaCoverHeight)
             .clip(RoundedCornerShape(CoverCornerRadius)),
     ) {
         LibraryCoverImage(
@@ -1216,16 +1215,17 @@ private fun LibraryPanoramaCard(
         )
         Box(
             modifier = Modifier.fillMaxSize()
-                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.55f)),
+                .background(UiTheme.colorScheme.surface.copy(alpha = 0.55f)),
         )
         LibraryCoverBadges(entry = entry, session = session, onContinue = onContinue)
-        Text(
+        AppText(
             text = entry.displayTitle,
-            style = MaterialTheme.typography.titleMedium,
+            color = libraryLabelColor(entry),
+            style = UiTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.align(Alignment.BottomStart).padding(12.dp)
+            modifier = Modifier.align(Alignment.BottomStart).padding(DesignTokens.Spacing.Regular)
                 .testTag(libraryCardTitleTag(entry.sourceKey, entry.workId)),
         )
     }
@@ -1242,13 +1242,13 @@ private fun LibraryBottomMenu(
     onRemove: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
-    Surface(
-        tonalElevation = 3.dp,
+    AppSurface(
+        tonalElevation = DesignTokens.Elevation.AppBarScrolled,
         modifier = Modifier.fillMaxWidth().testTag(LibraryBottomMenuTag),
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = DesignTokens.Spacing.Small, vertical = DesignTokens.Spacing.Small),
+            horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.ExtraSmall),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             ActionIconButton(
@@ -1290,7 +1290,7 @@ private fun LibraryBottomMenu(
                 label = stringResource(Res.string.library_action_remove),
                 onClick = onRemove,
                 modifier = Modifier.testTag(LibraryBottomRemoveTag),
-                contentColor = MaterialTheme.colorScheme.error,
+                contentColor = UiTheme.colorScheme.error,
             )
         }
     }
@@ -1328,36 +1328,31 @@ private fun LibrarySheetHost(
             },
             onDismiss = onDismiss,
         )
-        else -> Dialog(onDismissRequest = onDismiss) {
-            Surface(
-                shape = RoundedCornerShape(16.dp),
-                tonalElevation = 6.dp,
+        else -> ModalReaderSheet(onDismissRequest = onDismiss) {
+            Column(
+                modifier = Modifier.fillMaxWidth()
+                    .heightIn(max = DesignTokens.Breakpoints.DialogMaxWidth)
+                    .verticalScroll(rememberScrollState())
+                    .padding(vertical = DesignTokens.Spacing.Small),
             ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth()
-                        .heightIn(max = 560.dp)
-                        .verticalScroll(rememberScrollState())
-                        .padding(vertical = 8.dp),
+                when (sheet) {
+                    LibrarySheet.FILTER -> LibraryFilterPage(
+                        session = session,
+                        onEditCategories = { onOpenSheet(LibrarySheet.CATEGORIES) },
+                    )
+                    LibrarySheet.SORT -> LibrarySortPage(session = session)
+                    LibrarySheet.DISPLAY -> LibraryDisplayPage(session = session)
+                    LibrarySheet.GROUP -> LibraryGroupPage(session = session)
+                    LibrarySheet.CATEGORIES -> LibraryCategoriesPage(session = session)
+                    else -> Unit
+                }
+                AppTextButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                        .padding(bottom = DesignTokens.Spacing.Small)
+                        .testTag(LibrarySheetCloseTag),
                 ) {
-                    when (sheet) {
-                        LibrarySheet.FILTER -> LibraryFilterPage(
-                            session = session,
-                            onEditCategories = { onOpenSheet(LibrarySheet.CATEGORIES) },
-                        )
-                        LibrarySheet.SORT -> LibrarySortPage(session = session)
-                        LibrarySheet.DISPLAY -> LibraryDisplayPage(session = session)
-                        LibrarySheet.GROUP -> LibraryGroupPage(session = session)
-                        LibrarySheet.CATEGORIES -> LibraryCategoriesPage(session = session)
-                        else -> Unit
-                    }
-                    TextButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.align(Alignment.CenterHorizontally)
-                            .padding(bottom = 8.dp)
-                            .testTag(LibrarySheetCloseTag),
-                    ) {
-                        Text(stringResource(Res.string.library_close))
-                    }
+                    AppText(stringResource(Res.string.library_close))
                 }
             }
         }

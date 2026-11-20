@@ -177,4 +177,24 @@
     <string name="history_clear_confirm">Clear</string>
     <string name="stores_cancel">Cancel</string>
     <string name="stores_remove_confirm">Remove</string>
+    <string name="source_detail_suggestions">Suggestions</string>
+    <string name="source_detail_suggestions_empty">No suggestions available</string>
+    <string name="history_row_actions">History actions</string>
+    <string name="history_unread">Unread chapters</string>
+    <string name="status_indexing">Indexing</string>
+    <string name="status_downloaded_only">Downloaded only</string>
+    <string name="status_incognito">Incognito mode</string>
+    <string name="browse_feed_title">Feed</string>
+    <string name="browse_feed_empty">No feed entries yet</string>
+    <string name="browse_feed_adult">Show 18+ content</string>
+    <string name="browse_migrate_title">Migrate</string>
+    <string name="browse_migrate_empty">No migration results yet</string>
+    <string name="utility_update_errors">Update errors</string>
+    <string name="utility_data_storage">Data &amp; storage</string>
+    <string name="utility_batch_add">Batch add</string>
+    <string name="utility_about">About</string>
+    <string name="utility_help">Help</string>
+    <string name="utility_title">Tools</string>
+    <string name="utility_message">This tool is unavailable.</string>
+    <string name="utility_back">Back</string>
 </resources>

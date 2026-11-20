@@ -7,11 +7,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Snackbar
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -27,7 +22,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.unit.dp
+import app.koyura.designsystem.DesignTokens
+import app.koyura.designsystem.components.ProvideUiContentColor
+import app.koyura.designsystem.ReaderTheme
+import app.koyura.designsystem.components.AppButton
+import app.koyura.designsystem.components.AppCircularProgress
+import app.koyura.designsystem.components.AppSnackbar
+import app.koyura.designsystem.components.AppText
+import app.koyura.designsystem.components.UiTheme
 import app.koyura.domain.reader.preferences.ReaderBackground
 import app.koyura.domain.reader.preferences.ReaderLayout
 import app.koyura.domain.reader.preferences.ReaderPreferences
@@ -36,7 +38,6 @@ import app.koyura.domain.reader.preferences.ReaderSettings
 import app.koyura.domain.reader.preferences.WorkReaderOverride
 import app.koyura.domain.reader.preferences.patchedWith
 import app.koyura.domain.reader.preferences.withOverride
-import app.koyura.designsystem.ReaderTheme
 import app.koyura.features.reader.comic.chrome.ChapterEntry
 import app.koyura.features.reader.comic.chrome.ReaderChrome
 import app.koyura.features.reader.comic.chrome.ReaderChromeAction
@@ -89,6 +90,7 @@ fun ComicReaderScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     preferences: ReaderPreferences? = null,
+    fallbackBackground: ReaderBackground = ReaderBackground.AUTOMATIC,
     installBackHandler: @Composable (() -> Unit) -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
@@ -116,7 +118,9 @@ fun ComicReaderScreen(
         if (settings == null) {
             try {
                 settings = preferences?.load(sourceKey, workId)
-                    ?: ReaderPreferencesSnapshot(global = ReaderSettings(layout = ReaderLayout.SINGLE_PAGE))
+                    ?: ReaderPreferencesSnapshot(
+                        global = ReaderSettings(layout = ReaderLayout.SINGLE_PAGE, background = fallbackBackground),
+                    )
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: Exception) {
@@ -197,10 +201,10 @@ fun ComicReaderScreen(
         if (dialog != ReaderChromeDialog.None) dialog = ReaderChromeDialog.None else goBack()
     }
 
-    // 根背景读「全局 + 作品覆盖」解析后的档位；未加载完成时按 Automatic。
+    // 已加载的作品和全局选择优先；读取期间使用装配层背景。
     val resolvedBackground = settings
         ?.let { it.global.withOverride(it.override).background }
-        ?: ReaderBackground.AUTOMATIC
+        ?: fallbackBackground
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -212,15 +216,15 @@ fun ComicReaderScreen(
         val loadError = openingFailed ?: (state as? ReaderContentState.Failed)?.message
         when {
             loadError != null -> Column(
-                modifier = Modifier.fillMaxSize().padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
+                modifier = Modifier.fillMaxSize().padding(DesignTokens.Spacing.Large),
+                verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Regular, Alignment.CenterVertically),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text(
+                AppText(
                     text = stringResource(Res.string.reader_load_failed, loadError),
-                    color = MaterialTheme.colorScheme.error,
+                    color = UiTheme.colorScheme.error,
                 )
-                Button(onClick = { attempt++ }) { Text(stringResource(Res.string.reader_retry)) }
+                AppButton(onClick = { attempt++ }) { AppText(stringResource(Res.string.reader_retry)) }
             }
             currentSettings != null && state is ReaderContentState.Ready -> {
                 val content = state.content
@@ -240,7 +244,7 @@ fun ComicReaderScreen(
                     dialog = dialog,
                 )
                 if (content.pageKeys.isEmpty()) {
-                    Text(stringResource(Res.string.reader_empty_pages), Modifier.align(Alignment.Center))
+                    AppText(stringResource(Res.string.reader_empty_pages), Modifier.align(Alignment.Center))
                 } else {
                     key(session.contentSeq) {
                         ComicViewer(
@@ -276,18 +280,20 @@ fun ComicReaderScreen(
                 }
                 // Black/Gray 两档强制暗色 chrome（原版 ContextExtensions.kt:111-118 的 night 上下文语义）。
                 if (resolvedBackground == ReaderBackground.BLACK || resolvedBackground == ReaderBackground.GRAY) {
-                    ReaderTheme(darkTheme = true) { chromeContent() }
+                    ReaderTheme(darkTheme = true) {
+                        ProvideUiContentColor(UiTheme.colorScheme.onSurface, chromeContent)
+                    }
                 } else {
                     chromeContent()
                 }
             }
-            else -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+            else -> AppCircularProgress(Modifier.align(Alignment.Center))
         }
         if (progressFailed || settingsFailed) {
-            Snackbar(Modifier.align(Alignment.TopCenter)) {
+            AppSnackbar(Modifier.align(Alignment.TopCenter)) {
                 val message = if (progressFailed) Res.string.reader_progress_save_failed
                 else Res.string.reader_preferences_save_failed
-                Text(stringResource(message))
+                AppText(stringResource(message))
             }
         }
     }
@@ -333,8 +339,8 @@ fun readerBackgroundColor(
     background: ReaderBackground,
     dark: Boolean,
 ): Color = when (background) {
-    ReaderBackground.AUTOMATIC -> if (dark) Color(0xFF202125) else Color.White
-    ReaderBackground.BLACK -> Color.Black
-    ReaderBackground.GRAY -> Color(0xFF202125)
-    ReaderBackground.WHITE -> Color.White
+    ReaderBackground.AUTOMATIC -> if (dark) DesignTokens.ReaderColors.GrayBackground else DesignTokens.ReaderColors.WhiteBackground
+    ReaderBackground.BLACK -> DesignTokens.ReaderColors.BlackBackground
+    ReaderBackground.GRAY -> DesignTokens.ReaderColors.GrayBackground
+    ReaderBackground.WHITE -> DesignTokens.ReaderColors.WhiteBackground
 }

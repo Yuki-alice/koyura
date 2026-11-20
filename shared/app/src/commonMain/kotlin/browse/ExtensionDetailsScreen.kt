@@ -8,13 +8,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -27,7 +20,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import app.koyura.app.resources.Res
 import app.koyura.app.resources.extension_details_language_title
 import app.koyura.app.resources.extension_details_missing
@@ -45,6 +37,13 @@ import app.koyura.app.resources.extension_trust_nsfw_body
 import app.koyura.app.resources.extension_trust_nsfw_title
 import app.koyura.app.resources.stores_cancel
 import app.koyura.designsystem.DesignTokens
+import app.koyura.designsystem.components.AppAlertDialog
+import app.koyura.designsystem.components.AppButton
+import app.koyura.designsystem.components.AppDivider
+import app.koyura.designsystem.components.AppOutlinedButton
+import app.koyura.designsystem.components.AppText
+import app.koyura.designsystem.components.AppTextButton
+import app.koyura.designsystem.components.UiTheme
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 
@@ -73,15 +72,15 @@ fun ExtensionDetailsScreen(
 
     if (extension == null) {
         Column(
-            modifier = modifier.fillMaxSize().padding(24.dp).testTag(ExtensionDetailsMissingTag),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = modifier.fillMaxSize().padding(DesignTokens.Spacing.Large).testTag(ExtensionDetailsMissingTag),
+            verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Regular),
         ) {
-            Text(
+            AppText(
                 text = stringResource(Res.string.extension_details_missing),
-                style = MaterialTheme.typography.bodyMedium,
+                style = UiTheme.typography.bodyMedium,
             )
-            Button(onClick = onBack) {
-                Text(stringResource(Res.string.extension_details_title))
+            AppButton(onClick = onBack) {
+                AppText(stringResource(Res.string.extension_details_title))
             }
         }
         return
@@ -100,27 +99,27 @@ fun ExtensionDetailsScreen(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-                .padding(top = 16.dp, bottom = 8.dp),
+                .padding(horizontal = DesignTokens.Spacing.Medium)
+                .padding(top = DesignTokens.Spacing.Medium, bottom = DesignTokens.Spacing.Small),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             app.koyura.designsystem.IconPlaceholder(label = extension.name)
-            Text(
+            AppText(
                 extension.name,
-                style = MaterialTheme.typography.headlineSmall,
+                style = UiTheme.typography.headlineSmall,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             )
-            Text(
+            AppText(
                 text = extension.packageName.substringAfter("eu.kanade.tachiyomi.extension."),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = UiTheme.typography.bodySmall,
+                color = UiTheme.colorScheme.onSurfaceVariant,
             )
         }
 
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 32.dp, vertical = 8.dp),
+                .padding(horizontal = DesignTokens.Spacing.ExtraLarge, vertical = DesignTokens.Spacing.Small),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -143,19 +142,19 @@ fun ExtensionDetailsScreen(
 
         Row(
             modifier = Modifier
-                .padding(horizontal = 16.dp)
-                .padding(top = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                .padding(horizontal = DesignTokens.Spacing.Medium)
+                .padding(top = DesignTokens.Spacing.Small),
+            horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Regular),
         ) {
-            OutlinedButton(
+            AppOutlinedButton(
                 onClick = { confirmUninstall = true },
                 enabled = status !is OperationStatus.Running,
                 modifier = Modifier.weight(1f).testTag(ExtensionDetailsUninstallTag),
             ) {
-                Text(stringResource(Res.string.extension_details_uninstall))
+                AppText(stringResource(Res.string.extension_details_uninstall))
             }
             if (extension.hasUpdate) {
-                Button(
+                AppButton(
                     onClick = {
                         if (extension.isNsfw) {
                             confirmTrust = true
@@ -166,7 +165,7 @@ fun ExtensionDetailsScreen(
                     enabled = status !is OperationStatus.Running,
                     modifier = Modifier.weight(1f).testTag(ExtensionDetailsUpdateTag),
                 ) {
-                    Text(
+                    AppText(
                         stringResource(
                             Res.string.extension_details_update,
                             extension.availableVersionName ?: extension.versionName,
@@ -181,26 +180,26 @@ fun ExtensionDetailsScreen(
             target = extension.key,
         )
 
-        HorizontalDivider(modifier = Modifier.padding(top = 8.dp))
+        AppDivider(modifier = Modifier.padding(top = DesignTokens.Spacing.Small))
 
         app.koyura.designsystem.ListGroupHeader(
             text = stringResource(Res.string.extension_details_sources),
         )
         if (extension.sources.isEmpty()) {
-            Text(
+            AppText(
                 text = stringResource(Res.string.extension_details_no_sources),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                style = UiTheme.typography.bodyMedium,
+                color = UiTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.Small),
             )
         } else {
             extension.sources.forEach { source ->
-                Text(
+                AppText(
                     source.name,
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    style = UiTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.Small),
                 )
-                HorizontalDivider()
+                AppDivider()
             }
         }
 
@@ -230,44 +229,44 @@ fun ExtensionDetailsScreen(
                         uiHost?.launchUrl(source.key, url)
                     },
                 )
-                HorizontalDivider()
+                AppDivider()
             }
         }
     }
 
     if (confirmTrust) {
-        AlertDialog(
+        AppAlertDialog(
             onDismissRequest = { confirmTrust = false },
             title = {
-                Text(stringResource(Res.string.extension_trust_nsfw_title))
+                AppText(stringResource(Res.string.extension_trust_nsfw_title))
             },
-            text = { Text(stringResource(Res.string.extension_trust_nsfw_body, extension.name)) },
+            text = { AppText(stringResource(Res.string.extension_trust_nsfw_body, extension.name)) },
             confirmButton = {
-                TextButton(
+                AppTextButton(
                     onClick = {
                         confirmTrust = false
                         scope.launch { session.update(extension.key) }
                     },
                     modifier = Modifier.testTag("extension-details-trust-confirm"),
-                ) { Text(stringResource(Res.string.extension_trust_confirm)) }
+                ) { AppText(stringResource(Res.string.extension_trust_confirm)) }
             },
             dismissButton = {
-                TextButton(onClick = { confirmTrust = false }) {
-                    Text(stringResource(Res.string.stores_cancel))
+                AppTextButton(onClick = { confirmTrust = false }) {
+                    AppText(stringResource(Res.string.stores_cancel))
                 }
             },
         )
     }
 
     if (confirmUninstall) {
-        AlertDialog(
+        AppAlertDialog(
             onDismissRequest = { confirmUninstall = false },
             title = {
-                Text(stringResource(Res.string.extension_details_uninstall_confirm_title, extension.name))
+                AppText(stringResource(Res.string.extension_details_uninstall_confirm_title, extension.name))
             },
-            text = { Text(stringResource(Res.string.extension_details_uninstall_confirm_body)) },
+            text = { AppText(stringResource(Res.string.extension_details_uninstall_confirm_body)) },
             confirmButton = {
-                TextButton(
+                AppTextButton(
                     onClick = {
                         confirmUninstall = false
                         scope.launch {
@@ -275,11 +274,11 @@ fun ExtensionDetailsScreen(
                         }
                     },
                     modifier = Modifier.testTag("extension-details-uninstall-confirm"),
-                ) { Text(stringResource(Res.string.extension_details_uninstall)) }
+                ) { AppText(stringResource(Res.string.extension_details_uninstall)) }
             },
             dismissButton = {
-                TextButton(onClick = { confirmUninstall = false }) {
-                    Text(stringResource(Res.string.stores_cancel))
+                AppTextButton(onClick = { confirmUninstall = false }) {
+                    AppText(stringResource(Res.string.stores_cancel))
                 }
             },
         )
@@ -297,19 +296,19 @@ private fun ExtensionInfoText(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Text(
+        AppText(
             text = primaryText,
             textAlign = TextAlign.Center,
-            style = MaterialTheme.typography.bodyLarge,
+            style = UiTheme.typography.bodyLarge,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
-        Text(
+        AppText(
             text = secondaryText,
             textAlign = TextAlign.Center,
-            style = MaterialTheme.typography.bodyMedium,
+            style = UiTheme.typography.bodyMedium,
             // 次级文字 onSurfaceVariant × 0.78（白皮书 02 §2.5 语义色；Browse 来源副行同式）。
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
+            color = UiTheme.colorScheme.onSurfaceVariant.copy(
                 alpha = DesignTokens.Alpha.Secondary,
             ),
             maxLines = 1,

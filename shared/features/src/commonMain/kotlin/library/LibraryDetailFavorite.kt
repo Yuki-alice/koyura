@@ -1,10 +1,8 @@
 package app.koyura.features.library
 
+import app.koyura.designsystem.DesignTokens
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
-import androidx.compose.material3.Button
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -13,7 +11,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.unit.dp
+import app.koyura.designsystem.components.AppButton
+import app.koyura.designsystem.components.AppOutlinedButton
+import app.koyura.designsystem.components.AppText
 import app.koyura.features.resources.Res
 import app.koyura.features.resources.library_favorite_add
 import app.koyura.features.resources.library_favorite_added
@@ -58,31 +58,31 @@ fun LibraryDetailFavoriteRow(
     val favorite = session.isFavorite(key)
     Row(
         modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small),
     ) {
         if (favorite) {
-            Button(
+            AppButton(
                 onClick = {
                     scope.launch { session.setFavorite(entry, false) }
                 },
                 modifier = Modifier.testTag(LibraryFavoriteButtonTag),
             ) {
-                Text(stringResource(Res.string.library_favorite_added))
+                AppText(stringResource(Res.string.library_favorite_added))
             }
-            OutlinedButton(
+            AppOutlinedButton(
                 onClick = { picking = true },
                 modifier = Modifier.testTag(LibraryFavoriteCategoriesTag),
             ) {
-                Text(stringResource(Res.string.library_favorite_choose))
+                AppText(stringResource(Res.string.library_favorite_choose))
             }
         } else {
-            Button(
+            AppButton(
                 onClick = {
                     scope.launch { session.setFavorite(entry, true) }
                 },
                 modifier = Modifier.testTag(LibraryFavoriteButtonTag),
             ) {
-                Text(stringResource(Res.string.library_favorite_add))
+                AppText(stringResource(Res.string.library_favorite_add))
             }
         }
     }

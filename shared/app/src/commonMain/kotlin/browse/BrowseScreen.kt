@@ -1,12 +1,9 @@
-@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
-
 package app.koyura.app.browse
 
-import app.koyura.designsystem.ActionIcon
-import app.koyura.designsystem.ActionIconButton
-import app.koyura.designsystem.SearchField
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.Surface
+import app.koyura.app.resources.browse_feed_title
+import app.koyura.app.resources.browse_migrate_title
+import app.koyura.designsystem.DesignTokens
+import app.koyura.designsystem.components.EmptyScreen
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,15 +17,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.PrimaryTabRow
-import androidx.compose.material3.Tab
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
@@ -36,7 +24,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import app.koyura.app.resources.Res
 import app.koyura.app.resources.browse_action_install
 import app.koyura.app.resources.browse_action_open
@@ -56,19 +43,34 @@ import app.koyura.app.resources.browse_nsfw_short
 import app.koyura.app.resources.browse_operation_failed
 import app.koyura.app.resources.browse_operation_running
 import app.koyura.app.resources.browse_operation_succeeded
+import app.koyura.app.resources.browse_pin
+import app.koyura.app.resources.browse_recent
 import app.koyura.app.resources.browse_retry
 import app.koyura.app.resources.browse_search_extensions
 import app.koyura.app.resources.browse_search_sources
 import app.koyura.app.resources.browse_tab_extensions
 import app.koyura.app.resources.browse_tab_sources
 import app.koyura.app.resources.browse_title
-import app.koyura.app.resources.browse_pin
-import app.koyura.app.resources.browse_recent
 import app.koyura.app.resources.browse_unavailable_body
 import app.koyura.app.resources.browse_unavailable_title
 import app.koyura.app.resources.browse_unpin
 import app.koyura.app.resources.browse_update_all
 import app.koyura.app.resources.global_search_title
+import app.koyura.designsystem.ActionIcon
+import app.koyura.designsystem.DecorativeActionIcon
+import app.koyura.designsystem.ActionIconButton
+import app.koyura.designsystem.SearchField
+import app.koyura.designsystem.components.AppButton
+import app.koyura.designsystem.components.AppCircularProgress
+import app.koyura.designsystem.components.AppDivider
+import app.koyura.designsystem.components.AppLinearProgress
+import app.koyura.designsystem.components.AppSurface
+import app.koyura.designsystem.components.AppTab
+import app.koyura.designsystem.components.AppTabBar
+import app.koyura.designsystem.components.AppText
+import app.koyura.designsystem.components.AppTextButton
+import app.koyura.designsystem.components.ReaderTopAppBar
+import app.koyura.designsystem.components.UiTheme
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 
@@ -113,8 +115,8 @@ fun BrowseScreen(
     }
 
     Column(modifier = modifier.fillMaxSize().testTag(BrowseRootTestTag)) {
-        TopAppBar(
-            title = { Text(stringResource(Res.string.browse_title)) },
+        ReaderTopAppBar(
+            title = { AppText(stringResource(Res.string.browse_title)) },
             actions = {
                 // 全局搜索入口：无装配回调时禁用（保留锚点，生产由外壳推新路由）。
                 ActionIconButton(
@@ -142,25 +144,37 @@ fun BrowseScreen(
             },
         )
 
-        PrimaryTabRow(selectedTabIndex = if (state.pane == BrowsePane.Sources) 0 else 1) {
-            Tab(
+        AppTabBar(selectedTabIndex = state.pane.ordinal) {
+            AppTab(
                 selected = state.pane == BrowsePane.Sources,
                 onClick = { session.selectPane(BrowsePane.Sources) },
-                text = { Text(stringResource(Res.string.browse_tab_sources)) },
+                text = { AppText(stringResource(Res.string.browse_tab_sources)) },
                 modifier = Modifier.testTag(BrowseSourcesTabTag),
             )
-            Tab(
+            AppTab(
+                selected = state.pane == BrowsePane.Feed,
+                onClick = { session.selectPane(BrowsePane.Feed) },
+                text = { AppText(stringResource(Res.string.browse_feed_title)) },
+                modifier = Modifier.testTag(BrowseFeedPaneTag + "-tab"),
+            )
+            AppTab(
                 selected = state.pane == BrowsePane.Extensions,
                 onClick = { session.selectPane(BrowsePane.Extensions) },
-                text = { Text(stringResource(Res.string.browse_tab_extensions)) },
+                text = { AppText(stringResource(Res.string.browse_tab_extensions)) },
                 modifier = Modifier.testTag(BrowseExtensionsTabTag),
+            )
+            AppTab(
+                selected = state.pane == BrowsePane.Migrate,
+                onClick = { session.selectPane(BrowsePane.Migrate) },
+                text = { AppText(stringResource(Res.string.browse_migrate_title)) },
+                modifier = Modifier.testTag(BrowseMigratePaneTag + "-tab"),
             )
         }
 
         when (val load = state.load) {
             LoadState.Unavailable -> UnavailableState()
             LoadState.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
+                AppCircularProgress()
             }
             is LoadState.Failed -> ErrorState(load.message) { scope.launch { session.refresh() } }
             LoadState.Ready -> when (state.pane) {
@@ -174,6 +188,7 @@ fun BrowseScreen(
                     },
                     onTogglePin = session::toggleSourcePinned,
                 )
+                BrowsePane.Feed -> FeedPanePlaceholder()
                 BrowsePane.Extensions -> ExtensionsPane(
                     session = session,
                     state = state,
@@ -182,6 +197,7 @@ fun BrowseScreen(
                     onManageStores = onManageStores,
                     scope = scope,
                 )
+                BrowsePane.Migrate -> MigratePanePlaceholder()
             }
         }
     }
@@ -190,17 +206,17 @@ fun BrowseScreen(
 @Composable
 private fun UnavailableState() {
     Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp).testTag(BrowseUnavailableTag),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.fillMaxSize().padding(DesignTokens.Spacing.Large).testTag(BrowseUnavailableTag),
+        verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small),
     ) {
-        Text(
+        AppText(
             text = stringResource(Res.string.browse_unavailable_title),
-            style = MaterialTheme.typography.titleMedium,
+            style = UiTheme.typography.titleMedium,
         )
-        Text(
+        AppText(
             text = stringResource(Res.string.browse_unavailable_body),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = UiTheme.typography.bodyMedium,
+            color = UiTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
@@ -208,16 +224,16 @@ private fun UnavailableState() {
 @Composable
 private fun ErrorState(message: String, onRetry: () -> Unit) {
     Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp).testTag(BrowseErrorTag),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.fillMaxSize().padding(DesignTokens.Spacing.Large).testTag(BrowseErrorTag),
+        verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Regular),
     ) {
-        Text(
+        AppText(
             text = stringResource(Res.string.browse_error_prefix, message),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.error,
+            style = UiTheme.typography.bodyMedium,
+            color = UiTheme.colorScheme.error,
         )
-        Button(onClick = onRetry, modifier = Modifier.testTag("browse-retry")) {
-            Text(stringResource(Res.string.browse_retry))
+        AppButton(onClick = onRetry, modifier = Modifier.testTag("browse-retry")) {
+            AppText(stringResource(Res.string.browse_retry))
         }
     }
 }
@@ -241,7 +257,7 @@ private fun SourcesPane(
             onValueChange = onQueryChange,
             placeholder = stringResource(Res.string.browse_search_sources),
             clearLabel = stringResource(Res.string.browse_clear_search),
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+            modifier = Modifier.fillMaxWidth().padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.Small)
                 .testTag(BrowseSourceQueryTag),
         )
         if (view.recent.isEmpty() && view.sections.isEmpty()) {
@@ -251,7 +267,7 @@ private fun SourcesPane(
         LazyColumn(
             state = listStateHolder,
             modifier = Modifier.fillMaxSize().testTag(BrowseSourcesListTag),
-            contentPadding = PaddingValues(vertical = 8.dp),
+            contentPadding = PaddingValues(vertical = DesignTokens.Spacing.Small),
         ) {
             if (view.recent.isNotEmpty()) {
                 item(key = "source-header-recent", contentType = "header") {
@@ -301,11 +317,11 @@ private fun ExtensionsPane(
             onValueChange = session::searchExtensions,
             placeholder = stringResource(Res.string.browse_search_extensions),
             clearLabel = stringResource(Res.string.browse_clear_search),
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+            modifier = Modifier.fillMaxWidth().padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.Small)
                 .testTag(BrowseExtensionQueryTag),
         )
         if (state.isBusy()) {
-            LinearProgressIndicator(modifier = Modifier.fillMaxWidth().testTag("browse-busy"))
+            AppLinearProgress(modifier = Modifier.fillMaxWidth().testTag("browse-busy"))
         }
         if (sections.isEmpty()) {
             EmptyState(
@@ -315,11 +331,11 @@ private fun ExtensionsPane(
                     stringResource(Res.string.browse_empty_extensions)
                 },
                 action = {
-                    TextButton(
+                    AppTextButton(
                         onClick = { onManageStores(null) },
                         modifier = Modifier.testTag("browse-empty-stores"),
                     ) {
-                        Text(stringResource(Res.string.browse_manage_stores))
+                        AppText(stringResource(Res.string.browse_manage_stores))
                     }
                 },
             )
@@ -328,7 +344,7 @@ private fun ExtensionsPane(
         LazyColumn(
             state = listStateHolder,
             modifier = Modifier.fillMaxSize().testTag(BrowseExtensionsListTag),
-            contentPadding = PaddingValues(vertical = 8.dp),
+            contentPadding = PaddingValues(vertical = DesignTokens.Spacing.Small),
         ) {
             sections.forEach { section ->
                 item(key = "extension-header-${section.group}", contentType = "header") {
@@ -370,9 +386,9 @@ private fun SourceRow(
     app.koyura.designsystem.BrowseRow(
         onClick = { onOpenSource(source.id, source.name) },
         icon = {
-            Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
-                Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
-                    ActionIcon(ActionIcon.Source, null)
+            AppSurface(shape = UiTheme.shapes.small, color = UiTheme.colorScheme.surfaceContainerHigh) {
+                Box(Modifier.size(DesignTokens.Sizes.BrowseIcon), contentAlignment = Alignment.Center) {
+                    DecorativeActionIcon(ActionIcon.Source)
                 }
             }
         },
@@ -382,42 +398,42 @@ private fun SourceRow(
                 label = stringResource(if (pinned) Res.string.browse_unpin else Res.string.browse_pin),
                 onClick = { onTogglePin(source.id) },
                 modifier = Modifier.testTag(pinTestTag),
-                contentColor = if (pinned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                contentColor = if (pinned) UiTheme.colorScheme.primary else UiTheme.colorScheme.onSurfaceVariant,
             )
             if (source.supportsLatest) {
-                TextButton(onClick = { onOpenSource(source.id, source.name) }) {
-                    Text(stringResource(Res.string.browse_latest))
+                AppTextButton(onClick = { onOpenSource(source.id, source.name) }) {
+                    AppText(stringResource(Res.string.browse_latest))
                 }
             }
         },
         content = {
             Column(
                 modifier = Modifier
-                    .padding(horizontal = 16.dp)
+                    .padding(horizontal = DesignTokens.Spacing.Medium)
                     .weight(1f),
             ) {
-                Text(
+                AppText(
                     text = source.name,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = UiTheme.typography.bodyMedium,
                 )
-                Text(
+                AppText(
                     text = listOf(source.language, source.versionName)
                         .filter { it.isNotEmpty() }
                         .joinToString(" · "),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
-                        alpha = app.koyura.designsystem.DesignTokens.Alpha.Secondary,
+                    style = UiTheme.typography.bodySmall,
+                    color = UiTheme.colorScheme.onSurfaceVariant.copy(
+                        alpha = DesignTokens.Alpha.Secondary,
                     ),
                 )
             }
         },
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 56.dp)
+            .heightIn(min = DesignTokens.Sizes.ListItemHeight)
             .testTag(rowTestTag),
     )
 }
@@ -444,13 +460,13 @@ private fun ExtensionRow(
             onClick = { if (extension.isInstalled) onOpen() },
             icon = {
                 androidx.compose.foundation.layout.Box(
-                    modifier = Modifier.size(40.dp),
+                    modifier = Modifier.size(DesignTokens.Sizes.BrowseIcon),
                     contentAlignment = Alignment.Center,
                 ) {
                     if (status is OperationStatus.Running) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(40.dp),
-                            strokeWidth = 2.dp,
+                        AppCircularProgress(
+                            modifier = Modifier.size(DesignTokens.Sizes.BrowseIcon),
+                            strokeWidth = DesignTokens.Sizes.ProgressStroke,
                         )
                     }
                     app.koyura.designsystem.IconPlaceholder(label = extension.name)
@@ -459,48 +475,48 @@ private fun ExtensionRow(
             action = {
                 when {
                     extension.hasUpdate -> {
-                        TextButton(
+                        AppTextButton(
                             onClick = onUpdate,
                             enabled = status !is OperationStatus.Running,
                             modifier = Modifier.testTag(extensionActionTag(extension.key, "update")),
-                        ) { Text(stringResource(Res.string.browse_action_update)) }
+                        ) { AppText(stringResource(Res.string.browse_action_update)) }
                     }
                     extension.isInstalled -> {
-                        TextButton(
+                        AppTextButton(
                             onClick = onUninstall,
                             enabled = status !is OperationStatus.Running,
                             modifier = Modifier.testTag(extensionActionTag(extension.key, "uninstall")),
-                        ) { Text(stringResource(Res.string.browse_action_uninstall)) }
+                        ) { AppText(stringResource(Res.string.browse_action_uninstall)) }
                     }
                     else -> {
-                        TextButton(
+                        AppTextButton(
                             onClick = onInstall,
                             enabled = status !is OperationStatus.Running,
                             modifier = Modifier.testTag(extensionActionTag(extension.key, "install")),
-                        ) { Text(stringResource(Res.string.browse_action_install)) }
+                        ) { AppText(stringResource(Res.string.browse_action_install)) }
                     }
                 }
                 if (extension.isInstalled) {
-                    TextButton(
+                    AppTextButton(
                         onClick = onOpen,
                         modifier = Modifier.testTag(extensionActionTag(extension.key, "open")),
-                    ) { Text(stringResource(Res.string.browse_action_open)) }
+                    ) { AppText(stringResource(Res.string.browse_action_open)) }
                 }
             },
             content = {
                 Column(
                     modifier = Modifier
-                        .padding(horizontal = 16.dp)
+                        .padding(horizontal = DesignTokens.Spacing.Medium)
                         .weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                    verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Tight),
                 ) {
-                    Text(
+                    AppText(
                         text = extension.name,
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = UiTheme.typography.bodyMedium,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    Text(
+                    AppText(
                         text = listOfNotNull(
                             extension.versionName.takeIf { it.isNotEmpty() },
                             extension.language.takeIf { it.isNotEmpty() },
@@ -514,12 +530,12 @@ private fun ExtensionRow(
                                 null
                             },
                         ).joinToString(" · "),
-                        style = MaterialTheme.typography.bodySmall,
+                        style = UiTheme.typography.bodySmall,
                         color = if (extension.isNsfw) {
-                            MaterialTheme.colorScheme.error
+                            UiTheme.colorScheme.error
                         } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant.copy(
-                                alpha = app.koyura.designsystem.DesignTokens.Alpha.Secondary,
+                            UiTheme.colorScheme.onSurfaceVariant.copy(
+                                alpha = DesignTokens.Alpha.Secondary,
                             )
                         },
                         maxLines = 2,
@@ -531,29 +547,29 @@ private fun ExtensionRow(
             modifier = Modifier.fillMaxWidth(),
         )
     }
-    HorizontalDivider()
+    AppDivider()
 }
 
 @Composable
 internal fun OperationFeedback(status: OperationStatus?, target: String) {
     when (status) {
         null -> Unit
-        OperationStatus.Running -> Text(
+        OperationStatus.Running -> AppText(
             text = stringResource(Res.string.browse_operation_running),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.primary,
+            style = UiTheme.typography.labelMedium,
+            color = UiTheme.colorScheme.primary,
             modifier = Modifier.testTag("operation-running-$target"),
         )
-        OperationStatus.Succeeded -> Text(
+        OperationStatus.Succeeded -> AppText(
             text = stringResource(Res.string.browse_operation_succeeded),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.tertiary,
+            style = UiTheme.typography.labelMedium,
+            color = UiTheme.colorScheme.tertiary,
             modifier = Modifier.testTag("operation-succeeded-$target"),
         )
-        is OperationStatus.Failed -> Text(
+        is OperationStatus.Failed -> AppText(
             text = stringResource(Res.string.browse_operation_failed, status.message),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.error,
+            style = UiTheme.typography.labelMedium,
+            color = UiTheme.colorScheme.error,
             modifier = Modifier.testTag("operation-failed-$target"),
         )
     }
@@ -567,15 +583,5 @@ internal fun SectionHeader(text: String) {
 
 @Composable
 internal fun EmptyState(text: String, action: (@Composable () -> Unit)? = null) {
-    Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp).testTag(BrowseEmptyTag),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        action?.invoke()
-    }
+    EmptyScreen(emoji = "(・∀・)", message = text, modifier = Modifier.testTag(BrowseEmptyTag), actions = action)
 }

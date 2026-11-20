@@ -1,18 +1,15 @@
 package app.koyura.app.ui
 
+import app.koyura.designsystem.DesignTokens
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.unit.dp
 import app.koyura.app.resources.Res
 import app.koyura.app.resources.nav_screen_browse_body
 import app.koyura.app.resources.nav_screen_browse_title
@@ -27,6 +24,9 @@ import app.koyura.app.resources.nav_screen_more_title
 import app.koyura.app.resources.nav_screen_open_detail
 import app.koyura.app.resources.nav_screen_updates_body
 import app.koyura.app.resources.nav_screen_updates_title
+import app.koyura.designsystem.components.AppButton
+import app.koyura.designsystem.components.AppText
+import app.koyura.designsystem.components.UiTheme
 import app.koyura.designsystem.navigation.NavTab
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
@@ -56,24 +56,24 @@ fun TabRootScreen(
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(DesignTokens.Spacing.Large),
+        verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Regular),
     ) {
-        Text(
+        AppText(
             text = stringResource(content.title),
-            style = MaterialTheme.typography.headlineMedium,
+            style = UiTheme.typography.headlineMedium,
             modifier = Modifier.testTag("tab-title-${tab.name}"),
         )
-        Text(
+        AppText(
             text = stringResource(content.body),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = UiTheme.typography.bodyLarge,
+            color = UiTheme.colorScheme.onSurfaceVariant,
         )
-        Button(
+        AppButton(
             onClick = onOpenDetail,
             modifier = Modifier.testTag("open-detail-${tab.name}"),
         ) {
-            Text(stringResource(Res.string.nav_screen_open_detail))
+            AppText(stringResource(Res.string.nav_screen_open_detail))
         }
     }
 }
@@ -85,23 +85,23 @@ fun DetailScreen(origin: NavTab, id: Int, modifier: Modifier = Modifier) {
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(DesignTokens.Spacing.Large),
+        verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Regular),
     ) {
-        Text(
+        AppText(
             text = stringResource(Res.string.nav_screen_detail_title),
-            style = MaterialTheme.typography.headlineMedium,
+            style = UiTheme.typography.headlineMedium,
             modifier = Modifier.testTag("detail-title"),
         )
-        Text(
+        AppText(
             text = stringResource(Res.string.nav_screen_detail_body, stringResource(tabPageContent(origin).title)),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = UiTheme.typography.bodyLarge,
+            color = UiTheme.colorScheme.onSurfaceVariant,
         )
-        Text(
+        AppText(
             text = "#$id",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = UiTheme.typography.bodyMedium,
+            color = UiTheme.colorScheme.onSurfaceVariant,
         )
     }
 }

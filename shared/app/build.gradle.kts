@@ -41,7 +41,6 @@ kotlin {
             implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.7.1")
             implementation(project(":shared:data"))
             implementation(libs.compose.foundation)
-            implementation(libs.compose.material3)
             implementation(libs.compose.resources)
             implementation(libs.compose.runtime)
             implementation(libs.compose.ui)
@@ -50,6 +49,8 @@ kotlin {
             implementation(libs.kotlinx.serialization.core)
             implementation(libs.navigation3.runtime)
             implementation(libs.navigation3.ui)
+            implementation(libs.coil.compose)
+            implementation(libs.coil.network.ktor3)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

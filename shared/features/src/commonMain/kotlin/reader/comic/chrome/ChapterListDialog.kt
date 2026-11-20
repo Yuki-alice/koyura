@@ -1,5 +1,6 @@
 package app.koyura.features.reader.comic.chrome
 
+import app.koyura.designsystem.DesignTokens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -9,15 +10,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import app.koyura.designsystem.components.AppListItem
+import app.koyura.designsystem.components.AppText
+import app.koyura.designsystem.components.UiTheme
 import app.koyura.features.resources.Res
 import app.koyura.features.resources.reader_chrome_chapters
 import app.koyura.features.resources.reader_chrome_no_chapters
@@ -45,35 +44,35 @@ fun ChapterListDialog(
         Column(
             modifier = Modifier
                 .testTag(ReaderChromeChapterDialogTag)
-                .background(MaterialTheme.colorScheme.surface, MaterialTheme.shapes.large)
-                .padding(vertical = 8.dp),
+                .background(UiTheme.colorScheme.surface, UiTheme.shapes.large)
+                .padding(vertical = DesignTokens.Spacing.Small),
         ) {
-            Text(
+            AppText(
                 text = stringResource(Res.string.reader_chrome_chapters),
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
+                style = UiTheme.typography.titleMedium,
+                modifier = Modifier.padding(horizontal = DesignTokens.Spacing.Large, vertical = DesignTokens.Spacing.Regular),
             )
             if (state.chapters.isEmpty()) {
-                Text(
+                AppText(
                     text = stringResource(Res.string.reader_chrome_no_chapters),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = UiTheme.typography.bodyMedium,
+                    color = UiTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier
                         .testTag(ReaderChromeNoChaptersTag)
-                        .padding(horizontal = 24.dp, vertical = 16.dp),
+                        .padding(horizontal = DesignTokens.Spacing.Large, vertical = DesignTokens.Spacing.Medium),
                 )
             } else {
                 val current = state.currentChapterIndex.coerceAtLeast(0)
                 LazyColumn(
                     state = rememberLazyListState(initialFirstVisibleItemIndex = current),
-                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                    verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Tight),
                     modifier = Modifier.testTag(ReaderChromeChapterListTag),
                 ) {
                     itemsIndexed(state.chapters, key = { index, chapter -> chapter.id ?: "index-$index" }) { index, chapter ->
                         val selected = index == state.currentChapterIndex
-                        ListItem(
+                        AppListItem(
                             headlineContent = {
-                                Text(
+                                AppText(
                                     text = chapter.title.ifEmpty { "–" },
                                     maxLines = 1,
                                 )
@@ -82,18 +81,14 @@ fun ChapterListDialog(
                             // carries no date/scanlator/download state yet (reader track notes),
                             // so the list shows order + current highlight only.
                             trailingContent = {
-                                Text(
+                                AppText(
                                     text = "${index + 1} / ${state.chapters.size}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    style = UiTheme.typography.bodySmall,
+                                    color = UiTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.testTag(readerChromeChapterPositionTag(index)),
                                 )
                             },
-                            colors = if (selected) {
-                                ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
-                            } else {
-                                ListItemDefaults.colors()
-                            },
+                            containerColor = if (selected) UiTheme.colorScheme.secondaryContainer else androidx.compose.ui.graphics.Color.Unspecified,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .testTag(

@@ -18,7 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
  * background/surface 配 `#0C0C0C/#131313/#1B1B1B` 容器分层，导航栏在滚动内容上仍可分辨
  * （whitepaper 02 §2.1/§2.4）。
  */
-private val TachiyomiLightColors = lightColorScheme(
+internal val TachiyomiLightColors = lightColorScheme(
     primary = Color(0xFF0058CA),
     onPrimary = Color(0xFFFFFFFF),
     primaryContainer = Color(0xFFD9E2FF),
@@ -54,7 +54,7 @@ private val TachiyomiLightColors = lightColorScheme(
     surfaceContainerHighest = Color(0xFFFCF7FF),
 )
 
-private val TachiyomiDarkColors = darkColorScheme(
+internal val TachiyomiDarkColors = darkColorScheme(
     primary = Color(0xFFB0C6FF),
     onPrimary = Color(0xFF002D6E),
     primaryContainer = Color(0xFF00429B),
@@ -90,7 +90,7 @@ private val TachiyomiDarkColors = darkColorScheme(
     surfaceContainerHighest = Color(0xFF302E38),
 )
 
-private val AmoledDarkColors = darkColorScheme(
+internal val AmoledDarkColors = darkColorScheme(
     primary = Color(0xFFB0C6FF),
     onPrimary = Color(0xFF002D6E),
     primaryContainer = Color(0xFF00429B),

@@ -13,4 +13,5 @@
     <string name="categories_unhide">取消隐藏</string>
     <string name="categories_load_failed">分类加载失败：%1$s</string>
     <string name="categories_retry">重试</string>
+    <string name="categories_reorder">调整 %1$s 的顺序</string>
 </resources>

@@ -35,11 +35,12 @@ kotlin {
             implementation(project(":shared:domain"))
             implementation(project(":shared:design-system"))
             implementation(libs.compose.foundation)
-            implementation(libs.compose.material3)
             implementation(libs.compose.resources)
             implementation(libs.compose.runtime)
             implementation(libs.compose.ui)
             implementation(libs.coroutines.core)
+            implementation(libs.coil.compose)
+            implementation(libs.zoomimage.compose)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

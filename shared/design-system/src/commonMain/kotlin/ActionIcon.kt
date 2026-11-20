@@ -1,6 +1,14 @@
 package app.koyura.designsystem
 
+import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.PlainTooltip
+import androidx.compose.material3.Text
+import androidx.compose.material3.TooltipAnchorPosition
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.rememberTooltipState
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LocalContentColor
@@ -9,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import app.koyura.designsystem.resources.Res
 import app.koyura.designsystem.resources.action_back
+import app.koyura.designsystem.resources.action_bookmark
 import app.koyura.designsystem.resources.action_batch_add
 import app.koyura.designsystem.resources.action_calendar
 import app.koyura.designsystem.resources.action_categories
@@ -60,6 +69,7 @@ import org.jetbrains.compose.resources.painterResource
 
 enum class ActionIcon(internal val resource: DrawableResource) {
     Back(Res.drawable.action_back),
+    Bookmark(Res.drawable.action_bookmark),
     BatchAdd(Res.drawable.action_batch_add),
     Calendar(Res.drawable.action_calendar),
     Categories(Res.drawable.action_categories),
@@ -118,6 +128,28 @@ fun ActionIcon(
     Icon(painterResource(icon.resource), contentDescription, modifier, tint)
 }
 
+/** Icons beside a visible label are decoration and keep that label as the accessible name. */
+@Composable
+fun DecorativeActionIcon(
+    icon: ActionIcon,
+    modifier: Modifier = Modifier,
+    tint: Color = LocalContentColor.current,
+) {
+    ActionIcon(icon, contentDescription = null, modifier = modifier, tint = tint)
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ActionTooltip(label: String, content: @Composable () -> Unit) {
+    TooltipBox(
+        positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
+        tooltip = { PlainTooltip { Text(label) } },
+        state = rememberTooltipState(),
+        focusable = false,
+        content = content,
+    )
+}
+
 @Composable
 fun ActionIconButton(
     icon: ActionIcon,
@@ -127,12 +159,17 @@ fun ActionIconButton(
     enabled: Boolean = true,
     contentColor: Color = LocalContentColor.current,
 ) {
-    IconButton(
-        onClick = onClick,
-        modifier = modifier,
-        enabled = enabled,
-        colors = IconButtonDefaults.iconButtonColors(contentColor = contentColor),
-    ) {
-        ActionIcon(icon, label)
+    ActionTooltip(label) {
+        IconButton(
+            onClick = onClick,
+            modifier = modifier.sizeIn(
+                minWidth = DesignTokens.Sizes.MinimumTouchTarget,
+                minHeight = DesignTokens.Sizes.MinimumTouchTarget,
+            ),
+            enabled = enabled,
+            colors = IconButtonDefaults.iconButtonColors(contentColor = contentColor),
+        ) {
+            ActionIcon(icon, label)
+        }
     }
 }

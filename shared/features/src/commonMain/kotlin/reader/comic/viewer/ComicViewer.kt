@@ -1,8 +1,10 @@
 package app.koyura.features.reader.comic.viewer
 
+import app.koyura.designsystem.DesignTokens
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.layout.Arrangement
@@ -25,10 +27,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -40,10 +38,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.input.key.Key
@@ -51,8 +50,6 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
@@ -62,20 +59,24 @@ import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import app.koyura.designsystem.components.AppButton
+import app.koyura.designsystem.components.AppCircularProgress
+import app.koyura.designsystem.components.AppText
+import app.koyura.designsystem.components.UiTheme
 import app.koyura.domain.reader.ChapterContent
+import app.koyura.features.reader.comic.ReaderPageState
+import app.koyura.features.reader.comic.ReaderSession
+import app.koyura.features.reader.comic.decodeToImageBitmap
 import app.koyura.features.resources.Res
 import app.koyura.features.resources.reader_empty_pages
 import app.koyura.features.resources.reader_page_failed
 import app.koyura.features.resources.reader_retry
-import org.jetbrains.compose.resources.stringResource
-import app.koyura.features.reader.comic.ReaderPageState
-import app.koyura.features.reader.comic.ReaderSession
-import app.koyura.features.reader.comic.decodeToImageBitmap
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
+import org.jetbrains.compose.resources.stringResource
 
 /** Stable UI test hooks, identical values to the production reader for regression reuse. */
 const val ComicViewerRootTag = "comic-viewer"
@@ -187,7 +188,7 @@ private fun PagerComicViewer(
         }
         if (spreads.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(stringResource(Res.string.reader_empty_pages))
+                AppText(stringResource(Res.string.reader_empty_pages))
             }
             return@BoxWithConstraints
         }
@@ -422,14 +423,14 @@ private fun WebtoonComicViewer(
     // Komikku: WEBTOON (isContinuous=true) has no inter-page gap; CONTINUOUS_VERTICAL
     // (isContinuous=false) separates pages with a 15dp gap and steps page-by-page on tap.
     val continuous = options.mode == ComicReadingMode.WEBTOON
-    val gap = if (continuous) 0.dp else 15.dp
+    val gap = if (continuous) 0.dp else DesignTokens.Sizes.PagedStripGap
     val hasPrev = session.previousChapterId(content.chapterId) != null
     val hasNext = session.nextChapterId(content.chapterId) != null
     // LazyColumn positions include an optional header spacer (previous-chapter end).
     val headerCount = if (hasPrev) 1 else 0
     if (content.pageKeys.isEmpty()) {
         Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(stringResource(Res.string.reader_empty_pages))
+            AppText(stringResource(Res.string.reader_empty_pages))
         }
         return
     }
@@ -572,7 +573,7 @@ private fun WebtoonComicViewer(
             // overlay sits above the list and would swallow button taps.
             if (hasPrev) {
                 item(key = "prev-spacer") {
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(DesignTokens.Spacing.Small))
                 }
             }
             itemsIndexed(content.pageKeys, key = { _, key -> key }) { pageIndex, pageKey ->
@@ -838,7 +839,7 @@ private fun ZoomableComicPage(
                 .testTag(comicPageTag(index)),
             contentAlignment = Alignment.Center,
         ) {
-            CircularProgressIndicator()
+            AppCircularProgress()
         }
 
         is ReaderPageState.Ready -> {
@@ -973,17 +974,17 @@ private fun PageError(
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
+        verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small, Alignment.CenterVertically),
     ) {
-        Text(
+        AppText(
             text = stringResource(Res.string.reader_page_failed),
-            color = MaterialTheme.colorScheme.error,
+            color = UiTheme.colorScheme.error,
         )
-        Button(
+        AppButton(
             onClick = onRetry,
             modifier = Modifier.testTag(comicPageRetryTag(pageKey)),
         ) {
-            Text(stringResource(Res.string.reader_retry))
+            AppText(stringResource(Res.string.reader_retry))
         }
     }
 }
