@@ -3,6 +3,7 @@ package app.koyura.data.updates
 import app.koyura.domain.updates.LibraryUpdateInterval
 import app.koyura.domain.updates.LibraryUpdateSchedulePreferences
 import app.koyura.domain.updates.UpdateScan
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.test.advanceTimeBy
@@ -61,7 +62,7 @@ class LibraryUpdateSchedulerTest {
         val time = object : Clock {
             override fun now() = Instant.fromEpochMilliseconds(testScheduler.currentTime)
         }
-        fun open() = LibraryUpdateScheduler({ raw }, { raw = it }, { runs++; error("fixture unavailable") }, clock = time)
+        fun open() = LibraryUpdateScheduler({ raw }, { raw = it }, { runs++; throw CancellationException("fixture source cancelled locally") }, clock = time)
         val first = open()
         first.setPreferences(LibraryUpdateSchedulePreferences(LibraryUpdateInterval.HOURS_6))
         first.start(backgroundScope)

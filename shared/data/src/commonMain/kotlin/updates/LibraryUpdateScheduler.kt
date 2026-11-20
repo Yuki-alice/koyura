@@ -5,7 +5,8 @@ import app.koyura.domain.updates.LibraryUpdateSchedulePreferences
 import app.koyura.domain.updates.LibraryUpdateScheduleState
 import app.koyura.domain.updates.ScheduledUpdateCheck
 import app.koyura.domain.updates.UpdateScan
-import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
@@ -119,11 +120,12 @@ class LibraryUpdateScheduler internal constructor(
 
         val result = try {
             val scan = checkNow()
-            ScheduledUpdateCheck(now(), scan.updates.size, scan.updates.sumOf { it.newChapterCount },
-                scan.failures.size, scan.skipped.size)
-        } catch (cancelled: CancellationException) {
-            throw cancelled
+            ScheduledUpdateCheck(
+                now(), scan.updates.size + scan.failures.size, scan.updates.sumOf { it.newChapterCount },
+                scan.failures.size, scan.skipped.size, downloadTriggerFailures = scan.downloadTriggerFailures.size,
+            )
         } catch (_: Exception) {
+            currentCoroutineContext().ensureActive()
             ScheduledUpdateCheck(now(), 0, 0, 0, 0, failedToRun = true)
         }
         lock.withLock {

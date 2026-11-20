@@ -19,7 +19,6 @@ import app.koyura.domain.updates.UpdateSkipReason
 import app.koyura.domain.updates.UpdateTitleMetadata
 import app.koyura.domain.updates.WorkUpdate
 import app.koyura.source.runtime.VeneraCallback
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.currentCoroutineContext
@@ -134,8 +133,6 @@ class LibraryUpdateScanner internal constructor(
                         work.sourceKey, VeneraCallback.LoadInfo, JsonArray(listOf(JsonPrimitive(work.workId))),
                     ).jsonObject
                     unpackChapters(work, detail["chapters"]) to completionStatus(detail)
-                } catch (cancelled: CancellationException) {
-                    throw cancelled
                 } catch (failure: Exception) {
                     currentCoroutineContext().ensureActive()
                     // Source errors can carry session values or signed URLs. Store a stable diagnostic.
@@ -150,9 +147,8 @@ class LibraryUpdateScanner internal constructor(
                 if (hook != null && updated.newChapters.isNotEmpty()) {
                     try {
                         hook.onNewChapters(updated)
-                    } catch (cancelled: CancellationException) {
-                        throw cancelled
                     } catch (_: Exception) {
+                        currentCoroutineContext().ensureActive()
                         triggerFailures += updated.work
                     }
                 }

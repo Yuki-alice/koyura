@@ -21,6 +21,7 @@ data class ScheduledUpdateCheck(
     val failures: Int,
     val skipped: Int,
     val failedToRun: Boolean = false,
+    val downloadTriggerFailures: Int = 0,
 )
 
 data class LibraryUpdateScheduleState(
