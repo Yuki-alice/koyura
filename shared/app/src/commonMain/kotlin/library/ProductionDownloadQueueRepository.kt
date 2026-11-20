@@ -7,11 +7,13 @@ import app.koyura.domain.downloads.DownloadStatus
 import app.koyura.features.downloads.DownloadQueueRepository
 import app.koyura.features.downloads.DownloadTask
 import app.koyura.features.downloads.FakeDownloadStatus
+import kotlinx.coroutines.flow.map
 
 internal val LocalProductionDownloads = staticCompositionLocalOf<ProductionDownloadQueueRepository?> { null }
 
 class ProductionDownloadQueueRepository(private val store: ChapterDownloadStore) : DownloadQueueRepository {
     val jobs get() = store.jobs
+    override val changes = jobs.map { Unit }
 
     override suspend fun loadQueue(): List<DownloadTask> = store.loadQueue().mapNotNull { entry ->
         val job = entry.job

@@ -1,5 +1,8 @@
 package app.koyura.features.downloads
 
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
+
 /**
  * Fake 下载状态：对齐数据层 `ChapterDownloadStore` 的状态机语义
  *（`DownloadStatus`：排队/下载中/暂停/失败/完成；取消与完成为终态，不再展示）。
@@ -24,8 +27,9 @@ data class DownloadTask(
     val totalPages: Int,
 )
 
-/** 下载队列表数据源：本轮只有 Fake 实现，真实引擎由引擎轨接入后替换注入。 */
+/** 下载队列表数据源。队列改变时调用方可重新读取持久快照。 */
 interface DownloadQueueRepository {
+    val changes: Flow<Unit> get() = emptyFlow()
     suspend fun loadQueue(): List<DownloadTask>
     suspend fun pause(id: String)
     suspend fun resume(id: String)

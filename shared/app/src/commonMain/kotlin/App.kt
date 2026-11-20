@@ -26,9 +26,11 @@ import app.koyura.domain.reader.preferences.ReaderPreferences
 import app.koyura.app.navigation.rememberAppNavigationState
 import app.koyura.app.navigation.TabletUiMode
 import app.koyura.app.navigation.ComicReaderRoute
+import app.koyura.app.navigation.DownloadQueueRoute
 import app.koyura.app.library.LocalProductionSettings
 import app.koyura.app.reader.VeneraReaderService
 import app.koyura.domain.appearance.ThemeMode
+import app.koyura.features.downloads.LocalDownloadQueueVisible
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.combine
@@ -149,11 +151,13 @@ internal fun AppShell(
             }
         }
     }
-    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        AppScaffold(
-            navigation = navigation,
-            useRail = usesNavigationRailForWindow(maxWidth, maxHeight, tabletMode),
-        )
+    CompositionLocalProvider(LocalDownloadQueueVisible provides (navigation.currentStack.lastOrNull() is DownloadQueueRoute)) {
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            AppScaffold(
+                navigation = navigation,
+                useRail = usesNavigationRailForWindow(maxWidth, maxHeight, tabletMode),
+            )
+        }
     }
 }
 

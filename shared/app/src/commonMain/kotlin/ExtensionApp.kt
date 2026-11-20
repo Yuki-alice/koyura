@@ -34,6 +34,7 @@ import app.koyura.app.library.ProductionStatisticsRepository
 import app.koyura.app.library.LocalProductionSettings
 import app.koyura.app.library.ProductionSettingsRepository
 import app.koyura.features.statistics.LocalStatisticsRepository
+import app.koyura.features.downloads.LocalDownloadQueueRepository
 import app.koyura.app.account.ProductionAccountRepository
 import app.koyura.app.updates.BackgroundLibraryUpdates
 import app.koyura.app.updates.ProductionUpdatesRepository
@@ -193,6 +194,7 @@ internal fun ExtensionApp(
             LocalProductionSources provides sources,
             LocalProductionSettings provides settings,
             LocalProductionDownloads provides downloads,
+            LocalDownloadQueueRepository provides downloads,
             LocalStatisticsRepository provides statistics,
         ) {
             App(

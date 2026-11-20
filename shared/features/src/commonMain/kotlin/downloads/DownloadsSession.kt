@@ -1,13 +1,17 @@
 package app.koyura.features.downloads
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.staticCompositionLocalOf
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 
 /**
- * 下载队列页状态座：Fake 仓储的唯一读者，沿用 `UpdatesSession` 模式。
+ * 下载队列页状态座，沿用 `UpdatesSession` 模式。
  *
  * 状态迁移对齐 `ChapterDownloadStore`：暂停仅作用于排队/下载中，
  * 恢复与重试回到排队，取消与完成为终态（从可见队列移除）。
@@ -15,6 +19,8 @@ import androidx.compose.runtime.setValue
 class DownloadsSession(
     private val repository: DownloadQueueRepository,
 ) {
+    private val writes = Mutex()
+
     var loadState: DownloadQueueLoadState by mutableStateOf(DownloadQueueLoadState.Loading)
         private set
 
@@ -28,8 +34,14 @@ class DownloadsSession(
     val running: Boolean
         get() = entries.any { it.status == FakeDownloadStatus.QUEUED || it.status == FakeDownloadStatus.DOWNLOADING }
 
-    suspend fun refresh() {
-        loadState = DownloadQueueLoadState.Loading
+    suspend fun refresh() = refresh(showLoading = true)
+
+    internal suspend fun observeQueue() {
+        repository.changes.collect { refresh(showLoading = false) }
+    }
+
+    private suspend fun refresh(showLoading: Boolean) = writes.withLock {
+        if (showLoading) loadState = DownloadQueueLoadState.Loading
         try {
             entries = repository.loadQueue()
             actionError = null
@@ -42,7 +54,7 @@ class DownloadsSession(
         }
     }
 
-    private suspend fun mutate(action: suspend DownloadQueueRepository.() -> Unit) {
+    private suspend fun mutate(action: suspend DownloadQueueRepository.() -> Unit) = writes.withLock {
         try {
             repository.action()
             entries = repository.loadQueue()
@@ -79,7 +91,17 @@ class DownloadsSession(
     }
 }
 
+val LocalDownloadQueueRepository = staticCompositionLocalOf<DownloadQueueRepository?> { null }
+val LocalDownloadQueueVisible = staticCompositionLocalOf { false }
+
 @Composable
 fun rememberDownloadsSession(
-    repository: DownloadQueueRepository = FakeDownloadRepository(),
-): DownloadsSession = remember(repository) { DownloadsSession(repository) }
+    repository: DownloadQueueRepository? = LocalDownloadQueueRepository.current,
+): DownloadsSession {
+    val resolved = repository ?: remember { FakeDownloadRepository() }
+    val session = remember(resolved) { DownloadsSession(resolved) }
+    if (LocalDownloadQueueVisible.current) {
+        LaunchedEffect(session) { session.observeQueue() }
+    }
+    return session
+}
