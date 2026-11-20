@@ -1,19 +1,28 @@
 package app.koyura.designsystem.navigation
 
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarDefaults
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Surface
+import androidx.compose.material3.contentColorFor
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
+import app.koyura.designsystem.DesignTokens
 import app.koyura.designsystem.resources.Res
 import app.koyura.designsystem.resources.nav_browse_badge_description
 import app.koyura.designsystem.resources.nav_updates_badge_description
@@ -49,29 +58,42 @@ fun ReaderNavigationBar(
     browseBadgeCount: Int = 0,
     windowInsets: WindowInsets = NavigationBarDefaults.windowInsets,
 ) {
-    // Mirrors Komikku HomeScreen bottom bar: Material 3 NavigationBar with one item per tab in
-    // canonical order, badges on Updates/Browse, and an optional always-show-label preference.
-    NavigationBar(
+    // Mirrors Komikku HomeScreen bottom bar, but the row is drawn here instead of delegating to
+    // `NavigationBar`: M3's default puts 8 dp spacers at both ends, while the reference fills the
+    // full width so five items divide the 360 dp phone width evenly (whitepaper 06 §6.2).
+    val containerColor = MaterialTheme.colorScheme.surfaceContainer
+    Surface(
         modifier = modifier,
-        windowInsets = windowInsets,
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        color = containerColor,
+        contentColor = contentColorFor(containerColor),
     ) {
-        visibleTabs.ordered().forEach { tab ->
-            val selected = tab == selectedTab
-            NavigationBarItem(
-                selected = selected,
-                onClick = { onTabClick(tab) },
-                icon = {
-                    NavigationTabIcon(
-                        tab = tab,
-                        selected = selected,
-                        updatesBadgeCount = updatesBadgeCount,
-                        browseBadgeCount = browseBadgeCount,
-                    )
-                },
-                label = { NavigationTabLabel(tab) },
-                alwaysShowLabel = labelMode == NavLabelMode.AlwaysShow,
-            )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .windowInsetsPadding(windowInsets)
+                .heightIn(min = DesignTokens.Sizes.NavigationBarHeight)
+                .selectableGroup(),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            visibleTabs.ordered().forEach { tab ->
+                val selected = tab == selectedTab
+                NavigationBarItem(
+                    selected = selected,
+                    onClick = { onTabClick(tab) },
+                    icon = {
+                        NavigationTabIcon(
+                            tab = tab,
+                            selected = selected,
+                            updatesBadgeCount = updatesBadgeCount,
+                            browseBadgeCount = browseBadgeCount,
+                        )
+                    },
+                    label = { NavigationTabLabel(tab) },
+                    alwaysShowLabel = labelMode == NavLabelMode.AlwaysShow,
+                    modifier = Modifier.weight(1f),
+                )
+            }
         }
     }
 }

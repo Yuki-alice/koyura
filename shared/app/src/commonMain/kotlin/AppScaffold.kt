@@ -15,6 +15,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -544,11 +546,25 @@ private fun AppNavigationContent(
     }
 }
 
+/**
+ * 页面 push/pop 转场：shared-axis-X（位移 1/3 宽 + 分阶段淡入淡出），300ms。
+ *
+ * CMP 的 material3 没有 `materialFadeThrough*` / `materialSharedAxisX*`（只有 MotionScheme 令牌），
+ * 这里按 M3 同名转场的参数手写：退场元素先淡出（1/3 时长），进场元素延后淡入，位移取视口 1/3。
+ * 白皮书 05 §5.1 #2。
+ */
 private fun childPageTransition(forward: Boolean): androidx.compose.animation.ContentTransform {
     val direction = if (forward) 1 else -1
-    val duration = DesignTokens.Motion.TabFadeThroughMs
-    return (slideInHorizontally(tween(duration)) { direction * it / 6 } + fadeIn(tween(duration))) togetherWith
-        (slideOutHorizontally(tween(duration)) { -direction * it / 6 } + fadeOut(tween(duration)))
+    val total = DesignTokens.Motion.PageSharedAxisMs
+    val outMs = total / 3
+    val slide = tween<androidx.compose.ui.unit.IntOffset>(total, easing = FastOutSlowInEasing)
+    return (
+        slideInHorizontally(slide) { direction * it / 3 } +
+            fadeIn(tween(total - outMs, delayMillis = outMs))
+        ) togetherWith (
+        slideOutHorizontally(tween(total, easing = LinearOutSlowInEasing)) { -direction * it / 3 } +
+            fadeOut(tween(outMs))
+        )
 }
 
 /** More 页工具占位的标题；key 与 `MoreScreen` 的导航行 key 一致。 */
