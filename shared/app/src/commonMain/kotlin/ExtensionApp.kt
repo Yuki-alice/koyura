@@ -25,6 +25,7 @@ import app.koyura.app.history.VeneraHistoryService
 import app.koyura.app.library.ProductionLibraryRepository
 import app.koyura.app.account.ProductionAccountRepository
 import app.koyura.app.updates.ProductionUpdatesRepository
+import app.koyura.app.updates.ProductionUpdatePolicyRepository
 import app.koyura.app.resources.Res
 import app.koyura.app.resources.extension_startup_failed
 import app.koyura.app.resources.extension_startup_loading
@@ -100,6 +101,9 @@ internal fun ExtensionApp(
         val updates = remember(session) {
             ProductionUpdatesRepository(session.updates)
         }
+        val updatePolicy = remember(session) {
+            ProductionUpdatePolicyRepository(session.updates)
+        }
         val accounts = remember(session) {
             ProductionAccountRepository(session.service)
         }
@@ -134,6 +138,7 @@ internal fun ExtensionApp(
             readerPreferences = session.readerPreferences,
             libraryRepository = library,
             updatesRepository = updates,
+            updatePolicyRepository = updatePolicy,
             accountRepository = accounts,
             sourceUiHost = uiHost,
         )

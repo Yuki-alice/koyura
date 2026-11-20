@@ -27,7 +27,9 @@ import app.koyura.features.account.AccountRepository
 import app.koyura.features.account.LocalAccountRepository
 import app.koyura.features.library.LocalLibraryRepository
 import app.koyura.features.library.LibraryRepository as FeaturesLibraryRepository
+import app.koyura.features.updates.LocalUpdatePolicyRepository
 import app.koyura.features.updates.LocalUpdatesRepository
+import app.koyura.features.updates.UpdatePolicyRepository
 import app.koyura.features.updates.UpdatesRepository
 
 /** Base tablet rule kept as a pure function so the 719/720 dp boundary is directly testable. */
@@ -66,6 +68,7 @@ fun App(
     readerPreferences: ReaderPreferences? = null,
     libraryRepository: FeaturesLibraryRepository? = null,
     updatesRepository: UpdatesRepository? = null,
+    updatePolicyRepository: UpdatePolicyRepository? = null,
     accountRepository: AccountRepository? = null,
     sourceUiHost: SourceUiHost? = null,
 ) {
@@ -77,6 +80,7 @@ fun App(
             LocalHistoryService provides historyService,
             LocalLibraryRepository provides libraryRepository,
             LocalUpdatesRepository provides updatesRepository,
+            LocalUpdatePolicyRepository provides updatePolicyRepository,
             LocalAccountRepository provides accountRepository,
             LocalSourceUiHost provides sourceUiHost,
         ) {

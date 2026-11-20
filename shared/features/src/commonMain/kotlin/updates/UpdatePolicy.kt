@@ -32,8 +32,8 @@ data class UpdatePolicy(
     )
 }
 
-/** 界面契约 -> 引擎偏好模型。 */
-internal fun UpdatePolicy.toPreferences(): SmartUpdatePreferences = SmartUpdatePreferences(
+/** 界面契约 -> 引擎偏好模型。app 层生产桥接（ProductionUpdatePolicyRepository）消费，故公开。 */
+fun UpdatePolicy.toPreferences(): SmartUpdatePreferences = SmartUpdatePreferences(
     enabled = enabled,
     skipCompleted = skipCompleted,
     skipWithUnread = skipWithUnread,
@@ -43,7 +43,7 @@ internal fun UpdatePolicy.toPreferences(): SmartUpdatePreferences = SmartUpdateP
 )
 
 /** 引擎偏好模型 -> 界面契约。 */
-internal fun SmartUpdatePreferences.toUpdatePolicy(): UpdatePolicy = UpdatePolicy(
+fun SmartUpdatePreferences.toUpdatePolicy(): UpdatePolicy = UpdatePolicy(
     enabled = enabled,
     skipCompleted = skipCompleted,
     skipWithUnread = skipWithUnread,
