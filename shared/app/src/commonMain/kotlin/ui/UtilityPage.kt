@@ -1,17 +1,19 @@
 package app.koyura.app.ui
 
+import app.koyura.app.resources.utility_back
+import app.koyura.app.resources.Res
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import app.koyura.designsystem.DesignTokens
 import app.koyura.designsystem.components.AppText
 import app.koyura.designsystem.components.EmptyScreen
@@ -39,8 +41,7 @@ fun UtilityPageScreen(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                // 顶栏 64dp（白皮书 06 §6.1；DesignTokens 未收录该尺寸，故就近定义）。
-                .height(64.dp)
+                .heightIn(min = DesignTokens.Sizes.TopBarHeight)
                 .padding(horizontal = DesignTokens.Spacing.Medium),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -54,7 +55,7 @@ fun UtilityPageScreen(
             EmptyScreen(
                 emoji = "(・∀・)",
                 message = message,
-                actionLabel = "返回",
+                actionLabel = stringResource(Res.string.utility_back),
                 onAction = onBack,
                 modifier = Modifier.fillMaxSize(),
             )

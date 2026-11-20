@@ -2,6 +2,7 @@ package app.koyura.app.downloads
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.v2.runComposeUiTest
 import app.koyura.app.AppScaffold
@@ -53,6 +54,8 @@ class DownloadsQueueUiTest {
 
         onNodeWithTag(DownloadsListTag).assertIsDisplayed()
         onNodeWithTag(downloadRowTag("job-1")).assertIsDisplayed()
+        onNodeWithText("30%").assertIsDisplayed()
+        onNodeWithText("16%").assertIsDisplayed()
 
         // 暂停下载中的任务，暂停态出现恢复与取消。
         onNodeWithTag(downloadPauseTag("job-1")).performClick()

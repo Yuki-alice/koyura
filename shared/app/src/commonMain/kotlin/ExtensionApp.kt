@@ -1,5 +1,6 @@
 package app.koyura.app
 
+import app.koyura.designsystem.DesignTokens
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,7 +16,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLocale
-import androidx.compose.ui.unit.dp
 import app.koyura.app.account.ProductionAccountRepository
 import app.koyura.app.browse.venera.VeneraBrowseService
 import app.koyura.app.history.VeneraHistoryService
@@ -162,7 +162,7 @@ internal fun ExtensionApp(
                 Column(
                     modifier = Modifier.fillMaxSize().safeDrawingPadding(),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
+                    verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Medium, Alignment.CenterVertically),
                 ) {
                     if (failed) {
                         AppText(stringResource(Res.string.extension_startup_failed))

@@ -1,5 +1,6 @@
 package app.koyura.app.ui
 
+import app.koyura.designsystem.DesignTokens
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -9,7 +10,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.unit.dp
 import app.koyura.app.resources.Res
 import app.koyura.app.resources.nav_screen_browse_body
 import app.koyura.app.resources.nav_screen_browse_title
@@ -56,8 +56,8 @@ fun TabRootScreen(
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(DesignTokens.Spacing.Large),
+        verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Regular),
     ) {
         AppText(
             text = stringResource(content.title),
@@ -85,8 +85,8 @@ fun DetailScreen(origin: NavTab, id: Int, modifier: Modifier = Modifier) {
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(DesignTokens.Spacing.Large),
+        verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Regular),
     ) {
         AppText(
             text = stringResource(Res.string.nav_screen_detail_title),

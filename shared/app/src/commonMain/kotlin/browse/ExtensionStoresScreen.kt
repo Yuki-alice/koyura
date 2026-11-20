@@ -1,5 +1,6 @@
 package app.koyura.app.browse
 
+import app.koyura.designsystem.DesignTokens
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,7 +23,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import app.koyura.app.resources.Res
 import app.koyura.app.resources.browse_action_install
 import app.koyura.app.resources.browse_empty_stores
@@ -105,11 +105,11 @@ fun ExtensionStoresScreen(
 
     Column(modifier = modifier.fillMaxSize().testTag(StoresScreenTestTag)) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.Small),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Tight)) {
                 AppText(
                     text = stringResource(Res.string.stores_title),
                     style = UiTheme.typography.headlineMedium,
@@ -118,7 +118,7 @@ fun ExtensionStoresScreen(
                     AppText(stringResource(Res.string.browse_tab_extensions))
                 }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small)) {
                 AppTextButton(
                     onClick = { scope.launch { session.refresh() } },
                     modifier = Modifier.testTag("stores-refresh"),
@@ -135,8 +135,8 @@ fun ExtensionStoresScreen(
                 AppCircularProgress()
             }
             LoadState.Unavailable -> Column(
-                modifier = Modifier.fillMaxSize().padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxSize().padding(DesignTokens.Spacing.Large),
+                verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small),
             ) {
                 AppText(
                     text = stringResource(Res.string.browse_empty_stores),
@@ -144,8 +144,8 @@ fun ExtensionStoresScreen(
                 )
             }
             is LoadState.Failed -> Column(
-                modifier = Modifier.fillMaxSize().padding(24.dp).testTag(StoresErrorTag),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxSize().padding(DesignTokens.Spacing.Large).testTag(StoresErrorTag),
+                verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Regular),
             ) {
                 AppText(
                     text = stringResource(Res.string.browse_operation_failed, load.message),
@@ -269,14 +269,14 @@ private fun StoreRow(
         modifier = Modifier
             .fillMaxWidth()
             .testTag(storeRowTag(store.id))
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+            .padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.Row),
+        verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.ExtraSmall),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Tight)) {
                 AppText(
                     text = store.name,
                     style = UiTheme.typography.bodyLarge,
@@ -314,7 +314,7 @@ private fun StoreRow(
                 modifier = Modifier.testTag(storeToggleTag(store.id)),
             )
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.ExtraSmall)) {
             AppTextButton(
                 onClick = onPreview,
                 enabled = !running,
@@ -357,7 +357,7 @@ private fun StoreEditDialog(
         onDismissRequest = { if (!running) onDismiss() },
         title = { AppText(title) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Regular)) {
                 AppTextField(
                     value = name,
                     onValueChange = { name = it },
@@ -421,7 +421,7 @@ private fun StoreCatalogDialog(
         onDismissRequest = onDismiss,
         modifier = Modifier.testTag(CatalogDialogTag),
         title = {
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Tight)) {
                 AppText(stringResource(Res.string.stores_preview_title))
                 AppText(
                     text = store.name,
@@ -433,10 +433,10 @@ private fun StoreCatalogDialog(
         text = {
             when (catalogState) {
                 null, CatalogState.Loading -> Box(
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = DesignTokens.Sizes.CatalogInputMinHeight),
                     contentAlignment = Alignment.Center,
                 ) { AppCircularProgress() }
-                is CatalogState.Failed -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                is CatalogState.Failed -> Column(verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small)) {
                     AppText(
                         text = stringResource(Res.string.browse_operation_failed, catalogState.message),
                         color = UiTheme.colorScheme.error,
@@ -453,13 +453,13 @@ private fun StoreCatalogDialog(
                     if (refs.isEmpty()) {
                         AppText(stringResource(Res.string.stores_preview_empty))
                     } else {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Column(verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small)) {
                             AppText(
                                 text = stringResource(Res.string.stores_preview_count, refs.size),
                                 style = UiTheme.typography.labelMedium,
                             )
                             LazyColumn(
-                                modifier = Modifier.fillMaxWidth().heightIn(max = 320.dp),
+                                modifier = Modifier.fillMaxWidth().heightIn(max = DesignTokens.Breakpoints.CatalogResultsMaxHeight),
                             ) {
                                 items(refs, key = { it.variant.key }) { ref ->
                                     CatalogRow(
@@ -492,10 +492,10 @@ private fun CatalogRow(
     val running = status is OperationStatus.Running
     Column(
         modifier = Modifier.fillMaxWidth().testTag("catalog-entry-${ref.variant.key}"),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
+        verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Tight),
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+            modifier = Modifier.fillMaxWidth().padding(vertical = DesignTokens.Spacing.Compact),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(Modifier.weight(1f)) {
@@ -523,8 +523,8 @@ private fun CatalogRow(
             }
             when {
                 running -> AppCircularProgress(
-                    modifier = Modifier.size(24.dp),
-                    strokeWidth = 2.dp,
+                    modifier = Modifier.size(DesignTokens.Spacing.Large),
+                    strokeWidth = DesignTokens.Sizes.ProgressStroke,
                 )
                 status is OperationStatus.Failed -> AppTextButton(
                     onClick = onInstall,

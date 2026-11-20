@@ -5,6 +5,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.text.style.TextAlign
 import app.koyura.app.resources.browse_clear_search
 import app.koyura.designsystem.ActionIcon
+import app.koyura.designsystem.DecorativeActionIcon
 import app.koyura.designsystem.ActionIconButton
 import app.koyura.designsystem.DesignTokens
 import app.koyura.designsystem.SearchField
@@ -44,6 +45,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.movableContentOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -64,6 +66,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import app.koyura.app.LocalAppearance
 import app.koyura.app.LocalReaderService
 import app.koyura.app.resources.Res
 import app.koyura.app.resources.browse_retry
@@ -111,6 +114,7 @@ import app.koyura.designsystem.components.AppSuggestionChip
 import app.koyura.designsystem.components.AppSurface
 import app.koyura.designsystem.components.AppText
 import app.koyura.designsystem.components.AppTextButton
+import app.koyura.designsystem.components.ProvideUiContentColor
 import app.koyura.designsystem.components.ReaderTopAppBar
 import app.koyura.designsystem.components.ReaderTopAppBarHeight
 import app.koyura.designsystem.components.UiTheme
@@ -219,7 +223,7 @@ fun SourceSearchScreen(
                 },
             )
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.Small),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 SearchField(
@@ -240,14 +244,14 @@ fun SourceSearchScreen(
             when {
                 loading -> {
                     Column(
-                        modifier = Modifier.fillMaxSize().padding(24.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxSize().padding(DesignTokens.Spacing.Large),
+                        verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small),
                     ) { AppCircularProgress() }
                 }
                 error != null -> {
                     Column(
-                        modifier = Modifier.fillMaxSize().padding(24.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.fillMaxSize().padding(DesignTokens.Spacing.Large),
+                        verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Regular),
                     ) {
                         AppText(
                             text = stringResource(Res.string.source_search_error, error.orEmpty()),
@@ -263,7 +267,7 @@ fun SourceSearchScreen(
                         text = stringResource(Res.string.source_search_empty),
                         style = UiTheme.typography.bodyMedium,
                         color = UiTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(24.dp),
+                        modifier = Modifier.padding(DesignTokens.Spacing.Large),
                     )
                 }
                 results.isEmpty() -> {
@@ -271,7 +275,7 @@ fun SourceSearchScreen(
                         text = stringResource(Res.string.source_search_no_results),
                         style = UiTheme.typography.bodyMedium,
                         color = UiTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(24.dp),
+                        modifier = Modifier.padding(DesignTokens.Spacing.Large),
                     )
                 }
                 else -> {
@@ -293,19 +297,19 @@ fun SourceSearchScreen(
                                     .fillMaxWidth()
                                     .clickable { onOpenWork(work.id, work.title) }
                                     .testTag(sourceResultTag(work.id))
-                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                                    .padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.Small),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Medium),
                             ) {
                                 Cover(
                                     sourceKey = sourceKey,
                                     coverUrl = work.cover,
                                     label = work.title,
-                                    modifier = Modifier.size(width = 48.dp, height = 72.dp),
+                                    modifier = Modifier.size(width = DesignTokens.Sizes.SearchCoverWidth, height = DesignTokens.Sizes.SearchCoverHeight),
                                 )
                                 Column(
                                     modifier = Modifier.weight(1f),
-                                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                                    verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Tight),
                                 ) {
                                     AppText(
                                         work.title,
@@ -318,7 +322,7 @@ fun SourceSearchScreen(
                                             work.subtitle,
                                             style = UiTheme.typography.bodySmall,
                                             color = UiTheme.colorScheme.onSurfaceVariant.copy(
-                                                alpha = app.koyura.designsystem.DesignTokens.Alpha.Secondary,
+                                                alpha = DesignTokens.Alpha.Secondary,
                                             ),
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis,
@@ -329,7 +333,7 @@ fun SourceSearchScreen(
                                             work.tags.joinToString(" · "),
                                             style = UiTheme.typography.bodySmall,
                                             color = UiTheme.colorScheme.onSurfaceVariant.copy(
-                                                alpha = app.koyura.designsystem.DesignTokens.Alpha.Secondary,
+                                                alpha = DesignTokens.Alpha.Secondary,
                                             ),
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis,
@@ -420,14 +424,14 @@ fun SourceDetailScreen(
             }
             error != null -> {
                 Column(
-                    modifier = Modifier.fillMaxSize().padding(24.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxSize().padding(DesignTokens.Spacing.Large),
+                    verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Regular),
                 ) {
                     AppText(
                         text = stringResource(Res.string.source_detail_error, error.orEmpty()),
                         color = UiTheme.colorScheme.error,
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Regular)) {
                         AppButton(onClick = onBack) {
                             AppText(stringResource(Res.string.source_detail_back))
                         }
@@ -455,9 +459,9 @@ fun SourceDetailScreen(
                         Column(Modifier.fillMaxSize().background(UiTheme.colorScheme.surface)) {
                             library.actionError?.let { libraryError ->
                                 Row(
-                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                                    modifier = Modifier.fillMaxWidth().padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.ExtraSmall),
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small),
                                 ) {
                                     // 点按错误行即清除（与书架页的清除按钮同一语义，避免引入新文案）。
                                     AppText(
@@ -626,7 +630,7 @@ fun SourceDetailScreen(
             else -> {
                 AppText(
                     text = stringResource(Res.string.source_detail_empty),
-                    modifier = Modifier.padding(24.dp),
+                    modifier = Modifier.padding(DesignTokens.Spacing.Large),
                 )
             }
         }
@@ -635,21 +639,33 @@ fun SourceDetailScreen(
 
 @Composable
 private fun DetailCoverTheme(artwork: ImageBitmap?, content: @Composable () -> Unit) {
-    val state = androidx.compose.runtime.key(artwork) {
+    val appearance = LocalAppearance.current
+    val enableCoverSeed = appearance == null || (appearance.coverBased && appearance.customSeedColor == null)
+    val state = androidx.compose.runtime.key(artwork, enableCoverSeed) {
         produceState<Color?>(initialValue = null) {
-            if (artwork != null) {
+            if (artwork != null && enableCoverSeed) {
                 value = withContext(Dispatchers.Default) {
                     runCatching { extractCoverSeedColor(artwork) }.getOrNull()
                 }
             }
         }
     }
+    val scene = remember {
+        movableContentOf<@Composable () -> Unit> { body ->
+            ProvideUiContentColor(UiTheme.colorScheme.onSurface, body)
+        }
+    }
     val seed = state.value
     val mode = if (UiTheme.colorScheme.surface.luminance() < 0.5f) ThemeMode.DARK else ThemeMode.LIGHT
     if (seed == null) {
-        content()
+        scene(content)
     } else {
-        VisualTheme(seedColor = seed, mode = mode, content = content)
+        VisualTheme(
+            seedColor = seed,
+            mode = mode,
+            amoled = appearance?.amoled == true,
+            paletteStyle = appearance?.coverBasedStyle ?: com.materialkolor.PaletteStyle.Vibrant,
+        ) { scene(content) }
     }
 }
 
@@ -678,7 +694,7 @@ private fun DetailSuggestions() {
 private fun DetailHeading(title: String, subtitle: String, sourceName: String, centered: Boolean) {
     Column(
         horizontalAlignment = if (centered) Alignment.CenterHorizontally else Alignment.Start,
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.ExtraSmall),
     ) {
         AppText(
             text = title,
@@ -718,14 +734,14 @@ private fun DetailAction(
         onClick = onClick,
         modifier = modifier.heightIn(min = DesignTokens.Sizes.MinimumTouchTarget),
         enabled = enabled,
-        contentPadding = PaddingValues(horizontal = 2.dp, vertical = 8.dp),
+        contentPadding = PaddingValues(horizontal = DesignTokens.Spacing.Tight, vertical = DesignTokens.Spacing.Small),
         contentColor = if (active) UiTheme.colorScheme.primary else UiTheme.colorScheme.onSurfaceVariant,
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.ExtraSmall),
         ) {
-            ActionIcon(icon, null, modifier = Modifier.size(DesignTokens.Sizes.DetailActionIcon))
+            DecorativeActionIcon(icon, modifier = Modifier.size(DesignTokens.Sizes.DetailActionIcon))
             AppText(
                 text = label,
                 style = UiTheme.typography.labelMedium,
@@ -755,13 +771,13 @@ private fun DetailInfoColumn(
     val title = detail.title.ifEmpty { fallbackTitle }
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         // 平板居中封面占宽 65%（白皮书 07 §7.4），240dp 上限保持手机/折叠屏可读。
-        val coverWidth = (maxWidth * 0.65f).coerceIn(100.dp, 240.dp)
+        val coverWidth = (maxWidth * 0.65f).coerceIn(DesignTokens.Breakpoints.DetailCoverMinWidth, DesignTokens.Breakpoints.DetailCoverMaxWidth)
         DetailBackdrop(cover = artwork, modifier = Modifier.matchParentSize())
         if (wide) {
             Column(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.Medium),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Regular),
             ) {
                 CoverArtwork(
                     bitmap = artwork,
@@ -772,13 +788,13 @@ private fun DetailInfoColumn(
             }
         } else {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.Regular),
+                horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Medium),
             ) {
                 CoverArtwork(
                     bitmap = artwork,
                     label = title,
-                    modifier = Modifier.size(96.dp, 144.dp),
+                    modifier = Modifier.size(DesignTokens.Sizes.DetailCoverWidth, DesignTokens.Sizes.DetailCoverHeight),
                 )
                 Column(Modifier.weight(1f)) {
                     DetailHeading(title, detail.subtitle, sourceName, centered = false)
@@ -792,7 +808,7 @@ private fun DetailInfoColumn(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 8.dp),
+            .padding(horizontal = DesignTokens.Spacing.Small),
         horizontalArrangement = Arrangement.SpaceEvenly,
     ) {
         DetailAction(
@@ -828,8 +844,8 @@ private fun DetailInfoColumn(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+            .padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.ExtraSmall),
+        verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.ExtraSmall),
     ) {
         AppText(
             text = body,
@@ -838,12 +854,13 @@ private fun DetailInfoColumn(
             overflow = TextOverflow.Ellipsis,
         )
         if (detail.description.isNotEmpty()) {
-            ActionIconButton(
-                icon = if (expanded) ActionIcon.Collapse else ActionIcon.Expand,
-                label = stringResource(if (expanded) Res.string.browse_show_less else Res.string.browse_show_more),
-                onClick = { expanded = !expanded },
-                modifier = Modifier.align(Alignment.CenterHorizontally),
-            )
+            Box(Modifier.align(Alignment.CenterHorizontally)) {
+                ActionIconButton(
+                    icon = if (expanded) ActionIcon.Collapse else ActionIcon.Expand,
+                    label = stringResource(if (expanded) Res.string.browse_show_less else Res.string.browse_show_more),
+                    onClick = { expanded = !expanded },
+                )
+            }
         }
     }
     if (detail.tags.isNotEmpty()) {
@@ -851,16 +868,16 @@ private fun DetailInfoColumn(
             text = stringResource(Res.string.source_detail_tags),
             style = UiTheme.typography.labelLarge,
             color = UiTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+            modifier = Modifier.padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.ExtraSmall),
         )
         val multiGroup = detail.tags.size > 1
         FlowRow(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp)
+                .padding(horizontal = DesignTokens.Spacing.Medium)
                 .testTag("detail-tags"),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small),
+            verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small),
         ) {
             detail.tags.forEach { (group, values) ->
                 values.forEachIndexed { index, value ->
@@ -886,9 +903,9 @@ private fun DetailInfoColumn(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 4.dp)
+                .padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.ExtraSmall)
                 .testTag("detail-meta"),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
+            verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Tight),
         ) {
             if (detail.updateTime.isNotEmpty()) {
                 AppText(
@@ -938,8 +955,8 @@ private fun DetailChapterList(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                .padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.ExtraSmall),
+            horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             AppText(
@@ -1009,10 +1026,9 @@ private fun MangaChapterRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (selected) {
-            ActionIcon(
+            DecorativeActionIcon(
                 ActionIcon.Checklist,
-                null,
-                modifier = Modifier.padding(end = DesignTokens.Spacing.Small).size(16.dp),
+                modifier = Modifier.padding(end = DesignTokens.Spacing.Small).size(DesignTokens.Spacing.Medium),
                 tint = UiTheme.colorScheme.primary,
             )
         } else {
@@ -1027,7 +1043,7 @@ private fun MangaChapterRow(
         }
         Column(
             modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Compact),
         ) {
             AppText(
                 text = chapter.title,
@@ -1044,7 +1060,7 @@ private fun MangaChapterRow(
                 text = chapterSecondaryLine(chapter),
                 style = UiTheme.typography.bodySmall,
                 color = UiTheme.colorScheme.onSurfaceVariant.copy(
-                    alpha = app.koyura.designsystem.DesignTokens.Alpha.Secondary,
+                    alpha = DesignTokens.Alpha.Secondary,
                 ),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -1055,7 +1071,7 @@ private fun MangaChapterRow(
                 text = stringResource(Res.string.source_detail_read),
                 style = UiTheme.typography.labelSmall,
                 color = UiTheme.colorScheme.primary,
-                modifier = Modifier.padding(horizontal = 4.dp),
+                modifier = Modifier.padding(horizontal = DesignTokens.Spacing.ExtraSmall),
             )
         }
         ActionIconButton(
@@ -1112,7 +1128,7 @@ private fun BoxScope.DetailReadFab(
     AppExtendedFab(
         compact = true,
         text = { AppText(label) },
-        icon = { ActionIcon(ActionIcon.Play, null) },
+        icon = { DecorativeActionIcon(ActionIcon.Play) },
         onClick = onOpen,
         modifier = Modifier
             .align(if (atStart) Alignment.BottomStart else Alignment.BottomEnd)

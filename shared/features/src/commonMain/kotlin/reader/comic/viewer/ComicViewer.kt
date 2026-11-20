@@ -1,5 +1,6 @@
 package app.koyura.features.reader.comic.viewer
 
+import app.koyura.designsystem.DesignTokens
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -422,7 +423,7 @@ private fun WebtoonComicViewer(
     // Komikku: WEBTOON (isContinuous=true) has no inter-page gap; CONTINUOUS_VERTICAL
     // (isContinuous=false) separates pages with a 15dp gap and steps page-by-page on tap.
     val continuous = options.mode == ComicReadingMode.WEBTOON
-    val gap = if (continuous) 0.dp else 15.dp
+    val gap = if (continuous) 0.dp else DesignTokens.Sizes.PagedStripGap
     val hasPrev = session.previousChapterId(content.chapterId) != null
     val hasNext = session.nextChapterId(content.chapterId) != null
     // LazyColumn positions include an optional header spacer (previous-chapter end).
@@ -572,7 +573,7 @@ private fun WebtoonComicViewer(
             // overlay sits above the list and would swallow button taps.
             if (hasPrev) {
                 item(key = "prev-spacer") {
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(DesignTokens.Spacing.Small))
                 }
             }
             itemsIndexed(content.pageKeys, key = { _, key -> key }) { pageIndex, pageKey ->
@@ -973,7 +974,7 @@ private fun PageError(
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
+        verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small, Alignment.CenterVertically),
     ) {
         AppText(
             text = stringResource(Res.string.reader_page_failed),

@@ -1,5 +1,6 @@
 package app.koyura.features.reader.comic.chrome
 
+import app.koyura.designsystem.DesignTokens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -86,7 +87,7 @@ fun ReaderSettingsDialog(
                 .background(UiTheme.colorScheme.surface, UiTheme.shapes.large)
                 .padding(20.dp)
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Regular),
         ) {
             AppText(
                 text = stringResource(Res.string.reader_chrome_settings),
@@ -343,9 +344,9 @@ private fun EnumRow(
     tag: (String) -> String,
     onSelect: (String) -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.ExtraSmall)) {
         AppText(text = label, style = UiTheme.typography.labelLarge)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small)) {
             options.forEach { (text, value) ->
                 AppFilterChip(
                     selected = selected == value,
@@ -368,9 +369,9 @@ private fun InheritEnumRow(
     tag: (String) -> String,
     onSelect: (String?) -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.ExtraSmall)) {
         AppText(text = label, style = UiTheme.typography.labelLarge)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small)) {
             AppFilterChip(
                 selected = selected == null,
                 onClick = { onSelect(null) },
@@ -397,9 +398,9 @@ private fun InheritBoolRow(
     tag: (String) -> String,
     onSelect: (Boolean?) -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.ExtraSmall)) {
         AppText(text = label, style = UiTheme.typography.labelLarge)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small)) {
             AppFilterChip(
                 selected = selected == null,
                 onClick = { onSelect(null) },
@@ -435,7 +436,7 @@ private fun SwitchRow(
             .fillMaxWidth()
             .testTag(tag)
             .toggleable(value = checked, role = Role.Switch, onValueChange = onToggle)
-            .padding(vertical = 4.dp),
+            .padding(vertical = DesignTokens.Spacing.ExtraSmall),
     ) {
         AppText(
             text = label,

@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
@@ -18,11 +19,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import app.koyura.designsystem.ActionIcon
+import app.koyura.designsystem.DecorativeActionIcon
 import app.koyura.designsystem.ActionIconButton
 import app.koyura.designsystem.DesignTokens
+import app.koyura.designsystem.components.EmptyScreen
+import app.koyura.designsystem.components.ErrorScreen
+import app.koyura.designsystem.components.LoadingScreen
 import app.koyura.designsystem.components.AppCircularProgress
 import app.koyura.designsystem.components.AppExtendedFab
-import app.koyura.designsystem.components.AppLinearProgress
 import app.koyura.designsystem.components.AppText
 import app.koyura.designsystem.components.AppTextButton
 import app.koyura.designsystem.components.ReaderTopAppBar
@@ -34,6 +38,7 @@ import app.koyura.features.resources.downloads_empty
 import app.koyura.features.resources.downloads_load_failed
 import app.koyura.features.resources.downloads_pause
 import app.koyura.features.resources.downloads_pause_all
+import app.koyura.features.resources.downloads_progress_percent
 import app.koyura.features.resources.downloads_resume
 import app.koyura.features.resources.downloads_resume_all
 import app.koyura.features.resources.downloads_retry
@@ -100,22 +105,11 @@ fun DownloadsScreen(
         )
 
         when (val state = session.loadState) {
-            DownloadQueueLoadState.Loading -> Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center,
+            DownloadQueueLoadState.Loading -> LoadingScreen()
+            is DownloadQueueLoadState.Failed -> ErrorScreen(
+                message = stringResource(Res.string.downloads_load_failed, state.message),
+                modifier = Modifier.testTag(DownloadsErrorTag),
             ) {
-                AppCircularProgress()
-            }
-            is DownloadQueueLoadState.Failed -> Column(
-                modifier = Modifier.fillMaxSize()
-                    .padding(DesignTokens.Spacing.Large)
-                    .testTag(DownloadsErrorTag),
-                verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small),
-            ) {
-                AppText(
-                    text = stringResource(Res.string.downloads_load_failed, state.message),
-                    color = UiTheme.colorScheme.error,
-                )
                 AppTextButton(onClick = { scope.launch { session.refresh() } }) {
                     AppText(stringResource(Res.string.downloads_retry_load))
                 }
@@ -163,9 +157,8 @@ fun DownloadsScreen(
                                 )
                             },
                             icon = {
-                                ActionIcon(
-                                    icon = if (session.running) ActionIcon.Pause else ActionIcon.Play,
-                                    contentDescription = null,
+                                DecorativeActionIcon(
+                icon = if (session.running) ActionIcon.Pause else ActionIcon.Play,
                                 )
                             },
                             onClick = {
@@ -188,28 +181,11 @@ fun DownloadsScreen(
 /** 空态：displayMedium 颜文字（0.78）+ bodyMedium 文案（白皮书 06 §6.8）。 */
 @Composable
 private fun DownloadsEmptyState() {
-    Column(
-        modifier = Modifier.fillMaxSize()
-            .padding(horizontal = DesignTokens.Spacing.Large)
-            .testTag(DownloadsEmptyTag),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        AppText(
-            text = "(˘･_･˘)",
-            style = UiTheme.typography.displayMedium,
-            color = UiTheme.colorScheme.onSurfaceVariant.copy(
-                alpha = DesignTokens.Alpha.Secondary,
-            ),
-        )
-        AppText(
-            text = stringResource(Res.string.downloads_empty),
-            style = UiTheme.typography.bodyMedium,
-            color = UiTheme.colorScheme.onSurfaceVariant.copy(
-                alpha = DesignTokens.Alpha.Secondary,
-            ),
-        )
-    }
+    EmptyScreen(
+        emoji = "(˘･_･˘)",
+        message = stringResource(Res.string.downloads_empty),
+        modifier = Modifier.testTag(DownloadsEmptyTag),
+    )
 }
 
 /** 队列行：漫画名 + 章节名 + 线性进度条（上方 8dp）+ 右侧状态动作。 */
@@ -239,7 +215,7 @@ private fun DownloadRow(
                 text = task.workTitle,
                 style = UiTheme.typography.bodyMedium,
                 color = UiTheme.colorScheme.onSurface,
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
             AppText(
@@ -248,16 +224,33 @@ private fun DownloadRow(
                 color = UiTheme.colorScheme.onSurfaceVariant.copy(
                     alpha = DesignTokens.Alpha.Secondary,
                 ),
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
             if (task.totalPages > 0) {
-                AppLinearProgress(
-                    progress = { task.downloadedPages.toFloat() / task.totalPages },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = DesignTokens.Spacing.Small),
-                )
+                val progress = (task.downloadedPages.toFloat() / task.totalPages).coerceIn(0f, 1f)
+                val progressColor = if (task.status == FakeDownloadStatus.FAILED) {
+                    UiTheme.colorScheme.error
+                } else {
+                    UiTheme.colorScheme.primary
+                }
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small),
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(top = DesignTokens.Spacing.ExtraSmall),
+                ) {
+                    AppCircularProgress(
+                        progress = { progress },
+                        modifier = Modifier.size(DesignTokens.Sizes.DownloadProgress),
+                        strokeWidth = DesignTokens.Sizes.DownloadProgress / 8,
+                        color = progressColor,
+                    )
+                    AppText(
+                        text = stringResource(Res.string.downloads_progress_percent, (progress * 100).toInt()),
+                        style = UiTheme.typography.labelMedium,
+                        color = progressColor,
+                    )
+                }
             }
             AppText(
                 text = downloadStatusText(task),
@@ -269,7 +262,7 @@ private fun DownloadRow(
                         alpha = DesignTokens.Alpha.Secondary,
                     )
                 },
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
         }

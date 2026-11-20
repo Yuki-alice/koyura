@@ -23,6 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import app.koyura.designsystem.ActionIcon
+import app.koyura.designsystem.DecorativeActionIcon
 import app.koyura.designsystem.ActionIconButton
 import app.koyura.designsystem.DesignTokens
 import app.koyura.designsystem.SectionCard
@@ -330,9 +331,8 @@ private fun MetricColumn(
             textAlign = TextAlign.Center,
         )
         metric.icon?.let { icon ->
-            ActionIcon(
+            DecorativeActionIcon(
                 icon = icon,
-                contentDescription = null,
                 tint = UiTheme.colorScheme.primary,
             )
         }

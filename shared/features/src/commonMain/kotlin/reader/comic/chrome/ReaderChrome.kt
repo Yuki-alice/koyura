@@ -39,7 +39,6 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.LayoutDirection
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import app.koyura.designsystem.ActionIcon
 import app.koyura.designsystem.ActionIconButton
@@ -253,7 +252,7 @@ fun ReaderChrome(
                 AppText(
                     text = pageLabel(state.pageIndex, state.pageCount),
                     style = UiTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    modifier = Modifier.padding(horizontal = DesignTokens.Spacing.Regular, vertical = DesignTokens.Spacing.Compact),
                 )
             }
         }
@@ -545,7 +544,7 @@ private fun PageJumpDialog(
                 .testTag(ReaderChromePageJumpDialogTag)
                 .background(UiTheme.colorScheme.surface, UiTheme.shapes.large)
                 .padding(DesignTokens.Spacing.Large),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Regular),
         ) {
             AppText(
                 text = stringResource(Res.string.reader_chrome_go_to_page),

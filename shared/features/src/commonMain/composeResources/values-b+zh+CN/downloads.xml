@@ -15,4 +15,5 @@
     <string name="downloads_status_failed">失败</string>
     <string name="downloads_load_failed">下载队列加载失败：%1$s</string>
     <string name="downloads_retry_load">重试</string>
+    <string name="downloads_progress_percent">%1$d%</string>
 </resources>

@@ -20,7 +20,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import app.koyura.app.resources.Res
 import app.koyura.app.resources.extension_details_language_title
 import app.koyura.app.resources.extension_details_missing
@@ -73,8 +72,8 @@ fun ExtensionDetailsScreen(
 
     if (extension == null) {
         Column(
-            modifier = modifier.fillMaxSize().padding(24.dp).testTag(ExtensionDetailsMissingTag),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = modifier.fillMaxSize().padding(DesignTokens.Spacing.Large).testTag(ExtensionDetailsMissingTag),
+            verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Regular),
         ) {
             AppText(
                 text = stringResource(Res.string.extension_details_missing),
@@ -100,8 +99,8 @@ fun ExtensionDetailsScreen(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-                .padding(top = 16.dp, bottom = 8.dp),
+                .padding(horizontal = DesignTokens.Spacing.Medium)
+                .padding(top = DesignTokens.Spacing.Medium, bottom = DesignTokens.Spacing.Small),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             app.koyura.designsystem.IconPlaceholder(label = extension.name)
@@ -120,7 +119,7 @@ fun ExtensionDetailsScreen(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 32.dp, vertical = 8.dp),
+                .padding(horizontal = DesignTokens.Spacing.ExtraLarge, vertical = DesignTokens.Spacing.Small),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -143,9 +142,9 @@ fun ExtensionDetailsScreen(
 
         Row(
             modifier = Modifier
-                .padding(horizontal = 16.dp)
-                .padding(top = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                .padding(horizontal = DesignTokens.Spacing.Medium)
+                .padding(top = DesignTokens.Spacing.Small),
+            horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Regular),
         ) {
             AppOutlinedButton(
                 onClick = { confirmUninstall = true },
@@ -181,7 +180,7 @@ fun ExtensionDetailsScreen(
             target = extension.key,
         )
 
-        AppDivider(modifier = Modifier.padding(top = 8.dp))
+        AppDivider(modifier = Modifier.padding(top = DesignTokens.Spacing.Small))
 
         app.koyura.designsystem.ListGroupHeader(
             text = stringResource(Res.string.extension_details_sources),
@@ -191,14 +190,14 @@ fun ExtensionDetailsScreen(
                 text = stringResource(Res.string.extension_details_no_sources),
                 style = UiTheme.typography.bodyMedium,
                 color = UiTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                modifier = Modifier.padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.Small),
             )
         } else {
             extension.sources.forEach { source ->
                 AppText(
                     source.name,
                     style = UiTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    modifier = Modifier.padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.Small),
                 )
                 AppDivider()
             }

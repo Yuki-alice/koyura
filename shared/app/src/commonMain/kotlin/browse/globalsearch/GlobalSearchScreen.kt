@@ -17,7 +17,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import app.koyura.app.browse.AppCoverDecoder
 import app.koyura.app.browse.LocalBrowseSession
 import app.koyura.app.resources.Res
@@ -189,8 +188,8 @@ private fun GlobalSearchGroupHeader(
             )
             when (val state = group.state) {
                 GlobalSearchSourceState.Loading -> AppCircularProgress(
-                    modifier = Modifier.size(16.dp),
-                    strokeWidth = 2.dp,
+                    modifier = Modifier.size(DesignTokens.Spacing.Medium),
+                    strokeWidth = DesignTokens.Sizes.ProgressStroke,
                 )
                 is GlobalSearchSourceState.Ready -> AppText(
                     text = stringResource(Res.string.global_search_result_count, state.works.size),
@@ -240,7 +239,7 @@ private fun GlobalSearchResultRow(
             sourceKey = sourceKey,
             coverUrl = work.cover,
             label = work.title,
-            modifier = Modifier.size(width = 48.dp, height = 72.dp),
+            modifier = Modifier.size(width = DesignTokens.Sizes.SearchCoverWidth, height = DesignTokens.Sizes.SearchCoverHeight),
         )
         Column(modifier = Modifier.weight(1f)) {
             AppText(

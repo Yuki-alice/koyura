@@ -1,5 +1,6 @@
 package app.koyura.features.reader.comic.chrome
 
+import app.koyura.designsystem.DesignTokens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -12,7 +13,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import app.koyura.designsystem.components.AppListItem
 import app.koyura.designsystem.components.AppText
@@ -45,12 +45,12 @@ fun ChapterListDialog(
             modifier = Modifier
                 .testTag(ReaderChromeChapterDialogTag)
                 .background(UiTheme.colorScheme.surface, UiTheme.shapes.large)
-                .padding(vertical = 8.dp),
+                .padding(vertical = DesignTokens.Spacing.Small),
         ) {
             AppText(
                 text = stringResource(Res.string.reader_chrome_chapters),
                 style = UiTheme.typography.titleMedium,
-                modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
+                modifier = Modifier.padding(horizontal = DesignTokens.Spacing.Large, vertical = DesignTokens.Spacing.Regular),
             )
             if (state.chapters.isEmpty()) {
                 AppText(
@@ -59,13 +59,13 @@ fun ChapterListDialog(
                     color = UiTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier
                         .testTag(ReaderChromeNoChaptersTag)
-                        .padding(horizontal = 24.dp, vertical = 16.dp),
+                        .padding(horizontal = DesignTokens.Spacing.Large, vertical = DesignTokens.Spacing.Medium),
                 )
             } else {
                 val current = state.currentChapterIndex.coerceAtLeast(0)
                 LazyColumn(
                     state = rememberLazyListState(initialFirstVisibleItemIndex = current),
-                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                    verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Tight),
                     modifier = Modifier.testTag(ReaderChromeChapterListTag),
                 ) {
                     itemsIndexed(state.chapters, key = { index, chapter -> chapter.id ?: "index-$index" }) { index, chapter ->

@@ -18,7 +18,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.unit.dp
 import app.koyura.designsystem.DesignTokens
 import app.koyura.designsystem.components.AppAlertDialog
 import app.koyura.designsystem.components.AppSwitch
@@ -76,7 +75,7 @@ fun UpdatePolicyDialog(
         text = {
             Column(
                 modifier = Modifier
-                    .heightIn(max = 420.dp)
+                    .heightIn(max = DesignTokens.Breakpoints.UpdatePolicyMaxHeight)
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.ExtraSmall),
             ) {

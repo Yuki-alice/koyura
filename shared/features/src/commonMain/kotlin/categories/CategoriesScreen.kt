@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.runtime.Composable
@@ -28,11 +29,12 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import app.koyura.designsystem.ActionIcon
+import app.koyura.designsystem.DecorativeActionIcon
 import app.koyura.designsystem.ActionIconButton
 import app.koyura.designsystem.DesignTokens
+import app.koyura.designsystem.components.EmptyScreen
 import app.koyura.designsystem.components.AppAlertDialog
 import app.koyura.designsystem.components.AppCircularProgress
 import app.koyura.designsystem.components.AppExtendedFab
@@ -46,6 +48,7 @@ import app.koyura.features.library.LibraryLoadState
 import app.koyura.features.library.LibrarySession
 import app.koyura.features.library.rememberLibrarySession
 import app.koyura.features.resources.Res
+import app.koyura.features.resources.categories_reorder
 import app.koyura.features.resources.categories_add
 import app.koyura.features.resources.categories_create_title
 import app.koyura.features.resources.categories_delete_body
@@ -242,7 +245,7 @@ fun CategoriesScreen(
         }
         AppExtendedFab(
             text = { AppText(stringResource(Res.string.categories_add)) },
-            icon = { ActionIcon(icon = ActionIcon.Categories, contentDescription = null) },
+            icon = { DecorativeActionIcon(icon = ActionIcon.Categories) },
             onClick = { dialog = CategoriesDialog.Create },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
@@ -307,29 +310,11 @@ fun CategoriesScreen(
 /** 空态：displayMedium 颜文字（0.78）+ bodyMedium 文案（白皮书 06 §6.8，同 Updates 空态）。 */
 @Composable
 private fun CategoriesEmptyState() {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = DesignTokens.Spacing.Large)
-            .testTag(CategoriesEmptyTag),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        AppText(
-            text = "(˘･_･˘)",
-            style = UiTheme.typography.displayMedium,
-            color = UiTheme.colorScheme.onSurfaceVariant.copy(
-                alpha = DesignTokens.Alpha.Secondary,
-            ),
-        )
-        AppText(
-            text = stringResource(Res.string.categories_empty),
-            style = UiTheme.typography.bodyMedium,
-            color = UiTheme.colorScheme.onSurfaceVariant.copy(
-                alpha = DesignTokens.Alpha.Secondary,
-            ),
-        )
-    }
+    EmptyScreen(
+        emoji = "(˘･_･˘)",
+        message = stringResource(Res.string.categories_empty),
+        modifier = Modifier.testTag(CategoriesEmptyTag),
+    )
 }
 
 /**
@@ -361,7 +346,7 @@ private fun CategoryRow(
             .graphicsLayer {
                 if (dragging) {
                     translationY = dragOffsetPx
-                    shadowElevation = 6.dp.toPx()
+                    shadowElevation = DesignTokens.Elevation.Dialog.toPx()
                 }
             }
             .zIndex(if (dragging) 1f else 0f)
@@ -375,12 +360,9 @@ private fun CategoryRow(
             .testTag(categoriesRowTag(category.id)),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        ActionIcon(
-            icon = ActionIcon.DragHandle,
-            contentDescription = null,
-            tint = UiTheme.colorScheme.onSurfaceVariant,
+        Box(
             modifier = Modifier
-                .padding(end = DesignTokens.Spacing.Small)
+                .size(DesignTokens.Sizes.MinimumTouchTarget)
                 .testTag(categoriesDragHandleTag(category.id))
                 .pointerInput(category.id) {
                     detectDragGesturesAfterLongPress(
@@ -392,7 +374,14 @@ private fun CategoryRow(
                         onDrag(dragAmount.y)
                     }
                 },
-        )
+            contentAlignment = Alignment.Center,
+        ) {
+            ActionIcon(
+                icon = ActionIcon.DragHandle,
+                contentDescription = stringResource(Res.string.categories_reorder, category.name),
+                tint = UiTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         Column(
             modifier = Modifier
                 .weight(1f)

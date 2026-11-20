@@ -1,5 +1,6 @@
 package app.koyura.features.reader.comic.chrome
 
+import app.koyura.designsystem.DesignTokens
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -33,7 +34,6 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import app.koyura.designsystem.components.AppButton
 import app.koyura.designsystem.components.AppRadioButton
@@ -156,23 +156,23 @@ private fun ModePanel(
     )
     AppSurface(
         shape = UiTheme.shapes.extraLarge,
-        tonalElevation = 6.dp,
+        tonalElevation = DesignTokens.Elevation.Dialog,
         modifier = Modifier
             .testTag(ReaderChromeModeDialogTag)
             .then(consumeClicks)
-            .widthIn(max = 460.dp)
+            .widthIn(max = DesignTokens.Breakpoints.SheetMaxWidth)
             .navigationBarsPadding(),
     ) {
         Column(
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.ExtraSmall),
             modifier = Modifier
                 .testTag(ReaderChromeModePanelTag)
-                .padding(vertical = 12.dp),
+                .padding(vertical = DesignTokens.Spacing.Regular),
         ) {
             AppText(
                 text = stringResource(Res.string.reader_chrome_reading_mode),
                 style = UiTheme.typography.titleMedium,
-                modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp),
+                modifier = Modifier.padding(horizontal = DesignTokens.Spacing.Large, vertical = DesignTokens.Spacing.ExtraSmall),
             )
             if (allowDefault) {
                 ModeDefaultRow(
@@ -181,10 +181,10 @@ private fun ModePanel(
                 )
             }
             LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = 104.dp),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                columns = GridCells.Adaptive(minSize = DesignTokens.Sizes.ModeCardWidth),
+                contentPadding = PaddingValues(horizontal = DesignTokens.Spacing.Regular, vertical = DesignTokens.Spacing.ExtraSmall),
+                horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small),
+                verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small),
             ) {
                 items(ReadingMode.entries, key = { it.name }) { mode ->
                     ModeCell(
@@ -196,7 +196,7 @@ private fun ModePanel(
             }
             Row(
                 horizontalArrangement = Arrangement.End,
-                modifier = Modifier.fillMaxWidth().padding(end = 12.dp),
+                modifier = Modifier.fillMaxWidth().padding(end = DesignTokens.Spacing.Regular),
             ) {
                 AppTextButton(onClick = onDismiss) {
                     AppText(stringResource(Res.string.reader_chrome_cancel))
@@ -223,13 +223,13 @@ private fun ModeDefaultRow(
             .fillMaxWidth()
             .testTag(ReaderChromeModeDefaultTag)
             .selectable(selected = selected, role = Role.RadioButton, onClick = onSelect)
-            .padding(horizontal = 24.dp, vertical = 10.dp),
+            .padding(horizontal = DesignTokens.Spacing.Large, vertical = DesignTokens.Spacing.Row),
     ) {
         AppRadioButton(selected = selected, onClick = null)
         AppText(
             text = stringResource(Res.string.reader_chrome_inherit),
             style = UiTheme.typography.bodyLarge,
-            modifier = Modifier.padding(start = 16.dp),
+            modifier = Modifier.padding(start = DesignTokens.Spacing.Medium),
         )
     }
 }
@@ -248,7 +248,7 @@ private fun ModeCell(
     AppSurface(
         shape = UiTheme.shapes.medium,
         color = container,
-        tonalElevation = if (selected) 2.dp else 0.dp,
+        tonalElevation = if (selected) DesignTokens.Elevation.Raised else DesignTokens.Elevation.Flat,
         modifier = Modifier
             .testTag(readerChromeModeOptionTag(mode.name))
             .selectable(
@@ -259,8 +259,8 @@ private fun ModeCell(
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-            modifier = Modifier.padding(vertical = 12.dp, horizontal = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Compact),
+            modifier = Modifier.padding(vertical = DesignTokens.Spacing.Regular, horizontal = DesignTokens.Spacing.Small),
         ) {
             ModeGlyph(mode = mode, tint = UiTheme.colorScheme.onSurface)
             AppText(
@@ -273,7 +273,7 @@ private fun ModeCell(
 }
 @Composable
 private fun ModeGlyph(mode: ReadingMode, tint: Color) {
-    Canvas(Modifier.size(width = 44.dp, height = 32.dp)) {
+    Canvas(Modifier.size(width = DesignTokens.Sizes.ModeIconWidth, height = DesignTokens.Sizes.ModeIconHeight)) {
         when (mode) {
             ReadingMode.LEFT_TO_RIGHT -> {
                 pagePair(tint)

@@ -34,6 +34,7 @@ import app.koyura.designsystem.Cover
 import app.koyura.designsystem.CoverDecoder
 import app.koyura.designsystem.CoverImageLoader
 import app.koyura.designsystem.DesignTokens
+import app.koyura.designsystem.components.EmptyScreen
 import app.koyura.designsystem.LocalCoverDecoder
 import app.koyura.designsystem.LocalCoverImageLoader
 import app.koyura.designsystem.components.AppCircularProgress
@@ -250,28 +251,11 @@ fun UpdatesScreen(
 /** 空态：displayMedium 颜文字（0.78）+ bodyMedium 文案（白皮书 06 §6.8）。 */
 @Composable
 private fun UpdatesEmptyState() {
-    Column(
-        modifier = Modifier.fillMaxSize()
-            .padding(horizontal = DesignTokens.Spacing.Large)
-            .testTag(UpdatesEmptyTag),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        AppText(
-            text = "(˘･_･˘)",
-            style = UiTheme.typography.displayMedium,
-            color = UiTheme.colorScheme.onSurfaceVariant.copy(
-                alpha = DesignTokens.Alpha.Secondary,
-            ),
-        )
-        AppText(
-            text = stringResource(Res.string.updates_empty),
-            style = UiTheme.typography.bodyMedium,
-            color = UiTheme.colorScheme.onSurfaceVariant.copy(
-                alpha = DesignTokens.Alpha.Secondary,
-            ),
-        )
-    }
+    EmptyScreen(
+        emoji = "(˘･_･˘)",
+        message = stringResource(Res.string.updates_empty),
+        modifier = Modifier.testTag(UpdatesEmptyTag),
+    )
 }
 
 /** 领导者行：48dp 封面 + 标题 + 未读数（Code: UpdatesUiItem.kt:279-298 行边距）。 */

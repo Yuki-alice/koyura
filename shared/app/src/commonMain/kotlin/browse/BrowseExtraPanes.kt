@@ -1,5 +1,12 @@
 package app.koyura.app.browse
 
+import app.koyura.app.resources.browse_feed_adult
+import app.koyura.app.resources.browse_feed_empty
+import app.koyura.app.resources.browse_feed_title
+import app.koyura.app.resources.browse_migrate_empty
+import app.koyura.app.resources.browse_migrate_title
+import app.koyura.app.resources.Res
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,6 +21,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import app.koyura.designsystem.DesignTokens
 import app.koyura.designsystem.components.AppSwitch
 import app.koyura.designsystem.components.AppText
@@ -28,6 +37,7 @@ import app.koyura.designsystem.components.UiTheme
 @Composable
 internal fun FeedPanePlaceholder(modifier: Modifier = Modifier) {
     var adultOnly by remember { mutableStateOf(false) }
+    val adultLabel = stringResource(Res.string.browse_feed_adult)
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -36,12 +46,12 @@ internal fun FeedPanePlaceholder(modifier: Modifier = Modifier) {
         verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small),
     ) {
         AppText(
-            text = "Feed",
+            text = stringResource(Res.string.browse_feed_title),
             style = UiTheme.typography.titleLarge,
             color = UiTheme.colorScheme.onSurface,
         )
         AppText(
-            text = "订阅源的最新内容将在这里展示。",
+            text = stringResource(Res.string.browse_feed_empty),
             style = UiTheme.typography.bodyMedium,
             color = UiTheme.colorScheme.onSurfaceVariant,
         )
@@ -51,14 +61,14 @@ internal fun FeedPanePlaceholder(modifier: Modifier = Modifier) {
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             AppText(
-                text = "显示 18+ 内容",
+                text = adultLabel,
                 style = UiTheme.typography.bodyMedium,
                 color = UiTheme.colorScheme.onSurface,
             )
             AppSwitch(
                 checked = adultOnly,
                 onCheckedChange = { adultOnly = it },
-                modifier = Modifier.testTag(BrowseAdultOnlySwitchTag),
+                modifier = Modifier.testTag(BrowseAdultOnlySwitchTag).semantics { contentDescription = adultLabel },
             )
         }
     }
@@ -74,12 +84,12 @@ internal fun MigratePanePlaceholder(modifier: Modifier = Modifier) {
         verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small),
     ) {
         AppText(
-            text = "Migrate",
+            text = stringResource(Res.string.browse_migrate_title),
             style = UiTheme.typography.titleLarge,
             color = UiTheme.colorScheme.onSurface,
         )
         AppText(
-            text = "跨源迁移入口，数据接线在后续轮次完成。",
+            text = stringResource(Res.string.browse_migrate_empty),
             style = UiTheme.typography.bodyMedium,
             color = UiTheme.colorScheme.onSurfaceVariant,
         )

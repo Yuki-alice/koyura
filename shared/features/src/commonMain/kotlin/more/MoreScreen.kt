@@ -18,9 +18,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.koyura.designsystem.ActionIcon
+import app.koyura.designsystem.DecorativeActionIcon
 import app.koyura.designsystem.BrandPlaceholder
 import app.koyura.designsystem.DesignTokens
 import app.koyura.designsystem.components.AppDivider
@@ -163,16 +163,15 @@ fun MoreScreen(
                 enabled = false,
                 border = BorderStroke(
                     // 赞助按钮 2dp primary 边框 small 圆角（Code: Sponsor，07 §7.8）。
-                    width = 2.dp,
+                    width = DesignTokens.Sizes.SelectionOutline,
                     color = UiTheme.colorScheme.primary,
                 ),
                 shape = UiTheme.shapes.small,
                 modifier = Modifier.testTag(MoreSponsorTag),
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    ActionIcon(
-                        icon = ActionIcon.Favorite,
-                        contentDescription = null,
+                    DecorativeActionIcon(
+                icon = ActionIcon.Favorite,
                         tint = UiTheme.colorScheme.primary,
                     )
                     AppText(
@@ -198,8 +197,8 @@ private fun MoreLogoHeader() {
         BrandPlaceholder(
             modifier = Modifier
                 // 上下 56dp 留白、图标 64dp（Code: LogoHeader.kt:27-29）。
-                .padding(vertical = 56.dp)
-                .size(64.dp),
+                .padding(vertical = DesignTokens.Sizes.BrandHeaderPadding)
+                .size(DesignTokens.Sizes.BrandLogo),
         )
         AppDivider()
     }
@@ -230,9 +229,8 @@ private fun MoreSwitchRow(
             .testTag(moreRowTag(key)),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        ActionIcon(
-            icon = icon,
-            contentDescription = null,
+        DecorativeActionIcon(
+                icon = icon,
             tint = if (checked) enabledContent else scheme.primary,
         )
         Column(
@@ -282,9 +280,8 @@ private fun MoreNavRow(
             .testTag(moreRowTag(key)),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        ActionIcon(
-            icon = icon,
-            contentDescription = null,
+        DecorativeActionIcon(
+                icon = icon,
             tint = UiTheme.colorScheme.primary,
         )
         AppText(

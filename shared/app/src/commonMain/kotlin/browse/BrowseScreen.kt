@@ -1,5 +1,9 @@
 package app.koyura.app.browse
 
+import app.koyura.app.resources.browse_feed_title
+import app.koyura.app.resources.browse_migrate_title
+import app.koyura.designsystem.DesignTokens
+import app.koyura.designsystem.components.EmptyScreen
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,7 +24,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import app.koyura.app.resources.Res
 import app.koyura.app.resources.browse_action_install
 import app.koyura.app.resources.browse_action_open
@@ -54,6 +57,7 @@ import app.koyura.app.resources.browse_unpin
 import app.koyura.app.resources.browse_update_all
 import app.koyura.app.resources.global_search_title
 import app.koyura.designsystem.ActionIcon
+import app.koyura.designsystem.DecorativeActionIcon
 import app.koyura.designsystem.ActionIconButton
 import app.koyura.designsystem.SearchField
 import app.koyura.designsystem.components.AppButton
@@ -150,7 +154,7 @@ fun BrowseScreen(
             AppTab(
                 selected = state.pane == BrowsePane.Feed,
                 onClick = { session.selectPane(BrowsePane.Feed) },
-                text = { AppText("Feed") },
+                text = { AppText(stringResource(Res.string.browse_feed_title)) },
                 modifier = Modifier.testTag(BrowseFeedPaneTag + "-tab"),
             )
             AppTab(
@@ -162,7 +166,7 @@ fun BrowseScreen(
             AppTab(
                 selected = state.pane == BrowsePane.Migrate,
                 onClick = { session.selectPane(BrowsePane.Migrate) },
-                text = { AppText("Migrate") },
+                text = { AppText(stringResource(Res.string.browse_migrate_title)) },
                 modifier = Modifier.testTag(BrowseMigratePaneTag + "-tab"),
             )
         }
@@ -202,8 +206,8 @@ fun BrowseScreen(
 @Composable
 private fun UnavailableState() {
     Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp).testTag(BrowseUnavailableTag),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.fillMaxSize().padding(DesignTokens.Spacing.Large).testTag(BrowseUnavailableTag),
+        verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small),
     ) {
         AppText(
             text = stringResource(Res.string.browse_unavailable_title),
@@ -220,8 +224,8 @@ private fun UnavailableState() {
 @Composable
 private fun ErrorState(message: String, onRetry: () -> Unit) {
     Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp).testTag(BrowseErrorTag),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.fillMaxSize().padding(DesignTokens.Spacing.Large).testTag(BrowseErrorTag),
+        verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Regular),
     ) {
         AppText(
             text = stringResource(Res.string.browse_error_prefix, message),
@@ -253,7 +257,7 @@ private fun SourcesPane(
             onValueChange = onQueryChange,
             placeholder = stringResource(Res.string.browse_search_sources),
             clearLabel = stringResource(Res.string.browse_clear_search),
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+            modifier = Modifier.fillMaxWidth().padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.Small)
                 .testTag(BrowseSourceQueryTag),
         )
         if (view.recent.isEmpty() && view.sections.isEmpty()) {
@@ -263,7 +267,7 @@ private fun SourcesPane(
         LazyColumn(
             state = listStateHolder,
             modifier = Modifier.fillMaxSize().testTag(BrowseSourcesListTag),
-            contentPadding = PaddingValues(vertical = 8.dp),
+            contentPadding = PaddingValues(vertical = DesignTokens.Spacing.Small),
         ) {
             if (view.recent.isNotEmpty()) {
                 item(key = "source-header-recent", contentType = "header") {
@@ -313,7 +317,7 @@ private fun ExtensionsPane(
             onValueChange = session::searchExtensions,
             placeholder = stringResource(Res.string.browse_search_extensions),
             clearLabel = stringResource(Res.string.browse_clear_search),
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+            modifier = Modifier.fillMaxWidth().padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.Small)
                 .testTag(BrowseExtensionQueryTag),
         )
         if (state.isBusy()) {
@@ -340,7 +344,7 @@ private fun ExtensionsPane(
         LazyColumn(
             state = listStateHolder,
             modifier = Modifier.fillMaxSize().testTag(BrowseExtensionsListTag),
-            contentPadding = PaddingValues(vertical = 8.dp),
+            contentPadding = PaddingValues(vertical = DesignTokens.Spacing.Small),
         ) {
             sections.forEach { section ->
                 item(key = "extension-header-${section.group}", contentType = "header") {
@@ -383,8 +387,8 @@ private fun SourceRow(
         onClick = { onOpenSource(source.id, source.name) },
         icon = {
             AppSurface(shape = UiTheme.shapes.small, color = UiTheme.colorScheme.surfaceContainerHigh) {
-                Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
-                    ActionIcon(ActionIcon.Source, null)
+                Box(Modifier.size(DesignTokens.Sizes.BrowseIcon), contentAlignment = Alignment.Center) {
+                    DecorativeActionIcon(ActionIcon.Source)
                 }
             }
         },
@@ -405,7 +409,7 @@ private fun SourceRow(
         content = {
             Column(
                 modifier = Modifier
-                    .padding(horizontal = 16.dp)
+                    .padding(horizontal = DesignTokens.Spacing.Medium)
                     .weight(1f),
             ) {
                 AppText(
@@ -422,14 +426,14 @@ private fun SourceRow(
                     overflow = TextOverflow.Ellipsis,
                     style = UiTheme.typography.bodySmall,
                     color = UiTheme.colorScheme.onSurfaceVariant.copy(
-                        alpha = app.koyura.designsystem.DesignTokens.Alpha.Secondary,
+                        alpha = DesignTokens.Alpha.Secondary,
                     ),
                 )
             }
         },
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 56.dp)
+            .heightIn(min = DesignTokens.Sizes.ListItemHeight)
             .testTag(rowTestTag),
     )
 }
@@ -456,13 +460,13 @@ private fun ExtensionRow(
             onClick = { if (extension.isInstalled) onOpen() },
             icon = {
                 androidx.compose.foundation.layout.Box(
-                    modifier = Modifier.size(40.dp),
+                    modifier = Modifier.size(DesignTokens.Sizes.BrowseIcon),
                     contentAlignment = Alignment.Center,
                 ) {
                     if (status is OperationStatus.Running) {
                         AppCircularProgress(
-                            modifier = Modifier.size(40.dp),
-                            strokeWidth = 2.dp,
+                            modifier = Modifier.size(DesignTokens.Sizes.BrowseIcon),
+                            strokeWidth = DesignTokens.Sizes.ProgressStroke,
                         )
                     }
                     app.koyura.designsystem.IconPlaceholder(label = extension.name)
@@ -502,9 +506,9 @@ private fun ExtensionRow(
             content = {
                 Column(
                     modifier = Modifier
-                        .padding(horizontal = 16.dp)
+                        .padding(horizontal = DesignTokens.Spacing.Medium)
                         .weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                    verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Tight),
                 ) {
                     AppText(
                         text = extension.name,
@@ -531,7 +535,7 @@ private fun ExtensionRow(
                             UiTheme.colorScheme.error
                         } else {
                             UiTheme.colorScheme.onSurfaceVariant.copy(
-                                alpha = app.koyura.designsystem.DesignTokens.Alpha.Secondary,
+                                alpha = DesignTokens.Alpha.Secondary,
                             )
                         },
                         maxLines = 2,
@@ -579,15 +583,5 @@ internal fun SectionHeader(text: String) {
 
 @Composable
 internal fun EmptyState(text: String, action: (@Composable () -> Unit)? = null) {
-    Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp).testTag(BrowseEmptyTag),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        AppText(
-            text = text,
-            style = UiTheme.typography.bodyMedium,
-            color = UiTheme.colorScheme.onSurfaceVariant,
-        )
-        action?.invoke()
-    }
+    EmptyScreen(emoji = "(・∀・)", message = text, modifier = Modifier.testTag(BrowseEmptyTag), actions = action)
 }

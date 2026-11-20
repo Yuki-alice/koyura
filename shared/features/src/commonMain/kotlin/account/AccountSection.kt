@@ -19,7 +19,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.ui.unit.dp
 import app.koyura.designsystem.DesignTokens
 import app.koyura.designsystem.components.AppAlertDialog
 import app.koyura.designsystem.components.AppButton
@@ -124,7 +123,7 @@ fun AccountSection(
                 text = message,
                 color = UiTheme.colorScheme.error,
                 style = UiTheme.typography.bodyMedium,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                modifier = Modifier.padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.Small)
                     .testTag("account-error-$sourceKey"),
             )
         }
@@ -153,8 +152,8 @@ private fun AccountLoggedOut(
     if (!expanded) return
 
     Column(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.Small),
+        verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small),
     ) {
         AppText(
             text = stringResource(Res.string.account_login_title, sourceName),
@@ -267,7 +266,7 @@ private fun AccountLoggedIn(
             modifier = Modifier.testTag(accountReloginTag(sourceKey)),
         )
         if (relogging && lastFields.isNotEmpty()) {
-            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = DesignTokens.Spacing.Medium)) {
                 AccountLoginForm(
                     sourceKey = sourceKey,
                     fields = lastFields,
@@ -327,7 +326,7 @@ private fun AccountRow(
         Column(
             modifier = Modifier
                 .weight(1f)
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.Small),
         ) {
             AppText(text = title, style = UiTheme.typography.bodyMedium)
             subtitle?.let {

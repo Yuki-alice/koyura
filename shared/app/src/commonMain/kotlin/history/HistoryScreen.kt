@@ -36,7 +36,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import app.koyura.app.browse.AppCoverDecoder
 import app.koyura.app.resources.Res
 import app.koyura.app.resources.browse_clear_search
@@ -77,6 +76,7 @@ import app.koyura.designsystem.ActionIcon
 import app.koyura.designsystem.ActionIconButton
 import app.koyura.designsystem.Cover
 import app.koyura.designsystem.DesignTokens
+import app.koyura.designsystem.components.EmptyScreen
 import app.koyura.designsystem.LocalCoverDecoder
 import app.koyura.designsystem.LocalCoverImageLoader
 import app.koyura.designsystem.SearchField
@@ -223,8 +223,8 @@ fun HistoryScreen(
                     AppCircularProgress()
                 }
                 is HistoryLoadState.Failed -> Column(
-                    modifier = Modifier.fillMaxSize().padding(24.dp).testTag(HistoryErrorTag),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxSize().padding(DesignTokens.Spacing.Large).testTag(HistoryErrorTag),
+                    verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Regular),
                 ) {
                     AppText(
                         text = stringResource(Res.string.browse_error_prefix, load.message),
@@ -240,7 +240,7 @@ fun HistoryScreen(
                             text = message,
                             color = UiTheme.colorScheme.error,
                             style = UiTheme.typography.bodyMedium,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                            modifier = Modifier.padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.Small)
                                 .testTag("history-action-error"),
                         )
                     }
@@ -381,13 +381,7 @@ private fun daysBetween(today: kotlinx.datetime.LocalDate, date: kotlinx.datetim
     today.toEpochDays() - date.toEpochDays()
 @Composable
 private fun EmptyState(text: String, testTag: String) {
-    Box(modifier = Modifier.fillMaxSize().testTag(testTag), contentAlignment = Alignment.Center) {
-        AppText(
-            text = text,
-            style = UiTheme.typography.bodyMedium,
-            color = UiTheme.colorScheme.onSurfaceVariant,
-        )
-    }
+    EmptyScreen(emoji = "(˘･_･˘)", message = text, modifier = Modifier.testTag(testTag))
 }
 
 @Composable
@@ -420,7 +414,7 @@ private fun HistoryFilterDialog(
         modifier = Modifier.testTag(HistoryFilterDialogTag),
         title = { AppText(stringResource(Res.string.history_filter_title)) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.ExtraSmall)) {
                 AppText(
                     text = stringResource(Res.string.history_filter_sources),
                     style = UiTheme.typography.labelLarge,
@@ -547,7 +541,7 @@ private fun HistoryRow(
                     start = DesignTokens.Spacing.Medium,
                     end = DesignTokens.Spacing.Small,
                 ),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
+            verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Tight),
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -575,7 +569,7 @@ private fun HistoryRow(
                 text = "$chapterLabel · " + stringResource(Res.string.history_page, entry.pageIndex + 1),
                 style = UiTheme.typography.bodySmall,
                 color = UiTheme.colorScheme.onSurfaceVariant.copy(
-                    alpha = app.koyura.designsystem.DesignTokens.Alpha.Secondary,
+                    alpha = DesignTokens.Alpha.Secondary,
                 ),
                 modifier = Modifier.testTag(historyRowDetailTag(entry.sourceKey, entry.workId)),
             )
@@ -674,12 +668,12 @@ private fun HistorySelectionActions(
     onClear: () -> Unit,
 ) {
     AppSurface(
-        tonalElevation = 3.dp,
+        tonalElevation = DesignTokens.Elevation.AppBarScrolled,
         modifier = Modifier.fillMaxWidth().testTag(HistorySelectionActionsTag),
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = DesignTokens.Spacing.Small, vertical = DesignTokens.Spacing.Small),
+            horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.ExtraSmall),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             ActionIconButton(

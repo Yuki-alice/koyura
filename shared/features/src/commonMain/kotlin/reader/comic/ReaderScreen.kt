@@ -22,7 +22,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.unit.dp
+import app.koyura.designsystem.DesignTokens
+import app.koyura.designsystem.components.ProvideUiContentColor
 import app.koyura.designsystem.ReaderTheme
 import app.koyura.designsystem.components.AppButton
 import app.koyura.designsystem.components.AppCircularProgress
@@ -215,8 +216,8 @@ fun ComicReaderScreen(
         val loadError = openingFailed ?: (state as? ReaderContentState.Failed)?.message
         when {
             loadError != null -> Column(
-                modifier = Modifier.fillMaxSize().padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
+                modifier = Modifier.fillMaxSize().padding(DesignTokens.Spacing.Large),
+                verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Regular, Alignment.CenterVertically),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 AppText(
@@ -279,7 +280,9 @@ fun ComicReaderScreen(
                 }
                 // Black/Gray 两档强制暗色 chrome（原版 ContextExtensions.kt:111-118 的 night 上下文语义）。
                 if (resolvedBackground == ReaderBackground.BLACK || resolvedBackground == ReaderBackground.GRAY) {
-                    ReaderTheme(darkTheme = true) { chromeContent() }
+                    ReaderTheme(darkTheme = true) {
+                        ProvideUiContentColor(UiTheme.colorScheme.onSurface, chromeContent)
+                    }
                 } else {
                     chromeContent()
                 }
@@ -336,8 +339,8 @@ fun readerBackgroundColor(
     background: ReaderBackground,
     dark: Boolean,
 ): Color = when (background) {
-    ReaderBackground.AUTOMATIC -> if (dark) Color(0xFF202125) else Color.White
-    ReaderBackground.BLACK -> Color.Black
-    ReaderBackground.GRAY -> Color(0xFF202125)
-    ReaderBackground.WHITE -> Color.White
+    ReaderBackground.AUTOMATIC -> if (dark) DesignTokens.ReaderColors.GrayBackground else DesignTokens.ReaderColors.WhiteBackground
+    ReaderBackground.BLACK -> DesignTokens.ReaderColors.BlackBackground
+    ReaderBackground.GRAY -> DesignTokens.ReaderColors.GrayBackground
+    ReaderBackground.WHITE -> DesignTokens.ReaderColors.WhiteBackground
 }
