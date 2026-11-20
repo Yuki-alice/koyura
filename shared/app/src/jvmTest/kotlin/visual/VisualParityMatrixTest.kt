@@ -96,12 +96,14 @@ class VisualParityMatrixTest {
         height: Int,
         dark: Boolean,
         content: @Composable () -> Unit,
+        reader: Boolean = false,
     ) {
         val palette = if (dark) ThemePalette.dark() else ThemePalette.light()
         val chrome = if (width < railWidthThreshold) ChromeExpectation.BottomBar else ChromeExpectation.Rail
         // Compose Desktop 会触碰 AWT 资源，必须在 EDT 上渲染与断言。
+        lateinit var scene: ImageComposeScene
         SwingUtilities.invokeAndWait {
-            val scene = ImageComposeScene(
+            scene = ImageComposeScene(
                 width = width,
                 height = height,
                 density = Density(1f),
@@ -112,28 +114,28 @@ class VisualParityMatrixTest {
                     }
                 }
             }
-            try {
-                // 第一帧装载，第二帧在 2.5 s 处落定 AnimatedContent / NavDisplay 的进入动画。
-                scene.render(2_000_000_000)
-                // 让 browse / history 等 LaunchedEffect 刷新落定，与既有截图用例保持一致。
-                Thread.sleep(800)
-                val image = scene.render(2_500_000_000)
+        }
+        try {
+            SwingUtilities.invokeAndWait { scene.render(2_000_000_000) }
+            Thread.sleep(250)
+            SwingUtilities.invokeAndWait { scene.render(2_200_000_000) }
+            Thread.sleep(550)
+            SwingUtilities.invokeAndWait {
+                val image = scene.render(2_700_000_000)
                 val bytes = image.encodeToData(EncodedImageFormat.PNG)!!.bytes
                 File(outputDir, "$name.png").writeBytes(bytes)
-                // 从落盘 PNG 再解码一次：得到已分配像素的 raster bitmap，readPixels 稳定；
-                // 同时断言对象正是写盘的那张 PNG，而不是尚未落定的 scene surface。
                 val stableImage = org.jetbrains.skia.Image.makeFromEncoded(bytes).toComposeImageBitmap()
                 GoldenDiffAssertions.assertGolden(
                     image = stableImage,
                     expectedWidth = width,
                     expectedHeight = height,
-                    palette = palette,
+                    palette = if (reader) ThemePalette.readerOnBlack() else palette,
                     chrome = chrome,
                     extraAllowedArgb = fixtureArgb,
                 )
-            } finally {
-                scene.close()
             }
+        } finally {
+            SwingUtilities.invokeAndWait { scene.close() }
         }
     }
 
@@ -152,6 +154,7 @@ class VisualParityMatrixTest {
                     height = CANVAS_HEIGHT,
                     dark = dark,
                     content = contentFactory(width),
+                    reader = slug == "reader",
                 )
             }
         }

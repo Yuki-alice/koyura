@@ -44,6 +44,13 @@ object GoldenDiffAssertions {
         val allowedArgb: Set<Int>,
     ) {
         companion object {
+            // The viewer uses dark chrome over Black in either app theme. The translucent
+            // surface at 3dp composites over the black letterbox.
+            fun readerOnBlack(): ThemePalette = ThemePalette(
+                backgroundArgb = 0xFF000000.toInt(),
+                allowedArgb = setOf(0xFF23252C.toInt()),
+            )
+
             fun light(): ThemePalette = ThemePalette(
                 backgroundArgb = 0xFFFEFBFF.toInt(),
                 allowedArgb = setOf(
