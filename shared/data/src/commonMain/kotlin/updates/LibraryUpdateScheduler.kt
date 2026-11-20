@@ -1,5 +1,6 @@
 package app.koyura.data.updates
 
+import app.koyura.domain.updates.LibraryUpdateNotifier
 import app.koyura.domain.updates.LibraryUpdateInterval
 import app.koyura.domain.updates.LibraryUpdateSchedulePreferences
 import app.koyura.domain.updates.LibraryUpdateScheduleState
@@ -36,8 +37,10 @@ class LibraryUpdateScheduler internal constructor(
     private val releaseChanges: Flow<Unit> = emptyFlow(),
     private val clock: Clock = Clock.System,
     private val networkAllowsRun: (LibraryUpdateSchedulePreferences) -> Boolean = { true },
+    private val notifier: LibraryUpdateNotifier? = null,
 ) {
     private val lock = Mutex()
+    private val runLock = Mutex()
     private val wake = Channel<Unit>(Channel.CONFLATED)
     private val status = MutableStateFlow(LibraryUpdateScheduleState())
     val state = status.asStateFlow()
@@ -59,7 +62,7 @@ class LibraryUpdateScheduler internal constructor(
                         remaining == null -> wake.receive()
                         remaining > 0 -> withTimeoutOrNull(remaining) { wake.receive() }
                         else -> {
-                            if (!checkIfDue()) withTimeoutOrNull(15.minutes) { wake.receive() }
+                            if (!runDue().ran) withTimeoutOrNull(15.minutes) { wake.receive() }
                         }
                     }
                 }
@@ -118,16 +121,34 @@ class LibraryUpdateScheduler internal constructor(
         return deadline(updated)
     }
 
-    private suspend fun checkIfDue(): Boolean {
-        val due = lock.withLock {
-            val current = record()
-            val deadline = deadline(current)
-            (deadline != null && deadline <= now() && networkAllowsRun(current.preferences)).also {
-                if (it) status.update { previous -> previous.copy(checking = true) }
+    /** Shares the execution lock with the process timer, including during a cold background launch. */
+    suspend fun runDue(): ScheduledUpdateRun = runLock.withLock {
+        val blocked = lock.withLock checkDeadline@{
+            check(!closed) { "Library update scheduler is closed" }
+            val deadline = reconcile()
+            if (deadline == null || deadline > now()) return@checkDeadline ScheduledUpdateRun(state.value)
+            if (!networkAllowsRun(record().preferences)) {
+                return@checkDeadline ScheduledUpdateRun(state.value, waitingForNetwork = true)
             }
+            status.update { it.copy(checking = true) }
+            null
         }
-        if (!due) return false
+        if (blocked != null) return@withLock blocked
+        try {
+            recordScheduledCheck()
+            ScheduledUpdateRun(state.value, ran = true)
+        } finally {
+            status.update { it.copy(checking = false) }
+        }
+    }
 
+    suspend fun refreshSchedule(): LibraryUpdateScheduleState = lock.withLock {
+        check(!closed) { "Library update scheduler is closed" }
+        reconcile()
+        state.value
+    }
+
+    private suspend fun recordScheduledCheck() {
         val result = try {
             val scan = checkNow()
             ScheduledUpdateCheck(
@@ -152,7 +173,14 @@ class LibraryUpdateScheduler internal constructor(
             save(updated)
             publish(updated, checking = false)
         }
-        return true
+        if (result.newChapters > 0) {
+            try {
+                notifier?.notify(result)
+            } catch (_: Exception) {
+                // The scan and its next deadline have already been committed.
+                currentCoroutineContext().ensureActive()
+            }
+        }
     }
 
     private fun deadline(record: Record): Long? {
@@ -189,3 +217,9 @@ class LibraryUpdateScheduler internal constructor(
         val json = Json { ignoreUnknownKeys = true }
     }
 }
+
+data class ScheduledUpdateRun(
+    val state: LibraryUpdateScheduleState,
+    val ran: Boolean = false,
+    val waitingForNetwork: Boolean = false,
+)

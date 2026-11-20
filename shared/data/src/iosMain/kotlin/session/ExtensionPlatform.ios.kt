@@ -3,6 +3,7 @@ package app.koyura.data.session
 import app.cash.sqldelight.driver.native.NativeSqliteDriver
 import app.koyura.data.extension.ExtensionDb
 import app.koyura.data.extension.WebLoginBrowser
+import app.koyura.domain.updates.LibraryUpdateNotifier
 import app.koyura.network.createDefaultHttpClient
 import app.koyura.source.runtime.VeneraEnvironment
 import app.koyura.source.runtime.VeneraUiHost
@@ -46,6 +47,9 @@ suspend fun openExtensionSession(
     environment: VeneraEnvironment,
     webLoginBrowser: WebLoginBrowser? = null,
     sourceUi: VeneraUiHost = VeneraUiHost.Headless,
+    isOnline: () -> Boolean = { true },
+    isUnmetered: (() -> Boolean)? = null,
+    updateNotifier: LibraryUpdateNotifier? = null,
 ): ExtensionSession {
     FileSystem.SYSTEM.createDirectories(appDataDir)
     val driver = createExtensionDriver()
@@ -57,6 +61,9 @@ suspend fun openExtensionSession(
         environment = environment,
         webLoginBrowser = webLoginBrowser,
         sourceUi = sourceUi,
+        isOnline = isOnline,
+        isUnmetered = isUnmetered,
+        updateNotifier = updateNotifier,
         secrets = IosSourceSecretStore(),
     )
 }

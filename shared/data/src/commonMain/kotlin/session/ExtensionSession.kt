@@ -20,6 +20,7 @@ import app.koyura.data.reading.ComicReadingService
 import app.koyura.data.library.LibraryStatisticsStore
 import app.koyura.data.updates.LibraryUpdateScanner
 import app.koyura.data.updates.LibraryUpdateScheduler
+import app.koyura.domain.updates.LibraryUpdateNotifier
 import app.koyura.data.reader.preferences.ReaderPreferencesStore
 import app.koyura.source.runtime.VeneraEnvironment
 import app.koyura.source.runtime.VeneraUiHost
@@ -55,6 +56,7 @@ class ExtensionSession internal constructor(
     packages: ChapterContentPackages,
     isOnline: () -> Boolean,
     isUnmetered: (() -> Boolean)?,
+    updateNotifier: LibraryUpdateNotifier?,
 ) {
     val comicReading = ComicReadingService(driver, service, httpClient).apply {
         attachLocalContent(packages, isOnline)
@@ -84,6 +86,7 @@ class ExtensionSession internal constructor(
         checkNow = updates::checkNow,
         nextReleaseWindow = updates::nextReleaseWindowMillis,
         releaseChanges = updates.releaseWindowChanges,
+        notifier = updateNotifier,
         networkAllowsRun = { preferences ->
             isOnline() && (!preferences.wifiOnly || isUnmetered?.invoke() != false)
         },
@@ -132,6 +135,7 @@ suspend fun openExtensionSession(
     webLoginBrowser: WebLoginBrowser? = null,
     sourceUi: VeneraUiHost = VeneraUiHost.Headless,
     isUnmetered: (() -> Boolean)? = null,
+    updateNotifier: LibraryUpdateNotifier? = null,
 ): ExtensionSession {
     val scriptsDir = appDataDir / "scripts"
     val service = ExtensionService(
@@ -144,7 +148,7 @@ suspend fun openExtensionSession(
         val report = service.restore()
         val readerPreferences = ReaderPreferencesStore(appDataDir, fileSystem)
         val packages = ChapterContentPackages(fileSystem, appDataDir / "downloads")
-        val opened = ExtensionSession(service, report, driver, httpClient, readerPreferences, packages, isOnline, isUnmetered)
+        val opened = ExtensionSession(service, report, driver, httpClient, readerPreferences, packages, isOnline, isUnmetered, updateNotifier)
         session = opened
         opened.startDownloads()
         return opened

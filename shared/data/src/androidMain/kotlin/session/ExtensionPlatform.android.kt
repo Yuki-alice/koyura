@@ -5,6 +5,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import app.cash.sqldelight.driver.android.AndroidSqliteDriver
 import app.koyura.data.extension.ExtensionDb
 import app.koyura.data.extension.WebLoginBrowser
+import app.koyura.domain.updates.LibraryUpdateNotifier
 import app.koyura.network.createDefaultHttpClient
 import app.koyura.source.runtime.VeneraEnvironment
 import app.koyura.source.runtime.VeneraUiHost
@@ -23,6 +24,9 @@ import java.io.File
 suspend fun Context.openExtensionSession(environment: VeneraEnvironment,
     webLoginBrowser: WebLoginBrowser? = null,
     sourceUi: VeneraUiHost = VeneraUiHost.Headless,
+    isOnline: () -> Boolean = { true },
+    isUnmetered: (() -> Boolean)? = null,
+    updateNotifier: LibraryUpdateNotifier? = null,
 ): ExtensionSession {
     val appDataDir = File(filesDir, "venera-ext").toOkioPath()
     val driver = createExtensionDriver(this)
@@ -34,6 +38,9 @@ suspend fun Context.openExtensionSession(environment: VeneraEnvironment,
         environment = environment,
         webLoginBrowser = webLoginBrowser,
         sourceUi = sourceUi,
+        isOnline = isOnline,
+        isUnmetered = isUnmetered,
+        updateNotifier = updateNotifier,
         secrets = AndroidSourceSecretStore(this),
     )
 }
