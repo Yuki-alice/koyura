@@ -1,7 +1,5 @@
 package app.koyura.features.reader.comic.chrome
 
-import app.koyura.designsystem.ActionIconButton
-import app.koyura.designsystem.ActionIcon
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -22,13 +20,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Slider
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -48,7 +39,16 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import app.koyura.designsystem.ActionIcon
+import app.koyura.designsystem.ActionIconButton
 import app.koyura.designsystem.DesignTokens
+import app.koyura.designsystem.components.AppButton
+import app.koyura.designsystem.components.AppSlider
+import app.koyura.designsystem.components.AppSurface
+import app.koyura.designsystem.components.AppText
+import app.koyura.designsystem.components.AppTextButton
+import app.koyura.designsystem.components.AppTextField
+import app.koyura.designsystem.components.UiTheme
 import app.koyura.domain.reader.preferences.OverrideField
 import app.koyura.domain.reader.preferences.ReaderLayout
 import app.koyura.domain.reader.preferences.ReadingMode
@@ -70,8 +70,8 @@ import app.koyura.features.resources.reader_chrome_go_to_page
 import app.koyura.features.resources.reader_chrome_layout
 import app.koyura.features.resources.reader_chrome_no_chapters
 import app.koyura.features.resources.reader_chrome_page_number
-import app.koyura.features.resources.reader_chrome_page_out_of_range
 import app.koyura.features.resources.reader_chrome_page_of
+import app.koyura.features.resources.reader_chrome_page_out_of_range
 import app.koyura.features.resources.reader_chrome_page_range_of
 import app.koyura.features.resources.reader_chrome_reading_mode
 import app.koyura.features.resources.reader_chrome_settings
@@ -124,7 +124,7 @@ fun ReaderChrome(
     }
 
     // Komikku ReaderAppBars parity: surface@3dp, 亮 0.95 / 暗 0.90（白皮书 02 §2.7）。
-    val readerBarAlpha = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) {
+    val readerBarAlpha = if (UiTheme.colorScheme.surface.luminance() < 0.5f) {
         DesignTokens.Alpha.ReaderBarDark
     } else {
         DesignTokens.Alpha.ReaderBarLight
@@ -183,7 +183,7 @@ fun ReaderChrome(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.surface.copy(alpha = readerBarAlpha))
+                .background(UiTheme.colorScheme.surface.copy(alpha = readerBarAlpha))
                 .safeDrawingPadding()
                 .padding(horizontal = DesignTokens.Spacing.ExtraSmall, vertical = DesignTokens.Spacing.ExtraSmall),
             verticalAlignment = Alignment.CenterVertically,
@@ -195,24 +195,24 @@ fun ReaderChrome(
                 modifier = Modifier.testTag(ReaderBackTag),
             )
             Column(Modifier.weight(1f)) {
-                Text(
+                AppText(
                     text = state.workTitle.ifEmpty { stringResource(Res.string.reader_title) },
-                    style = MaterialTheme.typography.titleMedium,
+                    style = UiTheme.typography.titleMedium,
                     maxLines = 1,
                 )
                 val chapterTitle = state.chapters.getOrNull(state.currentChapterIndex)?.title.orEmpty()
                 if (chapterTitle.isNotEmpty()) {
-                    Text(
+                    AppText(
                         text = chapterTitle,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = UiTheme.typography.bodySmall,
+                        color = UiTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                     )
                 }
             }
-            Text(
+            AppText(
                 text = pageLabel(state.pageIndex, state.pageCount),
-                style = MaterialTheme.typography.bodyMedium,
+                style = UiTheme.typography.bodyMedium,
                 modifier = Modifier
                     .testTag(ReaderPageIndicatorTag)
                     .focusRequester(indicatorFocus)
@@ -232,14 +232,14 @@ fun ReaderChrome(
             exit = fadeOut(animationSpec = tween(DesignTokens.Motion.ReaderBarsFadeMs)),
             modifier = Modifier.align(Alignment.Center),
         ) {
-            Surface(
-                shape = MaterialTheme.shapes.small,
-                color = MaterialTheme.colorScheme.surface.copy(alpha = readerBarAlpha),
+            AppSurface(
+                shape = UiTheme.shapes.small,
+                color = UiTheme.colorScheme.surface.copy(alpha = readerBarAlpha),
                 modifier = Modifier.testTag(ReaderChromeHiddenIndicatorTag),
             ) {
-                Text(
+                AppText(
                     text = pageLabel(state.pageIndex, state.pageCount),
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = UiTheme.typography.bodyMedium,
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                 )
             }
@@ -259,7 +259,7 @@ fun ReaderChrome(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.surface.copy(alpha = readerBarAlpha))
+                .background(UiTheme.colorScheme.surface.copy(alpha = readerBarAlpha))
                 .safeDrawingPadding()
                 .padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.Small),
         ) {
@@ -492,7 +492,7 @@ private fun PageSlider(
     val direction = if (isRtl) LayoutDirection.Rtl else LayoutDirection.Ltr
     CompositionLocalProvider(LocalLayoutDirection provides direction) {
         Column(modifier) {
-            Slider(
+            AppSlider(
                 value = (preview + 1).toFloat(),
                 onValueChange = {
                     preview = (it.toInt() - 1).coerceIn(0, pageCount - 1)
@@ -505,10 +505,10 @@ private fun PageSlider(
                 steps = (pageCount - 2).coerceAtLeast(0),
                 modifier = Modifier.testTag(ReaderChromeSliderTag),
             )
-            Text(
+            AppText(
                 text = pageRangeLabel(preview, spreadEndFor(preview), pageCount),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = UiTheme.typography.bodySmall,
+                color = UiTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.align(Alignment.CenterHorizontally),
             )
         }
@@ -541,22 +541,22 @@ private fun PageJumpDialog(
         Column(
             modifier = Modifier
                 .testTag(ReaderChromePageJumpDialogTag)
-                .background(MaterialTheme.colorScheme.surface, MaterialTheme.shapes.large)
+                .background(UiTheme.colorScheme.surface, UiTheme.shapes.large)
                 .padding(DesignTokens.Spacing.Large),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(
+            AppText(
                 text = stringResource(Res.string.reader_chrome_go_to_page),
-                style = MaterialTheme.typography.titleMedium,
+                style = UiTheme.typography.titleMedium,
             )
-            OutlinedTextField(
+            AppTextField(
                 value = input,
                 onValueChange = { input = it.filter(Char::isDigit).take(6) },
-                label = { Text(stringResource(Res.string.reader_chrome_page_number)) },
+                label = { AppText(stringResource(Res.string.reader_chrome_page_number)) },
                 singleLine = true,
                 isError = input.isNotEmpty() && !valid,
                 supportingText = {
-                    Text(
+                    AppText(
                         stringResource(
                             Res.string.reader_chrome_page_out_of_range,
                             1,
@@ -570,15 +570,15 @@ private fun PageJumpDialog(
                 horizontalArrangement = Arrangement.End,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                TextButton(onClick = onDismiss) {
-                    Text(stringResource(Res.string.reader_chrome_cancel))
+                AppTextButton(onClick = onDismiss) {
+                    AppText(stringResource(Res.string.reader_chrome_cancel))
                 }
-                Button(
+                AppButton(
                     onClick = { if (valid) onJump(parsed!! - 1) },
                     enabled = valid,
                     modifier = Modifier.testTag(ReaderChromePageGoTag),
                 ) {
-                    Text(stringResource(Res.string.reader_chrome_go))
+                    AppText(stringResource(Res.string.reader_chrome_go))
                 }
             }
         }

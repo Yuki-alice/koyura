@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -22,28 +21,29 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.swipeDown
 import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.test.swipeRight
 import androidx.compose.ui.test.swipeUp
-import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
 import app.koyura.designsystem.ReaderTheme
+import app.koyura.designsystem.components.AppText
 import app.koyura.domain.reader.ChapterContent
 import app.koyura.features.reader.comic.FakeReaderService
 import app.koyura.features.reader.comic.ReaderContentState
 import app.koyura.features.reader.comic.ReaderSession
+import app.koyura.features.reader.comic.decodeToImageBitmap
 import app.koyura.features.reader.comic.viewer.ComicChapterBoundary
 import app.koyura.features.reader.comic.viewer.ComicPagerLayout
 import app.koyura.features.reader.comic.viewer.ComicReadingMode
+import app.koyura.features.reader.comic.viewer.ComicScaleFit
 import app.koyura.features.reader.comic.viewer.ComicViewer
 import app.koyura.features.reader.comic.viewer.ComicViewerJump
-import app.koyura.features.reader.comic.viewer.ComicScaleFit
 import app.koyura.features.reader.comic.viewer.ComicViewerOptions
 import app.koyura.features.reader.comic.viewer.ComicViewerRootTag
 import app.koyura.features.reader.comic.viewer.comicPageImageTag
-import app.koyura.features.reader.comic.decodeToImageBitmap
 import app.koyura.features.reader.comic.viewer.comicPageRetryTag
 import kotlin.math.abs
 import kotlin.test.Test
@@ -66,7 +66,7 @@ private fun ViewerLab(
     }
     val content = (session.content as? ReaderContentState.Ready)?.content
     Column(Modifier.fillMaxSize()) {
-        Text(
+        AppText(
             text = if (content == null) "0 / 0"
             else "${session.currentPage + 1} / ${content.pageKeys.size}",
             modifier = Modifier.testTag(CounterTag),
@@ -288,7 +288,7 @@ class ComicViewerTest {
                 }
                 val content = (session.content as? ReaderContentState.Ready)?.content
                 Column(Modifier.fillMaxSize()) {
-                    Text(
+                    AppText(
                         text = if (content == null) "0 / 0"
                         else "${session.currentPage + 1} / ${content.pageKeys.size}",
                         modifier = Modifier.testTag(CounterTag),
@@ -641,7 +641,7 @@ class ComicViewerTest {
                 }
                 val content = (session.content as? ReaderContentState.Ready)?.content
                 Column(Modifier.fillMaxSize()) {
-                    Text(
+                    AppText(
                         text = if (content == null) "0 / 0"
                         else "${session.currentPage + 1} / ${content.pageKeys.size}",
                         modifier = Modifier.testTag(CounterTag),

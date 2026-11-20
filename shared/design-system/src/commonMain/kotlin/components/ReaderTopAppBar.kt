@@ -108,3 +108,19 @@ fun ReaderTopAppBar(
 // M3 SmallTopAppBar 默认 64dp（白皮书 06 §6.1）；图标槽 48dp 满足 9.5 #20 触摸目标。
 private val TopAppBarHeight = 64.dp
 private val NavigationSlotSize = 48.dp
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+fun ReaderTopAppBar(
+    title: @Composable () -> Unit,
+    modifier: Modifier = Modifier,
+    navigationIcon: @Composable () -> Unit = {},
+    actions: @Composable RowScope.() -> Unit = {},
+) {
+    androidx.compose.material3.TopAppBar(
+        title = title,
+        modifier = modifier,
+        navigationIcon = navigationIcon,
+        actions = actions,
+    )
+}

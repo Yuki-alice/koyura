@@ -9,12 +9,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -26,6 +20,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import app.koyura.designsystem.DesignTokens
+import app.koyura.designsystem.components.AppAlertDialog
+import app.koyura.designsystem.components.AppSwitch
+import app.koyura.designsystem.components.AppText
+import app.koyura.designsystem.components.AppTextButton
+import app.koyura.designsystem.components.AppTextField
+import app.koyura.designsystem.components.UiTheme
 import app.koyura.features.resources.Res
 import app.koyura.features.resources.library_cancel
 import app.koyura.features.resources.updates_policy_enabled
@@ -69,10 +69,10 @@ fun UpdatePolicyDialog(
         mutableStateOf(session.policy.excludedTitleTerms.joinToString("\n"))
     }
 
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
         modifier = Modifier.testTag(UpdatePolicyDialogTag),
-        title = { Text(stringResource(Res.string.updates_smart_settings)) },
+        title = { AppText(stringResource(Res.string.updates_smart_settings)) },
         text = {
             Column(
                 modifier = Modifier
@@ -115,30 +115,30 @@ fun UpdatePolicyDialog(
                     checked = draft.skipOutsideReleasePeriod,
                     onCheckedChange = { draft = draft.copy(skipOutsideReleasePeriod = it) },
                 )
-                Text(
+                AppText(
                     text = stringResource(Res.string.updates_policy_excluded_title),
-                    style = MaterialTheme.typography.titleSmall,
+                    style = UiTheme.typography.titleSmall,
                     modifier = Modifier.padding(top = DesignTokens.Spacing.Small),
                 )
-                OutlinedTextField(
+                AppTextField(
                     value = excludedText,
                     onValueChange = { excludedText = it },
-                    placeholder = { Text(stringResource(Res.string.updates_policy_excluded_hint)) },
+                    placeholder = { AppText(stringResource(Res.string.updates_policy_excluded_hint)) },
                     minLines = 2,
                     maxLines = 5,
                     modifier = Modifier.fillMaxWidth().testTag(UpdatePolicyExcludedTag),
                 )
                 session.actionError?.let { message ->
-                    Text(
+                    AppText(
                         text = message,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall,
+                        color = UiTheme.colorScheme.error,
+                        style = UiTheme.typography.bodySmall,
                     )
                 }
             }
         },
         confirmButton = {
-            TextButton(
+            AppTextButton(
                 onClick = {
                     val terms = excludedText
                         .split('\n', ',', '，')
@@ -150,15 +150,15 @@ fun UpdatePolicyDialog(
                 },
                 modifier = Modifier.testTag(UpdatePolicyConfirmTag),
             ) {
-                Text(stringResource(Res.string.updates_policy_save))
+                AppText(stringResource(Res.string.updates_policy_save))
             }
         },
         dismissButton = {
-            TextButton(
+            AppTextButton(
                 onClick = onDismiss,
                 modifier = Modifier.testTag(UpdatePolicyCancelTag),
             ) {
-                Text(stringResource(Res.string.library_cancel))
+                AppText(stringResource(Res.string.library_cancel))
             }
         },
     )
@@ -182,20 +182,20 @@ private fun PolicySwitchRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(
+            AppText(
                 text = title,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface,
+                style = UiTheme.typography.bodyLarge,
+                color = UiTheme.colorScheme.onSurface,
             )
-            Text(
+            AppText(
                 text = subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                style = UiTheme.typography.bodySmall,
+                color = UiTheme.colorScheme.onSurfaceVariant.copy(
                     alpha = DesignTokens.Alpha.Secondary,
                 ),
             )
         }
-        Switch(
+        AppSwitch(
             checked = checked,
             onCheckedChange = onCheckedChange,
             modifier = Modifier.padding(start = DesignTokens.Spacing.Small),

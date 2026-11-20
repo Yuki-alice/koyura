@@ -3,21 +3,13 @@ package app.koyura.features.downloads
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SmallExtendedFloatingActionButton
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
@@ -28,6 +20,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import app.koyura.designsystem.ActionIcon
 import app.koyura.designsystem.ActionIconButton
 import app.koyura.designsystem.DesignTokens
+import app.koyura.designsystem.components.AppCircularProgress
+import app.koyura.designsystem.components.AppExtendedFab
+import app.koyura.designsystem.components.AppLinearProgress
+import app.koyura.designsystem.components.AppText
+import app.koyura.designsystem.components.AppTextButton
+import app.koyura.designsystem.components.ReaderTopAppBar
+import app.koyura.designsystem.components.UiTheme
 import app.koyura.features.resources.Res
 import app.koyura.features.resources.downloads_cancel
 import app.koyura.features.resources.downloads_cancel_all
@@ -67,7 +66,6 @@ fun downloadCancelTag(id: String) = "downloads-cancel-$id"
  * 右下暂停/恢复 FAB 只在非空时出现。数据侧只有 Fake 仓储，状态迁移
  * 对齐 `ChapterDownloadStore`。
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DownloadsScreen(
     session: DownloadsSession,
@@ -81,8 +79,8 @@ fun DownloadsScreen(
     }
 
     Column(modifier = modifier.fillMaxSize().testTag(DownloadsRootTestTag)) {
-        TopAppBar(
-            title = { Text(stringResource(Res.string.downloads_title)) },
+        ReaderTopAppBar(
+            title = { AppText(stringResource(Res.string.downloads_title)) },
             navigationIcon = {
                 ActionIconButton(
                     icon = ActionIcon.Back,
@@ -106,7 +104,7 @@ fun DownloadsScreen(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center,
             ) {
-                CircularProgressIndicator()
+                AppCircularProgress()
             }
             is DownloadQueueLoadState.Failed -> Column(
                 modifier = Modifier.fillMaxSize()
@@ -114,20 +112,20 @@ fun DownloadsScreen(
                     .testTag(DownloadsErrorTag),
                 verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small),
             ) {
-                Text(
+                AppText(
                     text = stringResource(Res.string.downloads_load_failed, state.message),
-                    color = MaterialTheme.colorScheme.error,
+                    color = UiTheme.colorScheme.error,
                 )
-                TextButton(onClick = { scope.launch { session.refresh() } }) {
-                    Text(stringResource(Res.string.downloads_retry_load))
+                AppTextButton(onClick = { scope.launch { session.refresh() } }) {
+                    AppText(stringResource(Res.string.downloads_retry_load))
                 }
             }
             DownloadQueueLoadState.Ready -> {
                 session.actionError?.let { message ->
-                    Text(
+                    AppText(
                         text = message,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodyMedium,
+                        color = UiTheme.colorScheme.error,
+                        style = UiTheme.typography.bodyMedium,
                         modifier = Modifier
                             .padding(
                                 horizontal = DesignTokens.Spacing.Medium,
@@ -154,9 +152,10 @@ fun DownloadsScreen(
                                 )
                             }
                         }
-                        SmallExtendedFloatingActionButton(
+                        AppExtendedFab(
+                            compact = true,
                             text = {
-                                Text(
+                                AppText(
                                     stringResource(
                                         if (session.running) Res.string.downloads_pause_all
                                         else Res.string.downloads_resume_all,
@@ -196,17 +195,17 @@ private fun DownloadsEmptyState() {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Text(
+        AppText(
             text = "(˘･_･˘)",
-            style = MaterialTheme.typography.displayMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
+            style = UiTheme.typography.displayMedium,
+            color = UiTheme.colorScheme.onSurfaceVariant.copy(
                 alpha = DesignTokens.Alpha.Secondary,
             ),
         )
-        Text(
+        AppText(
             text = stringResource(Res.string.downloads_empty),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
+            style = UiTheme.typography.bodyMedium,
+            color = UiTheme.colorScheme.onSurfaceVariant.copy(
                 alpha = DesignTokens.Alpha.Secondary,
             ),
         )
@@ -236,37 +235,37 @@ private fun DownloadRow(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.ExtraSmall),
         ) {
-            Text(
+            AppText(
                 text = task.workTitle,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
+                style = UiTheme.typography.bodyMedium,
+                color = UiTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Text(
+            AppText(
                 text = task.chapterTitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                style = UiTheme.typography.bodySmall,
+                color = UiTheme.colorScheme.onSurfaceVariant.copy(
                     alpha = DesignTokens.Alpha.Secondary,
                 ),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             if (task.totalPages > 0) {
-                LinearProgressIndicator(
+                AppLinearProgress(
                     progress = { task.downloadedPages.toFloat() / task.totalPages },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = DesignTokens.Spacing.Small),
                 )
             }
-            Text(
+            AppText(
                 text = downloadStatusText(task),
-                style = MaterialTheme.typography.bodySmall,
+                style = UiTheme.typography.bodySmall,
                 color = if (task.status == FakeDownloadStatus.FAILED) {
-                    MaterialTheme.colorScheme.error
+                    UiTheme.colorScheme.error
                 } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                    UiTheme.colorScheme.onSurfaceVariant.copy(
                         alpha = DesignTokens.Alpha.Secondary,
                     )
                 },

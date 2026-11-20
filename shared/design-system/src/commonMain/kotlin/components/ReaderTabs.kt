@@ -133,3 +133,36 @@ fun ReaderPillTab(
 
 // 48dp 触摸目标（白皮书 9.5 #20）；计数 10sp 见 06 §6.3/§6.4。
 private val TabRowHeight = 48.dp
+
+@Composable
+fun AppTabBar(
+    selectedTabIndex: Int,
+    content: @Composable () -> Unit,
+) {
+    androidx.compose.material3.PrimaryTabRow(selectedTabIndex = selectedTabIndex, tabs = content)
+}
+
+@Composable
+fun AppScrollableTabBar(
+    selectedTabIndex: Int,
+    edgePadding: androidx.compose.ui.unit.Dp,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    androidx.compose.material3.ScrollableTabRow(
+        selectedTabIndex = selectedTabIndex,
+        edgePadding = edgePadding,
+        modifier = modifier,
+        tabs = content,
+    )
+}
+
+@Composable
+fun AppTab(
+    selected: Boolean,
+    onClick: () -> Unit,
+    text: @Composable () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    androidx.compose.material3.Tab(selected = selected, onClick = onClick, text = text, modifier = modifier)
+}

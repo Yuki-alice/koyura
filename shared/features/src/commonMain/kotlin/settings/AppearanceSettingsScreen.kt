@@ -15,10 +15,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -26,6 +22,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.koyura.designsystem.DesignTokens
+import app.koyura.designsystem.components.AppCard
+import app.koyura.designsystem.components.AppText
+import app.koyura.designsystem.components.UiTheme
 import app.koyura.designsystem.theme.ThemeMode
 import app.koyura.designsystem.theme.ThemePreset
 
@@ -40,7 +39,7 @@ internal fun AppearanceSettingsScreen(
 ) {
     val prefs = session.uiState.preferences
     // composition local 只能在 @Composable 作用域读取；点击回调里复用这个值。
-    val fallbackSeed = MaterialTheme.colorScheme.primary
+    val fallbackSeed = UiTheme.colorScheme.primary
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -60,14 +59,14 @@ internal fun AppearanceSettingsScreen(
             testTagPrefix = "settings-theme-mode",
         )
 
-        Text(
+        AppText(
             text = "App theme",
             modifier = Modifier.padding(
                 horizontal = DesignTokens.Spacing.Medium,
                 vertical = DesignTokens.Spacing.Small,
             ),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.bodyMedium,
+            color = UiTheme.colorScheme.onSurfaceVariant,
+            style = UiTheme.typography.bodyMedium,
         )
         LazyRow(
             modifier = Modifier.fillMaxWidth(),
@@ -181,18 +180,18 @@ private fun ThemePresetCard(
     modifier: Modifier = Modifier,
 ) {
     val container = if (selected) {
-        MaterialTheme.colorScheme.surfaceVariant
+        UiTheme.colorScheme.surfaceVariant
     } else {
-        MaterialTheme.colorScheme.surfaceContainerLow
+        UiTheme.colorScheme.surfaceContainerLow
     }
-    Card(
+    AppCard(
         modifier = modifier
             .width(ThemeCardWidth)
             .height(ThemeCardHeight)
             .clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(containerColor = container),
+        containerColor = container,
         border = if (selected) {
-            BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+            BorderStroke(2.dp, UiTheme.colorScheme.primary)
         } else {
             null
         },
@@ -206,22 +205,22 @@ private fun ThemePresetCard(
                 color = previewSwatchColor(preset.ordinal),
                 modifier = Modifier.fillMaxWidth(),
             )
-            Text(
+            AppText(
                 text = preset.label,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = DesignTokens.Spacing.Small)
                     .background(
-                        if (selected) MaterialTheme.colorScheme.primaryContainer else container,
+                        if (selected) UiTheme.colorScheme.primaryContainer else container,
                         RoundedCornerShape(DesignTokens.Radius.Small),
                     )
                     .padding(vertical = DesignTokens.Spacing.ExtraSmall),
                 color = if (selected) {
-                    MaterialTheme.colorScheme.onPrimaryContainer
+                    UiTheme.colorScheme.onPrimaryContainer
                 } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
+                    UiTheme.colorScheme.onSurfaceVariant
                 },
-                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                style = UiTheme.typography.labelSmall.copy(fontSize = 10.sp),
                 textAlign = TextAlign.Center,
                 maxLines = 1,
             )

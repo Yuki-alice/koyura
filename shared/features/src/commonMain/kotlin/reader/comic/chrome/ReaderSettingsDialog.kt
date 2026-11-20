@@ -11,11 +11,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -23,13 +18,18 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import app.koyura.designsystem.components.AppFilterChip
+import app.koyura.designsystem.components.AppSwitch
+import app.koyura.designsystem.components.AppText
+import app.koyura.designsystem.components.AppTextButton
+import app.koyura.designsystem.components.UiTheme
+import app.koyura.domain.reader.preferences.OverrideField
 import app.koyura.domain.reader.preferences.ReaderBackground
 import app.koyura.domain.reader.preferences.ReaderFit
 import app.koyura.domain.reader.preferences.ReaderLayout
-import app.koyura.domain.reader.preferences.ReaderTapZone
 import app.koyura.domain.reader.preferences.ReaderSettings
+import app.koyura.domain.reader.preferences.ReaderTapZone
 import app.koyura.domain.reader.preferences.ReadingMode
-import app.koyura.domain.reader.preferences.OverrideField
 import app.koyura.domain.reader.preferences.WorkReaderOverride
 import app.koyura.domain.reader.preferences.WorkReaderOverridePatch
 import app.koyura.features.resources.Res
@@ -83,38 +83,38 @@ fun ReaderSettingsDialog(
         Column(
             modifier = Modifier
                 .testTag(ReaderChromeSettingsDialogTag)
-                .background(MaterialTheme.colorScheme.surface, MaterialTheme.shapes.large)
+                .background(UiTheme.colorScheme.surface, UiTheme.shapes.large)
                 .padding(20.dp)
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(
+            AppText(
                 text = stringResource(Res.string.reader_chrome_settings),
-                style = MaterialTheme.typography.titleMedium,
+                style = UiTheme.typography.titleMedium,
             )
-            Text(
+            AppText(
                 text = stringResource(Res.string.reader_chrome_global_title),
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary,
+                style = UiTheme.typography.titleSmall,
+                color = UiTheme.colorScheme.primary,
             )
             GlobalSection(
                 global = state.global,
                 onChange = { onAction(ReaderChromeAction.ChangeGlobalSettings(it)) },
             )
-            Text(
+            AppText(
                 text = stringResource(Res.string.reader_chrome_override_title),
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary,
+                style = UiTheme.typography.titleSmall,
+                color = UiTheme.colorScheme.primary,
             )
             OverrideSection(
                 global = state.global,
                 override = state.override,
                 onPatch = { onAction(ReaderChromeAction.ChangeWorkOverride(it)) },
             )
-            Text(
+            AppText(
                 text = stringResource(Res.string.reader_chrome_tap_zone_title),
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary,
+                style = UiTheme.typography.titleSmall,
+                color = UiTheme.colorScheme.primary,
             )
             // 点击区段走偏好双路径：全局整份替换，覆盖行含「跟随全局」清除项。
             TapZoneSection(
@@ -128,17 +128,17 @@ fun ReaderSettingsDialog(
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 if (state.override != null) {
-                    TextButton(
+                    AppTextButton(
                         onClick = {
                             onAction(ReaderChromeAction.ResetWorkOverride)
                         },
                         modifier = Modifier.testTag(ReaderChromeOverrideResetTag),
                     ) {
-                        Text(stringResource(Res.string.reader_chrome_reset_override))
+                        AppText(stringResource(Res.string.reader_chrome_reset_override))
                     }
                 }
-                TextButton(onClick = onDismiss) {
-                    Text(stringResource(Res.string.reader_chrome_cancel))
+                AppTextButton(onClick = onDismiss) {
+                    AppText(stringResource(Res.string.reader_chrome_cancel))
                 }
             }
         }
@@ -344,13 +344,13 @@ private fun EnumRow(
     onSelect: (String) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(text = label, style = MaterialTheme.typography.labelLarge)
+        AppText(text = label, style = UiTheme.typography.labelLarge)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             options.forEach { (text, value) ->
-                FilterChip(
+                AppFilterChip(
                     selected = selected == value,
                     onClick = { onSelect(value) },
-                    label = { Text(text) },
+                    label = { AppText(text) },
                     modifier = Modifier.testTag(tag(value)),
                 )
             }
@@ -369,19 +369,19 @@ private fun InheritEnumRow(
     onSelect: (String?) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(text = label, style = MaterialTheme.typography.labelLarge)
+        AppText(text = label, style = UiTheme.typography.labelLarge)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(
+            AppFilterChip(
                 selected = selected == null,
                 onClick = { onSelect(null) },
-                label = { Text(inheritLabel) },
+                label = { AppText(inheritLabel) },
                 modifier = Modifier.testTag(tag("DEFAULT")),
             )
             options.forEach { (text, value) ->
-                FilterChip(
+                AppFilterChip(
                     selected = selected == value,
                     onClick = { onSelect(value) },
-                    label = { Text(text) },
+                    label = { AppText(text) },
                     modifier = Modifier.testTag(tag(value)),
                 )
             }
@@ -398,24 +398,24 @@ private fun InheritBoolRow(
     onSelect: (Boolean?) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(text = label, style = MaterialTheme.typography.labelLarge)
+        AppText(text = label, style = UiTheme.typography.labelLarge)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(
+            AppFilterChip(
                 selected = selected == null,
                 onClick = { onSelect(null) },
-                label = { Text("${stringResource(Res.string.reader_chrome_inherit)} ($global)") },
+                label = { AppText("${stringResource(Res.string.reader_chrome_inherit)} ($global)") },
                 modifier = Modifier.testTag(tag("DEFAULT")),
             )
-            FilterChip(
+            AppFilterChip(
                 selected = selected == true,
                 onClick = { onSelect(true) },
-                label = { Text(stringResource(Res.string.reader_chrome_on)) },
+                label = { AppText(stringResource(Res.string.reader_chrome_on)) },
                 modifier = Modifier.testTag(tag("true")),
             )
-            FilterChip(
+            AppFilterChip(
                 selected = selected == false,
                 onClick = { onSelect(false) },
-                label = { Text(stringResource(Res.string.reader_chrome_off)) },
+                label = { AppText(stringResource(Res.string.reader_chrome_off)) },
                 modifier = Modifier.testTag(tag("false")),
             )
         }
@@ -437,12 +437,12 @@ private fun SwitchRow(
             .toggleable(value = checked, role = Role.Switch, onValueChange = onToggle)
             .padding(vertical = 4.dp),
     ) {
-        Text(
+        AppText(
             text = label,
-            style = MaterialTheme.typography.bodyLarge,
+            style = UiTheme.typography.bodyLarge,
             modifier = Modifier.weight(1f),
         )
-        Switch(checked = checked, onCheckedChange = null)
+        AppSwitch(checked = checked, onCheckedChange = null)
     }
 }
 

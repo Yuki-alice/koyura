@@ -4,8 +4,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
@@ -18,9 +18,9 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performKeyInput
+import androidx.compose.ui.test.performMouseInput
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextClearance
-import androidx.compose.ui.test.performMouseInput
 import androidx.compose.ui.test.performTextInput
 import app.koyura.designsystem.ReaderTheme
 import app.koyura.domain.reader.preferences.OverrideField
@@ -48,7 +48,6 @@ import app.koyura.features.reader.comic.chrome.ReaderChromeModeApplyTag
 import app.koyura.features.reader.comic.chrome.ReaderChromeModeDefaultTag
 import app.koyura.features.reader.comic.chrome.ReaderChromeModeDialogTag
 import app.koyura.features.reader.comic.chrome.ReaderChromeModeTag
-import app.koyura.features.reader.comic.chrome.readerChromeModeOptionTag
 import app.koyura.features.reader.comic.chrome.ReaderChromeNoChaptersTag
 import app.koyura.features.reader.comic.chrome.ReaderChromePageGoTag
 import app.koyura.features.reader.comic.chrome.ReaderChromePageInputTag
@@ -59,10 +58,11 @@ import app.koyura.features.reader.comic.chrome.ReaderChromeSliderTag
 import app.koyura.features.reader.comic.chrome.ReaderChromeState
 import app.koyura.features.reader.comic.chrome.ReaderChromeTopBarTag
 import app.koyura.features.reader.comic.chrome.readerChromeChapterTag
-import org.junit.Rule
+import app.koyura.features.reader.comic.chrome.readerChromeModeOptionTag
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import org.junit.Rule
 
 private fun demoChapters() = listOf(ChapterEntry("ep_1", "第一章"), ChapterEntry("ep_2", "第二章"))
 
@@ -100,10 +100,10 @@ class ChromeBehaviorTest {
         rule.setContent {
             ReaderTheme(darkTheme = false) {
                 androidx.compose.foundation.layout.Column(Modifier.fillMaxSize()) {
-                    androidx.compose.material3.Button(
+                    app.koyura.designsystem.components.AppButton(
                         onClick = { host.onAction(ReaderChromeAction.SetMenuVisible(!host.state.menuVisible)) },
                         modifier = Modifier.testTag("chrome-test-toggle"),
-                    ) { androidx.compose.material3.Text("toggle") }
+                    ) { app.koyura.designsystem.components.AppText("toggle") }
                     Box(
                         Modifier
                             .fillMaxWidth()

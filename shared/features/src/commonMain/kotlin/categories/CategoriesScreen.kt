@@ -12,15 +12,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExtendedFloatingActionButton
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -39,10 +30,17 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
-import kotlin.math.roundToInt
 import app.koyura.designsystem.ActionIcon
 import app.koyura.designsystem.ActionIconButton
 import app.koyura.designsystem.DesignTokens
+import app.koyura.designsystem.components.AppAlertDialog
+import app.koyura.designsystem.components.AppCircularProgress
+import app.koyura.designsystem.components.AppExtendedFab
+import app.koyura.designsystem.components.AppText
+import app.koyura.designsystem.components.AppTextButton
+import app.koyura.designsystem.components.AppTextField
+import app.koyura.designsystem.components.ReaderTopAppBar
+import app.koyura.designsystem.components.UiTheme
 import app.koyura.features.library.LibraryCategory
 import app.koyura.features.library.LibraryLoadState
 import app.koyura.features.library.LibrarySession
@@ -66,6 +64,7 @@ import app.koyura.features.resources.library_category_default
 import app.koyura.features.resources.library_category_hidden
 import app.koyura.features.resources.library_save
 import app.koyura.features.resources.more_categories
+import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 
@@ -120,7 +119,6 @@ private sealed interface CategoriesDialog {
  * 数据直接走 [app.koyura.features.library.LocalLibraryRepository] 提供的真实书架契约：
  * 会话与书架页共用同一仓储，任何一次写入都以仓储提交后的完整快照为准。
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CategoriesScreen(
     onBack: () -> Unit,
@@ -140,8 +138,8 @@ fun CategoriesScreen(
 
     Box(modifier = modifier.fillMaxSize().testTag(CategoriesRootTag)) {
         Column(modifier = Modifier.fillMaxSize()) {
-            TopAppBar(
-                title = { Text(stringResource(Res.string.categories_title)) },
+            ReaderTopAppBar(
+                title = { AppText(stringResource(Res.string.categories_title)) },
                 navigationIcon = {
                     ActionIconButton(
                         icon = ActionIcon.Back,
@@ -151,10 +149,10 @@ fun CategoriesScreen(
                 },
             )
             session.actionError?.let { message ->
-                Text(
+                AppText(
                     text = message,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall,
+                    color = UiTheme.colorScheme.error,
+                    style = UiTheme.typography.bodySmall,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.ExtraSmall)
@@ -167,7 +165,7 @@ fun CategoriesScreen(
                     modifier = Modifier.fillMaxSize().testTag(CategoriesLoadingTag),
                     contentAlignment = Alignment.Center,
                 ) {
-                    CircularProgressIndicator()
+                    AppCircularProgress()
                 }
                 is LibraryLoadState.Failed -> Column(
                     modifier = Modifier
@@ -176,16 +174,16 @@ fun CategoriesScreen(
                         .testTag(CategoriesErrorTag),
                     verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small),
                 ) {
-                    Text(
+                    AppText(
                         text = stringResource(Res.string.categories_load_failed, load.message),
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodyMedium,
+                        color = UiTheme.colorScheme.error,
+                        style = UiTheme.typography.bodyMedium,
                     )
-                    TextButton(
+                    AppTextButton(
                         onClick = { scope.launch { session.refresh() } },
                         modifier = Modifier.testTag(CategoriesRetryTag),
                     ) {
-                        Text(stringResource(Res.string.categories_retry))
+                        AppText(stringResource(Res.string.categories_retry))
                     }
                 }
                 LibraryLoadState.Unavailable, LibraryLoadState.Ready ->
@@ -242,8 +240,8 @@ fun CategoriesScreen(
                     }
             }
         }
-        ExtendedFloatingActionButton(
-            text = { Text(stringResource(Res.string.categories_add)) },
+        AppExtendedFab(
+            text = { AppText(stringResource(Res.string.categories_add)) },
             icon = { ActionIcon(icon = ActionIcon.Categories, contentDescription = null) },
             onClick = { dialog = CategoriesDialog.Create },
             modifier = Modifier
@@ -274,15 +272,15 @@ fun CategoriesScreen(
             },
             onDismiss = { dialog = null },
         )
-        is CategoriesDialog.Delete -> AlertDialog(
+        is CategoriesDialog.Delete -> AppAlertDialog(
             onDismissRequest = { dialog = null },
             modifier = Modifier.testTag(CategoriesDialogTag),
-            title = { Text(stringResource(Res.string.categories_delete_title)) },
+            title = { AppText(stringResource(Res.string.categories_delete_title)) },
             text = {
-                Text(stringResource(Res.string.categories_delete_body, current.category.name))
+                AppText(stringResource(Res.string.categories_delete_body, current.category.name))
             },
             confirmButton = {
-                TextButton(
+                AppTextButton(
                     onClick = {
                         scope.launch {
                             if (session.removeCategory(current.category.id)) dialog = null
@@ -290,15 +288,15 @@ fun CategoriesScreen(
                     },
                     modifier = Modifier.testTag(CategoriesDeleteConfirmTag),
                 ) {
-                    Text(
+                    AppText(
                         text = stringResource(Res.string.categories_delete_confirm),
-                        color = MaterialTheme.colorScheme.error,
+                        color = UiTheme.colorScheme.error,
                     )
                 }
             },
             dismissButton = {
-                TextButton(onClick = { dialog = null }) {
-                    Text(stringResource(Res.string.library_cancel))
+                AppTextButton(onClick = { dialog = null }) {
+                    AppText(stringResource(Res.string.library_cancel))
                 }
             },
         )
@@ -317,17 +315,17 @@ private fun CategoriesEmptyState() {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Text(
+        AppText(
             text = "(˘･_･˘)",
-            style = MaterialTheme.typography.displayMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
+            style = UiTheme.typography.displayMedium,
+            color = UiTheme.colorScheme.onSurfaceVariant.copy(
                 alpha = DesignTokens.Alpha.Secondary,
             ),
         )
-        Text(
+        AppText(
             text = stringResource(Res.string.categories_empty),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
+            style = UiTheme.typography.bodyMedium,
+            color = UiTheme.colorScheme.onSurfaceVariant.copy(
                 alpha = DesignTokens.Alpha.Secondary,
             ),
         )
@@ -380,7 +378,7 @@ private fun CategoryRow(
         ActionIcon(
             icon = ActionIcon.DragHandle,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            tint = UiTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier
                 .padding(end = DesignTokens.Spacing.Small)
                 .testTag(categoriesDragHandleTag(category.id))
@@ -400,43 +398,43 @@ private fun CategoryRow(
                 .weight(1f)
                 .padding(end = DesignTokens.Spacing.Small),
         ) {
-            Text(
+            AppText(
                 text = category.name,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
+                style = UiTheme.typography.bodyMedium,
+                color = UiTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             Row(horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.ExtraSmall)) {
                 if (category.isDefault) {
-                    Text(
+                    AppText(
                         text = stringResource(Res.string.library_category_default),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = UiTheme.typography.labelSmall,
+                        color = UiTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 if (category.isHidden) {
-                    Text(
+                    AppText(
                         text = stringResource(Res.string.library_category_hidden),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = UiTheme.typography.labelSmall,
+                        color = UiTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
         }
-        TextButton(
+        AppTextButton(
             onClick = { onMove(-1) },
             enabled = canMoveUp,
             modifier = Modifier.testTag(categoriesUpTag(category.id)),
         ) {
-            Text("↑")
+            AppText("↑")
         }
-        TextButton(
+        AppTextButton(
             onClick = { onMove(1) },
             enabled = canMoveDown,
             modifier = Modifier.testTag(categoriesDownTag(category.id)),
         ) {
-            Text("↓")
+            AppText("↓")
         }
         ActionIconButton(
             icon = ActionIcon.Incognito,
@@ -451,7 +449,7 @@ private fun CategoryRow(
             label = stringResource(Res.string.categories_delete_confirm),
             onClick = onDelete,
             modifier = Modifier.testTag(categoriesDeleteTag(category.id)),
-            contentColor = MaterialTheme.colorScheme.error,
+            contentColor = UiTheme.colorScheme.error,
         )
     }
 }
@@ -465,31 +463,31 @@ private fun CategoryNameDialog(
     onDismiss: () -> Unit,
 ) {
     var text by remember(initial) { mutableStateOf(initial) }
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
         modifier = Modifier.testTag(CategoriesDialogTag),
-        title = { Text(title) },
+        title = { AppText(title) },
         text = {
-            OutlinedTextField(
+            AppTextField(
                 value = text,
                 onValueChange = { text = it },
-                label = { Text(stringResource(Res.string.categories_name)) },
+                label = { AppText(stringResource(Res.string.categories_name)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth().testTag(CategoriesNameFieldTag),
             )
         },
         confirmButton = {
-            TextButton(
+            AppTextButton(
                 onClick = { onConfirm(text) },
                 enabled = text.isNotBlank(),
                 modifier = Modifier.testTag(CategoriesDialogConfirmTag),
             ) {
-                Text(stringResource(Res.string.library_save))
+                AppText(stringResource(Res.string.library_save))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(Res.string.library_cancel))
+            AppTextButton(onClick = onDismiss) {
+                AppText(stringResource(Res.string.library_cancel))
             }
         },
     )

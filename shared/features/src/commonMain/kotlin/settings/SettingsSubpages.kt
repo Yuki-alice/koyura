@@ -10,15 +10,15 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import app.koyura.designsystem.ActionIcon
 import app.koyura.designsystem.ActionIconButton
 import app.koyura.designsystem.DesignTokens
+import app.koyura.designsystem.components.AppDivider
+import app.koyura.designsystem.components.AppText
+import app.koyura.designsystem.components.UiTheme
 
 /** 子页分发：手机 push 页和平板右栏共用同一份内容，避免两套实现漂移。 */
 @Composable
@@ -44,14 +44,14 @@ internal fun SettingsSubpageContent(
                     onClick = { onBack?.invoke() },
                 )
             }
-            Text(
+            AppText(
                 text = subpage.label,
-                color = MaterialTheme.colorScheme.onSurface,
-                style = MaterialTheme.typography.titleLarge,
+                color = UiTheme.colorScheme.onSurface,
+                style = UiTheme.typography.titleLarge,
                 modifier = Modifier.padding(start = DesignTokens.Spacing.Small),
             )
         }
-        HorizontalDivider()
+        AppDivider()
         Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
             when (subpage) {
                 SettingsSubpage.APPEARANCE -> AppearanceSettingsScreen(session)

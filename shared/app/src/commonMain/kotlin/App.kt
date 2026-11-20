@@ -2,7 +2,6 @@ package app.koyura.app
 
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
@@ -10,24 +9,25 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.koyura.app.browse.BrowseService
 import app.koyura.app.browse.LocalBrowseService
+import app.koyura.app.browse.globalsearch.LocalSearchSourceFilter
+import app.koyura.app.history.HistoryService
+import app.koyura.app.history.LocalHistoryService
+import app.koyura.app.navigation.TabletUiMode
+import app.koyura.app.navigation.rememberAppNavigationState
+import app.koyura.app.navigation.usesNavigationRailForWindow
 import app.koyura.app.sourceui.LocalSourceUiHost
 import app.koyura.app.sourceui.SourceUiHost
 import app.koyura.app.sourceui.SourceUiOverlay
-import app.koyura.app.history.HistoryService
-import app.koyura.app.history.LocalHistoryService
-import app.koyura.domain.reader.ReaderService
-import app.koyura.domain.reader.preferences.ReaderPreferences
-import app.koyura.app.navigation.rememberAppNavigationState
-import app.koyura.app.navigation.TabletUiMode
-import app.koyura.app.navigation.usesNavigationRailForWindow
 import app.koyura.designsystem.DesignTokens
 import app.koyura.designsystem.ReaderTheme
+import app.koyura.designsystem.components.AppSurface
 import app.koyura.designsystem.navigation.NavTab
+import app.koyura.domain.reader.ReaderService
+import app.koyura.domain.reader.preferences.ReaderPreferences
 import app.koyura.features.account.AccountRepository
 import app.koyura.features.account.LocalAccountRepository
-import app.koyura.app.browse.globalsearch.LocalSearchSourceFilter
-import app.koyura.features.library.LocalLibraryRepository
 import app.koyura.features.library.LibraryRepository as FeaturesLibraryRepository
+import app.koyura.features.library.LocalLibraryRepository
 import app.koyura.features.updates.LocalUpdatePolicyRepository
 import app.koyura.features.updates.LocalUpdatesRepository
 import app.koyura.features.updates.UpdatePolicyRepository
@@ -87,7 +87,7 @@ fun App(
             LocalSearchSourceFilter provides searchSourceFilter,
             LocalSourceUiHost provides sourceUiHost,
         ) {
-            Surface(modifier = Modifier.fillMaxSize()) {
+            AppSurface(modifier = Modifier.fillMaxSize()) {
                 AppShell()
                 val host = sourceUiHost
                 if (host != null) {

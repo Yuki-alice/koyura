@@ -6,9 +6,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -25,6 +22,9 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import app.koyura.designsystem.DesignTokens
+import app.koyura.designsystem.components.AppSlider
+import app.koyura.designsystem.components.AppText
+import app.koyura.designsystem.components.UiTheme
 
 /**
  * 条漫模式的竖排页码滑杆（自适应版，对照 Komikku `ChapterNavigator` 的
@@ -52,13 +52,13 @@ fun VerticalPageSlider(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Text(
+        AppText(
             text = "${preview + 1}",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurface,
+            style = UiTheme.typography.bodySmall,
+            color = UiTheme.colorScheme.onSurface,
         )
         Box(modifier = Modifier.weight(1f)) {
-            Slider(
+            AppSlider(
                 value = (preview + 1).toFloat(),
                 onValueChange = {
                     preview = (it.toInt() - 1).coerceIn(0, pageCount - 1)
@@ -92,10 +92,10 @@ fun VerticalPageSlider(
                     .testTag(ReaderChromeVerticalSliderTag),
             )
         }
-        Text(
+        AppText(
             text = pageCount.toString(),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
+            style = UiTheme.typography.bodySmall,
+            color = UiTheme.colorScheme.onSurfaceVariant.copy(
                 alpha = DesignTokens.Alpha.Secondary,
             ),
         )

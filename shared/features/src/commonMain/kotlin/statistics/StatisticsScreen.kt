@@ -9,14 +9,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -34,6 +26,13 @@ import app.koyura.designsystem.ActionIcon
 import app.koyura.designsystem.ActionIconButton
 import app.koyura.designsystem.DesignTokens
 import app.koyura.designsystem.SectionCard
+import app.koyura.designsystem.components.AppCircularProgress
+import app.koyura.designsystem.components.AppMenu
+import app.koyura.designsystem.components.AppMenuItem
+import app.koyura.designsystem.components.AppText
+import app.koyura.designsystem.components.AppTextButton
+import app.koyura.designsystem.components.ReaderTopAppBar
+import app.koyura.designsystem.components.UiTheme
 import app.koyura.features.resources.Res
 import app.koyura.features.resources.more_statistics
 import app.koyura.features.resources.statistics_chapters
@@ -83,7 +82,6 @@ fun statisticsMetricTag(section: String, key: String) = "statistics-metric-$sect
  * 数值 titleLarge Bold、说明 bodyMedium 0.78、图标 primary 置底。数据侧只有 Fake 仓储，
  * 生产聚合由数据层接入后替换注入。
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StatisticsScreen(
     session: StatisticsSession,
@@ -98,8 +96,8 @@ fun StatisticsScreen(
     }
 
     Column(modifier = modifier.fillMaxSize().testTag(StatisticsRootTag)) {
-        TopAppBar(
-            title = { Text(stringResource(Res.string.statistics_title)) },
+        ReaderTopAppBar(
+            title = { AppText(stringResource(Res.string.statistics_title)) },
             navigationIcon = {
                 ActionIconButton(
                     icon = ActionIcon.Back,
@@ -114,9 +112,9 @@ fun StatisticsScreen(
                     onClick = { overflow = true },
                     modifier = Modifier.testTag(StatisticsOverflowTag),
                 )
-                DropdownMenu(expanded = overflow, onDismissRequest = { overflow = false }) {
-                    DropdownMenuItem(
-                        text = { Text(stringResource(Res.string.statistics_refresh)) },
+                AppMenu(expanded = overflow, onDismissRequest = { overflow = false }) {
+                    AppMenuItem(
+                        text = { AppText(stringResource(Res.string.statistics_refresh)) },
                         onClick = {
                             overflow = false
                             scope.launch { session.refresh() }
@@ -132,7 +130,7 @@ fun StatisticsScreen(
                 modifier = Modifier.fillMaxSize().testTag(StatisticsLoadingTag),
                 contentAlignment = Alignment.Center,
             ) {
-                CircularProgressIndicator()
+                AppCircularProgress()
             }
             is StatisticsLoadState.Failed -> Column(
                 modifier = Modifier
@@ -141,16 +139,16 @@ fun StatisticsScreen(
                     .testTag(StatisticsErrorTag),
                 verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small),
             ) {
-                Text(
+                AppText(
                     text = stringResource(Res.string.statistics_load_failed, load.message),
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium,
+                    color = UiTheme.colorScheme.error,
+                    style = UiTheme.typography.bodyMedium,
                 )
-                TextButton(
+                AppTextButton(
                     onClick = { scope.launch { session.refresh() } },
                     modifier = Modifier.testTag(StatisticsRetryTag),
                 ) {
-                    Text(stringResource(Res.string.statistics_retry))
+                    AppText(stringResource(Res.string.statistics_retry))
                 }
             }
             StatisticsLoadState.Ready -> StatisticsContent(session.snapshot)
@@ -280,10 +278,10 @@ private fun StatisticsSection(
         modifier = Modifier.fillMaxWidth().testTag(statisticsSectionTag(sectionKey)),
         verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small),
     ) {
-        Text(
+        AppText(
             text = title,
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurface,
+            style = UiTheme.typography.titleMedium,
+            color = UiTheme.colorScheme.onSurface,
         )
         SectionCard {
             Row(
@@ -315,18 +313,18 @@ private fun MetricColumn(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.ExtraSmall),
     ) {
-        Text(
+        AppText(
             text = metric.value,
-            style = MaterialTheme.typography.titleLarge,
+            style = UiTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface,
+            color = UiTheme.colorScheme.onSurface,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
-        Text(
+        AppText(
             text = metric.label,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
+            style = UiTheme.typography.bodyMedium,
+            color = UiTheme.colorScheme.onSurfaceVariant.copy(
                 alpha = DesignTokens.Alpha.Secondary,
             ),
             textAlign = TextAlign.Center,
@@ -335,7 +333,7 @@ private fun MetricColumn(
             ActionIcon(
                 icon = icon,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
+                tint = UiTheme.colorScheme.primary,
             )
         }
     }

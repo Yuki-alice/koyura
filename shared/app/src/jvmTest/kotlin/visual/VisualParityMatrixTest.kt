@@ -7,8 +7,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
@@ -42,6 +40,8 @@ import app.koyura.app.visual.GoldenDiffAssertions.ChromeExpectation
 import app.koyura.app.visual.GoldenDiffAssertions.ThemePalette
 import app.koyura.app.visual.VisualMatrixCatalog
 import app.koyura.designsystem.ReaderTheme
+import app.koyura.designsystem.components.AppText
+import app.koyura.designsystem.components.UiTheme
 import app.koyura.designsystem.navigation.NavTab
 import app.koyura.domain.reader.ChapterContent
 import app.koyura.features.library.FakeLibraryRepository
@@ -168,7 +168,7 @@ class VisualParityMatrixTest {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
-                        .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                        .background(UiTheme.colorScheme.surfaceContainerHighest)
                         .padding(16.dp),
                 ) {
                     // 主色条让「未实现占位」在 golden-diff 的非背景比例上也有足够信号。
@@ -176,17 +176,17 @@ class VisualParityMatrixTest {
                         Modifier
                             .fillMaxWidth()
                             .height(40.dp)
-                            .background(MaterialTheme.colorScheme.primary),
+                            .background(UiTheme.colorScheme.primary),
                     )
-                    Text(
+                    AppText(
                         text = "未实现占位 / PLACEHOLDER",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.labelLarge,
+                        color = UiTheme.colorScheme.onSurfaceVariant,
+                        style = UiTheme.typography.labelLarge,
                     )
-                    Text(
+                    AppText(
                         text = label,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        style = MaterialTheme.typography.titleMedium,
+                        color = UiTheme.colorScheme.onSurface,
+                        style = UiTheme.typography.titleMedium,
                     )
                 }
             }

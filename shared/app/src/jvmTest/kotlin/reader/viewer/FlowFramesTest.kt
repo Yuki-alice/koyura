@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -22,12 +21,13 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.swipeDown
 import androidx.compose.ui.test.swipeRight
-import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
 import app.koyura.designsystem.ReaderTheme
+import app.koyura.designsystem.components.AppText
 import app.koyura.features.reader.comic.ReaderContentState
 import app.koyura.features.reader.comic.ReaderSession
 import app.koyura.features.reader.comic.viewer.ComicChapterBoundary
@@ -62,7 +62,7 @@ class FlowFramesTest {
     ) {
         val content = (session.content as? ReaderContentState.Ready)?.content
         Column(Modifier.fillMaxSize()) {
-            Text(
+            AppText(
                 text = if (content == null) "0 / 0"
                 else "${options.mode.id} ${session.currentPage + 1} / ${content.pageKeys.size}",
                 modifier = Modifier.testTag("reader-viewer-flow-label"),
@@ -156,7 +156,7 @@ class FlowFramesTest {
                 }
                 val content = (session.content as? ReaderContentState.Ready)?.content
                 Column(Modifier.fillMaxSize()) {
-                    Text(
+                    AppText(
                         text = if (content == null) "0 / 0"
                         else "${session.currentPage + 1} / ${content.pageKeys.size}",
                         modifier = Modifier.testTag("reader-viewer-flow-label"),
@@ -249,7 +249,7 @@ class FlowFramesTest {
                 }
                 val content = (session.content as? ReaderContentState.Ready)?.content
                 Column(Modifier.fillMaxSize()) {
-                    Text(
+                    AppText(
                         text = if (content == null) "0 / 0"
                         else "AUTOMATIC ${session.currentPage + 1} / ${content.pageKeys.size}",
                         modifier = Modifier.testTag("reader-viewer-flow-label"),

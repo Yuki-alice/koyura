@@ -6,13 +6,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -28,6 +21,13 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import app.koyura.designsystem.DesignTokens
+import app.koyura.designsystem.components.AppAlertDialog
+import app.koyura.designsystem.components.AppButton
+import app.koyura.designsystem.components.AppLinearProgress
+import app.koyura.designsystem.components.AppText
+import app.koyura.designsystem.components.AppTextButton
+import app.koyura.designsystem.components.AppTextField
+import app.koyura.designsystem.components.UiTheme
 import app.koyura.features.resources.Res
 import app.koyura.features.resources.account_continue
 import app.koyura.features.resources.account_create
@@ -120,10 +120,10 @@ fun AccountSection(
             )
         }
         session.errorMessage?.let { message ->
-            Text(
+            AppText(
                 text = message,
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodyMedium,
+                color = UiTheme.colorScheme.error,
+                style = UiTheme.typography.bodyMedium,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                     .testTag("account-error-$sourceKey"),
             )
@@ -156,9 +156,9 @@ private fun AccountLoggedOut(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text(
+        AppText(
             text = stringResource(Res.string.account_login_title, sourceName),
-            style = MaterialTheme.typography.titleMedium,
+            style = UiTheme.typography.titleMedium,
         )
         AccountLoginForm(
             sourceKey = sourceKey,
@@ -169,29 +169,29 @@ private fun AccountLoggedOut(
         )
         if (state.registerUrl != null) {
             val registerUrl = state.registerUrl
-            TextButton(
+            AppTextButton(
                 onClick = { onOpenUrl(registerUrl) },
                 modifier = Modifier.testTag(accountRegisterTag(sourceKey)),
             ) {
-                Text(stringResource(Res.string.account_create))
+                AppText(stringResource(Res.string.account_create))
             }
         }
         if (state.webLoginSupported) {
             if (webLoggingIn) {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                Text(
+                AppLinearProgress(modifier = Modifier.fillMaxWidth())
+                AppText(
                     text = stringResource(Res.string.account_web_login_running),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = UiTheme.typography.bodySmall,
+                    color = UiTheme.colorScheme.onSurfaceVariant,
                 )
             } else {
-                TextButton(
+                AppTextButton(
                     onClick = {
                         scope.launch { onWebLogin() }
                     },
                     modifier = Modifier.testTag(accountWebLoginTag(sourceKey)),
                 ) {
-                    Text(stringResource(Res.string.account_web_login))
+                    AppText(stringResource(Res.string.account_web_login))
                 }
             }
         }
@@ -207,20 +207,20 @@ private fun AccountLoginForm(
 ) {
     val values = remember(sourceKey, fields) { mutableStateOf(List(fields.size) { "" }) }
     if (fields.isEmpty()) {
-        Text(
+        AppText(
             text = stringResource(Res.string.account_password_login_disabled),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = UiTheme.typography.bodyMedium,
+            color = UiTheme.colorScheme.onSurfaceVariant,
         )
         return
     }
     fields.forEachIndexed { index, field ->
-        OutlinedTextField(
+        AppTextField(
             value = values.value[index],
             onValueChange = { input ->
                 values.value = values.value.toMutableList().also { it[index] = input }
             },
-            label = { Text(field.label) },
+            label = { AppText(field.label) },
             singleLine = true,
             visualTransformation = if (field.type == AccountFieldType.TEXT) {
                 VisualTransformation.None
@@ -230,12 +230,12 @@ private fun AccountLoginForm(
             modifier = Modifier.fillMaxWidth().testTag(accountFieldTag(sourceKey, index)),
         )
     }
-    Button(
+    AppButton(
         onClick = { onSubmit(values.value) },
         enabled = values.value.all { it.isNotBlank() },
         modifier = Modifier.testTag(accountContinueTag(sourceKey)),
     ) {
-        Text(stringResource(Res.string.account_continue))
+        AppText(stringResource(Res.string.account_continue))
     }
 }
 
@@ -287,24 +287,24 @@ private fun AccountLoggedIn(
         modifier = Modifier.testTag(accountLogoutTag(sourceKey)),
     )
     if (confirmLogout) {
-        AlertDialog(
+        AppAlertDialog(
             onDismissRequest = { confirmLogout = false },
-            title = { Text(stringResource(Res.string.account_logout_confirm_title, "")) },
-            text = { Text(stringResource(Res.string.account_logout_confirm_body)) },
+            title = { AppText(stringResource(Res.string.account_logout_confirm_title, "")) },
+            text = { AppText(stringResource(Res.string.account_logout_confirm_body)) },
             confirmButton = {
-                TextButton(
+                AppTextButton(
                     onClick = {
                         confirmLogout = false
                         scope.launch { onLogout() }
                     },
                     modifier = Modifier.testTag(accountLogoutConfirmTag(sourceKey)),
                 ) {
-                    Text(stringResource(Res.string.account_logout))
+                    AppText(stringResource(Res.string.account_logout))
                 }
             },
             dismissButton = {
-                TextButton(onClick = { confirmLogout = false }) {
-                    Text(stringResource(Res.string.account_continue))
+                AppTextButton(onClick = { confirmLogout = false }) {
+                    AppText(stringResource(Res.string.account_continue))
                 }
             },
         )
@@ -329,12 +329,12 @@ private fun AccountRow(
                 .weight(1f)
                 .padding(horizontal = 16.dp, vertical = 8.dp),
         ) {
-            Text(text = title, style = MaterialTheme.typography.bodyMedium)
+            AppText(text = title, style = UiTheme.typography.bodyMedium)
             subtitle?.let {
-                Text(
+                AppText(
                     text = it,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                    style = UiTheme.typography.bodySmall,
+                    color = UiTheme.colorScheme.onSurfaceVariant.copy(
                         alpha = DesignTokens.Alpha.Secondary,
                     ),
                 )

@@ -10,12 +10,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.rememberCoroutineScope
@@ -43,6 +37,11 @@ import app.koyura.designsystem.DesignTokens
 import app.koyura.designsystem.LocalCoverDecoder
 import app.koyura.designsystem.LocalCoverImageLoader
 import app.koyura.designsystem.SearchField
+import app.koyura.designsystem.components.AppCircularProgress
+import app.koyura.designsystem.components.AppText
+import app.koyura.designsystem.components.AppTextButton
+import app.koyura.designsystem.components.ReaderTopAppBar
+import app.koyura.designsystem.components.UiTheme
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 
@@ -64,7 +63,6 @@ internal fun globalSearchResultTag(sourceKey: String, workId: String) = "global-
  * 搜索框照 `SearchField`，结果按源分组：组头为源名 + 状态（加载中/结果数/失败原因 +
  * 重试该源），作品行照 `BrowseRow` 的封面 + 标题 + 副标题结构。点行进既有作品详情路由。
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GlobalSearchScreen(
     session: GlobalSearchSession,
@@ -80,8 +78,8 @@ fun GlobalSearchScreen(
         LocalCoverDecoder provides AppCoverDecoder,
     ) {
         Column(modifier = modifier.fillMaxSize().testTag(GlobalSearchRootTag)) {
-            TopAppBar(
-                title = { Text(stringResource(Res.string.global_search_title)) },
+            ReaderTopAppBar(
+                title = { AppText(stringResource(Res.string.global_search_title)) },
                 navigationIcon = {
                     ActionIconButton(
                         icon = ActionIcon.Back,
@@ -120,26 +118,26 @@ fun GlobalSearchScreen(
                         .testTag(GlobalSearchErrorTag),
                     verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small),
                 ) {
-                    Text(
+                    AppText(
                         text = stringResource(Res.string.global_search_failed, session.error.orEmpty()),
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodyMedium,
+                        color = UiTheme.colorScheme.error,
+                        style = UiTheme.typography.bodyMedium,
                     )
-                    TextButton(onClick = { scope.launch { session.submit() } }) {
-                        Text(stringResource(Res.string.global_search_retry))
+                    AppTextButton(onClick = { scope.launch { session.submit() } }) {
+                        AppText(stringResource(Res.string.global_search_retry))
                     }
                 }
-                !session.hasSearched -> Text(
+                !session.hasSearched -> AppText(
                     text = stringResource(Res.string.global_search_prompt),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = UiTheme.typography.bodyMedium,
+                    color = UiTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(DesignTokens.Spacing.Large).testTag(GlobalSearchPromptTag),
                 )
                 !session.searching && session.resultCount == 0 &&
-                    session.groups.all { it.state is GlobalSearchSourceState.Failed } -> Text(
+                    session.groups.all { it.state is GlobalSearchSourceState.Failed } -> AppText(
                     text = stringResource(Res.string.global_search_empty),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = UiTheme.typography.bodyMedium,
+                    color = UiTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(DesignTokens.Spacing.Large).testTag(GlobalSearchEmptyTag),
                 )
                 else -> LazyColumn(modifier = Modifier.fillMaxSize().testTag(GlobalSearchListTag)) {
@@ -181,40 +179,40 @@ private fun GlobalSearchGroupHeader(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small),
         ) {
-            Text(
+            AppText(
                 text = group.sourceName,
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurface,
+                style = UiTheme.typography.titleSmall,
+                color = UiTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f, fill = false),
             )
             when (val state = group.state) {
-                GlobalSearchSourceState.Loading -> CircularProgressIndicator(
+                GlobalSearchSourceState.Loading -> AppCircularProgress(
                     modifier = Modifier.size(16.dp),
                     strokeWidth = 2.dp,
                 )
-                is GlobalSearchSourceState.Ready -> Text(
+                is GlobalSearchSourceState.Ready -> AppText(
                     text = stringResource(Res.string.global_search_result_count, state.works.size),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                    style = UiTheme.typography.bodySmall,
+                    color = UiTheme.colorScheme.onSurfaceVariant.copy(
                         alpha = DesignTokens.Alpha.Secondary,
                     ),
                 )
                 is GlobalSearchSourceState.Failed -> {
-                    Text(
+                    AppText(
                         text = stringResource(Res.string.global_search_source_failed, state.message),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
+                        style = UiTheme.typography.bodySmall,
+                        color = UiTheme.colorScheme.error,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f),
                     )
-                    TextButton(
+                    AppTextButton(
                         onClick = onRetry,
                         modifier = Modifier.testTag(globalSearchRetryTag(group.sourceKey)),
                     ) {
-                        Text(stringResource(Res.string.global_search_retry))
+                        AppText(stringResource(Res.string.global_search_retry))
                     }
                 }
             }
@@ -245,18 +243,18 @@ private fun GlobalSearchResultRow(
             modifier = Modifier.size(width = 48.dp, height = 72.dp),
         )
         Column(modifier = Modifier.weight(1f)) {
-            Text(
+            AppText(
                 text = work.title,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
+                style = UiTheme.typography.bodyMedium,
+                color = UiTheme.colorScheme.onSurface,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
             if (work.subtitle.isNotBlank()) {
-                Text(
+                AppText(
                     text = work.subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                    style = UiTheme.typography.bodySmall,
+                    color = UiTheme.colorScheme.onSurfaceVariant.copy(
                         alpha = DesignTokens.Alpha.Secondary,
                     ),
                     maxLines = 1,

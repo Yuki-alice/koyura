@@ -13,10 +13,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
-import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -29,6 +25,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.koyura.designsystem.ActionIcon
 import app.koyura.designsystem.DesignTokens
+import app.koyura.designsystem.components.AppSlider
+import app.koyura.designsystem.components.AppSwitch
+import app.koyura.designsystem.components.AppText
+import app.koyura.designsystem.components.UiTheme
 
 /** HeadingItem：14sp SemiBold / onSurfaceVariant / 24/10 内边距（白皮书 06 §6.5、07 §7.9）。 */
 @Composable
@@ -36,7 +36,7 @@ internal fun SettingsSectionHeader(
     text: String,
     modifier: Modifier = Modifier,
 ) {
-    Text(
+    AppText(
         text = text,
         modifier = modifier
             .fillMaxWidth()
@@ -44,9 +44,9 @@ internal fun SettingsSectionHeader(
                 horizontal = DesignTokens.Spacing.Large,
                 vertical = DesignTokens.Spacing.Small + 2.dp,
             ),
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        color = UiTheme.colorScheme.onSurfaceVariant,
         fontWeight = FontWeight.SemiBold,
-        style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
+        style = UiTheme.typography.bodyMedium.copy(fontSize = 14.sp),
     )
 }
 
@@ -80,27 +80,27 @@ internal fun SettingsRow(
             ActionIcon(
                 icon = icon,
                 contentDescription = null,
-                tint = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                tint = if (enabled) UiTheme.colorScheme.primary else UiTheme.colorScheme.onSurface,
             )
             Spacer(Modifier.width(DesignTokens.Spacing.Medium))
         }
         Column(modifier = Modifier.weight(1f)) {
-            Text(
+            AppText(
                 text = title,
                 color = when {
-                    !enabled -> MaterialTheme.colorScheme.onSurface.copy(alpha = DesignTokens.Alpha.Disabled)
-                    danger -> MaterialTheme.colorScheme.error
-                    else -> MaterialTheme.colorScheme.onSurface
+                    !enabled -> UiTheme.colorScheme.onSurface.copy(alpha = DesignTokens.Alpha.Disabled)
+                    danger -> UiTheme.colorScheme.error
+                    else -> UiTheme.colorScheme.onSurface
                 },
-                style = MaterialTheme.typography.titleLarge.copy(fontSize = 16.sp),
+                style = UiTheme.typography.titleLarge.copy(fontSize = 16.sp),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             if (subtitle != null) {
-                Text(
+                AppText(
                     text = subtitle,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = DesignTokens.Alpha.Secondary),
-                    style = MaterialTheme.typography.bodySmall,
+                    color = UiTheme.colorScheme.onSurfaceVariant.copy(alpha = DesignTokens.Alpha.Secondary),
+                    style = UiTheme.typography.bodySmall,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -131,7 +131,7 @@ internal fun SettingsSwitchRow(
         enabled = enabled,
         testTag = testTag,
         trailing = {
-            Switch(
+            AppSwitch(
                 checked = checked,
                 onCheckedChange = onCheckedChange,
                 enabled = enabled,
@@ -162,10 +162,10 @@ internal fun SettingsChoiceRow(
         enabled = enabled,
         testTag = testTag,
         trailing = {
-            Text(
+            AppText(
                 text = currentValue,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodyMedium,
+                color = UiTheme.colorScheme.onSurfaceVariant,
+                style = UiTheme.typography.bodyMedium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -194,19 +194,19 @@ internal fun SettingsSliderRow(
             .then(if (testTag != null) Modifier.testTag(testTag) else Modifier),
     ) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(
+            AppText(
                 text = title,
                 modifier = Modifier.weight(1f),
-                color = MaterialTheme.colorScheme.onSurface,
-                style = MaterialTheme.typography.titleLarge.copy(fontSize = 16.sp),
+                color = UiTheme.colorScheme.onSurface,
+                style = UiTheme.typography.titleLarge.copy(fontSize = 16.sp),
             )
-            Text(
+            AppText(
                 text = valueText,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodyMedium,
+                color = UiTheme.colorScheme.onSurfaceVariant,
+                style = UiTheme.typography.bodyMedium,
             )
         }
-        Slider(
+        AppSlider(
             value = value.coerceIn(valueRange),
             onValueChange = onValueChange,
             valueRange = valueRange,
@@ -222,7 +222,7 @@ internal fun SettingsEmptyState(
     text: String,
     modifier: Modifier = Modifier,
 ) {
-    Text(
+    AppText(
         text = text,
         modifier = modifier
             .fillMaxWidth()
@@ -230,20 +230,20 @@ internal fun SettingsEmptyState(
                 horizontal = DesignTokens.Spacing.Large,
                 vertical = DesignTokens.Spacing.ExtraLarge,
             ),
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        style = MaterialTheme.typography.bodyMedium,
+        color = UiTheme.colorScheme.onSurfaceVariant,
+        style = UiTheme.typography.bodyMedium,
     )
 }
 
 /** 主题预览色：只取语义色板，不写死 hex；19 套主题循环映射到 6 个语义色。 */
 @Composable
 internal fun previewSwatchColor(ordinal: Int): Color = when (ordinal % 6) {
-    0 -> MaterialTheme.colorScheme.primary
-    1 -> MaterialTheme.colorScheme.secondary
-    2 -> MaterialTheme.colorScheme.tertiary
-    3 -> MaterialTheme.colorScheme.primaryContainer
-    4 -> MaterialTheme.colorScheme.secondaryContainer
-    else -> MaterialTheme.colorScheme.tertiaryContainer
+    0 -> UiTheme.colorScheme.primary
+    1 -> UiTheme.colorScheme.secondary
+    2 -> UiTheme.colorScheme.tertiary
+    3 -> UiTheme.colorScheme.primaryContainer
+    4 -> UiTheme.colorScheme.secondaryContainer
+    else -> UiTheme.colorScheme.tertiaryContainer
 }
 
 /** 主题卡内的两段式预览：上段取语义色，下段 surfaceVariant 形成对比。 */
@@ -265,7 +265,7 @@ internal fun SettingsPreviewSwatch(
                 .fillMaxWidth()
                 .height(16.dp)
                 .background(
-                    MaterialTheme.colorScheme.surfaceVariant,
+                    UiTheme.colorScheme.surfaceVariant,
                     RoundedCornerShape(DesignTokens.Radius.ExtraSmall),
                 ),
         )
@@ -287,7 +287,7 @@ internal fun <T> SettingsSegmentedControl(
             .fillMaxWidth()
             .heightIn(min = 48.dp)
             .background(
-                MaterialTheme.colorScheme.surfaceContainerHigh,
+                UiTheme.colorScheme.surfaceContainerHigh,
                 shape = RoundedCornerShape(DesignTokens.Radius.Medium),
             )
             .padding(DesignTokens.Spacing.ExtraSmall),
@@ -296,13 +296,13 @@ internal fun <T> SettingsSegmentedControl(
     ) {
         for (item in items) {
             val isSelected = item == selected
-            val bg = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
+            val bg = if (isSelected) UiTheme.colorScheme.primaryContainer else Color.Transparent
             val fg = if (isSelected) {
-                MaterialTheme.colorScheme.onPrimaryContainer
+                UiTheme.colorScheme.onPrimaryContainer
             } else {
-                MaterialTheme.colorScheme.onSurfaceVariant
+                UiTheme.colorScheme.onSurfaceVariant
             }
-            Text(
+            AppText(
                 text = labelOf(item),
                 modifier = Modifier
                     .weight(1f)
@@ -312,7 +312,7 @@ internal fun <T> SettingsSegmentedControl(
                     .padding(horizontal = DesignTokens.Spacing.Small, vertical = DesignTokens.Spacing.Small)
                     .testTag("$testTagPrefix-$item"),
                 color = fg,
-                style = MaterialTheme.typography.labelLarge,
+                style = UiTheme.typography.labelLarge,
                 textAlign = TextAlign.Center,
             )
         }

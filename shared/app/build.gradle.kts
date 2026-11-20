@@ -41,7 +41,6 @@ kotlin {
             implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.7.1")
             implementation(project(":shared:data"))
             implementation(libs.compose.foundation)
-            implementation(libs.compose.material3)
             implementation(libs.compose.resources)
             implementation(libs.compose.runtime)
             implementation(libs.compose.ui)

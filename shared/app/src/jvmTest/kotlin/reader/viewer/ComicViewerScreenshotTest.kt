@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.ImageComposeScene
 import androidx.compose.ui.Modifier
@@ -13,6 +12,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import app.koyura.designsystem.ReaderTheme
+import app.koyura.designsystem.components.AppText
 import app.koyura.features.reader.comic.FakeReaderService
 import app.koyura.features.reader.comic.ReaderContentState
 import app.koyura.features.reader.comic.ReaderSession
@@ -71,7 +71,7 @@ class ComicViewerScreenshotTest {
                 ReaderTheme(darkTheme = false) {
                     Box(Modifier.fillMaxSize().background(Color.Black)) {
                         Column(Modifier.fillMaxSize()) {
-                            Text(
+                            AppText(
                                 text = "${options.mode.id} ${options.pagerLayout.id} ${session.currentPage + 1} / ${content.pageKeys.size}",
                                 color = Color.White,
                                 modifier = Modifier.testTag("reader-viewer-shot-label"),

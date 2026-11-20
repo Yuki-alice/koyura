@@ -10,15 +10,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.selection.selectable
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -34,10 +25,19 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.window.Dialog
 import app.koyura.app.resources.Res
-import app.koyura.designsystem.DesignTokens
 import app.koyura.app.resources.source_ui_cancel
 import app.koyura.app.resources.source_ui_dialog_confirm
 import app.koyura.app.resources.source_ui_input_hint
+import app.koyura.designsystem.DesignTokens
+import app.koyura.designsystem.components.AppAlertDialog
+import app.koyura.designsystem.components.AppLinearProgress
+import app.koyura.designsystem.components.AppRadioButton
+import app.koyura.designsystem.components.AppSnackbarHost
+import app.koyura.designsystem.components.AppText
+import app.koyura.designsystem.components.AppTextButton
+import app.koyura.designsystem.components.AppTextField
+import app.koyura.designsystem.components.UiTheme
+import app.koyura.designsystem.components.rememberAppSnackbarHostState
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 
@@ -67,7 +67,7 @@ fun SourceUiOverlay(
     val loading by host.loading.collectAsState()
     val message by host.message.collectAsState()
     val dialog by host.dialog.collectAsState()
-    val snackbarState = remember { SnackbarHostState() }
+    val snackbarState = rememberAppSnackbarHostState()
 
     LaunchedEffect(message) {
         val current = message ?: return@LaunchedEffect
@@ -84,16 +84,16 @@ fun SourceUiOverlay(
                     .testTag(SourceUiLoadingTag),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                LinearProgressIndicator(modifier = Modifier.weight(1f))
+                AppLinearProgress(modifier = Modifier.weight(1f))
                 if (loading.values.any { it != null }) {
-                    TextButton(onClick = { host.cancelAllLoading() }) {
-                        Text(stringResource(Res.string.source_ui_cancel))
+                    AppTextButton(onClick = { host.cancelAllLoading() }) {
+                        AppText(stringResource(Res.string.source_ui_cancel))
                     }
                 }
             }
         }
 
-        SnackbarHost(
+        AppSnackbarHost(
             hostState = snackbarState,
             modifier = Modifier.align(Alignment.BottomCenter).testTag(SourceUiSnackbarTag),
         )
@@ -110,19 +110,19 @@ fun SourceUiOverlay(
 @Composable
 private fun SourceMessageDialog(request: SourceUiDialog.Message) {
     val scope = rememberCoroutineScope()
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = {
             scope.launch {
                 request.gate.complete(Unit)
             }
         },
         modifier = Modifier.testTag(SourceUiDialogTag),
-        title = { Text(request.title) },
-        text = { Text(request.content) },
+        title = { AppText(request.title) },
+        text = { AppText(request.content) },
         confirmButton = {
             Row(horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.ExtraSmall)) {
                 request.actions.forEachIndexed { index, action ->
-                    TextButton(
+                    AppTextButton(
                         onClick = {
                             scope.launch {
                                 request.onAction(index)
@@ -131,7 +131,7 @@ private fun SourceMessageDialog(request: SourceUiDialog.Message) {
                         },
                         modifier = Modifier.testTag(sourceUiDialogActionTag(index)),
                     ) {
-                        Text(action.text)
+                        AppText(action.text)
                     }
                 }
             }
@@ -158,21 +158,21 @@ private fun SourceInputDialog(request: SourceUiDialog.Input) {
                 .padding(DesignTokens.Spacing.Large),
             verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small),
         ) {
-            Text(text = request.title, style = MaterialTheme.typography.titleMedium)
-            OutlinedTextField(
+            AppText(text = request.title, style = UiTheme.typography.titleMedium)
+            AppTextField(
                 value = input,
                 onValueChange = {
                     input = it
                     error = null
                 },
-                placeholder = { Text(stringResource(Res.string.source_ui_input_hint)) },
+                placeholder = { AppText(stringResource(Res.string.source_ui_input_hint)) },
                 singleLine = true,
                 isError = error != null,
                 supportingText = {
                     error?.let {
-                        Text(
+                        AppText(
                             text = it,
-                            color = MaterialTheme.colorScheme.error,
+                            color = UiTheme.colorScheme.error,
                             modifier = Modifier.testTag(SourceUiDialogErrorTag),
                         )
                     }
@@ -183,10 +183,10 @@ private fun SourceInputDialog(request: SourceUiDialog.Input) {
                 horizontalArrangement = Arrangement.End,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                TextButton(onClick = { dismiss(null) }) {
-                    Text(stringResource(Res.string.source_ui_cancel))
+                AppTextButton(onClick = { dismiss(null) }) {
+                    AppText(stringResource(Res.string.source_ui_cancel))
                 }
-                TextButton(
+                AppTextButton(
                     onClick = {
                         scope.launch {
                             checking = true
@@ -205,7 +205,7 @@ private fun SourceInputDialog(request: SourceUiDialog.Input) {
                     enabled = !checking,
                     modifier = Modifier.testTag(sourceUiDialogActionTag(0)),
                 ) {
-                    Text(stringResource(Res.string.source_ui_dialog_confirm))
+                    AppText(stringResource(Res.string.source_ui_dialog_confirm))
                 }
             }
         }
@@ -226,7 +226,7 @@ private fun SourceSelectDialog(request: SourceUiDialog.Select) {
                 .padding(DesignTokens.Spacing.Large),
             verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small),
         ) {
-            Text(text = request.title, style = MaterialTheme.typography.titleMedium)
+            AppText(text = request.title, style = UiTheme.typography.titleMedium)
             LazyColumn {
                 itemsIndexed(request.options) { index, option ->
                     Row(
@@ -240,11 +240,11 @@ private fun SourceSelectDialog(request: SourceUiDialog.Select) {
                             )
                             .testTag(sourceUiDialogOptionTag(index)),
                     ) {
-                        RadioButton(
+                        AppRadioButton(
                             selected = request.initialIndex == index,
                             onClick = null,
                         )
-                        Text(text = option, style = MaterialTheme.typography.bodyMedium)
+                        AppText(text = option, style = UiTheme.typography.bodyMedium)
                     }
                 }
             }

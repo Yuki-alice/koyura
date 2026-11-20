@@ -19,12 +19,6 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.selection.selectable
-import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -41,6 +35,12 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import app.koyura.designsystem.components.AppButton
+import app.koyura.designsystem.components.AppRadioButton
+import app.koyura.designsystem.components.AppSurface
+import app.koyura.designsystem.components.AppText
+import app.koyura.designsystem.components.AppTextButton
+import app.koyura.designsystem.components.UiTheme
 import app.koyura.domain.reader.preferences.ReaderFit
 import app.koyura.domain.reader.preferences.ReaderLayout
 import app.koyura.domain.reader.preferences.ReadingMode
@@ -154,8 +154,8 @@ private fun ModePanel(
         indication = null,
         onClick = {},
     )
-    Surface(
-        shape = MaterialTheme.shapes.extraLarge,
+    AppSurface(
+        shape = UiTheme.shapes.extraLarge,
         tonalElevation = 6.dp,
         modifier = Modifier
             .testTag(ReaderChromeModeDialogTag)
@@ -169,9 +169,9 @@ private fun ModePanel(
                 .testTag(ReaderChromeModePanelTag)
                 .padding(vertical = 12.dp),
         ) {
-            Text(
+            AppText(
                 text = stringResource(Res.string.reader_chrome_reading_mode),
-                style = MaterialTheme.typography.titleMedium,
+                style = UiTheme.typography.titleMedium,
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp),
             )
             if (allowDefault) {
@@ -198,14 +198,14 @@ private fun ModePanel(
                 horizontalArrangement = Arrangement.End,
                 modifier = Modifier.fillMaxWidth().padding(end = 12.dp),
             ) {
-                TextButton(onClick = onDismiss) {
-                    Text(stringResource(Res.string.reader_chrome_cancel))
+                AppTextButton(onClick = onDismiss) {
+                    AppText(stringResource(Res.string.reader_chrome_cancel))
                 }
-                Button(
+                AppButton(
                     onClick = onApply,
                     modifier = Modifier.testTag(ReaderChromeModeApplyTag),
                 ) {
-                    Text(stringResource(Res.string.reader_chrome_apply))
+                    AppText(stringResource(Res.string.reader_chrome_apply))
                 }
             }
         }
@@ -225,10 +225,10 @@ private fun ModeDefaultRow(
             .selectable(selected = selected, role = Role.RadioButton, onClick = onSelect)
             .padding(horizontal = 24.dp, vertical = 10.dp),
     ) {
-        RadioButton(selected = selected, onClick = null)
-        Text(
+        AppRadioButton(selected = selected, onClick = null)
+        AppText(
             text = stringResource(Res.string.reader_chrome_inherit),
-            style = MaterialTheme.typography.bodyLarge,
+            style = UiTheme.typography.bodyLarge,
             modifier = Modifier.padding(start = 16.dp),
         )
     }
@@ -241,12 +241,12 @@ private fun ModeCell(
     onSelect: () -> Unit,
 ) {
     val container = if (selected) {
-        MaterialTheme.colorScheme.secondaryContainer
+        UiTheme.colorScheme.secondaryContainer
     } else {
-        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        UiTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
     }
-    Surface(
-        shape = MaterialTheme.shapes.medium,
+    AppSurface(
+        shape = UiTheme.shapes.medium,
         color = container,
         tonalElevation = if (selected) 2.dp else 0.dp,
         modifier = Modifier
@@ -262,10 +262,10 @@ private fun ModeCell(
             verticalArrangement = Arrangement.spacedBy(6.dp),
             modifier = Modifier.padding(vertical = 12.dp, horizontal = 8.dp),
         ) {
-            ModeGlyph(mode = mode, tint = MaterialTheme.colorScheme.onSurface)
-            Text(
+            ModeGlyph(mode = mode, tint = UiTheme.colorScheme.onSurface)
+            AppText(
                 text = modeLabel(mode),
-                style = MaterialTheme.typography.labelLarge,
+                style = UiTheme.typography.labelLarge,
                 maxLines = 2,
             )
         }

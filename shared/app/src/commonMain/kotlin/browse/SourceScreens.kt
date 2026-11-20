@@ -1,10 +1,9 @@
 package app.koyura.app.browse
 
-import app.koyura.app.resources.browse_clear_search
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.ui.text.style.TextAlign
+import app.koyura.app.resources.browse_clear_search
 import app.koyura.designsystem.ActionIcon
 import app.koyura.designsystem.ActionIconButton
 import app.koyura.designsystem.DesignTokens
@@ -15,8 +14,8 @@ import app.koyura.features.library.ReadButtonStart
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -37,17 +36,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SmallExtendedFloatingActionButton
-import androidx.compose.material3.Surface
-import androidx.compose.material3.SuggestionChip
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -69,7 +57,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import kotlin.math.roundToInt
 import app.koyura.app.LocalReaderService
 import app.koyura.app.resources.Res
 import app.koyura.app.resources.browse_retry
@@ -106,13 +93,24 @@ import app.koyura.designsystem.Cover
 import app.koyura.designsystem.DetailBackdrop
 import app.koyura.designsystem.LocalCoverDecoder
 import app.koyura.designsystem.LocalCoverImageLoader
+import app.koyura.designsystem.components.AppButton
+import app.koyura.designsystem.components.AppCircularProgress
+import app.koyura.designsystem.components.AppDivider
+import app.koyura.designsystem.components.AppExtendedFab
+import app.koyura.designsystem.components.AppSuggestionChip
+import app.koyura.designsystem.components.AppSurface
+import app.koyura.designsystem.components.AppText
+import app.koyura.designsystem.components.AppTextButton
+import app.koyura.designsystem.components.ReaderTopAppBar
+import app.koyura.designsystem.components.UiTheme
+import app.koyura.designsystem.rememberCoverBitmap
+import app.koyura.domain.reader.ReaderService
 import app.koyura.features.library.LibraryEntryKey
 import app.koyura.features.library.LibraryKind
 import app.koyura.features.library.LibrarySession
 import app.koyura.features.library.NewLibraryEntry
 import app.koyura.features.library.rememberLibrarySession
-import app.koyura.designsystem.rememberCoverBitmap
-import app.koyura.domain.reader.ReaderService
+import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
@@ -127,7 +125,6 @@ internal const val SourceSearchResultsTag = "source-search-results"
 internal fun sourceResultTag(workId: String) = "source-result-$workId"
 
 /** Search page for one installed source, backed by its `search.load` callback. */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SourceSearchScreen(
     session: BrowseSession,
@@ -192,8 +189,8 @@ fun SourceSearchScreen(
         LocalCoverDecoder provides AppCoverDecoder,
     ) {
         Column(modifier = modifier.fillMaxSize().testTag(SourceSearchTestTag)) {
-            TopAppBar(
-                title = { Text(sourceName, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            ReaderTopAppBar(
+                title = { AppText(sourceName, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = {
                     if (onBack != null) {
                         ActionIconButton(
@@ -229,35 +226,35 @@ fun SourceSearchScreen(
                     Column(
                         modifier = Modifier.fillMaxSize().padding(24.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) { CircularProgressIndicator() }
+                    ) { AppCircularProgress() }
                 }
                 error != null -> {
                     Column(
                         modifier = Modifier.fillMaxSize().padding(24.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        Text(
+                        AppText(
                             text = stringResource(Res.string.source_search_error, error.orEmpty()),
-                            color = MaterialTheme.colorScheme.error,
+                            color = UiTheme.colorScheme.error,
                         )
-                        Button(onClick = { runSearch() }) {
-                            Text(stringResource(Res.string.source_search_button))
+                        AppButton(onClick = { runSearch() }) {
+                            AppText(stringResource(Res.string.source_search_button))
                         }
                     }
                 }
                 submittedQuery == null -> {
-                    Text(
+                    AppText(
                         text = stringResource(Res.string.source_search_empty),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = UiTheme.typography.bodyMedium,
+                        color = UiTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(24.dp),
                     )
                 }
                 results.isEmpty() -> {
-                    Text(
+                    AppText(
                         text = stringResource(Res.string.source_search_no_results),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = UiTheme.typography.bodyMedium,
+                        color = UiTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(24.dp),
                     )
                 }
@@ -294,17 +291,17 @@ fun SourceSearchScreen(
                                     modifier = Modifier.weight(1f),
                                     verticalArrangement = Arrangement.spacedBy(2.dp),
                                 ) {
-                                    Text(
+                                    AppText(
                                         work.title,
-                                        style = MaterialTheme.typography.bodyMedium,
+                                        style = UiTheme.typography.bodyMedium,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis,
                                     )
                                     if (work.subtitle.isNotEmpty()) {
-                                        Text(
+                                        AppText(
                                             work.subtitle,
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                                            style = UiTheme.typography.bodySmall,
+                                            color = UiTheme.colorScheme.onSurfaceVariant.copy(
                                                 alpha = app.koyura.designsystem.DesignTokens.Alpha.Secondary,
                                             ),
                                             maxLines = 1,
@@ -312,10 +309,10 @@ fun SourceSearchScreen(
                                         )
                                     }
                                     if (work.tags.isNotEmpty()) {
-                                        Text(
+                                        AppText(
                                             work.tags.joinToString(" · "),
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                                            style = UiTheme.typography.bodySmall,
+                                            color = UiTheme.colorScheme.onSurfaceVariant.copy(
                                                 alpha = app.koyura.designsystem.DesignTokens.Alpha.Secondary,
                                             ),
                                             maxLines = 1,
@@ -324,7 +321,7 @@ fun SourceSearchScreen(
                                     }
                                 }
                             }
-                            HorizontalDivider()
+                            AppDivider()
                         }
                     }
                 }
@@ -341,7 +338,7 @@ internal const val SourceDetailBackTag = "source-detail-back"
 internal val DetailWideWidthThreshold = DesignTokens.Breakpoints.TabletMinSmallestWidthDp.dp
 
 /** Work detail page backed by the source's `comic.loadInfo` callback. */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
 fun SourceDetailScreen(
     session: BrowseSession,
@@ -404,25 +401,25 @@ fun SourceDetailScreen(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center,
             ) {
-                CircularProgressIndicator()
+                AppCircularProgress()
             }
             error != null -> {
                 Column(
                     modifier = Modifier.fillMaxSize().padding(24.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    Text(
+                    AppText(
                         text = stringResource(Res.string.source_detail_error, error.orEmpty()),
-                        color = MaterialTheme.colorScheme.error,
+                        color = UiTheme.colorScheme.error,
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Button(onClick = onBack) {
-                            Text(stringResource(Res.string.source_detail_back))
+                        AppButton(onClick = onBack) {
+                            AppText(stringResource(Res.string.source_detail_back))
                         }
-                        Button(
+                        AppButton(
                             onClick = { reloadTick++ },
                         ) {
-                            Text(stringResource(Res.string.browse_retry))
+                            AppText(stringResource(Res.string.browse_retry))
                         }
                     }
                 }
@@ -437,9 +434,9 @@ fun SourceDetailScreen(
                     LocalCoverImageLoader provides session.coverLoader(),
                     LocalCoverDecoder provides AppCoverDecoder,
                 ) {
-                    TopAppBar(
+                    ReaderTopAppBar(
                         title = {
-                            Text(
+                            AppText(
                                 loaded.title.ifEmpty { fallbackTitle },
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
@@ -462,10 +459,10 @@ fun SourceDetailScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
                             // 点按错误行即清除（与书架页的清除按钮同一语义，避免引入新文案）。
-                            Text(
+                            AppText(
                                 text = libraryError,
-                                color = MaterialTheme.colorScheme.error,
-                                style = MaterialTheme.typography.bodySmall,
+                                color = UiTheme.colorScheme.error,
+                                style = UiTheme.typography.bodySmall,
                                 modifier = Modifier.weight(1f)
                                     .testTag("detail-library-error")
                                     .clickable { library.clearActionError() },
@@ -676,7 +673,7 @@ fun SourceDetailScreen(
                 }
             }
             else -> {
-                Text(
+                AppText(
                     text = stringResource(Res.string.source_detail_empty),
                     modifier = Modifier.padding(24.dp),
                 )
@@ -696,25 +693,25 @@ private fun DetailHeading(title: String, subtitle: String, sourceName: String, c
         horizontalAlignment = if (centered) Alignment.CenterHorizontally else Alignment.Start,
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Text(
+        AppText(
             text = title,
-            style = MaterialTheme.typography.titleLarge,
+            style = UiTheme.typography.titleLarge,
             textAlign = if (centered) TextAlign.Center else TextAlign.Start,
             modifier = Modifier.testTag("source-detail-heading"),
         )
         if (subtitle.isNotBlank()) {
-            Text(
+            AppText(
                 text = subtitle,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = UiTheme.typography.bodyMedium,
+                color = UiTheme.colorScheme.onSurfaceVariant,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        Text(
+        AppText(
             text = sourceName,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = UiTheme.typography.bodySmall,
+            color = UiTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -730,23 +727,21 @@ private fun DetailAction(
     enabled: Boolean = true,
     active: Boolean = false,
 ) {
-    TextButton(
+    AppTextButton(
         onClick = onClick,
         modifier = modifier,
         enabled = enabled,
         contentPadding = PaddingValues(horizontal = 2.dp, vertical = 8.dp),
-        colors = ButtonDefaults.textButtonColors(
-            contentColor = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-        ),
+        contentColor = if (active) UiTheme.colorScheme.primary else UiTheme.colorScheme.onSurfaceVariant,
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             ActionIcon(icon, null, modifier = Modifier.size(24.dp))
-            Text(
+            AppText(
                 text = label,
-                style = MaterialTheme.typography.labelMedium,
+                style = UiTheme.typography.labelMedium,
                 textAlign = TextAlign.Center,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
@@ -852,9 +847,9 @@ private fun DetailInfoColumn(
             .padding(horizontal = 16.dp, vertical = 4.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Text(
+        AppText(
             text = body,
-            style = MaterialTheme.typography.bodyMedium,
+            style = UiTheme.typography.bodyMedium,
             maxLines = if (expanded) Int.MAX_VALUE else 3,
             overflow = TextOverflow.Ellipsis,
         )
@@ -868,10 +863,10 @@ private fun DetailInfoColumn(
         }
     }
     if (detail.tags.isNotEmpty()) {
-        Text(
+        AppText(
             text = stringResource(Res.string.source_detail_tags),
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = UiTheme.typography.labelLarge,
+            color = UiTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
         )
         val multiGroup = detail.tags.size > 1
@@ -888,10 +883,10 @@ private fun DetailInfoColumn(
                     val chipText = if (multiGroup) "$group · $value" else value
                     // 类型标签 = M3 SuggestionChip（small 圆角 + labelLarge + 描边容器），
                     // Code: Chip.kt:50（shape = shapes.small）经 NamespaceTags 用于详情标签区。
-                    SuggestionChip(
+                    AppSuggestionChip(
                         onClick = {},
                         label = {
-                            Text(
+                            AppText(
                                 text = chipText,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
@@ -912,17 +907,17 @@ private fun DetailInfoColumn(
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             if (detail.updateTime.isNotEmpty()) {
-                Text(
+                AppText(
                     text = stringResource(Res.string.source_detail_updated, detail.updateTime),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = UiTheme.typography.bodySmall,
+                    color = UiTheme.colorScheme.onSurfaceVariant,
                 )
             }
             if (detail.url.isNotEmpty()) {
-                Text(
+                AppText(
                     text = "${stringResource(Res.string.source_detail_link)}: ${detail.url}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = UiTheme.typography.bodySmall,
+                    color = UiTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -963,27 +958,27 @@ private fun DetailChapterList(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
+            AppText(
                 text = stringResource(Res.string.source_detail_chapters_selected, selectedIds.size),
-                style = MaterialTheme.typography.bodyMedium,
+                style = UiTheme.typography.bodyMedium,
                 modifier = Modifier
                     .weight(1f)
                     .testTag("detail-selection-count"),
             )
-            TextButton(
+            AppTextButton(
                 onClick = onClearSelection,
                 modifier = Modifier.testTag("detail-clear-selection"),
-            ) { Text(stringResource(Res.string.source_detail_clear_selection)) }
-            TextButton(
+            ) { AppText(stringResource(Res.string.source_detail_clear_selection)) }
+            AppTextButton(
                 onClick = { onMarkRead(selectedIds, true) },
                 enabled = canMarkRead,
                 modifier = Modifier.testTag("detail-mark-read"),
-            ) { Text(stringResource(Res.string.source_detail_mark_read)) }
-            TextButton(
+            ) { AppText(stringResource(Res.string.source_detail_mark_read)) }
+            AppTextButton(
                 onClick = { onMarkRead(selectedIds, false) },
                 enabled = canMarkRead,
                 modifier = Modifier.testTag("detail-mark-unread"),
-            ) { Text(stringResource(Res.string.source_detail_mark_unread)) }
+            ) { AppText(stringResource(Res.string.source_detail_mark_unread)) }
         }
     }
     chapters.forEach { chapter ->
@@ -998,7 +993,7 @@ private fun DetailChapterList(
             },
             onToggleSelect = { onToggleSelect(chapter.id) },
         )
-        HorizontalDivider()
+        AppDivider()
     }
 }
 
@@ -1034,14 +1029,14 @@ private fun MangaChapterRow(
                 ActionIcon.Checklist,
                 null,
                 modifier = Modifier.padding(end = DesignTokens.Spacing.Small).size(16.dp),
-                tint = MaterialTheme.colorScheme.primary,
+                tint = UiTheme.colorScheme.primary,
             )
         } else {
             // 未读点 8dp primary（白皮书 06 §6.10；Code MangaChapterListItem.kt:128）。
             Box(
                 Modifier.padding(end = DesignTokens.Spacing.Small).size(DesignTokens.Spacing.Small)
                     .background(
-                        if (read) MaterialTheme.colorScheme.outlineVariant else MaterialTheme.colorScheme.primary,
+                        if (read) UiTheme.colorScheme.outlineVariant else UiTheme.colorScheme.primary,
                         CircleShape,
                     ),
             )
@@ -1050,21 +1045,21 @@ private fun MangaChapterRow(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Text(
+            AppText(
                 text = chapter.title,
-                style = MaterialTheme.typography.bodyMedium,
+                style = UiTheme.typography.bodyMedium,
                 color = if (selected) {
-                    MaterialTheme.colorScheme.primary
+                    UiTheme.colorScheme.primary
                 } else {
-                    MaterialTheme.colorScheme.onSurface
+                    UiTheme.colorScheme.onSurface
                 },
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Text(
+            AppText(
                 text = chapterSecondaryLine(chapter),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                style = UiTheme.typography.bodySmall,
+                color = UiTheme.colorScheme.onSurfaceVariant.copy(
                     alpha = app.koyura.designsystem.DesignTokens.Alpha.Secondary,
                 ),
                 maxLines = 1,
@@ -1072,10 +1067,10 @@ private fun MangaChapterRow(
             )
         }
         if (read) {
-            Text(
+            AppText(
                 text = stringResource(Res.string.source_detail_read),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.primary,
+                style = UiTheme.typography.labelSmall,
+                color = UiTheme.colorScheme.primary,
                 modifier = Modifier.padding(horizontal = 4.dp),
             )
         }
@@ -1130,8 +1125,9 @@ private fun BoxScope.DetailReadFab(
 ) {
     var offsetX by remember { mutableFloatStateOf(0f) }
     var fabWidth by remember { mutableIntStateOf(0) }
-    SmallExtendedFloatingActionButton(
-        text = { Text(label) },
+    AppExtendedFab(
+        compact = true,
+        text = { AppText(label) },
         icon = { ActionIcon(ActionIcon.Play, null) },
         onClick = onOpen,
         modifier = Modifier

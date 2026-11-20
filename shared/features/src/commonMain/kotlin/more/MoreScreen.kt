@@ -11,11 +11,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -25,6 +20,11 @@ import androidx.compose.ui.unit.sp
 import app.koyura.designsystem.ActionIcon
 import app.koyura.designsystem.BrandPlaceholder
 import app.koyura.designsystem.DesignTokens
+import app.koyura.designsystem.components.AppDivider
+import app.koyura.designsystem.components.AppSwitch
+import app.koyura.designsystem.components.AppText
+import app.koyura.designsystem.components.AppTextButton
+import app.koyura.designsystem.components.UiTheme
 import app.koyura.features.resources.Res
 import app.koyura.features.resources.more_about
 import app.koyura.features.resources.more_batch_add
@@ -92,7 +92,7 @@ fun MoreScreen(
             checked = session.incognito,
             onCheckedChange = session::updateIncognito,
         )
-        HorizontalDivider()
+        AppDivider()
         // 下载队列本轮落地为真实页面；其余目标页未落地，入口保持非交互随轮次启用。
         MoreNavRow(
             key = "download-queue",
@@ -130,7 +130,7 @@ fun MoreScreen(
             title = stringResource(Res.string.more_batch_add),
             onClick = utilityHandler?.let { cb -> { cb("batch-add") } },
         )
-        HorizontalDivider()
+        AppDivider()
         MoreNavRow(
             key = "settings",
             icon = ActionIcon.Settings,
@@ -155,27 +155,27 @@ fun MoreScreen(
                 .padding(bottom = DesignTokens.Spacing.Medium),
             horizontalArrangement = Arrangement.Center,
         ) {
-            TextButton(
+            AppTextButton(
                 onClick = {},
                 enabled = false,
                 border = BorderStroke(
                     // 赞助按钮 2dp primary 边框 small 圆角（Code: Sponsor，07 §7.8）。
                     width = 2.dp,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = UiTheme.colorScheme.primary,
                 ),
-                shape = MaterialTheme.shapes.small,
+                shape = UiTheme.shapes.small,
                 modifier = Modifier.testTag(MoreSponsorTag),
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     ActionIcon(
                         icon = ActionIcon.Favorite,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
+                        tint = UiTheme.colorScheme.primary,
                     )
-                    Text(
+                    AppText(
                         text = stringResource(Res.string.more_sponsor),
-                        color = MaterialTheme.colorScheme.primary,
-                        style = MaterialTheme.typography.labelLarge,
+                        color = UiTheme.colorScheme.primary,
+                        style = UiTheme.typography.labelLarge,
                         modifier = Modifier.padding(start = DesignTokens.Spacing.ExtraSmall),
                     )
                 }
@@ -198,7 +198,7 @@ private fun MoreLogoHeader() {
                 .padding(vertical = 56.dp)
                 .size(64.dp),
         )
-        HorizontalDivider()
+        AppDivider()
     }
 }
 
@@ -226,28 +226,28 @@ private fun MoreSwitchRow(
         ActionIcon(
             icon = icon,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
+            tint = UiTheme.colorScheme.primary,
         )
         Column(
             modifier = Modifier
                 .weight(1f)
                 .padding(start = DesignTokens.Spacing.Medium),
         ) {
-            Text(
+            AppText(
                 // 设置项标题：titleLarge 字阶强制 16sp（白皮书 02 §2.6 被改写字号表）。
                 text = title,
-                style = MaterialTheme.typography.titleLarge.copy(fontSize = 16.sp),
-                color = MaterialTheme.colorScheme.onSurface,
+                style = UiTheme.typography.titleLarge.copy(fontSize = 16.sp),
+                color = UiTheme.colorScheme.onSurface,
             )
-            Text(
+            AppText(
                 text = subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                style = UiTheme.typography.bodySmall,
+                color = UiTheme.colorScheme.onSurfaceVariant.copy(
                     alpha = DesignTokens.Alpha.Secondary,
                 ),
             )
         }
-        Switch(
+        AppSwitch(
             checked = checked,
             onCheckedChange = onCheckedChange,
             modifier = Modifier.testTag(moreSwitchTag(key)),
@@ -278,12 +278,12 @@ private fun MoreNavRow(
         ActionIcon(
             icon = icon,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
+            tint = UiTheme.colorScheme.primary,
         )
-        Text(
+        AppText(
             text = title,
-            style = MaterialTheme.typography.titleLarge.copy(fontSize = 16.sp),
-            color = MaterialTheme.colorScheme.onSurface,
+            style = UiTheme.typography.titleLarge.copy(fontSize = 16.sp),
+            color = UiTheme.colorScheme.onSurface,
             modifier = Modifier
                 .weight(1f)
                 .padding(start = DesignTokens.Spacing.Medium),

@@ -1,12 +1,5 @@
-@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
-
 package app.koyura.app.browse
 
-import app.koyura.designsystem.ActionIcon
-import app.koyura.designsystem.ActionIconButton
-import app.koyura.designsystem.SearchField
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.Surface
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,15 +13,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.PrimaryTabRow
-import androidx.compose.material3.Tab
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
@@ -56,19 +40,33 @@ import app.koyura.app.resources.browse_nsfw_short
 import app.koyura.app.resources.browse_operation_failed
 import app.koyura.app.resources.browse_operation_running
 import app.koyura.app.resources.browse_operation_succeeded
+import app.koyura.app.resources.browse_pin
+import app.koyura.app.resources.browse_recent
 import app.koyura.app.resources.browse_retry
 import app.koyura.app.resources.browse_search_extensions
 import app.koyura.app.resources.browse_search_sources
 import app.koyura.app.resources.browse_tab_extensions
 import app.koyura.app.resources.browse_tab_sources
 import app.koyura.app.resources.browse_title
-import app.koyura.app.resources.browse_pin
-import app.koyura.app.resources.browse_recent
 import app.koyura.app.resources.browse_unavailable_body
 import app.koyura.app.resources.browse_unavailable_title
 import app.koyura.app.resources.browse_unpin
 import app.koyura.app.resources.browse_update_all
 import app.koyura.app.resources.global_search_title
+import app.koyura.designsystem.ActionIcon
+import app.koyura.designsystem.ActionIconButton
+import app.koyura.designsystem.SearchField
+import app.koyura.designsystem.components.AppButton
+import app.koyura.designsystem.components.AppCircularProgress
+import app.koyura.designsystem.components.AppDivider
+import app.koyura.designsystem.components.AppLinearProgress
+import app.koyura.designsystem.components.AppSurface
+import app.koyura.designsystem.components.AppTab
+import app.koyura.designsystem.components.AppTabBar
+import app.koyura.designsystem.components.AppText
+import app.koyura.designsystem.components.AppTextButton
+import app.koyura.designsystem.components.ReaderTopAppBar
+import app.koyura.designsystem.components.UiTheme
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 
@@ -113,8 +111,8 @@ fun BrowseScreen(
     }
 
     Column(modifier = modifier.fillMaxSize().testTag(BrowseRootTestTag)) {
-        TopAppBar(
-            title = { Text(stringResource(Res.string.browse_title)) },
+        ReaderTopAppBar(
+            title = { AppText(stringResource(Res.string.browse_title)) },
             actions = {
                 // 全局搜索入口：无装配回调时禁用（保留锚点，生产由外壳推新路由）。
                 ActionIconButton(
@@ -142,29 +140,29 @@ fun BrowseScreen(
             },
         )
 
-        PrimaryTabRow(selectedTabIndex = state.pane.ordinal) {
-            Tab(
+        AppTabBar(selectedTabIndex = state.pane.ordinal) {
+            AppTab(
                 selected = state.pane == BrowsePane.Sources,
                 onClick = { session.selectPane(BrowsePane.Sources) },
-                text = { Text(stringResource(Res.string.browse_tab_sources)) },
+                text = { AppText(stringResource(Res.string.browse_tab_sources)) },
                 modifier = Modifier.testTag(BrowseSourcesTabTag),
             )
-            Tab(
+            AppTab(
                 selected = state.pane == BrowsePane.Feed,
                 onClick = { session.selectPane(BrowsePane.Feed) },
-                text = { Text("Feed") },
+                text = { AppText("Feed") },
                 modifier = Modifier.testTag(BrowseFeedPaneTag + "-tab"),
             )
-            Tab(
+            AppTab(
                 selected = state.pane == BrowsePane.Extensions,
                 onClick = { session.selectPane(BrowsePane.Extensions) },
-                text = { Text(stringResource(Res.string.browse_tab_extensions)) },
+                text = { AppText(stringResource(Res.string.browse_tab_extensions)) },
                 modifier = Modifier.testTag(BrowseExtensionsTabTag),
             )
-            Tab(
+            AppTab(
                 selected = state.pane == BrowsePane.Migrate,
                 onClick = { session.selectPane(BrowsePane.Migrate) },
-                text = { Text("Migrate") },
+                text = { AppText("Migrate") },
                 modifier = Modifier.testTag(BrowseMigratePaneTag + "-tab"),
             )
         }
@@ -172,7 +170,7 @@ fun BrowseScreen(
         when (val load = state.load) {
             LoadState.Unavailable -> UnavailableState()
             LoadState.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
+                AppCircularProgress()
             }
             is LoadState.Failed -> ErrorState(load.message) { scope.launch { session.refresh() } }
             LoadState.Ready -> when (state.pane) {
@@ -207,14 +205,14 @@ private fun UnavailableState() {
         modifier = Modifier.fillMaxSize().padding(24.dp).testTag(BrowseUnavailableTag),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text(
+        AppText(
             text = stringResource(Res.string.browse_unavailable_title),
-            style = MaterialTheme.typography.titleMedium,
+            style = UiTheme.typography.titleMedium,
         )
-        Text(
+        AppText(
             text = stringResource(Res.string.browse_unavailable_body),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = UiTheme.typography.bodyMedium,
+            color = UiTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
@@ -225,13 +223,13 @@ private fun ErrorState(message: String, onRetry: () -> Unit) {
         modifier = Modifier.fillMaxSize().padding(24.dp).testTag(BrowseErrorTag),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(
+        AppText(
             text = stringResource(Res.string.browse_error_prefix, message),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.error,
+            style = UiTheme.typography.bodyMedium,
+            color = UiTheme.colorScheme.error,
         )
-        Button(onClick = onRetry, modifier = Modifier.testTag("browse-retry")) {
-            Text(stringResource(Res.string.browse_retry))
+        AppButton(onClick = onRetry, modifier = Modifier.testTag("browse-retry")) {
+            AppText(stringResource(Res.string.browse_retry))
         }
     }
 }
@@ -319,7 +317,7 @@ private fun ExtensionsPane(
                 .testTag(BrowseExtensionQueryTag),
         )
         if (state.isBusy()) {
-            LinearProgressIndicator(modifier = Modifier.fillMaxWidth().testTag("browse-busy"))
+            AppLinearProgress(modifier = Modifier.fillMaxWidth().testTag("browse-busy"))
         }
         if (sections.isEmpty()) {
             EmptyState(
@@ -329,11 +327,11 @@ private fun ExtensionsPane(
                     stringResource(Res.string.browse_empty_extensions)
                 },
                 action = {
-                    TextButton(
+                    AppTextButton(
                         onClick = { onManageStores(null) },
                         modifier = Modifier.testTag("browse-empty-stores"),
                     ) {
-                        Text(stringResource(Res.string.browse_manage_stores))
+                        AppText(stringResource(Res.string.browse_manage_stores))
                     }
                 },
             )
@@ -384,7 +382,7 @@ private fun SourceRow(
     app.koyura.designsystem.BrowseRow(
         onClick = { onOpenSource(source.id, source.name) },
         icon = {
-            Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+            AppSurface(shape = UiTheme.shapes.small, color = UiTheme.colorScheme.surfaceContainerHigh) {
                 Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
                     ActionIcon(ActionIcon.Source, null)
                 }
@@ -396,11 +394,11 @@ private fun SourceRow(
                 label = stringResource(if (pinned) Res.string.browse_unpin else Res.string.browse_pin),
                 onClick = { onTogglePin(source.id) },
                 modifier = Modifier.testTag(pinTestTag),
-                contentColor = if (pinned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                contentColor = if (pinned) UiTheme.colorScheme.primary else UiTheme.colorScheme.onSurfaceVariant,
             )
             if (source.supportsLatest) {
-                TextButton(onClick = { onOpenSource(source.id, source.name) }) {
-                    Text(stringResource(Res.string.browse_latest))
+                AppTextButton(onClick = { onOpenSource(source.id, source.name) }) {
+                    AppText(stringResource(Res.string.browse_latest))
                 }
             }
         },
@@ -410,20 +408,20 @@ private fun SourceRow(
                     .padding(horizontal = 16.dp)
                     .weight(1f),
             ) {
-                Text(
+                AppText(
                     text = source.name,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = UiTheme.typography.bodyMedium,
                 )
-                Text(
+                AppText(
                     text = listOf(source.language, source.versionName)
                         .filter { it.isNotEmpty() }
                         .joinToString(" · "),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                    style = UiTheme.typography.bodySmall,
+                    color = UiTheme.colorScheme.onSurfaceVariant.copy(
                         alpha = app.koyura.designsystem.DesignTokens.Alpha.Secondary,
                     ),
                 )
@@ -462,7 +460,7 @@ private fun ExtensionRow(
                     contentAlignment = Alignment.Center,
                 ) {
                     if (status is OperationStatus.Running) {
-                        CircularProgressIndicator(
+                        AppCircularProgress(
                             modifier = Modifier.size(40.dp),
                             strokeWidth = 2.dp,
                         )
@@ -473,32 +471,32 @@ private fun ExtensionRow(
             action = {
                 when {
                     extension.hasUpdate -> {
-                        TextButton(
+                        AppTextButton(
                             onClick = onUpdate,
                             enabled = status !is OperationStatus.Running,
                             modifier = Modifier.testTag(extensionActionTag(extension.key, "update")),
-                        ) { Text(stringResource(Res.string.browse_action_update)) }
+                        ) { AppText(stringResource(Res.string.browse_action_update)) }
                     }
                     extension.isInstalled -> {
-                        TextButton(
+                        AppTextButton(
                             onClick = onUninstall,
                             enabled = status !is OperationStatus.Running,
                             modifier = Modifier.testTag(extensionActionTag(extension.key, "uninstall")),
-                        ) { Text(stringResource(Res.string.browse_action_uninstall)) }
+                        ) { AppText(stringResource(Res.string.browse_action_uninstall)) }
                     }
                     else -> {
-                        TextButton(
+                        AppTextButton(
                             onClick = onInstall,
                             enabled = status !is OperationStatus.Running,
                             modifier = Modifier.testTag(extensionActionTag(extension.key, "install")),
-                        ) { Text(stringResource(Res.string.browse_action_install)) }
+                        ) { AppText(stringResource(Res.string.browse_action_install)) }
                     }
                 }
                 if (extension.isInstalled) {
-                    TextButton(
+                    AppTextButton(
                         onClick = onOpen,
                         modifier = Modifier.testTag(extensionActionTag(extension.key, "open")),
-                    ) { Text(stringResource(Res.string.browse_action_open)) }
+                    ) { AppText(stringResource(Res.string.browse_action_open)) }
                 }
             },
             content = {
@@ -508,13 +506,13 @@ private fun ExtensionRow(
                         .weight(1f),
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
-                    Text(
+                    AppText(
                         text = extension.name,
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = UiTheme.typography.bodyMedium,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    Text(
+                    AppText(
                         text = listOfNotNull(
                             extension.versionName.takeIf { it.isNotEmpty() },
                             extension.language.takeIf { it.isNotEmpty() },
@@ -528,11 +526,11 @@ private fun ExtensionRow(
                                 null
                             },
                         ).joinToString(" · "),
-                        style = MaterialTheme.typography.bodySmall,
+                        style = UiTheme.typography.bodySmall,
                         color = if (extension.isNsfw) {
-                            MaterialTheme.colorScheme.error
+                            UiTheme.colorScheme.error
                         } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                            UiTheme.colorScheme.onSurfaceVariant.copy(
                                 alpha = app.koyura.designsystem.DesignTokens.Alpha.Secondary,
                             )
                         },
@@ -545,29 +543,29 @@ private fun ExtensionRow(
             modifier = Modifier.fillMaxWidth(),
         )
     }
-    HorizontalDivider()
+    AppDivider()
 }
 
 @Composable
 internal fun OperationFeedback(status: OperationStatus?, target: String) {
     when (status) {
         null -> Unit
-        OperationStatus.Running -> Text(
+        OperationStatus.Running -> AppText(
             text = stringResource(Res.string.browse_operation_running),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.primary,
+            style = UiTheme.typography.labelMedium,
+            color = UiTheme.colorScheme.primary,
             modifier = Modifier.testTag("operation-running-$target"),
         )
-        OperationStatus.Succeeded -> Text(
+        OperationStatus.Succeeded -> AppText(
             text = stringResource(Res.string.browse_operation_succeeded),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.tertiary,
+            style = UiTheme.typography.labelMedium,
+            color = UiTheme.colorScheme.tertiary,
             modifier = Modifier.testTag("operation-succeeded-$target"),
         )
-        is OperationStatus.Failed -> Text(
+        is OperationStatus.Failed -> AppText(
             text = stringResource(Res.string.browse_operation_failed, status.message),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.error,
+            style = UiTheme.typography.labelMedium,
+            color = UiTheme.colorScheme.error,
             modifier = Modifier.testTag("operation-failed-$target"),
         )
     }
@@ -585,10 +583,10 @@ internal fun EmptyState(text: String, action: (@Composable () -> Unit)? = null) 
         modifier = Modifier.fillMaxSize().padding(24.dp).testTag(BrowseEmptyTag),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text(
+        AppText(
             text = text,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = UiTheme.typography.bodyMedium,
+            color = UiTheme.colorScheme.onSurfaceVariant,
         )
         action?.invoke()
     }

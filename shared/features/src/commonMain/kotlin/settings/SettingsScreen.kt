@@ -14,8 +14,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -26,6 +24,8 @@ import androidx.compose.ui.unit.sp
 import app.koyura.designsystem.ActionIcon
 import app.koyura.designsystem.ActionIconButton
 import app.koyura.designsystem.DesignTokens
+import app.koyura.designsystem.components.AppText
+import app.koyura.designsystem.components.UiTheme
 
 const val SettingsRootTestTag = "settings-root"
 const val SettingsMasterPaneTestTag = "settings-master-pane"
@@ -128,9 +128,9 @@ private fun SettingsMasterPane(
         modifier = modifier
             .background(
                 if (isTwoPane) {
-                    MaterialTheme.colorScheme.surfaceContainerLow
+                    UiTheme.colorScheme.surfaceContainerLow
                 } else {
-                    MaterialTheme.colorScheme.surface
+                    UiTheme.colorScheme.surface
                 },
             )
             .verticalScroll(rememberScrollState())
@@ -160,7 +160,7 @@ private fun SettingsMasterPane(
                     .heightIn(min = DesignTokens.Sizes.SettingsItemMinHeight)
                     .then(
                         if (selected) {
-                            Modifier.background(MaterialTheme.colorScheme.surfaceVariant, selectedShape)
+                            Modifier.background(UiTheme.colorScheme.surfaceVariant, selectedShape)
                         } else {
                             Modifier
                         },
@@ -176,19 +176,19 @@ private fun SettingsMasterPane(
                 ActionIcon(
                     icon = page.icon,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
+                    tint = UiTheme.colorScheme.primary,
                 )
                 Spacer(Modifier.width(DesignTokens.Spacing.Medium))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(
+                    AppText(
                         text = page.label,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        style = MaterialTheme.typography.titleLarge.copy(fontSize = 16.sp),
+                        color = UiTheme.colorScheme.onSurface,
+                        style = UiTheme.typography.titleLarge.copy(fontSize = 16.sp),
                     )
-                    Text(
+                    AppText(
                         text = page.summary,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = DesignTokens.Alpha.Secondary),
-                        style = MaterialTheme.typography.bodySmall,
+                        color = UiTheme.colorScheme.onSurfaceVariant.copy(alpha = DesignTokens.Alpha.Secondary),
+                        style = UiTheme.typography.bodySmall,
                         maxLines = 2,
                     )
                 }
@@ -204,7 +204,7 @@ private fun SettingsDetailPane(
 ) {
     androidx.compose.foundation.layout.Box(
         modifier = modifier
-            .background(MaterialTheme.colorScheme.surface)
+            .background(UiTheme.colorScheme.surface)
             .testTag(SettingsDetailPaneTestTag),
     ) {
         SettingsSubpageContent(
