@@ -14,9 +14,11 @@ import app.koyura.source.runtime.SourceCookie
 import app.koyura.source.runtime.VeneraCallback
 import app.koyura.source.runtime.VeneraEnvironment
 import io.ktor.client.HttpClient
+import io.ktor.client.HttpClientConfig
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.client.request.HttpSendPipeline
+import io.ktor.client.statement.HttpReceivePipeline
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.encodedPath
@@ -201,6 +203,8 @@ class CommunitySourceJourneyTest {
         val client = createDefaultHttpClient()
         try {
             val publicOnly = client.config {
+                traceCatalogue("comic_walker", setOf("mobileapp.comic-walker.com"),
+                    setOf("/v1/users", "/v1/search/comics", "/edge/challenge"))
                 install("PublicChapterOnly") {
                     sendPipeline.intercept(HttpSendPipeline.State) {
                         check(context.url.encodedPath != "/v1/users/me/rental_episodes") {
@@ -218,15 +222,40 @@ class CommunitySourceJourneyTest {
     @Test
     fun mangaDexPublicCatalogueAndForum() = runTest(timeout = 180.seconds) {
         assumeTrue("Explicit live regression only", live())
-        journey(mangaDex, createDefaultHttpClient(), "Bocchi the Rock!", live = true) { session, work ->
-            assertTrue(assertNotNull(session.service.sourceAccountConfig(mangaDex.key)).declaresWebLogin)
-            try {
-                val comments = mangaDexComments(session, work).getValue("comments").jsonArray
-                println("manga_dex: public comment callback returned ${comments.size} comments")
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (failure: Exception) {
-                println("manga_dex: public comment callback blocked: ${failure.message?.lineSequence()?.firstOrNull()}")
+        val client = createDefaultHttpClient()
+        try {
+            val traced = client.config {
+                traceCatalogue("manga_dex", setOf("api.mangadex.org", "mangadex.org", "forums.mangadex.org"),
+                    setOf("/manga", "/edge/challenge"))
+            }
+            journey(mangaDex, traced, "Bocchi the Rock!", live = true) { session, work ->
+                assertTrue(assertNotNull(session.service.sourceAccountConfig(mangaDex.key)).declaresWebLogin)
+                try {
+                    val comments = mangaDexComments(session, work).getValue("comments").jsonArray
+                    println("manga_dex: public comment callback returned ${comments.size} comments")
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (failure: Exception) {
+                    println("manga_dex: public comment callback blocked: ${failure.message?.lineSequence()?.firstOrNull()}")
+                }
+            }
+        } finally {
+            client.close()
+        }
+    }
+
+    private fun HttpClientConfig<*>.traceCatalogue(source: String, hosts: Set<String>, publicPaths: Set<String>) {
+        install("PublicCatalogueTrace") {
+            receivePipeline.intercept(HttpReceivePipeline.State) { response ->
+                val url = response.call.request.url
+                if (url.host in hosts) {
+                    // Include neither credentials nor query strings in the live regression report.
+                    val path = url.encodedPath.takeIf { it in publicPaths } ?: "(other path)"
+                    val contentType = response.headers[HttpHeaders.ContentType]?.substringBefore(';') ?: "-"
+                    val redirect = response.headers[HttpHeaders.Location] != null
+                    val challenge = response.headers["cf-mitigated"] == "challenge"
+                    println("$source: HTTP ${response.status.value} ${url.host}$path type=$contentType redirect=$redirect challenge=$challenge")
+                }
             }
         }
     }

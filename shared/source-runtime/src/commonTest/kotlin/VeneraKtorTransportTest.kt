@@ -152,6 +152,43 @@ class VeneraKtorTransportTest {
     }
 
     @Test
+    fun followsCatalogueRedirectWithOriginalUserAgentAndReturnsTheFinalResponse() = runTest {
+        val exchanges = mutableListOf<Triple<String, String?, String?>>()
+        val client = HttpClient(MockEngine { request ->
+            exchanges += Triple(request.url.host, request.headers[HttpHeaders.UserAgent],
+                request.headers["X-Public-Client"])
+            if (request.url.host == "api.example.test") {
+                respond("", HttpStatusCode.Found, headersOf(HttpHeaders.Location, "https://www.example.test/landing"))
+            } else {
+                respond("<html>Site verification required</html>", HttpStatusCode.OK,
+                    headersOf(HttpHeaders.ContentType, "text/html"))
+            }
+        }) { applyReaderDefaults() }
+        val sessions = SourceSessions()
+        val transport = KtorVeneraHttpTransport(client, sessions = sessions)
+        try {
+            val request = VeneraHttpRequest("catalogue", "GET", "https://api.example.test/catalogue",
+                mapOf("X-Public-Client" to "public-fixture"))
+            val default = transport.execute(request)
+            val custom = transport.execute(request.copy(headers = request.headers + ("uSeR-aGeNt" to "Explicit/1")))
+            assertEquals(200, default.status)
+            assertEquals(default, custom)
+            assertEquals("<html>Site verification required</html>", default.body)
+            assertEquals(listOf(
+                "api.example.test" to KtorVeneraHttpTransport.DEFAULT_BROWSER_USER_AGENT,
+                "www.example.test" to KtorVeneraHttpTransport.DEFAULT_BROWSER_USER_AGENT,
+                "api.example.test" to "Explicit/1",
+                "www.example.test" to "Explicit/1",
+            ), exchanges.map { it.first to it.second })
+            assertTrue(exchanges.all { it.third == "public-fixture" })
+        } finally {
+            transport.close()
+            sessions.close()
+            client.close()
+        }
+    }
+
+    @Test
     fun injectedExpectSuccessTrueStillReturns404And500() = runTest {
         val mock = MockEngine { request ->
             when (request.url.encodedPath) {
