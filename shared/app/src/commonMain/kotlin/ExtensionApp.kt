@@ -23,6 +23,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import app.koyura.app.reader.VeneraReaderService
+import app.koyura.app.browse.venera.LocalProductionSources
+import app.koyura.app.browse.venera.ProductionSourceRepository
 import app.koyura.app.browse.venera.VeneraBrowseService
 import app.koyura.app.history.VeneraHistoryService
 import app.koyura.app.library.ProductionLibraryRepository
@@ -127,6 +129,7 @@ internal fun ExtensionApp(
         val accounts = remember(session) {
             ProductionAccountRepository(session.service)
         }
+        val sources = remember(session) { ProductionSourceRepository(session.discovery, session.feed, session.service.browse) }
         val browse = remember(session) {
             VeneraBrowseService(
                 extensions = session.service,
@@ -142,6 +145,7 @@ internal fun ExtensionApp(
                     )
                 },
                 search = session.service.browse,
+                sources = sources,
             )
         }
         val reader = remember(session) {
@@ -158,6 +162,7 @@ internal fun ExtensionApp(
             ProductionSettingsRepository(session.library, session.readerPreferences, session.downloadTriggers, session.updateScheduler)
         }
         CompositionLocalProvider(
+            LocalProductionSources provides sources,
             LocalProductionSettings provides settings,
             LocalProductionDownloads provides downloads,
             LocalStatisticsRepository provides statistics,
@@ -171,7 +176,7 @@ internal fun ExtensionApp(
                 updatesRepository = updates,
                 updatePolicyRepository = updatePolicy,
                 accountRepository = accounts,
-                searchSourceFilter = { session.discovery.searchSourceKeys() },
+                searchSourceFilter = { sources.discovery.searchSourceKeys() },
                 sourceUiHost = uiHost,
             )
         }

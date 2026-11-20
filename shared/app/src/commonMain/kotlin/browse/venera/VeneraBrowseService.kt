@@ -63,6 +63,7 @@ class VeneraBrowseService(
      * 未注入（测试与旧装配）回退空选项，行为与历史一致。
      */
     private val search: SourceBrowseService? = null,
+    private val sources: ProductionSourceRepository? = null,
 ) : BrowseService {
     override suspend fun loadSnapshot(): BrowseSnapshot = runService {
         val installed = extensions.listInstalled()
@@ -74,8 +75,11 @@ class VeneraBrowseService(
             // A flaky repository must not take down the whole Browse page.
             emptyMap()
         }
+        val visible = sources?.discovery?.sources()?.sources?.map { it.key }
+        val byKey = installed.associateBy { it.sourceKey }
+        val visibleRecords = visible?.mapNotNull(byKey::get) ?: installed
         BrowseSnapshot(
-            sources = installed.map { record ->
+            sources = visibleRecords.map { record ->
                 SourceInfo(
                     id = record.sourceKey,
                     name = record.name,
