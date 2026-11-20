@@ -33,7 +33,14 @@ internal class ComputeHost(private val app: JsonObject) {
                         $utilityBootstrap
                         $htmlBootstrap
                         ;await (async () => {
-                            const fn = (${request.code});
+                            const source = ${JsonPrimitive(request.code)};
+                            let compile;
+                            try {
+                                compile = Function("return (" + source + "\n);");
+                            } catch (error) {
+                                if (!(error instanceof SyntaxError)) throw error;
+                            }
+                            const fn = compile ? compile() : (0, eval)(source);
                             if (typeof fn !== "function") throw new TypeError("compute expects a function");
                             const args = __readerUtilities.unpack(JSON.parse(${JsonPrimitive(request.args.toString())}));
                             return JSON.stringify({ value: __readerUtilities.pack(await Reflect.apply(fn, undefined, args)) });

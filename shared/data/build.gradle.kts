@@ -80,7 +80,7 @@ tasks.named<Test>("jvmTest") {
 tasks.named<Test>("jvmTest") {
     providers.gradleProperty("veneraCommunityFixtureDir").orNull?.let { path ->
         val directory = rootProject.file(path)
-        inputs.files(directory.resolve("manhuagui.js"), directory.resolve("komga.js"))
+        inputs.files(listOf("manhuagui.js", "komga.js", "comic_walker.js", "manga_dex.js").map(directory::resolve))
         systemProperty("reader.venera.community.e2e", directory.absolutePath)
     }
     val live = providers.gradleProperty("veneraCommunityLive").orNull == "true"

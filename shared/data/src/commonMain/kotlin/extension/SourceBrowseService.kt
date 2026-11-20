@@ -1,6 +1,14 @@
 package app.koyura.data.extension
 
+import app.koyura.data.search.SavedSearchStore
+import app.koyura.data.search.parseSearchOptions
+import app.koyura.data.search.requireValid
+import app.koyura.data.search.toArguments
 import app.koyura.domain.extension.ExtensionFailure
+import app.koyura.domain.extension.SavedSearch
+import app.koyura.domain.extension.SavedSearches
+import app.koyura.domain.extension.SearchOptionsSnapshot
+import app.koyura.domain.extension.SourceSearchOptions
 import app.koyura.source.runtime.SourceConfigField
 import app.koyura.source.runtime.SourceIndexedCallback
 import app.koyura.source.runtime.VeneraCallback
@@ -23,7 +31,53 @@ data class SourceExplorePage(
     val cursor: Boolean,
 )
 
-class SourceBrowseService internal constructor(private val extensions: ExtensionService) {
+class SourceBrowseService internal constructor(
+    private val extensions: ExtensionService,
+    private val searchStore: SavedSearchStore,
+) {
+    val savedSearches: SavedSearches get() = searchStore
+
+    suspend fun searchOptions(key: String): SourceSearchOptions {
+        val options = parseSearchOptions(configuration(key, SourceConfigField.SearchOptions))
+        val current = searchStore.current(key, options) ?: SearchOptionsSnapshot(options.map { it.default })
+        return SourceSearchOptions(options, current)
+    }
+
+    suspend fun setSearchOptions(key: String, current: SearchOptionsSnapshot) {
+        val options = parseSearchOptions(configuration(key, SourceConfigField.SearchOptions))
+        options.requireValid(current)
+        searchStore.setCurrent(key, options, current)
+    }
+
+    suspend fun saveSearch(key: String, name: String, query: String): SavedSearch =
+        savedSearches.create(key, name, query, searchOptions(key).current)
+
+    suspend fun search(key: String, query: String, page: Int = 1, next: String? = null): JsonObject =
+        searchWithOptions(key, query, searchOptions(key).current, page, next)
+
+    /** Use the same immutable saved item when requesting another page. */
+    suspend fun searchSaved(saved: SavedSearch, page: Int = 1, next: String? = null): JsonObject =
+        searchWithOptions(saved.sourceKey, saved.query, saved.options, page, next)
+
+    private suspend fun searchWithOptions(
+        key: String,
+        query: String,
+        options: SearchOptionsSnapshot,
+        page: Int,
+        next: String?,
+    ): JsonObject {
+        val live = runtime(key)
+        val callbacks = live.registeredSources().firstOrNull { it.key == key }?.callbacks
+            ?: throw ExtensionFailure.MissingExtension(key)
+        val (callback, position) = if (VeneraCallback.Search in callbacks) {
+            VeneraCallback.Search to JsonPrimitive(positivePage(page))
+        } else {
+            require(VeneraCallback.SearchNext in callbacks && page == 1) { "Search requires cursor pagination" }
+            VeneraCallback.SearchNext to text(next)
+        }
+        return live.call(key, callback, args(text(query), options.toArguments(), position)).jsonObject
+    }
+
     suspend fun explorePages(key: String): List<SourceExplorePage> =
         configuration(key, SourceConfigField.Explore).jsonArray.map { entry ->
             val page = entry.jsonObject

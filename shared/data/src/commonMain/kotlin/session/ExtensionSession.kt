@@ -4,6 +4,7 @@ import app.cash.sqldelight.db.QueryResult
 import app.cash.sqldelight.db.SqlDriver
 import app.koyura.data.downloads.ChapterContentPackages
 import app.koyura.data.downloads.ChapterDownloadStore
+import app.koyura.data.downloads.DownloadTriggers
 import app.koyura.domain.downloads.ChapterDownloads
 import app.koyura.data.extension.ExtensionDb
 import app.koyura.data.extension.ExtensionService
@@ -15,12 +16,15 @@ import app.koyura.data.library.LibraryStore
 import app.koyura.data.library.ensureLibrarySchema
 import app.koyura.data.reading.ComicReadingService
 import app.koyura.data.updates.LibraryUpdateScanner
+import app.koyura.data.updates.LibraryUpdateScheduler
 import app.koyura.data.reader.preferences.ReaderPreferencesStore
 import app.koyura.source.runtime.VeneraEnvironment
 import app.koyura.source.runtime.VeneraUiHost
 import app.koyura.source.runtime.SourceSecretStore
 import app.koyura.source.runtime.SourceSessions
 import io.ktor.client.HttpClient
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.IO
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -63,7 +67,15 @@ class ExtensionSession internal constructor(
     internal suspend fun startDownloads() = queue.start()
     val history = HistoryStore(driver)
     val library = LibraryStore(driver)
+    val downloadTriggers = DownloadTriggers(library, downloads)
     val updates = LibraryUpdateScanner(driver, library, service)
+    val updateScheduler = LibraryUpdateScheduler(
+        readPreference = { withContext(Dispatchers.IO) { library.getPref(LibraryUpdateScheduler.PREFERENCE) } },
+        writePreference = { value -> withContext(Dispatchers.IO) { library.setPref(LibraryUpdateScheduler.PREFERENCE, value) } },
+        checkNow = updates::checkNow,
+        nextReleaseWindow = updates::nextReleaseWindowMillis,
+        releaseChanges = updates.releaseWindowChanges,
+    )
 
     private val mutex = Mutex()
     private var closed = false
@@ -79,6 +91,7 @@ class ExtensionSession internal constructor(
         }
         if (!doClose) return
         withContext(NonCancellable) {
+            runCatching { updateScheduler.close() }
             runCatching { queue.close() }
             runCatching { service.close() }
             runCatching { httpClient.close() }
@@ -215,5 +228,8 @@ private fun ensureSchema(driver: SqlDriver) {
             ExtensionDb.Schema.migrate(driver, 8, 9).value
         }
         if (tableColumns(driver, "library_update_metadata").isEmpty()) ExtensionDb.Schema.migrate(driver, 9, 10).value
+        if (tableColumns(driver, "saved_search").isEmpty() || tableColumns(driver, "source_search_options").isEmpty()) {
+            ExtensionDb.Schema.migrate(driver, 10, 11).value
+        }
     }
 }

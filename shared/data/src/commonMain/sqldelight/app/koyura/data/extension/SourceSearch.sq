@@ -1,0 +1,38 @@
+CREATE TABLE IF NOT EXISTS saved_search (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_key TEXT NOT NULL,
+    name TEXT NOT NULL,
+    query_text TEXT NOT NULL,
+    option_snapshot TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS saved_search_source ON saved_search(source_key, id);
+
+CREATE TABLE IF NOT EXISTS source_search_options (
+    source_key TEXT NOT NULL PRIMARY KEY,
+    current_options TEXT NOT NULL
+);
+
+selectSavedSearches:
+SELECT * FROM saved_search WHERE source_key = ? ORDER BY id;
+
+selectSavedSearch:
+SELECT * FROM saved_search WHERE id = ?;
+
+insertSavedSearch:
+INSERT INTO saved_search(source_key, name, query_text, option_snapshot) VALUES (?, ?, ?, ?);
+
+lastSavedSearchId:
+SELECT last_insert_rowid();
+
+updateSavedSearch:
+UPDATE saved_search SET name = ?, query_text = ?, option_snapshot = ? WHERE id = ?;
+
+deleteSavedSearch:
+DELETE FROM saved_search WHERE id = ?;
+
+selectCurrentOptions:
+SELECT current_options FROM source_search_options WHERE source_key = ?;
+
+saveCurrentOptions:
+INSERT OR REPLACE INTO source_search_options(source_key, current_options) VALUES (?, ?);

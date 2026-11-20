@@ -9,6 +9,7 @@ import app.koyura.domain.downloads.DownloadJob
 import app.koyura.domain.downloads.DownloadStatus
 import app.koyura.domain.extension.ComicPage
 import app.koyura.domain.extension.OpenedChapter
+import app.koyura.domain.library.WorkKind
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -38,7 +39,8 @@ internal class ChapterDownloadStore(
     private val openChapter: suspend (DownloadChapter) -> OpenedChapter,
     private val loadPage: suspend (DownloadChapter, ComicPage) -> ByteArray,
 ) : ChapterDownloads {
-    private val queries = ExtensionDb(driver).downloadJobsQueries
+    private val db = ExtensionDb(driver)
+    private val queries = db.downloadJobsQueries
     private val mutex = Mutex()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val wake = Channel<Unit>(Channel.CONFLATED)
@@ -97,10 +99,39 @@ internal class ChapterDownloadStore(
         queries.countCompletedDownloads(sourceKey, workId).executeAsOne().toInt()
     }
 
-    override suspend fun enqueue(chapter: DownloadChapter): DownloadJob = mutate {
-        require(chapter.sourceKey.isNotBlank() && chapter.workId.isNotBlank())
-        queries.insertDownload(Uuid.random().toString(), chapter.sourceKey, chapter.workId, chapter.chapterId.orEmpty())
-        queries.selectDownloadForChapter(chapter.sourceKey, chapter.workId, chapter.chapterId.orEmpty()).executeAsOne().toJob()
+    override suspend fun statusesForWork(sourceKey: String, workId: String): Map<String?, DownloadJob> =
+        withContext(Dispatchers.IO) {
+            queries.selectDownloadsForWork(sourceKey, workId).executeAsList().map { it.toJob() }
+                .associateBy { it.chapter.chapterId }
+        }
+
+    override suspend fun enqueue(chapter: DownloadChapter): DownloadJob =
+        enqueueAll(chapter.sourceKey, chapter.workId, listOf(chapter.chapterId)).single()
+
+    override suspend fun enqueueAll(
+        sourceKey: String,
+        workId: String,
+        chapterIds: List<String?>,
+        unreadOnly: Boolean,
+        limit: Int?,
+    ): List<DownloadJob> {
+        require(sourceKey.isNotBlank() && workId.isNotBlank())
+        require(limit == null || limit >= 0)
+        if (chapterIds.isEmpty() || limit == 0) return emptyList()
+        return mutate {
+            db.transactionWithResult {
+                val read = if (unreadOnly) {
+                    db.extensionDbQueries.selectChaptersForWork(sourceKey, WorkKind.COMIC.name, workId)
+                        .executeAsList().filter { it.is_read != 0L }.mapTo(hashSetOf()) { it.chapter_id }
+                } else emptySet()
+                val selected = chapterIds.asSequence().map { it.orEmpty() }.distinct()
+                    .filterNot { it in read }.take(limit ?: chapterIds.size)
+                selected.map { id ->
+                    queries.insertDownload(Uuid.random().toString(), sourceKey, workId, id)
+                    queries.selectDownloadForChapter(sourceKey, workId, id).executeAsOne().toJob()
+                }.toList()
+            }
+        }
     }
 
     override suspend fun pause(id: String) = stop(id, DownloadStatus.PAUSED, setOf(DownloadStatus.QUEUED, DownloadStatus.DOWNLOADING))

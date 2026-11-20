@@ -7,6 +7,9 @@ import app.koyura.data.session.openExtensionSession
 import app.koyura.domain.downloads.DownloadChapter
 import app.koyura.domain.downloads.DownloadJob
 import app.koyura.domain.downloads.DownloadStatus
+import app.koyura.domain.downloads.DownloadTriggerPreferences
+import app.koyura.domain.library.LibraryChapter
+import app.koyura.domain.library.WorkKind
 import app.koyura.domain.extension.ComicPage
 import app.koyura.domain.extension.ReadingFailure
 import app.koyura.source.runtime.VeneraEnvironment
@@ -38,6 +41,44 @@ class ChapterDownloadStoreTest {
     private val chapter = DownloadChapter("download", "work", "chapter")
     private val one = "https://comics.example/1.jpg?token=temporary"
     private val two = "https://comics.example/2.jpg"
+
+    @Test
+    fun enqueuesAnOrderedUnreadBatchAndPersistsDownloadTriggers() = runTest {
+        val root = filesRoot()
+        val session = open(root, MockEngine { awaitCancellation() })
+        val ids = try {
+            val library = session.library
+            library.addToLibrary("download", WorkKind.COMIC, "work", "Demo", addedAtMillis = 1)
+            library.syncChapters("download", WorkKind.COMIC, "work", listOf("read", "a", "b", "c").map {
+                LibraryChapter("download", WorkKind.COMIC, "work", it)
+            })
+            library.markChapterRead("download", WorkKind.COMIC, "work", "read", true)
+
+            assertTrue(session.downloadTriggers.enqueueNext("download", "work", listOf("a")).isEmpty())
+            session.downloadTriggers.setPreferences(DownloadTriggerPreferences(downloadNewChapters = true, downloadAheadCount = 2))
+            val batch = session.downloadTriggers.enqueueNext("download", "work", listOf("read", "a", "a", "b", "c"))
+            assertEquals(listOf("a", "b"), batch.map { it.chapter.chapterId })
+            val repeated = session.downloads.enqueueAll("download", "work", listOf("read", "a", "b", "a"), unreadOnly = true)
+            assertEquals(batch.map { it.id }, repeated.map { it.id })
+
+            val separate = session.downloads.enqueueAll("other", "work", listOf(null, "")).single()
+            assertEquals(setOf(null), session.downloads.statusesForWork("other", "work").keys)
+            assertEquals(separate.id, session.downloads.statusesForWork("other", "work")[null]?.id)
+            assertEquals(setOf("a", "b"), session.downloads.statusesForWork("download", "work").keys)
+            assertTrue(session.downloads.statusesForWork("download", "missing").isEmpty())
+            batch.map { it.id }
+        } finally {
+            session.close()
+        }
+        val reopened = open(root, MockEngine { awaitCancellation() })
+        try {
+            assertEquals(DownloadTriggerPreferences(true, 2), reopened.downloadTriggers.preferences())
+            assertEquals(ids, reopened.downloads.statusesForWork("download", "work").values.map { it.id })
+        } finally {
+            reopened.close()
+            files.deleteRecursively(root)
+        }
+    }
 
     @Test
     fun pausesCancelsAndRetriesSameRowThenReadsWithoutNetworkAfterRestart() = runTest {
@@ -76,6 +117,7 @@ class ChapterDownloadStoreTest {
             assertEquals(2, completed.downloadedPages)
             assertEquals(2, completed.totalPages)
             assertEquals(1, second.downloads.countCompleted("download", "work"))
+            assertEquals(DownloadStatus.COMPLETE, second.downloads.statusesForWork("download", "work")["chapter"]?.status)
             assertEquals(0, second.downloads.countCompleted("different", "work"))
             assertEquals(0, second.downloads.countCompleted("download", "different"))
             assertEquals(3, calls.get())

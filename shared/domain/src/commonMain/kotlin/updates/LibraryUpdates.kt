@@ -44,7 +44,12 @@ data class UpdateScan(
     val updates: List<WorkUpdate>,
     val failures: List<UpdateFailure>,
     val skipped: List<SkippedUpdate> = emptyList(),
+    val downloadTriggerFailures: List<LibraryManga> = emptyList(),
 )
+
+fun interface NewChaptersDownloadHook {
+    suspend fun onNewChapters(update: WorkUpdate)
+}
 
 interface LibraryUpdates {
     suspend fun checkNow(): UpdateScan

@@ -4,22 +4,29 @@ import app.koyura.data.session.ExtensionSession
 import app.koyura.data.session.openExtensionSession
 import app.koyura.domain.extension.SourceAccountFieldType
 import app.koyura.domain.extension.SourceLoginState
+import app.koyura.domain.extension.SearchOptionValue.Single
+import app.koyura.domain.extension.SearchOptionsSnapshot
 import app.koyura.domain.downloads.DownloadChapter
 import app.koyura.domain.downloads.DownloadStatus
 import app.koyura.network.createDefaultHttpClient
 import app.koyura.source.runtime.SourceSecretStore
+import app.koyura.source.runtime.SourceCookie
 import app.koyura.source.runtime.VeneraCallback
 import app.koyura.source.runtime.VeneraEnvironment
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
+import io.ktor.client.request.HttpSendPipeline
 import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
+import io.ktor.http.encodedPath
 import io.ktor.http.headersOf
 import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.security.MessageDigest
 import javax.imageio.ImageIO
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
@@ -27,6 +34,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonArray
@@ -38,6 +46,7 @@ import org.junit.Assume.assumeTrue
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
@@ -101,6 +110,132 @@ class CommunitySourceJourneyTest {
     }
 
     @Test
+    fun comicWalkerFixtureUsesComputeForImagesAndRestartsOffline() = runTest {
+        val page = png()
+        val key = byteArrayOf(1, 2, 3, 4, 5, 6, 7, 8)
+        val transformed = ByteArray(page.size) { index -> (page[index].toInt() xor key[index % key.size].toInt()).toByte() }
+        val client = HttpClient(MockEngine { request ->
+            val path = request.url.encodedPath
+            when (path) {
+                "/lookup" -> respond("""{"version":"1.0"}""")
+                "/v1/users" -> respond("""{"resources":{"access_token":"fixture"}}""")
+                else -> {
+                    assertEquals("Bearer fixture", request.headers[HttpHeaders.Authorization])
+                    when (path) {
+                        "/v1/search/comics" -> respond("""{"resources":[{"id":"demo","title":"Sky"}]}""")
+                        "/v2/screens/comics/demo" -> respond("""{"resources":{"detail":{"title":"Sky"},"episode_total_count":1}}""")
+                        "/v1/comics/demo/episodes" -> respond("""{"resources":[{"id":"ep","title":"First","plans":[{"type":"free"}]}]}""")
+                        "/v1/episodes/ep" -> respond("""{"plans":[{"type":"free"}]}""")
+                        "/v1/screens/comics/demo/episodes/ep/viewer" -> respond("""
+                            {"resources":{"manuscripts":[{"drm_image_url":"https://walker.example.test/1.png?a=1",
+                            "drm_hash":"010102030405060708"},{"drm_image_url":"https://walker.example.test/2.png?a=1",
+                            "drm_hash":"010102030405060708"}]}}
+                        """.trimIndent())
+                        "/1.png", "/2.png" -> {
+                            assertEquals(setOf("a"), request.url.parameters.names())
+                            respond(transformed, headers = headersOf(HttpHeaders.ContentType, "image/png"))
+                        }
+                        else -> error("Unexpected ComicWalker fixture path: $path")
+                    }
+                }
+            }
+        })
+        journey(comicWalker, client, "sky", expectedImage = page)
+    }
+
+    @Test
+    fun mangaDexFixtureReplaysSearchReadsForumCookiesAndRetriesImages() = runTest {
+        val page = png()
+        val comic = """{"id":"demo","attributes":{"title":{"en":"Sky"},"altTitles":[],"tags":[],"status":"ongoing"},"relationships":[]}"""
+        val client = HttpClient(MockEngine { request ->
+            when (request.url.encodedPath) {
+                "/manga" -> {
+                    assertEquals("safe", request.url.parameters["contentRating[]"])
+                    respond("""{"total":1,"data":[$comic]}""")
+                }
+                "/manga/demo" -> respond("""{"data":$comic}""")
+                "/manga/demo/feed" -> respond("""{"total":1,"data":[{"id":"ep","attributes":{"chapter":"1","translatedLanguage":"en"}}]}""")
+                "/statistics/manga/demo" -> respond("""{"statistics":{"demo":{"comments":{"threadId":1,"repliesCount":1}}}}""")
+                "/threads/1/page-1" -> {
+                    assertEquals("sid=forum-fixture", request.headers[HttpHeaders.Cookie])
+                    respond("""
+                        <article class="message" id="post-1">
+                        <div class="message-name">Sam</div><time>2026-11-20</time>
+                        <div class="bbWrapper"><script>hidden</script>Hello &amp; welcome<br>Second line</div>
+                        </article><div class="pageNav-page"><a>2</a></div>
+                    """.trimIndent(), headers = headersOf(HttpHeaders.ContentType, "text/html"))
+                }
+                "/at-home/server/ep" -> respond("""
+                    {"baseUrl":"https://pages.example.test","chapter":{"hash":"hash",
+                    "data":["original.png","second.png"],"dataSaver":["first.png","second.png"]}}
+                """.trimIndent())
+                "/data-saver/hash/first.png", "/data-saver/hash/second.png" ->
+                    respond("fixture fallback", HttpStatusCode.ServiceUnavailable)
+                "/data/hash/original.png", "/data/hash/second.png" -> {
+                    assertEquals("https://mangadex.org/", request.headers[HttpHeaders.Referrer])
+                    respond(page, headers = headersOf(HttpHeaders.ContentType, "image/png"))
+                }
+                else -> error("Unexpected MangaDex fixture path: ${request.url.encodedPath}")
+            }
+        })
+        journey(mangaDex, client, "sky", expectedImage = page, webSession = true) { session, work ->
+            val accounts = session.service.accounts
+            assertTrue(assertNotNull(session.service.sourceAccountConfig(mangaDex.key)).declaresWebLogin)
+            assertTrue(accounts.loginWithWebView(mangaDex.key) { url, check ->
+                assertFalse(check(WebLoginPage(url, "Login")))
+                val accepted = WebLoginPage("https://forums.mangadex.org/account/", "Account")
+                assertTrue(check(accepted))
+                WebLoginCapture(accepted, listOf(SourceCookie("sid", "forum-fixture", path = "/")), JsonObject(emptyMap()))
+            })
+            val result = mangaDexComments(session, work)
+            assertEquals(JsonPrimitive(2), result.getValue("maxPage"))
+            val comment = result.getValue("comments").jsonArray.single().jsonObject
+            assertEquals(JsonPrimitive("Sam"), comment["userName"])
+            assertEquals(JsonPrimitive("Hello & welcome\nSecond line"), comment["content"])
+        }
+    }
+
+    @Test
+    fun comicWalkerPublicCatalogue() = runTest(timeout = 180.seconds) {
+        assumeTrue("Explicit live regression only", live())
+        val client = createDefaultHttpClient()
+        try {
+            val publicOnly = client.config {
+                install("PublicChapterOnly") {
+                    sendPipeline.intercept(HttpSendPipeline.State) {
+                        check(context.url.encodedPath != "/v1/users/me/rental_episodes") {
+                            "Catalogue selection requires a temporary rental, outside this public sample"
+                        }
+                    }
+                }
+            }
+            journey(comicWalker, publicOnly, "見える子ちゃん", live = true, freeChapterOnly = true)
+        } finally {
+            client.close()
+        }
+    }
+
+    @Test
+    fun mangaDexPublicCatalogueAndForum() = runTest(timeout = 180.seconds) {
+        assumeTrue("Explicit live regression only", live())
+        journey(mangaDex, createDefaultHttpClient(), "Bocchi the Rock!", live = true) { session, work ->
+            assertTrue(assertNotNull(session.service.sourceAccountConfig(mangaDex.key)).declaresWebLogin)
+            try {
+                val comments = mangaDexComments(session, work).getValue("comments").jsonArray
+                println("manga_dex: public comment callback returned ${comments.size} comments")
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                println("manga_dex: public comment callback blocked: ${failure.message?.lineSequence()?.firstOrNull()}")
+            }
+        }
+    }
+
+    private suspend fun mangaDexComments(session: ExtensionSession, work: String): JsonObject =
+        session.service.call(mangaDex.key, VeneraCallback.Comments,
+            JsonArray(listOf(JsonPrimitive(work), JsonNull, JsonPrimitive(1), JsonNull))).jsonObject
+
+    @Test
     fun manhuaguiPublicWebsite() = runTest(timeout = 180.seconds) {
         assumeTrue("Explicit live regression only", live())
         journey(manhuagui, createDefaultHttpClient(), "航海王", live = true)
@@ -119,6 +254,10 @@ class CommunitySourceJourneyTest {
         keyword: String,
         account: Pair<String, String>? = null,
         live: Boolean = false,
+        expectedImage: ByteArray? = null,
+        webSession: Boolean = false,
+        freeChapterOnly: Boolean = false,
+        afterDetail: suspend (ExtensionSession, String) -> Unit = { _, _ -> },
     ) {
         val path = System.getProperty("reader.venera.community.e2e")
         try {
@@ -145,8 +284,12 @@ class CommunitySourceJourneyTest {
                         assertTrue(first.service.browse.explore(source.key, explore).jsonArray.isNotEmpty())
                         println("${source.key}: explore passed")
                     }
-                    val search = first.service.call(source.key, VeneraCallback.Search,
-                        JsonArray(listOf(JsonPrimitive(keyword), JsonArray(emptyList()), JsonPrimitive(1))))
+                    val browse = first.service.browse
+                    if (source == mangaDex) {
+                        browse.setSearchOptions(source.key, SearchOptionsSnapshot(listOf(Single("any"), Single("safe"), Single("any"))))
+                    }
+                    val saved = browse.saveSearch(source.key, "Journey", keyword)
+                    val search = browse.searchSaved(saved)
                     val items = search.jsonObject.getValue("comics").jsonArray
                     assertTrue(items.isNotEmpty())
                     println("${source.key}: search passed (${items.size} results)")
@@ -155,15 +298,21 @@ class CommunitySourceJourneyTest {
                         JsonArray(listOf(JsonPrimitive(workId)))).jsonObject
                     assertTrue(detail.getValue("title").jsonPrimitive.content.isNotBlank())
                     val chapters = (detail["chapters"] as? JsonObject)?.entries.orEmpty().flatMap { (id, children) ->
-                        (children as? JsonObject)?.keys?.toList() ?: listOf(id)
+                        (children as? JsonObject)?.entries?.map { it.key to it.value } ?: listOf(id to children)
                     }
                     println("${source.key}: detail passed (${chapters.size} chapters)")
-                    val chapterId = chapters.firstOrNull()
+                    afterDetail(first, workId)
+                    val chapterId = if (freeChapterOnly) {
+                        val candidates = chapters.filterNot { (_, title) -> title.jsonPrimitive.content.startsWith("❌") }
+                        check(candidates.isNotEmpty()) { "Catalogue offers no publicly readable chapters" }
+                        candidates.first().first
+                    } else chapters.firstOrNull()?.first
                     val opened = first.comicReading.openChapter(source.key, workId, chapterId)
                     assertTrue(opened.pages.isNotEmpty())
                     println("${source.key}: chapter passed (${opened.pages.size} pages)")
                     val resume = (opened.pages.lastIndex).coerceAtMost(1)
                     val bytes = first.comicReading.loadImageBytes(source.key, workId, chapterId, opened.pages[resume].imageKey)
+                    if (expectedImage != null) assertContentEquals(expectedImage, bytes)
                     val decoded = ImageIO.read(bytes.inputStream())
                     val preview = bytes.take(12).toByteArray().decodeToString()
                     if (live && preview.startsWith("RIFF") && preview.endsWith("WEBP")) {
@@ -194,6 +343,7 @@ class CommunitySourceJourneyTest {
                 val reopened = open(root, offline, secrets, online = false)
                 try {
                     if (account != null) assertEquals(SourceLoginState.FORM, reopened.service.sourceLoginState(source.key))
+                    if (webSession) assertEquals(SourceLoginState.WEB, reopened.service.sourceLoginState(source.key))
                     val opened = reopened.comicReading.openChapter(source.key, progress.workId, progress.chapterId)
                     assertEquals(progress.index, opened.startIndex)
                     assertContentEquals(progress.image, reopened.comicReading.loadImageBytes(
@@ -233,6 +383,8 @@ class CommunitySourceJourneyTest {
     private data class Snapshot(val workId: String, val chapterId: String?, val index: Int, val image: ByteArray)
     private data class CommunityScript(val filename: String, val key: String, val sha256: String)
 
+    private val comicWalker = CommunityScript("comic_walker.js", "comic_walker", "d039289f0aacda36990f090f93779bf54116e4d0e20c626c7ac29c73ec1e3513")
+    private val mangaDex = CommunityScript("manga_dex.js", "manga_dex", "c8beb84262da8fa3922ff0392fc2f79f03ee36ae08933d10571172ef6c8ce21d")
     private val manhuagui = CommunityScript("manhuagui.js", "ManHuaGui", "a5bf6c633e0ce728361dded097424b829134d618128f72b571e42525e8950128")
     private val komga = CommunityScript("komga.js", "komga", "2aa5b4e7d4b32bf282f86168b22af091d7436f4e3ad603defb7b6df738a36908")
 }
