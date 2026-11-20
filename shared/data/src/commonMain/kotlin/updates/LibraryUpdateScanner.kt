@@ -4,6 +4,7 @@ import app.cash.sqldelight.db.SqlDriver
 import app.koyura.data.extension.ExtensionDb
 import app.koyura.data.extension.ExtensionService
 import app.koyura.data.extension.Library_manga
+import app.koyura.data.extension.parseSourceChapterCatalog
 import app.koyura.data.library.LibraryStore
 import app.koyura.domain.library.LibraryChapter
 import app.koyura.domain.library.LibraryManga
@@ -37,7 +38,6 @@ import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
@@ -275,19 +275,15 @@ class LibraryUpdateScanner internal constructor(
     private fun Boolean.asSqlFlag(): Long = if (this) 1L else 0L
 
     private fun unpackChapters(work: LibraryManga, value: JsonElement?): List<LibraryChapter> {
-        fun chapter(id: String, title: JsonElement): LibraryChapter {
-            require(id.isNotEmpty() && title is JsonPrimitive && title.isString) { "Invalid chapter entry" }
-            return LibraryChapter(work.sourceKey, work.kind, work.workId, id, title.content)
-        }
-        if (value == null || value == JsonNull || (value is JsonObject && value.isEmpty())) {
+        val entries = parseSourceChapterCatalog(value, strict = true)
+        if (value == null || value is kotlinx.serialization.json.JsonNull || (value is JsonObject && value.isEmpty())) {
             return listOf(LibraryChapter(work.sourceKey, work.kind, work.workId, ""))
         }
-        val entries = value.jsonObject
-        val chapters = entries.entries.flatMap { (id, entry) ->
-            if (entry is JsonObject) entry.map { (id, title) -> chapter(id, title) } else listOf(chapter(id, entry))
+        return entries.distinctBy { it.id }.map {
+            LibraryChapter(work.sourceKey, work.kind, work.workId, it.id, it.title)
         }
-        return chapters.distinctBy { it.chapterId }
     }
+
     private companion object {
         const val SMART_UPDATE_PREFERENCE = "updates.smart_scan"
         val preferencesJson = Json { ignoreUnknownKeys = true }
