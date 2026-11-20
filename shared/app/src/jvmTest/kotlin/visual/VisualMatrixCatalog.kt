@@ -7,7 +7,7 @@ package app.koyura.app.visual
  * 主 agent 生成报告时按这里的键把本测试产出的 PNG 与白皮书参考图配对。
  * 路径只作为字符串键保存，测试本身不读取这些 JPG（避免把白皮书资源变成测试依赖）。
  *
- * `implemented = false` 的四页在测试中渲染为明确标注的「未实现占位」画面，
+ * `implemented = false` 的三页在测试中渲染为明确标注的「未实现占位」画面，
  * 不冒充真实页面；对照键仍给出白皮书里最接近的参考图，便于报告说明差距。
  */
 data class VisualPageCatalogEntry(
@@ -85,12 +85,12 @@ object VisualMatrixCatalog {
             implemented = true,
         ),
         VisualPageCatalogEntry(
-            slug = "settings-placeholder",
+            slug = "settings",
             title = "设置 Settings",
             phoneAsset = "18_settings_main.jpg",
             tabletAsset = "18_settings_main.jpg",
-            implemented = false,
-            note = "设置页尚无顶层路由；占位画面明确标注未实现。",
+            implemented = true,
+            note = "使用真实 SettingsRoute，宽屏展示双栏外观设置。",
         ),
         VisualPageCatalogEntry(
             slug = "statistics",

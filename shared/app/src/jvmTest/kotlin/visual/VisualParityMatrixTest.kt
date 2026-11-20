@@ -31,6 +31,7 @@ import app.koyura.app.navigation.CategoriesRoute
 import app.koyura.app.navigation.ComicReaderRoute
 import app.koyura.app.navigation.DownloadQueueRoute
 import app.koyura.app.navigation.GlobalSearchRoute
+import app.koyura.app.navigation.SettingsRoute
 import app.koyura.app.navigation.SourceDetailRoute
 import app.koyura.app.navigation.StatisticsRoute
 import app.koyura.app.navigation.createAppNavigationState
@@ -69,7 +70,7 @@ import org.jetbrains.skia.EncodedImageFormat
  * 确定性保证：固定 Density(1f)、固定 ReaderTheme、固定 fixture（无 System.currentTimeMillis、
  * 无随机数）；每个用例都新建独立的 navigation / session，避免状态跨形态或主题泄漏。
  * 导航定位只用 `createAppNavigationState()` + `select(NavTab.X)` / `push(Route)`，
- * 优先走真实 `AppScaffold()` 装配；四个尚未实现的页面渲染为明确标注的占位画面。
+ * 优先走真实 `AppScaffold()` 装配；三个尚未实现的页面渲染为明确标注的占位画面。
  *
  * 每张截图都经过 [GoldenDiffAssertions.assertGolden] 的真实断言（尺寸 / 背景采样 /
  * 非背景比例 / 底部导航条或左侧 rail 区块），不存在零断言截图。
@@ -330,12 +331,16 @@ class VisualParityMatrixTest {
         content
     })
 
-    // ---- 9. 设置 Settings（未实现占位） ----
+    // ---- 9. 设置 Settings ----
     @Test
-    fun settingsPlaceholderMatrix() = matrix("settings-placeholder", { width ->
+    fun settingsMatrix() = matrix("settings", { width ->
         val navigation = createAppNavigationState()
         navigation.select(NavTab.More)
-        placeholderContent(navigation, width >= railWidthThreshold, "设置 Settings")
+        navigation.push(SettingsRoute)
+        val content: @Composable () -> Unit = {
+            AppScaffold(navigation = navigation, useRail = width >= railWidthThreshold)
+        }
+        content
     })
 
     // ---- 10. 统计 Statistics ----
@@ -487,14 +492,22 @@ class VisualParityMatrixTest {
                 coverUrl = "", sourceName = "源A", language = "",
                 totalChapters = 2, favoriteAtMillis = 30L,
             ),
-        ),
+        ) + List(9) { index ->
+            LibraryEntry(
+                sourceKey = "srcA", workId = "fixture-$index", title = "星图集 ${index + 1}",
+                coverUrl = "fixture:library-$index", sourceName = "源A", language = "zh",
+                totalChapters = 10, unreadCount = (index % 4).toLong(),
+                favoriteAtMillis = 40L + index,
+            )
+        },
         categories = defaultLibraryCategories(),
         links = mapOf(
             LibraryEntryKey("srcA", LibraryKind.COMIC, "w1") to setOf(1L),
             LibraryEntryKey("srcB", LibraryKind.COMIC, "w2") to setOf(1L),
             LibraryEntryKey("srcA", LibraryKind.COMIC, "w4") to setOf(3L),
         ),
-        thumbnailBytes = mapOf("https://img.example/cover.png" to pngBytes(0x336699)),
+        thumbnailBytes = mapOf("https://img.example/cover.png" to pngBytes(0x336699)) +
+            List(9) { index -> "fixture:library-$index" to pngBytes(0x336699 + index * 0x051703) },
         thumbnailFailures = mutableMapOf("https://img.example/broken.png" to "404"),
     )
 
