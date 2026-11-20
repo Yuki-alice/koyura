@@ -4,7 +4,9 @@
 
 ## 参考基线
 
-- 视觉对照：`reference/komikku-design-whitepaper-md`——`07-页面规格.md` 按页给出骨架与尺寸，74 张实机截图在 `assets/phone/`（360dp）与 `assets/tablet/`（1280×800dp）；令牌、组件与反馈规格见 `02-设计令牌`、`06-组件规格库`、`08-状态与反馈`，截图总索引见 `10-附录`。
+- 视觉对照：`docs/design-whitepaper/`（第二版，`docs/design-whitepaper/README.md` 有勘误表）——`07-页面规格.md` 按页给出骨架与尺寸，83 张实机截图在 `assets/phone/`（720×1440px = 360×720dp @2.0x）、`assets/tablet/`（960×600px = 1280×800dp @0.75x）与 `assets/crops/`（组件特写）；令牌、组件与反馈规格见 `02-设计令牌`、`06-组件规格库`、`08-状态与反馈`，截图总索引见 `10-附录 B` 与 `assets/design-tokens.json`。
+  - 数值有争议时以 `tools/` 脚本复算为准：`parse_themes.py` + `compare_tokens.py` 校验色值，`measure_screenshot.py` 量取尺寸。脚本默认向上查找 `reference/komikku`，也可用 `--source-root` 指定。
+  - 第一版白皮书含 10 类事实错误，已作废（勘误表见 `docs/design-whitepaper/README.md`「这一版修了什么」）；数值冲突时以 `docs/design-whitepaper/` 为准。
 - 行为与实现对照：`reference/komikku` 的 `290267d`（与白皮书同版），交互、手势与数据语义以源码为准。
 - JS 源协议兼容：`reference/Venera-Next` 的 `c0c4597`，原版脚本与源仓库应原样导入。
 - 开发顺序与范围经讨论确定，不预先固化在文档里。

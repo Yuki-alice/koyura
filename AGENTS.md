@@ -4,7 +4,7 @@ Kotlin Multiplatform + Compose Multiplatform 漫画阅读器：视觉与功能�
 
 ## 构建与验收基线
 
-- 验收按 `docs/verification.md` 执行：受影响模块快速回归、交付前全量 JVM 门、界面改动按需与白皮书实机截图（`reference/komikku-design-whitepaper-md`）人工核对、行为存疑以 `reference/komikku` 源码为准、阅读行为沿用夹具测试；不设阶段门禁，不建证据归档。
+- 验收按 `docs/verification.md` 执行：受影响模块快速回归、交付前全量 JVM 门、界面改动按需与白皮书实机截图（`docs/design-whitepaper`，第二版含勘误表与 `tools/` 复算脚本）人工核对、行为存疑以 `reference/komikku` 源码为准、阅读行为沿用夹具测试；不设阶段门禁，不建证据归档。
 - 交付前测试不绿不算完成。
 - 改动 `:shared:source-runtime`、`:shared:network` 会话桥或宿主回调后，必跑 Venera 原版脚本回归（SHA-256 + 全回调链）。
 - 代码标识符与文件名按功能命名，不含产品名（Komikku/Koyura）；`app.koyura` 基包与安装标识除外，注释引用来源不受限。
