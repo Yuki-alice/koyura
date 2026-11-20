@@ -29,6 +29,7 @@ internal val htmlBootstrap = """
             get children() { return call("children", this.doc, this.key).map(key => element(key, this.doc)); }
             get nodes() { return call("nodes", this.doc, this.key).map(key => new HtmlNode(key, this.doc)); }
             get innerHTML() { return call("html", this.doc, this.key); }
+            get innerHtml() { return this.innerHTML; }
             get parent() { return element(call("parent", this.doc, this.key), this.doc); }
             get classNames() { return call("classes", this.doc, this.key); }
             get id() { return call("id", this.doc, this.key); }
