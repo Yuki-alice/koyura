@@ -36,11 +36,15 @@ import app.koyura.data.session.ExtensionSession
 import app.koyura.designsystem.ReaderTheme
 import app.koyura.source.runtime.VeneraEnvironment
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.withContext
+import androidx.compose.runtime.DisposableEffect
 import org.jetbrains.compose.resources.stringResource
 
 @Composable
@@ -86,6 +90,14 @@ internal fun ExtensionApp(
 
     val session = openedSession
     if (session != null) {
+        // 更新扫描出新章后的自动下载钩子（偏好默认关闭，开启后新章自动入队）。
+        session.updates.setNewChaptersDownloadHook(session.downloadTriggers)
+        // 后台更新调度：进程内时间驱动 + 启动补跑；作用域随会话销毁，前台唤醒由平台接线补充。
+        val sessionScope = remember(session) { CoroutineScope(SupervisorJob() + Dispatchers.Default) }
+        LaunchedEffect(session) { session.updateScheduler.start(sessionScope) }
+        DisposableEffect(session) {
+            onDispose { sessionScope.cancel() }
+        }
         val library = remember(session) {
             ProductionLibraryRepository(
                 store = session.library,
@@ -121,6 +133,7 @@ internal fun ExtensionApp(
                         chapters = chapters,
                     )
                 },
+                search = session.service.browse,
             )
         }
         val reader = remember(session) {

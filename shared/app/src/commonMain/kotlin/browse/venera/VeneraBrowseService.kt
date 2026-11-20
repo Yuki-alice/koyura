@@ -17,7 +17,11 @@ import app.koyura.app.browse.WorkSearchPage
 import app.koyura.app.browse.WorkSummary
 import app.koyura.app.browse.extensionKey
 import app.koyura.data.extension.ExtensionService
+import app.koyura.data.extension.SourceBrowseService
 import app.koyura.domain.extension.ExtensionFailure
+import app.koyura.domain.extension.SavedSearch
+import app.koyura.domain.extension.SearchOptionsSnapshot
+import app.koyura.domain.extension.SourceSearchOptions
 import app.koyura.source.runtime.VeneraCallback
 import app.koyura.source.runtime.VeneraCatalogEntry
 import app.koyura.source.runtime.isVeneraUpdateAvailable
@@ -53,6 +57,12 @@ class VeneraBrowseService(
      * 失败或取消不调用以保留上次有效目录；生产装配传入书架仓储的同步入口。
      */
     private val onDetailLoaded: (suspend (sourceKey: String, workId: String, chapters: List<WorkChapter>) -> Unit)? = null,
+    /**
+     * 搜索通道：源搜索选项与保存搜索（生产注入 `session.service.browse`）。
+     * 注入时 [searchWorks] 按源声明的选项默认值/当前持久化取值发请求；
+     * 未注入（测试与旧装配）回退空选项，行为与历史一致。
+     */
+    private val search: SourceBrowseService? = null,
 ) : BrowseService {
     override suspend fun loadSnapshot(): BrowseSnapshot = runService {
         val installed = extensions.listInstalled()
@@ -227,10 +237,12 @@ class VeneraBrowseService(
 
     override suspend fun searchWorks(sourceKey: String, query: String, page: Int): WorkSearchPage =
         runService {
-            val arguments = JsonArray(
-                listOf(JsonPrimitive(query), JsonArray(emptyList()), JsonPrimitive(page)),
-            )
-            val result = extensions.call(sourceKey, VeneraCallback.Search, arguments).jsonObject
+            val result = search?.search(sourceKey, query, page)
+                ?: extensions.call(
+                    sourceKey,
+                    VeneraCallback.Search,
+                    JsonArray(listOf(JsonPrimitive(query), JsonArray(emptyList()), JsonPrimitive(page))),
+                ).jsonObject
             val comics = result["comics"]?.jsonArray
                 ?: throw BrowseServiceException("Malformed search response from $sourceKey")
             val maxPage = result["maxPage"]?.jsonPrimitive?.intOrNull ?: 1
@@ -248,6 +260,27 @@ class VeneraBrowseService(
                 maxPage = maxPage,
             )
         }
+
+    /** 源搜索选项与当前持久化取值；未注入搜索通道（测试装配）返回 null，调用方整块隐藏。 */
+    suspend fun sourceSearchOptions(sourceKey: String): SourceSearchOptions? =
+        search?.searchOptions(sourceKey)
+
+    /** 更新当前选项取值（按源持久化）；未注入通道时为无操作。 */
+    suspend fun setSourceSearchOptions(sourceKey: String, current: SearchOptionsSnapshot) {
+        search?.setSearchOptions(sourceKey, current)
+    }
+
+    /** 保存搜索列表（按源）；未注入通道时为空，UI 呈现空态。 */
+    suspend fun savedSearches(sourceKey: String): List<SavedSearch> =
+        search?.savedSearches?.list(sourceKey).orEmpty()
+
+    /** 按当前选项快照保存搜索；未注入通道时返回 null，调用方提示不可用。 */
+    suspend fun saveSearch(sourceKey: String, name: String, query: String): SavedSearch? =
+        search?.saveSearch(sourceKey, name, query)
+
+    /** 删除保存搜索；未注入通道时返回 false。 */
+    suspend fun deleteSavedSearch(id: Long): Boolean =
+        search?.savedSearches?.delete(id) ?: false
 
     override suspend fun loadWorkDetail(sourceKey: String, workId: String): WorkDetail {
         val loaded = runService {
