@@ -794,7 +794,8 @@ private fun DetailInfoColumn(
                 CoverArtwork(
                     bitmap = artwork,
                     label = title,
-                    modifier = Modifier.size(DesignTokens.Sizes.DetailCoverWidth, DesignTokens.Sizes.DetailCoverHeight),
+                    modifier = Modifier.width(DesignTokens.Sizes.DetailCoverMaxWidthPhone)
+                        .height(DesignTokens.Sizes.DetailCoverHeightPhone),
                 )
                 Column(Modifier.weight(1f)) {
                     DetailHeading(title, detail.subtitle, sourceName, centered = false)

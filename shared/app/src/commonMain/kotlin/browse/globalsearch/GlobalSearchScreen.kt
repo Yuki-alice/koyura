@@ -189,7 +189,7 @@ private fun GlobalSearchGroupHeader(
             when (val state = group.state) {
                 GlobalSearchSourceState.Loading -> AppCircularProgress(
                     modifier = Modifier.size(DesignTokens.Spacing.Medium),
-                    strokeWidth = DesignTokens.Sizes.ProgressStroke,
+                    strokeWidth = DesignTokens.Sizes.ProgressBarStroke,
                 )
                 is GlobalSearchSourceState.Ready -> AppText(
                     text = stringResource(Res.string.global_search_result_count, state.works.size),

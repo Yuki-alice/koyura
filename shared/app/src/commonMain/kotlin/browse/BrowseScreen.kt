@@ -466,7 +466,7 @@ private fun ExtensionRow(
                     if (status is OperationStatus.Running) {
                         AppCircularProgress(
                             modifier = Modifier.size(DesignTokens.Sizes.BrowseIcon),
-                            strokeWidth = DesignTokens.Sizes.ProgressStroke,
+                            strokeWidth = DesignTokens.Sizes.ProgressBarStroke,
                         )
                     }
                     app.koyura.designsystem.IconPlaceholder(label = extension.name)

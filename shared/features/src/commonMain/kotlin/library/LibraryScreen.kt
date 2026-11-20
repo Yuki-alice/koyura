@@ -1112,7 +1112,7 @@ private fun LibraryListRow(
                 entry = entry,
                 session = session,
                 decodeCover = decodeCover,
-                modifier = Modifier.size(width = DesignTokens.Sizes.LibraryListCoverWidth, height = DesignTokens.Sizes.LibraryListCoverHeight),
+                modifier = Modifier.size(DesignTokens.Sizes.LibraryListCoverSize),
             )
             if (session.selection.contains(entry.key)) {
                 // 多选态：secondary 16–22% 行叠加（白皮书 02 §2.7 / 08 §8.2），亮暗按 surface 明度区分。
@@ -1122,7 +1122,7 @@ private fun LibraryListRow(
                     DesignTokens.Alpha.SelectedBackgroundLight
                 }
                 Box(
-                    modifier = Modifier.size(width = DesignTokens.Sizes.LibraryListCoverWidth, height = DesignTokens.Sizes.LibraryListCoverHeight)
+                    modifier = Modifier.size(DesignTokens.Sizes.LibraryListCoverSize)
                         .background(UiTheme.colorScheme.secondary.copy(alpha = selectedOverlay)),
                     contentAlignment = Alignment.Center,
                 ) {

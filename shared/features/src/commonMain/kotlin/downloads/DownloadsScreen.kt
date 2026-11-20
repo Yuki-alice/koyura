@@ -241,8 +241,8 @@ private fun DownloadRow(
                 ) {
                     AppCircularProgress(
                         progress = { progress },
-                        modifier = Modifier.size(DesignTokens.Sizes.DownloadProgress),
-                        strokeWidth = DesignTokens.Sizes.DownloadProgress / 8,
+                        modifier = Modifier.size(DesignTokens.Sizes.DownloadIndicator),
+                        strokeWidth = DesignTokens.Sizes.DownloadProgressStroke,
                         color = progressColor,
                     )
                     AppText(

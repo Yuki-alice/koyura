@@ -90,6 +90,8 @@ object DesignTokens {
     // 设置高亮 3s 见 BasePreferenceWidget.kt:91-96 高亮循环；封面交叉淡入 300ms 见 02 §2.8。
     object Motion {
         const val TabFadeThroughMs = 200
+        // 页面 push/pop 的 shared-axis-X，白皮书 05 §5.1 #2「~300ms（M3 内置）」。
+        const val PageSharedAxisMs = 300
         const val ReaderBarsSlideMs = 200
         const val ReaderBarsFadeMs = 150
         const val SheetMs = 350
@@ -134,9 +136,17 @@ object DesignTokens {
         val HistoryItemHeight = 96.dp
         val HistoryCoverWidth = 63.dp
         val HistoryCoverHeight = 94.dp
-        val UnreadDot = 6.dp
-        val DownloadProgress = 24.dp
-        val ProgressStroke = 2.dp
+        // 章节未读点 / 历史未完成点 — 白皮书 09 §9.1：MangaChapterListItem.kt:128、
+        // HistoryItem.kt:178 都是 height(8.dp)。
+        val UnreadDot = 8.dp
+        // 下载指示器直径 — ChapterDownloadIndicator.kt:271 `IndicatorSize = 26.dp`。
+        val DownloadIndicator = 26.dp
+        // 扇形进度的描边 = 直径/2 — ChapterDownloadIndicator.kt:158。
+        val DownloadProgressStroke = 13.dp
+        // 下载箭头 = 直径 − 7dp — ChapterDownloadIndicator.kt:281。
+        val DownloadArrow = 19.dp
+        // 线性进度条描边（M3 LinearProgressIndicator 口径），与扇形描边区分开。
+        val ProgressBarStroke = 2.dp
         val TopBarHeight = 64.dp
         val BrandLogo = 64.dp
         val BrandHeaderPadding = 56.dp
@@ -144,12 +154,14 @@ object DesignTokens {
         val SelectionMarker = 40.dp
         val SearchCoverWidth = 48.dp
         val SearchCoverHeight = 72.dp
-        val DetailCoverWidth = 96.dp
-        val DetailCoverHeight = 144.dp
-        val LibraryListCoverWidth = 56.dp
-        val LibraryListCoverHeight = 80.dp
+        // 详情封面宽度上限 — MangaInfoHeader.kt:622 `sizeIn(maxWidth = 100.dp)`，高度按 2:3 推导 150dp。
+        val DetailCoverMaxWidthPhone = 100.dp
+        val DetailCoverHeightPhone = 150.dp
+        // 列表封面：行高 56 − 2×8 = 40dp 的方形（CommonMangaItem.kt:469 `MangaCover.Square`）。
+        val LibraryListCoverSize = 40.dp
         val PanoramaCoverHeight = 160.dp
-        val ThemePreviewCard = 112.dp
+        // 主题预览卡 — AppThemePreferenceWidget.kt:95 `.width(114.dp)`；📐实测 228px ÷ 2 = 114dp。
+        val ThemePreviewCard = 114.dp
         val ThemePreviewSwatch = 40.dp
         val CatalogInputMinHeight = 120.dp
         val ModeCardWidth = 104.dp
@@ -173,5 +185,7 @@ object DesignTokens {
         val ReaderSliderRadius = 24.dp
         val ReaderSliderThumb = 16.dp
         val BottomActionMenuRadius = 16.dp
+        // 手机底部弹层下滑关闭阈值 — AdaptiveSheet.kt `swipeThreshold = 56.dp`（白皮书 06 §6.13）。
+        val SheetDismissThreshold = 56.dp
     }
 }
