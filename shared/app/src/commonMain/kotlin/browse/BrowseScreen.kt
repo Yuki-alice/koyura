@@ -142,7 +142,7 @@ fun BrowseScreen(
             },
         )
 
-        PrimaryTabRow(selectedTabIndex = if (state.pane == BrowsePane.Sources) 0 else 1) {
+        PrimaryTabRow(selectedTabIndex = state.pane.ordinal) {
             Tab(
                 selected = state.pane == BrowsePane.Sources,
                 onClick = { session.selectPane(BrowsePane.Sources) },
@@ -150,10 +150,22 @@ fun BrowseScreen(
                 modifier = Modifier.testTag(BrowseSourcesTabTag),
             )
             Tab(
+                selected = state.pane == BrowsePane.Feed,
+                onClick = { session.selectPane(BrowsePane.Feed) },
+                text = { Text("Feed") },
+                modifier = Modifier.testTag(BrowseFeedPaneTag + "-tab"),
+            )
+            Tab(
                 selected = state.pane == BrowsePane.Extensions,
                 onClick = { session.selectPane(BrowsePane.Extensions) },
                 text = { Text(stringResource(Res.string.browse_tab_extensions)) },
                 modifier = Modifier.testTag(BrowseExtensionsTabTag),
+            )
+            Tab(
+                selected = state.pane == BrowsePane.Migrate,
+                onClick = { session.selectPane(BrowsePane.Migrate) },
+                text = { Text("Migrate") },
+                modifier = Modifier.testTag(BrowseMigratePaneTag + "-tab"),
             )
         }
 
@@ -174,6 +186,7 @@ fun BrowseScreen(
                     },
                     onTogglePin = session::toggleSourcePinned,
                 )
+                BrowsePane.Feed -> FeedPanePlaceholder()
                 BrowsePane.Extensions -> ExtensionsPane(
                     session = session,
                     state = state,
@@ -182,6 +195,7 @@ fun BrowseScreen(
                     onManageStores = onManageStores,
                     scope = scope,
                 )
+                BrowsePane.Migrate -> MigratePanePlaceholder()
             }
         }
     }
