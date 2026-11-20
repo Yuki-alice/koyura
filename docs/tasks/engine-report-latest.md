@@ -1,96 +1,52 @@
-# 引擎轨交付报告 · 第三轮
+# 引擎轨交付报告 · 第四轮
 
-## 本轮改动
+## 改动清单
 
-| 文件 | 改动 |
+| 模块和文件 | 交付 |
 | --- | --- |
-| `shared/domain/.../extension/SourceAccount.kt`、`ExtensionService.kt`、`SourceAccountService.kt` | 暴露账号声明、登录态和动态信息，保留固定双字段登录，新增按声明提交与重登。 |
-| `VeneraBootstrap.kt`、`VeneraSourceRuntime.kt`、`SourceSessions.kt` | 投影账号声明与回调结果，在既有凭据存储中按顺序保存成功表单的值。 |
-| `SourceRequestPolicy.kt`、`VeneraKtorTransport.kt`、`SourceSessions.kt`、`ExtensionService.kt`、`ComicReadingService.kt` | 按源与会话缓存脚本 GET，串行化显式标记的同请求，图片继续走阅读和离线链路。 |
-| `LibraryUpdates.kt`、`LibraryUpdateScanner.kt`、`LibraryUpdates.sq`、`9.sqm`、`ExtensionSession.kt`、`LibraryStore.kt` | 增加智能更新偏好、跳过原因和作品元数据。旧库幂等补表，取消收藏时清理元数据。 |
-| `gradle/libs.versions.toml`、`shared/data/build.gradle.kts` | 复用仓库既有的 kotlinx-datetime 0.7.1，按设备时区计算发布窗口。 |
-| `VeneraUiHost.kt`、`UtilityBootstrap.kt`、`VeneraBootstrap.kt`、`VeneraSourceRuntime.kt` | 脚本等待请求或定时时，在同一求值上下文交付一次加载取消回调。 |
-| `SourceAccountServiceTest.kt`、`CommunitySourceJourneyTest.kt`、`SourceRequestPolicyTest.kt`、`LibraryUpdateSmartPolicyTest.kt`、`LibraryUpdateScannerTest.kt`、`CommunityHtmlCompatibilityTest.kt`、`ConvertCompatibilityTest.kt` | 覆盖账号契约、请求缓存隔离、智能更新、原始脚本和转换向量。 |
+| `SourceSearch.kt`、`SourceBrowseService.kt`、`SourceSearchOptionsParser.kt`、`SavedSearchStore.kt`、`SourceSearch.sq`、`10.sqm` | 暴露源搜索选项和当前值，按源持久化选择，保存搜索支持增删改查及按原快照复放。 |
+| `ChapterDownloads.kt`、`ChapterDownloadStore.kt`、`DownloadJobs.sq`、`DownloadTriggers.kt` | 作品级批量入队、可选排除已读、一次查询整作状态，保存自动下载和向后下载偏好。 |
+| `LibraryUpdates.kt`、`LibraryUpdateScanner.kt` | 新章事务提交后调用可选下载钩子。钩子失败单独记录，章节检测结果保留。 |
+| `LibraryUpdateSchedule.kt`、`LibraryUpdateScheduler.kt`、`LibraryUpdateScanner.kt`、`ExtensionSession.kt` | common 调度、间隔及最后结果落库，启动和回前台补跑到期检查，发布窗口变更重算下次时间。关闭会话时停止调度。 |
+| `ComputeHost.kt`、`HtmlBootstrap.kt`、`CommunitySourceJourneyTest.kt`、`shared/data/build.gradle.kts` | 兼容 ComicWalker 返回函数的计算脚本和 MangaDex 使用的 `innerHtml` 拼写，四条原始社区源走保存搜索、读图、下载、重开夹具及可选公网。 |
 
-## 账号映射
+### 搜索协议和复放
 
-| 引擎查询和字段 | 视觉轨契约 |
-| --- | --- |
-| `ExtensionService.sourceAccountConfig(key) == null` | `AccountState.NotConfigured`。 |
-| `SourceLoginState.LOGGED_OUT` 且存在账号声明 | `AccountState.LoggedOut`。 |
-| `SourceAccountConfig.fields` 中的 `label`、`type` | 按原顺序映射为 `AccountFieldConfig`，三种类型直接对应 `TEXT`、`PASSWORD`、`COOKIES`。 |
-| `SourceAccountConfig.registerWebsite` | `LoggedOut.registerUrl`，仅允许无内嵌凭据的 HTTP(S) URL。 |
-| `SourceAccountConfig.declaresWebLogin && service.accounts.supportsWebLogin` | `LoggedOut.webLoginSupported`。 |
-| `SourceLoginState.FORM` / `WEB` | `AccountState.LoggedIn` 的 `formLogin` 分别为 `true` / `false`。重登行仅在 `FORM` 时显示。 |
-| `SourceAccountConfig.infoItems` 的 `title / hasValue`，以及 `sourceAccountInfo(key)` 的 `title / value` | 声明给出顺序及有无动态值。已登录时以当次查询结果映射为 `AccountInfoItem`，无值时保留标题与 `null`。 |
+固定版 Venera 将声明放在 `search.optionList`，每项用 `{label, type, options, default}`，选项从第一个连字符切分值和标签。无选项传空数组。普通项传裸字符串，下拉允许 `null`，多选传 JSON 数组字符串。单选缺省用首项，多选缺省为空数组。固定版 Dart 内部会编码显式默认值，JavaScript 边界以文档和原版脚本调用为准。页码从 1 起，游标初值为 `null`，两种回调并存时页码优先。 [Venera 搜索协议](https://github.com/CyrilPeng/Venera-Next/blob/c0c45979d453c2a8740c45f08e95997c90717629/doc/api/comic_source.zh.md#3-搜索探索与分类) · [Venera 搜索解析器](https://github.com/CyrilPeng/Venera-Next/blob/c0c45979d453c2a8740c45f08e95997c90717629/lib/features/comic_source/source_search_parser.dart)
 
-固定版 Venera 解析器把 `account.login(user, password)` 渲染为用户名、密码，并从 `loginWithCookies.fields` 读取有序字段。本轮在保留该回退的基础上，接受 `login.fields` 或 `account.loginFields` 中的 `{label, type}` 声明。优先使用 `account.login`，Cookie 形态经 `validate(values)` 提交整个数组。动态信息按 `account.infoItems[].data` 取值，支持 getter、同步函数和 Promise，表单成功按照上游标记规则保存字符串数组。网页、Cookie 和旧版引擎留下的 `"ok"` 都映射为不可重放的登录态。 [Venera 账号解析](https://github.com/CyrilPeng/Venera-Next/blob/c0c45979d453c2a8740c45f08e95997c90717629/lib/features/comic_source/source_account_parser.dart) · [Venera 账号界面](https://github.com/CyrilPeng/Venera-Next/blob/c0c45979d453c2a8740c45f08e95997c90717629/lib/features/comic_source/comic_source_page.dart#L905)
+当前选项按源和声明一起存储，声明发生变化时回退到新默认值。保存搜索沿用 Komikku 的独立记录和名称，由 `sourceKey`、查询和有序选项快照组成。复放保存项使用原值，独立于后来更改的当前选项。脚本升级后如果改变旧参数含义，可编辑保存项重新保存。 [Komikku 保存搜索表](https://github.com/komikku-app/komikku/blob/290267dd4c99f5b46812240fb0e4bc6b3ee8c562/data/src/main/sqldelight/tachiyomi/data/saved_search.sq)
 
-桥接提交调用 `service.accounts.loginForm(key, values)`，固定双字段调用可继续用 `login(key, user, password)`。重登调用 `reLogin(key)`，凭据只在平台凭据库和源会话内部使用。登录操作完成后重新读取状态与信息行。网页登录继续调用 `captureWebLogin(key)` 与 `PendingWebLogin.complete()`。
+### 批量下载和调度
 
-## 请求缓存与防并发
-
-- 逻辑请求入口位于 `VeneraKtorTransport.exchange`，Ktor 发送和接收拦截器继续负责重定向及 Cookie。缓存只接收有源归属、无请求体和 Range 的成功 GET，区分文本与字节。键用 SHA-256 概括源键、方法、完整 URL、请求头、有效 Cookie 和会话版本。源数据、设置或 Cookie 变动后使用新版本，登录、注销和替换也会隔离旧响应。等待中的请求沿用排队前租约。
-- 默认有效期 5 秒，`cache-time: long` 最长 6 小时，服务端 `max-age` 可缩短有效期。`cache-time: no` 跳过并移除同键旧响应。拒绝缓存带 `Set-Cookie`、`Vary: *`、禁缓存指令、重定向后交换或错误状态的结果。单条正文上限 1 MiB，文本按最坏字节数计费，缓存全局最多 10 MiB 和 256 条。到期直接走 GET。此轮采用短期内存缓存，Venera 的到期 HEAD 比对属于未移植范围。 [Venera 缓存拦截器](https://github.com/CyrilPeng/Venera-Next/blob/c0c45979d453c2a8740c45f08e95997c90717629/lib/network/cache.dart#L114)
-- `prevent-parallel: true` 按源、方法和完整 URL 排队。等待者取得执行权后重新查缓存，失效或不可缓存时各自发请求，错误和取消释放队列。未设置的请求独立运行。控制头由宿主消费。 [Venera 请求排队](https://github.com/CyrilPeng/Venera-Next/blob/c0c45979d453c2a8740c45f08e95997c90717629/lib/network/app_dio.dart#L178)
-
-## 智能更新
-
-`session.updates.preferences()/setPreferences()` 使用现有 `library_prefs` 持久化开关。默认跳过只取一次且已有目录、已完结、未读积压、已有目录但从未读完一章以及超出当天发布窗口的作品。读章数为零时可单独关闭未读积压过滤，保留未开始规则。空目录仍会扫描。跳过项随 `UpdateScan.skipped` 返回原因，保留原有检查时间和失败记录。显式 `retryFailures()` 强制重试失败项。 [Komikku 默认偏好](https://github.com/komikku-app/komikku/blob/290267dd4c99f5b46812240fb0e4bc6b3ee8c562/domain/src/main/java/tachiyomi/domain/library/service/LibraryPreferences.kt#L64) · [Komikku 扫描规则](https://github.com/komikku-app/komikku/blob/290267dd4c99f5b46812240fb0e4bc6b3ee8c562/app/src/main/java/eu/kanade/tachiyomi/data/library/LibraryUpdateJob.kt#L306)
-
-任务书另要求标题匹配。固定版 Komikku 的更新任务没有标题文本排除列表，`excludedTitleTerms` 因此默认空白，配置后按书架标题做忽略大小写的包含匹配。`enabled = false` 跳过全部过滤条件。扫描从明确 `status` 或 `Status / 状态 / 狀態` 分组记住完结状态，`setTitleMetadata` 可接入已知的完结、只取一次与下次发布时间。Venera 目录缺少可靠的逐章发布日期，发布窗口规则仅用已知的 `nextUpdateMillis`，没有后台推断或调度。 [Komikku 发布窗口](https://github.com/komikku-app/komikku/blob/290267dd4c99f5b46812240fb0e4bc6b3ee8c562/domain/src/main/java/tachiyomi/domain/manga/interactor/FetchInterval.kt#L36)
-
-## 宿主 API 盘点
-
-静态核对固定提交的 38 个 JavaScript 文件，其中 34 个为社区源，另有模板、API 辅助和仓库维护脚本。实际使用面按源脚本中的调用统计，公网验证对象为漫画柜和 Komga。下表实现位置省略 `shared/source-runtime/src/commonMain/kotlin` 前缀。 [Venera JavaScript API](https://github.com/CyrilPeng/Venera-Next/blob/c0c45979d453c2a8740c45f08e95997c90717629/doc/api/js.zh.md) · [社区源固定提交](https://github.com/venera-app/venera-configs/tree/a04e05591f7832f7166d6660546613c114d6738a)
-
-| API | 实现与使用面 |
-| --- | --- |
-| `Network.get/delete/post/put/patch/sendRequest/fetchBytes` | `VeneraBootstrap.kt:73`、`VeneraKtorTransport.kt:78`、`SourceRequestPolicy.kt:47`。长缓存和防并发在部分社区源中确实声明，本轮实现。 |
-| `Cookie` 和 `Network.setCookies/getCookies/deleteCookies` | `VeneraBootstrap.kt:39,73`、`SourceSessionHttp.kt`、`SourceSessions.kt:91`。即时会话内可见，响应 Cookie 防抖保存。 |
-| `fetch` 的 `ok/status/statusText/headers/text/json/arrayBuffer` | `VeneraBootstrap.kt:106`。沿用上游有限封装，`statusText` 为空。 |
-| HTML 文档、元素、节点的查询、访问和释放 | `HtmlBootstrap.kt:15,23,40`、`HtmlHost.kt:25`。漫画柜、包子和漫小肆夹具覆盖。 |
-| 源数据、设置、注册表、翻译和 APP 三字段 | `VeneraBootstrap.kt:4,417`、`SessionHost.kt:16`、`VeneraSourceRuntime.kt:636`。漫画柜用 `APP.version` 选择章节格式。 |
-| `Convert.encodeUtf8/decodeUtf8/encodeGbk/decodeGbk/encodeBase64/decodeBase64/hexEncode` | `UtilityBootstrap.kt:64`、`ConvertHost.kt:22`。Komga 用 UTF-8、Base64 和返回值兼容分支构造认证头。其他源也使用 Base64 解码和十六进制编码。 |
-| `Convert.md5/sha1/sha256/sha512/hmac/hmacString` | `UtilityBootstrap.kt:75`、`ConvertHost.kt:61,69`。社区源用 MD5、SHA-256、SHA-512 及 `hmacString`。四种摘要和 HMAC 向量均实测。 |
-| AES ECB/CBC/CFB/OFB 双向转换与 RSA PKCS#1 解密 | `UtilityBootstrap.kt:81`、`ConvertHost.kt:42,77`、各平台 `ConvertPlatform.kt`。社区源有 ECB 和 CBC 解密。CFB 与无显式 IV 的 OFB 用固定向量，RSA 用测试专用 PKCS#8 密钥。 |
-| `setTimeout`、`setInterval` / `timer.cancel()` | `UtilityBootstrap.kt:110`、`VeneraBootstrap.kt:274,280,345`、`VeneraSourceRuntime.kt:554`。四个源使用一次性定时器，漫小肆用它实现域名探测超时。一次性回调随当前求值收尾，无浏览器 ID 或 clearTimeout，请求的延迟值夹在 0 到 24 小时内，并受现有求值时限约束。间隔立即首触发，可取消，每个运行时最多 128 个，卸载或替换释放。 |
-| `UI.showMessage/showDialog/launchUrl/showLoading/cancelLoading/showInputDialog/showSelectDialog` | `InteractionBootstrap.kt:73`、`VeneraUiHost.kt:92,138,167`。实源使用提示、对话框、外链、输入与加载框。原版漫小肆测试覆盖 HTTP 等待时取消、回调去重和晚到响应。列表选择的取消与索引边界由宿主负责。 |
-| `setClipboard/getClipboard`、`log/console` | `InteractionBootstrap.kt:54,65,71`、`VeneraUiHost.kt:50,167`。剪贴板在仓库 API 辅助文件声明，未发现源脚本直接调用。对话框、剪贴板和日志的引擎转发由 `SourceUiTest` 验证，应用宿主仍待接线。 |
-| 图片请求配置、重排、失败重取及 Image API | `VeneraSourceRuntime.kt:267,284`、`ScriptImageProcessor.kt:28,62`、`shared/data/.../reading/ComicReadingService.kt:262,297`。漫画柜和 Komga 固定夹具覆盖页序、字节与下载后恢复。 |
-| `createUuid/randomInt/randomDouble/compute`、业务对象和分页跳转 | `UtilityBootstrap.kt:93,99`、`ComputeHost.kt:19`、`VeneraBootstrap.kt:27,31,35`、`shared/data/.../extension/SourceBrowseService.kt`。计算引擎隔离源状态与交互。 |
-
-`http_client: dart:io` 与 Dio 专用 `extra` 继续登记为未移植。四个回归源均可使用 Ktor 默认引擎，固定仓库中仍有两份脚本显式声明 `http_client`，其中一处注释提到原客户端兼容性。它们的 Ktor 行为尚未在线核实。扫描未发现其他源传入 Dio 专用选项，保留 `extra` 参数供后续按真实用例映射。 [显式客户端标记](https://github.com/venera-app/venera-configs/blob/a04e05591f7832f7166d6660546613c114d6738a/ehentai.js#L1337) · [另一处标记](https://github.com/venera-app/venera-configs/blob/a04e05591f7832f7166d6660546613c114d6738a/picacg.js#L45)
+- `enqueueAll(sourceKey, workId, chapterIds, unreadOnly, limit)` 按输入顺序，在一个事务内过滤和入队。重复项复用原有 ID 和状态。需要重新下载失败项时调用原有 `retry`。空章号用于整作视为一章的源，统一映射到 `null`。`statusesForWork` 用一次查询返回已有作业的映射，缺少键表示该章没有作业。坏包在重开时收敛为 `FAILED`，随后不会计入已完成。
+- 自动下载新章和向后下载默认关闭。第三方源缺少 Komikku 的通用章节编号，已读过滤以本地同源同作章节 ID 为准。向后下载使用调用者传入的阅读顺序，过滤已读后取 N 条。阅读达到 25% 和当前及下一章已缓存等前端触发条件留给阅读器桥接。 [Komikku 下载偏好](https://github.com/komikku-app/komikku/blob/290267dd4c99f5b46812240fb0e4bc6b3ee8c562/domain/src/main/java/tachiyomi/domain/download/service/DownloadPreferences.kt) · [Komikku 向后下载触发](https://github.com/komikku-app/komikku/blob/290267dd4c99f5b46812240fb0e4bc6b3ee8c562/app/src/main/java/eu/kanade/tachiyomi/ui/reader/ReaderViewModel.kt#L699)
+- 调度值域按任务书采用关闭、6、12、24 小时。固定版 Komikku UI 有 12、24 和更长档位，其中 6 小时为任务书指定档。间隔和最近结果存在 `library_prefs`，`wifiOnly` 默认开启并持久化，网络准入待平台接线。下次时间取间隔到期与最早符合其他智能条件作品的发布日开始中较早者。前台检查和计时共用一个协程循环，补跑一次后重排。源检查或下载钩子的局部失败会进入结果，调度继续。 [Komikku 更新间隔与设置入口](https://github.com/komikku-app/komikku/blob/290267dd4c99f5b46812240fb0e4bc6b3ee8c562/app/src/main/java/eu/kanade/presentation/more/settings/screen/SettingsLibraryScreen.kt#L160)
 
 ## 验收
 
-从 `core-engine` 工作树执行，原始脚本按字节核对 SHA-256。
+在 `core-engine` 工作树执行，Gradle 使用 JDK 21。
 
 ```bash
 export JAVA_HOME="$HOME/devtools/jdk-21"
-venera_ref='/Users/kurisu/project x/reference/Venera-Next'
-community_dir=build/community-scripts
-mkdir -p "$community_dir"
-for script in baozi mxs manhuagui komga; do
-  curl -fsSL "https://raw.githubusercontent.com/venera-app/venera-configs/a04e05591f7832f7166d6660546613c114d6738a/$script.js" \
-    -o "$community_dir/$script.js"
+reference='/Users/kurisu/project x/reference/Venera-Next'
+fixtures=build/community-scripts
+mkdir -p "$fixtures"
+for src in baozi mxs manhuagui komga comic_walker manga_dex; do
+  curl -fsSL "https://raw.githubusercontent.com/venera-app/venera-configs/a04e05591f7832f7166d6660546613c114d6738a/$src.js" \
+    -o "$fixtures/$src.js"
 done
-args=(-PveneraReferenceDir="$venera_ref" -PveneraCommunityFixtureDir="$community_dir")
+args=(-PveneraReferenceDir="$reference" -PveneraCommunityFixtureDir="$fixtures")
 
-./gradlew --offline :shared:data:jvmTest --tests '*SourceAccountServiceTest*' "${args[@]}"
-./gradlew --offline :shared:source-runtime:jvmTest "${args[@]}"
-./gradlew --offline :shared:data:jvmTest --tests '*LibraryUpdate*Test' "${args[@]}"
-./gradlew --offline :shared:source-runtime:jvmTest \
-  --tests '*CommunityHtmlCompatibilityTest.unmodifiedMxsCancelsDomainCheckWhileNetworkIsPending*' \
-  --tests '*SourceUiTest*' --tests '*SourceUtilitiesTest*' "${args[@]}"
-./gradlew --offline :shared:source-runtime:jvmTest --tests '*ConvertCompatibilityTest*' "${args[@]}"
-
-./gradlew --offline :shared:data:jvmTest --tests '*CommunitySourceJourneyTest' \
-  -PveneraCommunityLive=true "${args[@]}"
+./gradlew --offline :shared:data:jvmTest --tests '*SavedSearchStoreTest*' "${args[@]}"
+./gradlew --offline :shared:data:jvmTest --tests '*ChapterDownloadStoreTest*' --tests '*LibraryUpdateScannerTest*' "${args[@]}"
+./gradlew --offline :shared:data:jvmTest --tests '*LibraryUpdateSchedulerTest*' --tests '*LibraryUpdateSmartPolicyTest*' "${args[@]}"
+./gradlew --offline :shared:data:jvmTest --tests '*CommunitySourceJourneyTest' "${args[@]}"
+./gradlew --offline :shared:data:jvmTest --tests '*CommunitySourceJourneyTest' -PveneraCommunityLive=true "${args[@]}"
+./gradlew --offline :apps:android:assembleDebug "${args[@]}"
 ./gradlew --offline --continue :apps:android:assembleDebug :apps:desktop:classes \
   :shared:app:linkDebugFrameworkIosSimulatorArm64 "${args[@]}"
-./gradlew --offline :shared:source-runtime:iosSimulatorArm64Test "${args[@]}"
-
+./gradlew --offline :shared:source-runtime:iosSimulatorArm64Test :shared:data:iosSimulatorArm64Test \
+  --tests '*LibraryUpdateSchedulerTest*' "${args[@]}"
 for pass in 1 2; do
   ./gradlew --offline \
     :shared:domain:jvmTest --rerun :shared:data:jvmTest --rerun \
@@ -99,42 +55,143 @@ for pass in 1 2; do
 done
 ```
 
-账号、请求策略、智能更新、漫小肆加载取消和 Convert 的定向回归均 EXIT 0。交付前五模块 JVM 连续两遍强制重跑，均 EXIT 0。
+保存搜索、批量下载、智能更新和四条社区源固定夹具定向回归均 EXIT 0。交付前五模块 JVM 连续两遍强制重跑，均 EXIT 0。
 
 | JVM 模块 | 第一遍通过 | 第二遍通过 |
 | --- | ---: | ---: |
-| `shared:domain` | 11 | 11 |
-| `shared:data` | 117 | 117 |
+| `shared:domain` | 13 | 13 |
+| `shared:data` | 125 | 125 |
 | `shared:source-runtime` | 64 | 64 |
-| `shared:features` | 80 | 80 |
-| `shared:app` | 276 | 276 |
-| 合计 | 548 | 548 |
+| `shared:features` | 101 | 101 |
+| `shared:app` | 325 | 325 |
+| 合计 | 628 | 628 |
 
-每遍仅跳过两个需显式启用的公网用例。Venera 原版回调链与四个社区源固定夹具均实际执行。Android APK、桌面 classes 与 iOS 模拟器 framework 均 EXIT 0。额外执行的 iOS 模拟器宿主测试通过 57 例，包含 Convert 全表向量。
+每轮仅跳过 4 个需显式启用的公网站点用例。Venera 原始脚本全回调链及六个社区脚本固定夹具均实际运行。Android APK、桌面 classes、iOS 模拟器 framework 最终组合构建 EXIT 0。首次组合构建时 Android 使用了上一版 domain 中间产物，单独重建 Android 后完整三端命令通过。iOS 模拟器另外通过 57 例宿主测试和 3 例调度测试。
 
-| 测试类 | 本轮覆盖 |
+| 测试类 | 断言 |
 | --- | --- |
-| `SourceAccountServiceTest` | 无账号、固定双字段、声明多字段、纯网页登录、混合配置、注册 URL、动态信息、Cookie 顺序、重登与注销。 |
-| `SourceRequestPolicyTest` | 源键、会话、请求头、查询参数、文本与字节隔离，默认与长 TTL，容量，禁缓存模式，串行等待、取消和注销竞态。 |
-| `LibraryUpdateSmartPolicyTest` | 待读与未开始、已读可拉取、空目录、完结、只取一次、发布窗口、标题匹配、偏好持久化、全关与显式重试。 |
-| `CommunityHtmlCompatibilityTest` | 原始漫小肆域名探测在 HTTP 返回前取消，重复点击只回调一次，迟到响应无成功提示。 |
-| `ConvertCompatibilityTest` | 在真实 QuickJS 内核对 UTF-8、GBK、Base64、hex、四种摘要和 HMAC、四种 AES 模式与 PKCS#8 RSA 解密。 |
-| `CommunitySourceJourneyTest` | 漫画柜与 Komga 固定夹具及可选公网回归，Komga 走新表单 API，断网重启检查登录态、页字节和进度。 |
+| `SavedSearchStoreTest` | 无选项源、三种选项形态、含连字符标签、默认值、错误输入，重启后读取与按保存项复放，页码优先和游标初值，CRUD 与跨源隔离。 |
+| `ChapterDownloadStoreTest` | 批量去重、已读过滤、章节缺省键、顺序与限量、整作状态读取、偏好重开、坏包状态和完成数。 |
+| `LibraryUpdateScannerTest` | 新章事务提交后触发钩子，失败源、旧章和重试路径继续回归。 |
+| `LibraryUpdateSchedulerTest` | 虚拟时钟触发、间隔变更、关闭、重启和多次前台唤醒只补跑一次、局部取消不结束调度、发布时间变化。 |
+| `CommunitySourceJourneyTest` | 每条脚本核对完整 SHA，走保存搜索和重启。ComicWalker 比对计算后的字节，MangaDex 模拟网页登录并核对论坛 Cookie、正文、页码及失败重取。 |
 
-| 脚本 | SHA-256 | 结果 |
+| 原始脚本 | SHA-256 | 结果 |
 | --- | --- | --- |
-| [Venera-Next `minimal_source.js`](https://github.com/CyrilPeng/Venera-Next/blob/c0c45979d453c2a8740c45f08e95997c90717629/doc/examples/minimal_source.js) | `41ff3cdc08f188080d1d346aba7bbaf9b6d6e762942e792ec897e6408fe8459d` | 搜索、详情、章节、正文与缩略图回调及标签跳转通过。data 层验证 Referer、页序、字节、重启续读。 |
-| [包子漫画](https://github.com/venera-app/venera-configs/blob/a04e05591f7832f7166d6660546613c114d6738a/baozi.js) | `6ccb52e7734e54c6dfcfcb9729adb46409f1e5c9d83bbda54313b066013e4255` | 搜索、详情和章节 HTML 夹具通过。 |
-| [漫小肆](https://github.com/venera-app/venera-configs/blob/a04e05591f7832f7166d6660546613c114d6738a/mxs.js) | `da2c222eda825b77eb3b67ac09ec33b70bc2512cd5fc867fbe9b958df55037f8` | 搜索、详情和章节 HTML 夹具，以及加载取消夹具通过。 |
-| [漫画柜](https://github.com/venera-app/venera-configs/blob/a04e05591f7832f7166d6660546613c114d6738a/manhuagui.js) | `a5bf6c633e0ce728361dded097424b829134d618128f72b571e42525e8950128` | 固定 HTML 夹具通过。公网走完搜索、详情、目录、WebP 取图、23 页下载和断网重启续读。 |
-| [Komga](https://github.com/venera-app/venera-configs/blob/a04e05591f7832f7166d6660546613c114d6738a/komga.js) | `2aa5b4e7d4b32bf282f86168b22af091d7436f4e3ad603defb7b6df738a36908` | 固定 API 夹具通过。公网官方演示账号走完登录、探索、搜索、详情、目录、取图、35 页下载和断网重启续读。 |
+| [Venera 最小示例](https://github.com/CyrilPeng/Venera-Next/blob/c0c45979d453c2a8740c45f08e95997c90717629/doc/examples/minimal_source.js) | `41ff3cdc08f188080d1d346aba7bbaf9b6d6e762942e792ec897e6408fe8459d` | 搜索、详情、章节、正文/缩略图及标签回调。data 回归继续校验 Referer、页序、字节及重开。 |
+| [包子漫画](https://github.com/venera-app/venera-configs/blob/a04e05591f7832f7166d6660546613c114d6738a/baozi.js) | `6ccb52e7734e54c6dfcfcb9729adb46409f1e5c9d83bbda54313b066013e4255` | 搜索、详情、章节固定 HTML 夹具。 |
+| [漫小肆](https://github.com/venera-app/venera-configs/blob/a04e05591f7832f7166d6660546613c114d6738a/mxs.js) | `da2c222eda825b77eb3b67ac09ec33b70bc2512cd5fc867fbe9b958df55037f8` | 搜索、详情、章节及设置加载取消夹具。 |
+| [漫画柜](https://github.com/venera-app/venera-configs/blob/a04e05591f7832f7166d6660546613c114d6738a/manhuagui.js) | `a5bf6c633e0ce728361dded097424b829134d618128f72b571e42525e8950128` | 固定夹具通过。公网通过安装、保存搜索、详情、WebP、23 页下载和断网重启续读。 |
+| [Komga](https://github.com/venera-app/venera-configs/blob/a04e05591f7832f7166d6660546613c114d6738a/komga.js) | `2aa5b4e7d4b32bf282f86168b22af091d7436f4e3ad603defb7b6df738a36908` | 固定夹具通过。官方演示公网通过原版表单、探索、保存搜索、取图、35 页下载和断网重启续读。 |
+| [ComicWalker](https://github.com/venera-app/venera-configs/blob/a04e05591f7832f7166d6660546613c114d6738a/comic_walker.js) | `d039289f0aacda36990f090f93779bf54116e4d0e20c626c7ac29c73ec1e3513` | 固定夹具通过令牌转发、计算回调、字节比对、2 页落盘和离线恢复。公网安装完成，搜索解析遇到以 `<` 开头的响应，未到章节。 |
+| [MangaDex](https://github.com/venera-app/venera-configs/blob/a04e05591f7832f7166d6660546613c114d6738a/manga_dex.js) | `c8beb84262da8fa3922ff0392fc2f79f03ee36ae08933d10571172ef6c8ce21d` | 固定夹具通过安全评级选项、网页登录交接、评论正文、图片失败重取、2 页下载和离线恢复。公网安装完成，搜索返回 HTTP 200 `text/html`，JSON 解析中断，未到论坛和章节。 |
 
-两次公网组合运行均为 4 例通过，EXIT 0。第二次 Komga 使用新表单入口，并在离线重开时断言 `FORM` 登录态。两次均完成漫画柜 23 页与 Komga 35 页下载并恢复原阅读进度。本轮两次通过的组合运行未遇下载超时。 [Komga 官方演示](https://komga.org/docs/introduction/#demo)
+公网组合运行共 8 例，6 例通过、2 例遇到上述公网阻断，命令 EXIT 1。带现有宿主 User-Agent 的独立请求复核了 MangaDex 的 302 挑战重定向和最终 HTML。ComicWalker 原版回调未保留 HTTP 状态，记录为响应内容不符。两条阻断源的固定夹具完整通过。 [Komga 官方演示](https://komga.org/docs/introduction/#demo)
 
-## 主 agent 桥接与实机
+## 主 agent 桥接
 
-- 在 `shared/app/src/commonMain/kotlin/ExtensionApp.kt` 的生产装配中将账号查询、提交、重登与注销桥接给视觉轨浏览源详情页。装配按上表计算 `AccountState`，通过 `SourceAccountService` 复用已注册的 Android 和 iOS 登录适配器。桌面端网页登录继续搁置。
-- `shared/app/src/commonMain/kotlin/updates/ProductionUpdatesRepository.kt` 已桥接真实扫描。目前刷新会用本次扫描结果替换列表。桥接时应在检查或重试后重读 `session.updates.feed()`，让被跳过标题的历史新章继续显示，再将 `UpdateScan.skipped` 映射到刷新反馈，并在应用偏好入口接入 `session.updates.setPreferences()`。已知发布窗口和只取一次数据通过 `setTitleMetadata()` 接入。
-- `PlatformExtensionApp.android.kt`、`PlatformExtensionApp.ios.kt` 和 `PlatformExtensionApp.jvm.kt` 可通过现有 `openExtensionSession(sourceUi = …)` 注入前台对话框、加载提示和系统剪贴板。交付范围为引擎宿主与回调生命周期。
-- Android / iOS 真实网页登录仍待实机。分别用表单、Cookie 和网页源验证字段顺序、可用性、注册链接、取消、重定向后的 Cookie/localStorage 交接和注销清理。表单先登录，再模拟过期，确认重登使用原顺序的值并刷新动态信息。用漫小肆触发域名检测后取消，确认提示只出现一次。原生 WebView 的真机结果与模拟器构建分开记录。
-- 下一轮优先实机完成上述路径。若出现明确的站点差异，再对照请求样本评估 Ktor 的可移植客户端或拦截器选项。
+- `shared/app/src/commonMain/kotlin/ExtensionApp.kt` 注入 `session.service.browse`。在 `browse/venera/VeneraBrowseService.kt` 用 `searchOptions`、`setSearchOptions`、`savedSearches`、`saveSearch`、`search` 和 `searchSaved` 接源详情搜索和次页。当前生产桥仍直接向脚本传空选项。
+- 作品详情和阅读器从 `session.downloads` 调 `enqueueAll` 和 `statusesForWork`。更新装配调用 `session.updates.setNewChaptersDownloadHook(session.downloadTriggers)`，向后下载由 `session.downloadTriggers.enqueueNext` 处理。用 `UpdateScan.downloadTriggerFailures` 显示下载入队异常。
+- `ExtensionApp.kt` 获取应用会话生命周期作用域后调用 `session.updateScheduler.start(scope)`，在平台前台恢复时调用 `onForeground()`，UI 观察 `state`。已有智能更新偏好继续走扫描器。间隔和仅 Wi-Fi 字段通过 `updateScheduler.setPreferences` 写入。WorkManager、iOS 系统后台唤醒和实际 Wi-Fi 约束由平台规划接入。
+
+## Android / iOS 网页登录验收清单
+
+本机查询时没有连接 Android 或 iOS 真机。双源生成命令已运行，索引字段和三个 JavaScript 片段已通过语法核验。以下构建与夹具检查可在模拟器走一遍，标为 **真机** 的项需在两个实体平台各完成一次。使用测试站点和授权测试账号。
+
+### 安装并启动
+
+```bash
+# Android，实体设备已开启 USB 调试并授权这台电脑。
+adb devices -l
+adb -s "$ANDROID_SERIAL" shell dumpsys webviewupdate
+adb -s "$ANDROID_SERIAL" install -r apps/android/build/outputs/apk/debug/android-debug.apk
+adb -s "$ANDROID_SERIAL" shell am start -n app.koyura/app.koyura.android.MainActivity
+
+# iOS 模拟器，先启动目标模拟器。
+KMP_JAVA_HOME="$JAVA_HOME" xcodebuild -project apps/ios/Reader.xcodeproj -scheme Reader \
+  -destination 'generic/platform=iOS Simulator' -configuration Debug \
+  -derivedDataPath build/web-login-ios-sim CODE_SIGNING_ALLOWED=NO build
+xcrun simctl install booted build/web-login-ios-sim/Build/Products/Debug-iphonesimulator/Reader.app
+xcrun simctl launch booted app.koyura
+
+# iOS 真机，先在 Xcode 选择已授权签名，并构建 Debug Reader.app。
+xcrun devicectl list devices
+xcrun devicectl device install app --device "$IOS_DEVICE" "$IOS_SIGNED_APP"
+xcrun devicectl device process launch --device "$IOS_DEVICE" app.koyura
+```
+
+Android 被测系统 WebView 需支持 `MULTI_PROFILE` 与 `GET_COOKIE_INFO`。记录 `dumpsys webviewupdate` 的当前提供者版本。iOS 签名安装路径以本机 Xcode 生成的 `Reader.app` 为准。
+
+### 生成双源夹具及检查步骤
+
+将生成目录放到同一受控 HTTPS 静态地址，使用专用测试域名。先验证 `index.json`、两个脚本和 HTML 均返回 200，再从「浏览 → 扩展仓库」添加索引并安装 A、B。站点只写两个测试标记。
+
+```bash
+export WEB_LOGIN_QA_BASE='https://qa.example.test/web-login'
+python3 - <<'PY'
+from pathlib import Path
+from urllib.parse import urlparse
+import json
+import os
+
+base = os.environ["WEB_LOGIN_QA_BASE"].rstrip("/")
+url = urlparse(base)
+assert url.scheme == "https" and url.hostname and not (url.username or url.password or url.query or url.fragment)
+out = Path("build/web-login-qa")
+out.mkdir(parents=True, exist_ok=True)
+index = []
+for tag in ("A", "B"):
+    key = f"web_login_probe_{tag.lower()}"
+    name = f"Web login probe {tag}"
+    file = f"{key}.js"
+    index.append({"key": key, "name": name, "version": "1.0.0", "fileName": file})
+    (out / file).write_text(f"""
+class WebLoginProbe extends ComicSource {{
+  name = {json.dumps(name)}; key = {json.dumps(key)}; version = "1.0.0"; minAppVersion = "1.0.0";
+  base = {json.dumps(base)};
+  probe = () => {{
+    const cookie = Network.getCookies(this.base + "/probe.html").find(c => c.name === "web_login_probe");
+    return "Cookie=" + (cookie?.value ?? "empty") + ", storage=" +
+      (this.loadData("_localStorage")?.web_login_probe ?? "empty");
+  }};
+  account = {{
+    loginWithWebview: {{
+      url: this.base + "/probe.html?run={tag}",
+      checkStatus: (url, title) => url === this.base + "/probe.html?run={tag}&done=1" && title === "Probe accepted"
+    }},
+    infoItems: [{{ title: "Captured state", data: this.probe }}],
+    logout: () => Network.deleteCookies(this.base)
+  }};
+  search = {{ load: () => ({{ comics: [new Comic({{id: "state", title: this.probe()}})], maxPage: 1 }}) }};
+}}
+""", encoding="utf-8")
+(out / "index.json").write_text(json.dumps(index), encoding="utf-8")
+(out / "probe.html").write_text("""<!doctype html><meta charset="utf-8"><title>Probe start</title>
+<p id="state"></p><button id="button">Finish test login</button>
+<script>
+const url = new URL(location.href);
+const tag = url.searchParams.get("run");
+if (url.searchParams.get("done") === "1") document.title = "Probe accepted";
+document.querySelector("#state").textContent =
+  document.cookie.includes("web_login_probe=") || localStorage.getItem("web_login_probe")
+    ? "Previous markers found" : "Fresh web session";
+document.querySelector("#button").onclick = () => {
+  if (tag !== "A" && tag !== "B") return;
+  document.cookie = "web_login_probe=" + tag + "; Path=/; Secure; SameSite=Lax";
+  localStorage.setItem("web_login_probe", tag);
+  url.searchParams.set("done", "1");
+  location.replace(url);
+};
+</script>""", encoding="utf-8")
+PY
+```
+
+| 步骤 | 操作与期望 |
+| --- | --- |
+| 打开和取消 | A 的源详情打开「账号 → 网页登录」。确认显示 `Fresh web session`，先用 Android 返回键或 iOS 取消按钮关闭，A 保持未登录。若源页提供搜索，搜索任意非空词时结果标题应为 `Cookie=empty, storage=empty`。 |
+| 成功交接 | 再打开 A，点击 `Finish test login`。在 URL 和标题变更后原生窗口自行关闭，A 显示 `Cookie=A, storage=A`，重开应用后仍可读。**真机** 重复一次并在网页显示期间切到后台后返回，确认会话仍可完成。 |
+| 源间隔离 | 打开同域名的 B，初始必须显示 `Fresh web session`。完成 B 后只显示 B 标记，回 A 仍只显示 A。**真机** 两端各重做，覆盖 Android 独立 profile 与 iOS 临时网站数据。 |
+| 注销清理 | 注销 A，回源搜索检查 A 的两个值为空，B 仍已登录。Android 用 `adb -s "$ANDROID_SERIAL" shell am force-stop app.koyura` 再启动，iOS 从应用切换器结束并启动。**真机** 重启后检查 A 未登录、B 仍在，A 再次打开网页为全新会话。 |
+| 实际站点 | **真机** 用具备网页登录的原始源和授权测试账号，按登录、取消、重定向、注销、重启的顺序检查。真实域名 Cookie、系统 WebView 或账户站点兼容性在这一步确认。只记录标记和状态，凭据与 Cookie 内容留在测试设备。 |
+
+下一轮优先完成三处应用装配和双平台真机验收。新源公网复测保留脚本固定版本，记录实际状态码与内容类型，再判断是否需要调整传输层。
