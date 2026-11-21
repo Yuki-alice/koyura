@@ -29,4 +29,9 @@
     <string name="updates_policy_excluded_hint">每行一个关键词；标题包含任一关键词即跳过</string>
     <string name="updates_policy_save">保存</string>
     <string name="updates_last_updated">本次会话已更新</string>
+    <string name="updates_filter_hint">按标题筛选</string>
+    <string name="updates_schedule_next">下次检查：%1$s</string>
+    <string name="updates_schedule_none">未安排定时检查</string>
+    <string name="updates_schedule_last">上次检查 %1$s</string>
+    <string name="updates_schedule_stats">%1$d 部作品 · 新增 %2$d · 失败 %3$d</string>
 </resources>

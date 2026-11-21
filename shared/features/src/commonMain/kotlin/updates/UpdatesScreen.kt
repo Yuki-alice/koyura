@@ -43,8 +43,14 @@ import app.koyura.designsystem.components.AppMenu
 import app.koyura.designsystem.components.AppMenuItem
 import app.koyura.designsystem.components.AppText
 import app.koyura.designsystem.components.AppTextButton
+import app.koyura.designsystem.SearchField
+import app.koyura.designsystem.components.ModalReaderSheet
 import app.koyura.designsystem.components.ReaderTopAppBar
 import app.koyura.designsystem.components.UiTheme
+import app.koyura.domain.updates.LibraryUpdateScheduleState
+import kotlinx.datetime.Instant
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import app.koyura.features.resources.Res
 import app.koyura.features.resources.updates_calendar
 import app.koyura.features.resources.updates_chapters
@@ -52,10 +58,15 @@ import app.koyura.features.resources.updates_empty
 import app.koyura.features.resources.updates_errors_empty
 import app.koyura.features.resources.updates_errors_title
 import app.koyura.features.resources.updates_filter
+import app.koyura.features.resources.updates_filter_hint
 import app.koyura.features.resources.updates_last_updated
 import app.koyura.features.resources.updates_load_failed
 import app.koyura.features.resources.updates_refresh
 import app.koyura.features.resources.updates_retry
+import app.koyura.features.resources.updates_schedule_last
+import app.koyura.features.resources.updates_schedule_next
+import app.koyura.features.resources.updates_schedule_none
+import app.koyura.features.resources.updates_schedule_stats
 import app.koyura.features.resources.updates_retry_failures
 import app.koyura.features.resources.updates_show_errors
 import app.koyura.features.resources.updates_show_updates
@@ -70,6 +81,10 @@ const val UpdatesEmptyTag = "updates-empty"
 const val UpdatesErrorTag = "updates-error"
 const val UpdatesRefreshTag = "updates-refresh"
 const val UpdatesOverflowTag = "updates-overflow"
+const val UpdatesFilterTag = "updates-filter"
+const val UpdatesFilterFieldTag = "updates-filter-field"
+const val UpdatesScheduleTag = "updates-schedule"
+const val UpdatesScheduleDialogTag = "updates-schedule-dialog"
 const val UpdatesErrorsListTag = "updates-errors-list"
 const val UpdatesRetryFailuresTag = "updates-retry-failures"
 const val UpdatesSmartSettingsTag = "updates-smart-settings"
@@ -86,13 +101,15 @@ fun updatesFailureTag(sourceKey: String, workId: String) = "updates-failure-$sou
  * （Code: UpdatesUiItem.kt，领导者行顶 8dp + 纵向 4dp + 横向 16dp，章节行以前导占位
  * Box 对齐）。空态复用 EmptyScreen 规范（白皮书 06 §6.8）。
  *
- * 数据侧只有 Fake 仓储：筛选与日历本期禁用（随真实更新引擎启用），刷新真实重读。
- * 章节点击打开作品详情（详情内可进章节），直达阅读器的章节级跳转待真实源后接。
+ * 数据侧走生产更新引擎：筛选按标题过滤快照，日历读后台调度状态，
+ * 刷新触发真实扫描。章节点击打开作品详情（详情内可进章节）。
  */
 @Composable
 fun UpdatesScreen(
     session: UpdatesSession,
     onOpenWork: (sourceKey: String, workId: String, title: String) -> Unit,
+    /** 后台调度快照（装配层提供；null 时日历键置灰）。 */
+    scheduleState: LibraryUpdateScheduleState? = null,
     modifier: Modifier = Modifier,
     coverLoader: CoverImageLoader? = LocalCoverImageLoader.current,
     coverDecoder: CoverDecoder? = LocalCoverDecoder.current,
@@ -102,6 +119,8 @@ fun UpdatesScreen(
     var showErrors by rememberSaveable { mutableStateOf(false) }
     var overflowOpen by remember { mutableStateOf(false) }
     var showPolicy by remember { mutableStateOf(false) }
+    var showFilter by rememberSaveable { mutableStateOf(false) }
+    var showSchedule by remember { mutableStateOf(false) }
 
     LaunchedEffect(showPolicy) {
         // 每次打开对话框都重读一次仓储，避免展示过期策略。
@@ -120,18 +139,18 @@ fun UpdatesScreen(
             ReaderTopAppBar(
                 title = { AppText(stringResource(Res.string.updates_title)) },
                 actions = {
-                    // 筛选与日历随真实更新引擎启用（本期 Fake 数据无可筛维度）。
                     ActionIconButton(
                         icon = ActionIcon.Filter,
                         label = stringResource(Res.string.updates_filter),
-                        onClick = {},
-                        enabled = false,
+                        onClick = { showFilter = !showFilter },
+                        modifier = Modifier.testTag(UpdatesFilterTag),
                     )
                     ActionIconButton(
                         icon = ActionIcon.Calendar,
                         label = stringResource(Res.string.updates_calendar),
-                        onClick = {},
-                        enabled = false,
+                        onClick = { showSchedule = true },
+                        enabled = scheduleState != null,
+                        modifier = Modifier.testTag(UpdatesScheduleTag),
                     )
                     ActionIconButton(
                         icon = ActionIcon.Sync,
@@ -179,6 +198,24 @@ fun UpdatesScreen(
                 },
             )
 
+            if (showFilter) {
+                SearchField(
+                    value = session.query,
+                    onValueChange = session::updateQuery,
+                    placeholder = stringResource(Res.string.updates_filter_hint),
+                    clearLabel = stringResource(Res.string.updates_filter),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(
+                            horizontal = DesignTokens.Spacing.Medium,
+                            vertical = DesignTokens.Spacing.Small,
+                        )
+                        .testTag(UpdatesFilterFieldTag),
+                )
+            }
+            if (showSchedule && scheduleState != null) {
+                UpdateScheduleDialog(state = scheduleState, onDismiss = { showSchedule = false })
+            }
             when (val state = session.loadState) {
                 UpdatesLoadState.Loading -> Box(
                     modifier = Modifier.fillMaxSize(),
@@ -219,7 +256,7 @@ fun UpdatesScreen(
                             failures = session.failures,
                             onRetryAll = { scope.launch { session.retryFailures() } },
                         )
-                    } else if (session.entries.isEmpty()) {
+                    } else if (session.visibleEntries.isEmpty()) {
                         UpdatesEmptyState()
                     } else {
                         LazyColumn(
@@ -242,7 +279,7 @@ fun UpdatesScreen(
                                         ),
                                 )
                             }
-                            items(session.entries, key = { "${it.sourceKey}-${it.workId}" }) { work ->
+                            items(session.visibleEntries, key = { "${it.sourceKey}-${it.workId}" }) { work ->
                                 UpdateLeaderRow(
                                     work = work,
                                     onOpen = { onOpenWork(work.sourceKey, work.workId, work.title) },
@@ -264,6 +301,73 @@ fun UpdatesScreen(
             UpdatePolicyDialog(session = policySession, onDismiss = { showPolicy = false })
         }
     }
+}
+
+/**
+ * 更新计划对话框：下次检查时间 + 上次检查结果（后台调度器的真实快照）。
+ *
+ * 未安排时只展示「未安排」；时间按设备时区格式化到分钟，不编造秒级精度。
+ */
+@Composable
+private fun UpdateScheduleDialog(
+    state: LibraryUpdateScheduleState,
+    onDismiss: () -> Unit,
+) {
+    ModalReaderSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(
+                    horizontal = DesignTokens.Spacing.Medium,
+                    vertical = DesignTokens.Spacing.Medium,
+                )
+                .testTag(UpdatesScheduleDialogTag),
+            verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small),
+        ) {
+            AppText(
+                text = stringResource(Res.string.updates_calendar),
+                style = UiTheme.typography.titleMedium,
+            )
+            val next = state.nextUpdateMillis
+            AppText(
+                text = if (next == null) {
+                    stringResource(Res.string.updates_schedule_none)
+                } else {
+                    stringResource(Res.string.updates_schedule_next, formatScheduleMillis(next))
+                },
+                style = UiTheme.typography.bodyMedium,
+                color = UiTheme.colorScheme.onSurfaceVariant,
+            )
+            val last = state.lastCheck
+            if (last != null) {
+                AppText(
+                    text = stringResource(Res.string.updates_schedule_last, formatScheduleMillis(last.checkedAtMillis)),
+                    style = UiTheme.typography.bodyMedium,
+                    color = UiTheme.colorScheme.onSurfaceVariant,
+                )
+                AppText(
+                    text = stringResource(
+                        Res.string.updates_schedule_stats,
+                        last.worksChecked,
+                        last.newChapters,
+                        last.failures,
+                    ),
+                    style = UiTheme.typography.bodySmall,
+                    color = UiTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+/** 调度毫秒 → 设备时区「yyyy-MM-dd HH:mm」（分钟精度，不编造秒）。 */
+internal fun formatScheduleMillis(millis: Long): String = try {
+    val dateTime = Instant.fromEpochMilliseconds(millis).toLocalDateTime(TimeZone.currentSystemDefault())
+    "%04d-%02d-%02d %02d:%02d".format(
+        dateTime.year, dateTime.monthNumber, dateTime.dayOfMonth, dateTime.hour, dateTime.minute,
+    )
+} catch (_: Exception) {
+    millis.toString()
 }
 
 /** 空态：displayMedium 颜文字（0.78）+ bodyMedium 文案（白皮书 06 §6.8）。 */

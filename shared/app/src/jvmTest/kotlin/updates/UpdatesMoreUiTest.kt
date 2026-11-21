@@ -3,9 +3,11 @@ package app.koyura.app.updates
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.v2.runComposeUiTest
 import app.koyura.app.AppScaffold
 import app.koyura.app.navigation.createAppNavigationState
@@ -18,7 +20,11 @@ import app.koyura.features.more.moreRowTag
 import app.koyura.features.more.moreSwitchTag
 import app.koyura.features.updates.FakeUpdatesRepository
 import app.koyura.features.updates.UpdatesEmptyTag
+import app.koyura.features.updates.UpdatesFilterFieldTag
+import app.koyura.features.updates.UpdatesFilterTag
 import app.koyura.features.updates.UpdatesListTag
+import app.koyura.features.updates.UpdatesScheduleDialogTag
+import app.koyura.features.updates.UpdatesScheduleTag
 import app.koyura.features.updates.UpdatesErrorsListTag
 import app.koyura.features.updates.UpdatesRetryFailuresTag
 import app.koyura.features.updates.UpdatesRootTestTag
@@ -159,5 +165,61 @@ class UpdatesMoreUiTest {
         onNodeWithTag(UpdatesRetryFailuresTag).performClick()
         waitForIdle()
         onAllNodesWithTag(updatesFailureTag("demo-source", "midnight-ramen")).assertCountEquals(0)
+    }
+
+    @Test
+    fun filterNarrowsListByTitle() = runComposeUiTest {
+        val session = UpdatesSession(FakeUpdatesRepository(FakeUpdatesRepository.sampleEntries()))
+        setContent {
+            ReaderTheme {
+                UpdatesScreen(session = session, onOpenWork = { _, _, _ -> })
+            }
+        }
+        waitForIdle()
+
+        onNodeWithTag(UpdatesFilterTag).performClick()
+        onNodeWithTag(UpdatesFilterFieldTag).assertIsDisplayed()
+        onNodeWithTag(UpdatesFilterFieldTag).performTextInput("hoshi")
+        waitForIdle()
+        onNodeWithTag(updatesWorkTag("demo-source", "hoshi-no-utahime")).assertIsDisplayed()
+        onNodeWithTag(updatesWorkTag("demo-source", "kaze-no-kioku")).assertDoesNotExist()
+    }
+
+    @Test
+    fun scheduleDialogShowsNextCheckFromRealState() = runComposeUiTest {
+        val session = UpdatesSession(FakeUpdatesRepository(FakeUpdatesRepository.sampleEntries()))
+        val schedule = app.koyura.domain.updates.LibraryUpdateScheduleState(
+            preferences = app.koyura.domain.updates.LibraryUpdateSchedulePreferences(
+                interval = app.koyura.domain.updates.LibraryUpdateInterval.HOURS_6,
+            ),
+            nextUpdateMillis = 1_800_000_000_000,
+        )
+        setContent {
+            ReaderTheme {
+                UpdatesScreen(
+                    session = session,
+                    onOpenWork = { _, _, _ -> },
+                    scheduleState = schedule,
+                )
+            }
+        }
+        waitForIdle()
+
+        onNodeWithTag(UpdatesScheduleTag).performClick()
+        waitForIdle()
+        onNodeWithTag(UpdatesScheduleDialogTag).assertIsDisplayed()
+    }
+
+    @Test
+    fun scheduleButtonDisabledWithoutState() = runComposeUiTest {
+        val session = UpdatesSession(FakeUpdatesRepository(FakeUpdatesRepository.sampleEntries()))
+        setContent {
+            ReaderTheme {
+                UpdatesScreen(session = session, onOpenWork = { _, _, _ -> })
+            }
+        }
+        waitForIdle()
+
+        onNodeWithTag(UpdatesScheduleTag).assertIsNotEnabled()
     }
 }

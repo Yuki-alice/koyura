@@ -26,6 +26,22 @@ class UpdatesSession(
     var failures: List<UpdateFailure> by mutableStateOf(emptyList())
         private set
 
+    /** 顶栏筛选框的标题 query（页内状态，不进返回栈）。 */
+    var query: String by mutableStateOf("")
+        private set
+
+    /** 标题筛选后的条目；query 为空时即全量。 */
+    val visibleEntries: List<UpdateWork>
+        get() {
+            val needle = query.trim()
+            if (needle.isEmpty()) return entries
+            return entries.filter { it.title.contains(needle, ignoreCase = true) }
+        }
+
+    fun updateQuery(value: String) {
+        query = value
+    }
+
     var actionError: String? by mutableStateOf(null)
         private set
 

@@ -39,6 +39,7 @@ kotlin {
             implementation(libs.compose.runtime)
             implementation(libs.compose.ui)
             implementation(libs.coroutines.core)
+            implementation(libs.kotlinx.datetime)
             implementation(libs.coil.compose)
             implementation(libs.zoomimage.compose)
         }

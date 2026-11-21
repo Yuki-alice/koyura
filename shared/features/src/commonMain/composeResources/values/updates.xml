@@ -29,4 +29,9 @@
     <string name="updates_policy_excluded_hint">One keyword per line; a work is skipped when its title contains any of them</string>
     <string name="updates_policy_save">Save</string>
     <string name="updates_last_updated">Last updated in this session</string>
+    <string name="updates_filter_hint">Filter by title</string>
+    <string name="updates_schedule_next">Next check: %1$s</string>
+    <string name="updates_schedule_none">Not scheduled</string>
+    <string name="updates_schedule_last">Last check %1$s</string>
+    <string name="updates_schedule_stats">%1$d works · %2$d new · %3$d failed</string>
 </resources>

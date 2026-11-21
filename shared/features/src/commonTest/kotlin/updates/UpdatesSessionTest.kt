@@ -83,4 +83,21 @@ class UpdatesSessionTest {
         session.refresh()
         assertTrue(session.failures.isEmpty())
     }
+
+    @Test
+    fun queryFiltersVisibleEntriesByTitle() = runTest {
+        val session = UpdatesSession(FakeUpdatesRepository(FakeUpdatesRepository.sampleEntries()))
+        session.refresh()
+        assertEquals(2, session.visibleEntries.size)
+        session.updateQuery("kaze")
+        assertEquals(listOf("Kaze no Kioku"), session.visibleEntries.map { it.title })
+        session.updateQuery("  HOSHI  ")
+        assertEquals(listOf("Hoshizora no Utahime"), session.visibleEntries.map { it.title })
+        session.updateQuery("zzz-no-match")
+        assertTrue(session.visibleEntries.isEmpty())
+        // unreadCount 仍按全量快照统计，不随筛选变。
+        assertEquals(3, session.unreadCount)
+        session.updateQuery("")
+        assertEquals(2, session.visibleEntries.size)
+    }
 }

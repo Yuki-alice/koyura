@@ -33,9 +33,11 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.movableContentOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import app.koyura.app.library.LocalProductionSettings
 import androidx.compose.runtime.saveable.SaveableStateHolder
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -377,6 +379,7 @@ private fun AppNavigationContent(
                             onOpenWork = { sourceKey, workId, title ->
                                 navigation.push(SourceDetailRoute(sourceKey, workId, title))
                             },
+                            scheduleState = LocalProductionSettings.current?.updateScheduleState?.collectAsState()?.value,
                         )
                     }
                 } else if (route.tab == NavTab.More) {
