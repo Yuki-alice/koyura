@@ -12,6 +12,7 @@ import app.koyura.designsystem.ReaderTheme
 import app.koyura.designsystem.navigation.NavTab
 import app.koyura.features.onboarding.OnboardingRootTag
 import app.koyura.source.runtime.VeneraEnvironment
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import okio.FileSystem
 import okio.Path
@@ -23,6 +24,21 @@ import kotlin.uuid.Uuid
  */
 class OnboardingAutoEnterTest {
     private data class Harness(val session: ExtensionSession, val settings: ProductionSettingsRepository)
+
+    /** SQLite 释放文件锁有延迟：关闭会话后重试删除临时目录。 */
+    private suspend fun deleteRecursively(root: Path) {
+        var last: Exception? = null
+        repeat(10) {
+            try {
+                FileSystem.SYSTEM.deleteRecursively(root)
+                return
+            } catch (failure: Exception) {
+                last = failure
+                delay(200)
+            }
+        }
+        throw last ?: IllegalStateException("Could not delete $root")
+    }
 
     private suspend fun openHarness(root: Path): Harness {
         val session = openExtensionSession(root, VeneraEnvironment("1.16.0", "en", "test"))
@@ -55,7 +71,7 @@ class OnboardingAutoEnterTest {
             onNodeWithTag(OnboardingRootTag).assertExists()
         } finally {
             runBlocking { harness.session.close() }
-            FileSystem.SYSTEM.deleteRecursively(root)
+            runBlocking { deleteRecursively(root) }
         }
     }
 
@@ -81,7 +97,7 @@ class OnboardingAutoEnterTest {
             onNodeWithTag(OnboardingRootTag).assertDoesNotExist()
         } finally {
             runBlocking { harness.session.close() }
-            FileSystem.SYSTEM.deleteRecursively(root)
+            runBlocking { deleteRecursively(root) }
         }
     }
 }
