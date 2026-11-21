@@ -20,7 +20,7 @@ internal actual fun PlatformExtensionApp() {
     }
     val environment = extensionEnvironment(platform)
     val uiHost = remember { SourceUiHost(JvmClipboard(), JvmUrlOpener()) }
-    ExtensionApp(uiHost) { host ->
+    ExtensionApp(uiHost, enableOnboardingAutoEnter = true) { host ->
         val home = System.getProperty("user.home").toPath()
         val dataDir = when (platform) {
             "macos" -> home / "Library" / "Application Support" / "Reader"

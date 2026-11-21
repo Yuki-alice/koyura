@@ -21,6 +21,7 @@ internal actual fun PlatformExtensionApp() {
         networkChanges = IosUpdateNetwork.changes,
         scheduleBackgroundUpdate = IosLibraryBackgroundTasks::schedule,
         requestUpdateNotifications = IosLibraryUpdateNotifier::requestPermission,
+        enableOnboardingAutoEnter = true,
     ) { host ->
         openExtensionSession(
             environment = environment, webLoginBrowser = browser, sourceUi = host,

@@ -84,6 +84,8 @@ fun App(
     accountRepository: AccountRepository? = null,
     searchSourceFilter: (suspend () -> Set<String>)? = null,
     sourceUiHost: SourceUiHost? = null,
+    /** 首启自动进入引导：生产装配（ExtensionApp）置 true，测试/预览保持默认 false。 */
+    enableOnboardingAutoEnter: Boolean = false,
 ) {
     ReaderTheme {
         AppAppearance {
@@ -100,7 +102,7 @@ fun App(
                 LocalSourceUiHost provides sourceUiHost,
             ) {
                 AppSurface(modifier = Modifier.fillMaxSize()) {
-                    AppShell()
+                    AppShell(enableOnboardingAutoEnter = enableOnboardingAutoEnter)
                     val host = sourceUiHost
                     if (host != null) {
                         SourceUiOverlay(host = host)
@@ -115,6 +117,7 @@ fun App(
 internal fun AppShell(
     onTabReselect: (NavTab) -> Unit = {},
     tabletMode: TabletUiMode = TabletUiMode.AUTOMATIC,
+    enableOnboardingAutoEnter: Boolean = false,
 ) {
     val navigation = rememberAppNavigationState(onTabReselect)
     val duration = (LocalReaderService.current as? VeneraReaderService)?.duration
@@ -137,6 +140,7 @@ internal fun AppShell(
             AppScaffold(
                 navigation = navigation,
                 useRail = usesNavigationRailForWindow(maxWidth, maxHeight, tabletMode),
+                enableOnboardingAutoEnter = enableOnboardingAutoEnter,
             )
         }
     }

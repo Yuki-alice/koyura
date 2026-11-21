@@ -26,6 +26,7 @@ internal actual fun PlatformExtensionApp() {
         uiHost = uiHost,
         networkChanges = network.changes,
         requestUpdateNotifications = { requestLibraryUpdateNotifications(context) },
+        enableOnboardingAutoEnter = true,
     ) { host ->
         application.openExtensionSession(
             environment, browser, sourceUi = host, isOnline = network::isOnline,

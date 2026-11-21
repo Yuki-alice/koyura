@@ -85,6 +85,8 @@ internal fun ExtensionApp(
     networkChanges: Flow<Unit> = emptyFlow(),
     scheduleBackgroundUpdate: suspend (LibraryUpdateScheduleState) -> Unit = {},
     requestUpdateNotifications: () -> Unit = {},
+    /** 首启自动进入引导：真实平台入口置 true；直挂的测试/预览保持默认 false。 */
+    enableOnboardingAutoEnter: Boolean = false,
     openSession: suspend (SourceUiHost) -> ExtensionSession,
 ) {
     var openedSession by remember { mutableStateOf<ExtensionSession?>(null) }
@@ -173,23 +175,24 @@ internal fun ExtensionApp(
                 sources = sources,
             )
         }
-        val reader = remember(session) {
-            VeneraReaderService(
-                reading = session.comicReading,
-                history = session.history,
-                library = session.library,
-                downloadTriggers = session.downloadTriggers,
-            )
-        }
-        val history = remember(session) { VeneraHistoryService(session.history, session.library) }
-        val downloads = remember(session) { ProductionDownloadQueueRepository(session.downloadQueue) }
-        val statistics = remember(session) { ProductionStatisticsRepository(session.statistics) }
         val settings = remember(session) {
             ProductionSettingsRepository(
                 session.library, session.readerPreferences, session.downloadTriggers,
                 session.updateScheduler, requestUpdateNotifications,
             )
         }
+        val reader = remember(session) {
+            VeneraReaderService(
+                reading = session.comicReading,
+                history = session.history,
+                library = session.library,
+                downloadTriggers = session.downloadTriggers,
+                isIncognito = { settings.isIncognito() },
+            )
+        }
+        val history = remember(session) { VeneraHistoryService(session.history, session.library) }
+        val downloads = remember(session) { ProductionDownloadQueueRepository(session.downloadQueue) }
+        val statistics = remember(session) { ProductionStatisticsRepository(session.statistics) }
         CompositionLocalProvider(
             LocalProductionSources provides sources,
             LocalProductionSettings provides settings,
@@ -208,6 +211,7 @@ internal fun ExtensionApp(
                 accountRepository = accounts,
                 searchSourceFilter = { sources.discovery.searchSourceKeys() },
                 sourceUiHost = uiHost,
+                enableOnboardingAutoEnter = enableOnboardingAutoEnter,
             )
         }
     } else {

@@ -33,11 +33,14 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.movableContentOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import app.koyura.app.library.LocalProductionSettings
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.saveable.SaveableStateHolder
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -112,7 +115,9 @@ import app.koyura.designsystem.components.UiTheme
 import app.koyura.designsystem.navigation.NavTab
 import app.koyura.designsystem.navigation.ReaderNavigationBar
 import app.koyura.designsystem.navigation.ReaderNavigationRail
+import app.koyura.features.library.LibraryLoadState
 import app.koyura.features.library.LibrarySession
+import app.koyura.features.library.LibraryTriState
 import app.koyura.features.library.rememberLibrarySession
 import app.koyura.features.settings.SettingsScreen
 import app.koyura.features.settings.SettingsSubpage
@@ -143,6 +148,12 @@ internal fun AppScaffold(
     historySession: HistorySession? = null,
     moreSession: MoreSession? = null,
     indexing: Boolean = false,
+    /**
+     * 首启自动进入引导（生产入口显式打开）。
+     *
+     * 默认关闭：测试 / 预览挂载外壳时不打扰路由；`ExtensionApp` 把它置 true。
+     */
+    enableOnboardingAutoEnter: Boolean = false,
 ) {
     val activeBrowseSession = browseSession ?: rememberBrowseSession(browseService)
     val activeReaderSession = readerSession ?: rememberReaderSession(readerService)
@@ -150,10 +161,55 @@ internal fun AppScaffold(
     val activeUpdatesSession = rememberUpdatesSession()
     val statisticsSession = rememberStatisticsSession()
     val activeMoreSession = moreSession ?: rememberMoreSession()
+    val productionSettings = LocalProductionSettings.current
     val indexingState = rememberUpdatedState(indexing)
     val activeDownloadsSession = rememberDownloadsSession()
     val settingsSession = LocalAppSettingsSession.current ?: rememberSettingsSession()
     val librarySession = rememberLibrarySession()
+
+    // 更多开关的持久化与生效：开关本身只改页内态，这里落盘并同步到真实行为。
+    LaunchedEffect(productionSettings) {
+        val settings = productionSettings ?: return@LaunchedEffect
+        try {
+            if (settings.isIncognito()) activeMoreSession.updateIncognito(true)
+            if (settings.isDownloadedOnly()) activeMoreSession.updateDownloadedOnly(true)
+        } catch (_: Exception) {
+        }
+    }
+    LaunchedEffect(activeMoreSession.downloadedOnly, librarySession.loadState) {
+        val settings = productionSettings
+        try {
+            settings?.setDownloadedOnly(activeMoreSession.downloadedOnly)
+        } catch (_: Exception) {
+        }
+        // 只在书架已加载且开关与筛选不一致时回写：启动未加载前不碰已持久化的偏好，
+        // 筛选弹层的手动修改也不被开关覆盖（开关是快捷入口，不是唯一真相源）。
+        val target = if (activeMoreSession.downloadedOnly) {
+            LibraryTriState.INCLUDE
+        } else {
+            LibraryTriState.DISABLED
+        }
+        if (librarySession.loadState is LibraryLoadState.Ready &&
+            librarySession.snapshot.prefs.filters.downloaded != target
+        ) {
+            librarySession.setDownloadedOnlyFilter(activeMoreSession.downloadedOnly)
+        }
+    }
+    LaunchedEffect(activeMoreSession.incognito) {
+        try {
+            productionSettings?.setIncognito(activeMoreSession.incognito)
+        } catch (_: Exception) {
+        }
+    }
+    // 首启自动进入引导：生产入口显式打开时，标记缺失推一次。
+    LaunchedEffect(productionSettings, enableOnboardingAutoEnter) {
+        val settings = productionSettings ?: return@LaunchedEffect
+        if (!enableOnboardingAutoEnter) return@LaunchedEffect
+        try {
+            if (!settings.isOnboardingCompleted()) navigation.push(OnboardingRoute)
+        } catch (_: Exception) {
+        }
+    }
 
     BackToLibraryHandler(navigation, librarySession, activeHistorySession)
 
@@ -445,9 +501,20 @@ private fun AppNavigationContent(
                 )
             }
             entry<OnboardingRoute> {
+                val onboardingScope = rememberCoroutineScope()
+                val onboardingSettings = LocalProductionSettings.current
+                val completeOnboarding = {
+                    onboardingScope.launch {
+                        try {
+                            onboardingSettings?.setOnboardingCompleted()
+                        } catch (_: Exception) {
+                        }
+                    }
+                    navigation.popCurrentChild()
+                }
                 OnboardingScreen(
-                    onComplete = { navigation.popCurrentChild() },
-                    onSkip = { navigation.popCurrentChild() },
+                    onComplete = { completeOnboarding() },
+                    onSkip = { completeOnboarding() },
                 )
             }
             entry<SettingsRoute> {
