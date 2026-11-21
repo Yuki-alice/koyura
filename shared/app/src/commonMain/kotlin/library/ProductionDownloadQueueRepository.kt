@@ -3,6 +3,7 @@ package app.koyura.app.library
 import androidx.compose.runtime.staticCompositionLocalOf
 import app.koyura.data.downloads.ChapterDownloadStore
 import app.koyura.domain.downloads.DownloadChapter
+import app.koyura.domain.downloads.DownloadJob
 import app.koyura.domain.downloads.DownloadStatus
 import app.koyura.features.downloads.DownloadQueueRepository
 import app.koyura.features.downloads.DownloadTask
@@ -36,8 +37,15 @@ class ProductionDownloadQueueRepository(private val store: ChapterDownloadStore)
     override suspend fun cancel(id: String) = store.cancel(id)
     override suspend fun clear() = store.clearQueue()
 
-    suspend fun enqueue(sourceKey: String, workId: String, chapterId: String?) =
+    override suspend fun enqueue(sourceKey: String, workId: String, chapterId: String?): DownloadJob =
         store.enqueue(DownloadChapter(sourceKey, workId, chapterId))
+
+    override suspend fun enqueueChapters(sourceKey: String, workId: String, chapterIds: List<String?>) {
+        store.enqueueAll(sourceKey, workId, chapterIds)
+    }
+
+    override suspend fun downloadJobs(sourceKey: String, workId: String): Map<String?, DownloadJob> =
+        store.statusesForWork(sourceKey, workId)
 
     suspend fun statusesForWork(sourceKey: String, workId: String) = store.statusesForWork(sourceKey, workId)
 }
