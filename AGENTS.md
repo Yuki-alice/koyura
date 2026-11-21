@@ -23,17 +23,25 @@ Kotlin Multiplatform + Compose Multiplatform 漫画阅读器。当前优先理�
 - **未选型勿引入**：Voyager、Decompose、Room、Retrofit、Paging 3、Firebase/Sentry 系；mvikotlin `keepers` 模块已废弃，禁用。
 - 当前 DI 正由手动构造器注入 + `CompositionLocal`（装配在 `ExtensionApp`/`AppScaffold`）向 Koin 迁移。页面状态正由 session/state holder + 不可变 `UiState` 向 ViewModel / MVIKotlin Store 迁移。
 
-## 工艺技能路由（入口在 ~/.zcode/skills/，嵌套经路由按需读）
+## 架构重构任务
 
-| 任务 | 入口 |
+- 先读[目标架构](docs/application-architecture-mvvm-clean-udf.md)和[阶段索引](docs/architecture-refactor/README.md)，选择本次任务对应的阶段文档。对照生产入口、Gradle 配置与现有测试确认进度。按一条行为链路推进，已完成的实现和测试直接复用。
+- `app` 负责导航和装配，`domain` 定义业务规则与契约，`data` 负责查询、持久化与事务，展示层按目标文档使用 MVVM + UDF 或 MVI。跨页面操作通过导航回调或领域契约，UI 保留现有视觉、入口和操作语义。
+- 阶段 2 依次收口阅读器接口、解除封面解码依赖、验证退出保存，再拆出 `:shared:reader`。通用 UI 优先复用现有设计系统。 [阶段 2 细则](docs/architecture-refactor/reader-downloads-updates.md)
+
+## 工作区技能路由
+
+项目技能存放在 `.agents/skills/<name>/SKILL.md`。支持该目录发现的 agent 使用对应技能名称。其他 agent 直接读取下表链接。先用与当前改动最贴近的一个技能，涉及独立的组件、数据、构建或源边界时再补对应技能。任务只改一条链路时，只加载与之有关的入口及引用。架构、依赖版本和验收以项目文档为准。
+
+| 当前改动 | 首选技能 |
 | --- | --- |
-| Compose UI / 状态 / 组件 / 性能 | `compose-expert`、`chrisbanes-skills`、`compose-performance-skills` |
-| KMP 功能实现 / 测试 / 数据层 | `kotlin-kmp-claude-agent-skills`、`kmp-expert` |
-| Gradle / AGP 9 工具链 | `kotlin-agent-skills` |
-| WebView / Cookie / JS 桥安全 | `security-audit` |
-| 发版前双轴评审 | `code-review` |
-
-用户级 `dart-*` / `flutter-*` skills 与本 Kotlin 工作区无关，不要调用。
+| 分层、导航与 Koin 装配、Session 迁移、MVVM 或 MVI 状态所有权 | [kmp-architecture-refactor](.agents/skills/kmp-architecture-refactor/SKILL.md) |
+| Compose 页面、通用组件、主题、宽窄布局、手势与 UI 副作用 | [compose-ui-boundaries](.agents/skills/compose-ui-boundaries/SKILL.md) |
+| 领域契约、SQLDelight 仓储与事务、持久偏好、下载或更新任务 | [kmp-data-boundaries](.agents/skills/kmp-data-boundaries/SKILL.md) |
+| Gradle、AGP 9、拆模块、资源和 source set、三端构建 | [kmp-gradle-modules](.agents/skills/kmp-gradle-modules/SKILL.md) |
+| Venera 源协议、JS 宿主、WebView、Cookie、会话与图片路径 | [source-compatibility](.agents/skills/source-compatibility/SKILL.md) |
+| 选择和移动回归测试、定位测试失败、交付前核对覆盖 | [kmp-refactor-verification](.agents/skills/kmp-refactor-verification/SKILL.md) |
+| 审阅方案或 diff，核对需求、工程规范与兼容风险 | [kmp-architecture-review](.agents/skills/kmp-architecture-review/SKILL.md) |
 
 ## 权威文档
 
@@ -41,3 +49,5 @@ Kotlin Multiplatform + Compose Multiplatform 漫画阅读器。当前优先理�
 - `docs/architecture.md` — 目录、包名与依赖方向
 - `docs/technology-stack.md` — 版本基线、选型与升级排期
 - `docs/verification.md` — 验收基线：测试门、三端构建与视觉核对口径
+- `docs/application-architecture-mvvm-clean-udf.md` — 重构目标、目录树、依赖与状态模型
+- `docs/architecture-refactor/README.md` — 四阶段实施规划与工作区技能来源
