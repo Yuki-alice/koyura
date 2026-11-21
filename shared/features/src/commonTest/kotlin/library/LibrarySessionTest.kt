@@ -394,6 +394,16 @@ class LibrarySessionTest {
     }
 
     @Test
+    fun setDownloadedOnlyFilterWritesPrefs() = runTest {
+        val (session, _) = sessionOf()
+        session.refresh()
+        assertTrue(session.setDownloadedOnlyFilter(true))
+        assertEquals(LibraryTriState.INCLUDE, session.snapshot.prefs.filters.downloaded)
+        assertTrue(session.setDownloadedOnlyFilter(false))
+        assertEquals(LibraryTriState.DISABLED, session.snapshot.prefs.filters.downloaded)
+    }
+
+    @Test
     fun chapterlessEntryHasNullChapterId() = runTest {
         val (session, _) = sessionOf()
         session.refresh()

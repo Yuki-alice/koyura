@@ -69,8 +69,41 @@ class ProductionSettingsRepository(
     }
     fun onForeground() = schedule.onForeground()
 
+    /**
+     * 更多页开关与引导标记：纯字符串偏好（"1"/缺失），随书架库持久化。
+     *
+     * 隐身模式由阅读器在每次落位时读取；下载仅看是书架筛选的快捷入口，
+     * 由装配层同步进书架偏好；引导标记只写一次。
+     */
+    suspend fun isIncognito(): Boolean = withContext(Dispatchers.IO) {
+        library.getPref(MORE_INCOGNITO) == "1"
+    }
+
+    suspend fun setIncognito(value: Boolean) = withContext(Dispatchers.IO) {
+        if (value) library.setPref(MORE_INCOGNITO, "1") else library.deletePref(MORE_INCOGNITO)
+    }
+
+    suspend fun isDownloadedOnly(): Boolean = withContext(Dispatchers.IO) {
+        library.getPref(MORE_DOWNLOADED_ONLY) == "1"
+    }
+
+    suspend fun setDownloadedOnly(value: Boolean) = withContext(Dispatchers.IO) {
+        if (value) library.setPref(MORE_DOWNLOADED_ONLY, "1") else library.deletePref(MORE_DOWNLOADED_ONLY)
+    }
+
+    suspend fun isOnboardingCompleted(): Boolean = withContext(Dispatchers.IO) {
+        library.getPref(ONBOARDING_COMPLETED) == "1"
+    }
+
+    suspend fun setOnboardingCompleted() = withContext(Dispatchers.IO) {
+        library.setPref(ONBOARDING_COMPLETED, "1")
+    }
+
     private companion object {
         const val APPEARANCE = "appearance.preferences"
+        const val MORE_INCOGNITO = "more.incognito"
+        const val MORE_DOWNLOADED_ONLY = "more.downloaded_only"
+        const val ONBOARDING_COMPLETED = "onboarding.completed"
         val json = Json { ignoreUnknownKeys = true }
     }
 }

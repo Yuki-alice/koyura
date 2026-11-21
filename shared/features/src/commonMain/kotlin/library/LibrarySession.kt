@@ -330,6 +330,32 @@ class LibrarySession(
         mutateSelected { repo, keys -> repo.markAsRead(keys, read) }
 
     /**
+     * 更多页「仅看已下载」开关：直写书架筛选偏好（与筛选弹层的下载行同一字段）。
+     *
+     * 开 = 只看已下载，关 = 回到不过滤（会覆盖弹层里手设的排除态，与上游同语义）。
+     */
+    suspend fun setDownloadedOnlyFilter(enabled: Boolean): Boolean {
+        val current = repository ?: return fail("Library is not connected")
+        return try {
+            snapshot = current.savePrefs(
+                snapshot.prefs.copy(
+                    filters = snapshot.prefs.filters.copy(
+                        downloaded = if (enabled) LibraryTriState.INCLUDE else LibraryTriState.DISABLED,
+                    ),
+                ),
+            )
+            normalizeAfterSnapshotChange()
+            actionError = null
+            true
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            fail(failure.userMessage())
+            false
+        }
+    }
+
+    /**
      * 底部批量：下载所选（只收未读章节）。
      *
      * 无下载仓储（测试/预览）返回 false 由调用方置灰；所选无可下章节记

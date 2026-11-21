@@ -57,6 +57,46 @@ class ProductionSettingsRepositoryTest {
         }
     }
 
+    @Test
+    fun moreSwitchesAndOnboardingFlagPersistAcrossReopen() = runTest {
+        val root = FileSystem.SYSTEM_TEMPORARY_DIRECTORY / "settings-flags-${Uuid.random()}"
+        val environment = VeneraEnvironment("1.16.0", "en", "test")
+        try {
+            val session = openExtensionSession(root, environment)
+            try {
+                val settings = session.settings()
+                assertEquals(false, settings.isIncognito())
+                assertEquals(false, settings.isDownloadedOnly())
+                assertEquals(false, settings.isOnboardingCompleted())
+                settings.setIncognito(true)
+                settings.setDownloadedOnly(true)
+                settings.setOnboardingCompleted()
+                assertEquals(true, settings.isIncognito())
+                assertEquals(true, settings.isDownloadedOnly())
+                assertEquals(true, settings.isOnboardingCompleted())
+                settings.setIncognito(false)
+                settings.setDownloadedOnly(false)
+                assertEquals(false, settings.isIncognito())
+                assertEquals(false, settings.isDownloadedOnly())
+                // 引导标记只写一次：关闭后仍保持完成态。
+                assertEquals(true, settings.isOnboardingCompleted())
+            } finally {
+                session.close()
+            }
+            val reopened = openExtensionSession(root, environment)
+            try {
+                val settings = reopened.settings()
+                assertEquals(false, settings.isIncognito())
+                assertEquals(false, settings.isDownloadedOnly())
+                assertEquals(true, settings.isOnboardingCompleted())
+            } finally {
+                reopened.close()
+            }
+        } finally {
+            FileSystem.SYSTEM.deleteRecursively(root)
+        }
+    }
+
     private fun ExtensionSession.settings() =
         ProductionSettingsRepository(library, readerPreferences, downloadTriggers, updateScheduler)
 }

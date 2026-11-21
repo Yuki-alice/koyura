@@ -20,12 +20,14 @@ internal class VeneraReaderService(
     private val history: HistoryStore? = null,
     private val library: app.koyura.data.library.LibraryStore? = null,
     private val downloadTriggers: DownloadTriggers? = null,
+    /** 隐身模式门：为 true 时只落位（阅读进度照常），不写历史行与阅读时长。 */
+    private val isIncognito: suspend () -> Boolean = { false },
 ) : ReaderService, ReadingDurationRecorder {
     private val displayedChapter = MutableStateFlow<Pair<DownloadChapter, Int>?>(null)
     internal val duration = ReadingDurationTracker(this)
 
     override suspend fun recordReadingDuration(sourceKey: String, workId: String, chapterId: String?, elapsedMillis: Long) {
-        history?.addReadDuration(sourceKey, workId, chapterId, elapsedMillis)
+        if (!isIncognito()) history?.addReadDuration(sourceKey, workId, chapterId, elapsedMillis)
     }
 
     override suspend fun readProgress(sourceKey: String, workId: String): ReaderProgress? =
@@ -70,8 +72,9 @@ internal class VeneraReaderService(
         isLastPage: Boolean,
     ): Unit = withContext(Dispatchers.IO) {
         val historyStore = history
-        if (historyStore == null) {
-            // No history store: keep the position-only writer for old callers.
+        if (historyStore == null || isIncognito()) {
+            // No history store (or incognito mode): keep the position-only writer so
+            // continue-reading still works, but no history row or metadata is recorded.
             reading.saveProgress(sourceKey, workId, chapterId, pageKey, pageIndex)
         } else {
             // HistoryStore commits progress, metadata and history visibility together.
