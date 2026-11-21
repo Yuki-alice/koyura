@@ -16,8 +16,9 @@ import app.koyura.features.updates.UpdatePolicyConfirmTag
 import app.koyura.features.updates.UpdatePolicySession
 import app.koyura.features.updates.UpdatesOverflowTag
 import app.koyura.features.updates.UpdatesScreen
-import app.koyura.features.updates.UpdatesSession
 import app.koyura.features.updates.UpdatesSmartSettingsTag
+import app.koyura.features.updates.UpdatesStoreFactory
+import app.koyura.features.updates.UpdatesStoreHolder
 import app.koyura.features.updates.updatePolicySwitchTag
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -34,7 +35,7 @@ class UpdatePolicyUiTest {
         setContent {
             ReaderTheme {
                 UpdatesScreen(
-                    session = UpdatesSession(FakeUpdatesRepository()),
+                    holder = UpdatesStoreHolder(UpdatesStoreFactory().create(FakeUpdatesRepository())),
                     onOpenWork = { _, _, _ -> },
                     policySession = policySession,
                 )
@@ -69,7 +70,7 @@ class UpdatePolicyUiTest {
         setContent {
             ReaderTheme {
                 UpdatesScreen(
-                    session = UpdatesSession(FakeUpdatesRepository()),
+                    holder = UpdatesStoreHolder(UpdatesStoreFactory().create(FakeUpdatesRepository())),
                     onOpenWork = { _, _, _ -> },
                     policySession = policySession,
                 )

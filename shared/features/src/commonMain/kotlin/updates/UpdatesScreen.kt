@@ -17,10 +17,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -72,7 +72,6 @@ import app.koyura.features.resources.updates_show_errors
 import app.koyura.features.resources.updates_show_updates
 import app.koyura.features.resources.updates_smart_settings
 import app.koyura.features.resources.updates_title
-import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 
 const val UpdatesRootTestTag = "updates-root"
@@ -106,7 +105,7 @@ fun updatesFailureTag(sourceKey: String, workId: String) = "updates-failure-$sou
  */
 @Composable
 fun UpdatesScreen(
-    session: UpdatesSession,
+    holder: UpdatesStoreHolder,
     onOpenWork: (sourceKey: String, workId: String, title: String) -> Unit,
     /** 后台调度快照（装配层提供；null 时日历键置灰）。 */
     scheduleState: LibraryUpdateScheduleState? = null,
@@ -115,7 +114,7 @@ fun UpdatesScreen(
     coverDecoder: CoverDecoder? = LocalCoverDecoder.current,
     policySession: UpdatePolicySession = rememberUpdatePolicySession(),
 ) {
-    val scope = rememberCoroutineScope()
+    val uiState by holder.uiState.collectAsState()
     var showErrors by rememberSaveable { mutableStateOf(false) }
     var overflowOpen by remember { mutableStateOf(false) }
     var showPolicy by remember { mutableStateOf(false) }
@@ -128,7 +127,7 @@ fun UpdatesScreen(
     }
 
     LaunchedEffect(Unit) {
-        session.refresh()
+        holder.store.accept(UpdatesIntent.Refresh)
     }
 
     CompositionLocalProvider(
@@ -155,7 +154,7 @@ fun UpdatesScreen(
                     ActionIconButton(
                         icon = ActionIcon.Sync,
                         label = stringResource(Res.string.updates_refresh),
-                        onClick = { scope.launch { session.checkNow() } },
+                        onClick = { holder.store.accept(UpdatesIntent.CheckNow) },
                         modifier = Modifier.testTag(UpdatesRefreshTag),
                     )
                     ActionIconButton(
@@ -176,7 +175,7 @@ fun UpdatesScreen(
                                     } else {
                                         stringResource(
                                             Res.string.updates_show_errors,
-                                        ) + " (${session.failures.size})"
+                                        ) + " (${uiState.failures.size})"
                                     },
                                 )
                             },
@@ -200,8 +199,8 @@ fun UpdatesScreen(
 
             if (showFilter) {
                 SearchField(
-                    value = session.query,
-                    onValueChange = session::updateQuery,
+                    value = uiState.query,
+                    onValueChange = { holder.store.accept(UpdatesIntent.UpdateQuery(it)) },
                     placeholder = stringResource(Res.string.updates_filter_hint),
                     clearLabel = stringResource(Res.string.updates_filter),
                     modifier = Modifier
@@ -216,7 +215,7 @@ fun UpdatesScreen(
             if (showSchedule && scheduleState != null) {
                 UpdateScheduleDialog(state = scheduleState, onDismiss = { showSchedule = false })
             }
-            when (val state = session.loadState) {
+            when (val state = uiState.loadState) {
                 UpdatesLoadState.Loading -> Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center,
@@ -233,12 +232,12 @@ fun UpdatesScreen(
                         text = stringResource(Res.string.updates_load_failed, state.message),
                         color = UiTheme.colorScheme.error,
                     )
-                    AppTextButton(onClick = { scope.launch { session.checkNow() } }) {
+                    AppTextButton(onClick = { holder.store.accept(UpdatesIntent.CheckNow) }) {
                         AppText(stringResource(Res.string.updates_retry))
                     }
                 }
                 UpdatesLoadState.Ready -> {
-                    session.actionError?.let { message ->
+                    uiState.actionError?.let { message ->
                         AppText(
                             text = message,
                             color = UiTheme.colorScheme.error,
@@ -253,10 +252,10 @@ fun UpdatesScreen(
                     }
                     if (showErrors) {
                         UpdateFailuresView(
-                            failures = session.failures,
-                            onRetryAll = { scope.launch { session.retryFailures() } },
+                            failures = uiState.failures,
+                            onRetryAll = { holder.store.accept(UpdatesIntent.RetryFailures) },
                         )
-                    } else if (session.visibleEntries.isEmpty()) {
+                    } else if (uiState.visibleEntries.isEmpty()) {
                         UpdatesEmptyState()
                     } else {
                         LazyColumn(
@@ -279,7 +278,7 @@ fun UpdatesScreen(
                                         ),
                                 )
                             }
-                            items(session.visibleEntries, key = { "${it.sourceKey}-${it.workId}" }) { work ->
+                            items(uiState.visibleEntries, key = { "${it.sourceKey}-${it.workId}" }) { work ->
                                 UpdateLeaderRow(
                                     work = work,
                                     onOpen = { onOpenWork(work.sourceKey, work.workId, work.title) },
@@ -485,7 +484,7 @@ private fun UpdateChapterRow(
     }
 }
 
-/** 更新错误视图：失败作品与错误信息 + 全部重试（调 `session.retryFailures`）。 */
+/** 更新错误视图：失败作品与错误信息 + 全部重试。 */
 @Composable
 private fun UpdateFailuresView(
     failures: List<UpdateFailure>,

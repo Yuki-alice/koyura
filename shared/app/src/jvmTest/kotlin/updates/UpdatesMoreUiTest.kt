@@ -30,7 +30,8 @@ import app.koyura.features.updates.UpdatesRetryFailuresTag
 import app.koyura.features.updates.UpdatesRootTestTag
 import app.koyura.features.updates.updatesFailureTag
 import app.koyura.features.updates.UpdatesScreen
-import app.koyura.features.updates.UpdatesSession
+import app.koyura.features.updates.UpdatesStoreFactory
+import app.koyura.features.updates.UpdatesStoreHolder
 import app.koyura.features.updates.updatesChapterTag
 import app.koyura.features.updates.updatesWorkTag
 import kotlin.test.Test
@@ -44,10 +45,10 @@ import kotlin.test.assertTrue
 class UpdatesMoreUiTest {
     @Test
     fun updatesEmptyMatchesWhitepaperEmptyState() = runComposeUiTest {
-        val session = UpdatesSession(FakeUpdatesRepository())
+        val holder = UpdatesStoreHolder(UpdatesStoreFactory().create(FakeUpdatesRepository()))
         setContent {
             ReaderTheme {
-                UpdatesScreen(session = session, onOpenWork = { _, _, _ -> })
+                UpdatesScreen(holder = holder, onOpenWork = { _, _, _ -> })
             }
         }
         waitForIdle()
@@ -58,12 +59,12 @@ class UpdatesMoreUiTest {
 
     @Test
     fun updatesListGroupsLeaderAndChapterRows() = runComposeUiTest {
-        val session = UpdatesSession(FakeUpdatesRepository(FakeUpdatesRepository.sampleEntries()))
+        val holder = UpdatesStoreHolder(UpdatesStoreFactory().create(FakeUpdatesRepository(FakeUpdatesRepository.sampleEntries())))
         var opened = 0
         setContent {
             ReaderTheme {
                 UpdatesScreen(
-                    session = session,
+                    holder = holder,
                     onOpenWork = { _, _, _ -> opened++ },
                 )
             }
@@ -138,16 +139,18 @@ class UpdatesMoreUiTest {
 
     @Test
     fun updateErrorsViewShowsFailuresAndRetryClears() = runComposeUiTest {
-        val session = UpdatesSession(
-            FakeUpdatesRepository(
-                FakeUpdatesRepository.sampleEntries(),
-                failed = FakeUpdatesRepository.sampleFailures(),
+        val holder = UpdatesStoreHolder(
+            UpdatesStoreFactory().create(
+                FakeUpdatesRepository(
+                    FakeUpdatesRepository.sampleEntries(),
+                    failed = FakeUpdatesRepository.sampleFailures(),
+                ),
             ),
         )
         setContent {
             ReaderTheme {
                 UpdatesScreen(
-                    session = session,
+                    holder = holder,
                     onOpenWork = { _, _, _ -> },
                 )
             }
@@ -169,10 +172,10 @@ class UpdatesMoreUiTest {
 
     @Test
     fun filterNarrowsListByTitle() = runComposeUiTest {
-        val session = UpdatesSession(FakeUpdatesRepository(FakeUpdatesRepository.sampleEntries()))
+        val holder = UpdatesStoreHolder(UpdatesStoreFactory().create(FakeUpdatesRepository(FakeUpdatesRepository.sampleEntries())))
         setContent {
             ReaderTheme {
-                UpdatesScreen(session = session, onOpenWork = { _, _, _ -> })
+                UpdatesScreen(holder = holder, onOpenWork = { _, _, _ -> })
             }
         }
         waitForIdle()
@@ -187,7 +190,7 @@ class UpdatesMoreUiTest {
 
     @Test
     fun scheduleDialogShowsNextCheckFromRealState() = runComposeUiTest {
-        val session = UpdatesSession(FakeUpdatesRepository(FakeUpdatesRepository.sampleEntries()))
+        val holder = UpdatesStoreHolder(UpdatesStoreFactory().create(FakeUpdatesRepository(FakeUpdatesRepository.sampleEntries())))
         val schedule = app.koyura.domain.updates.LibraryUpdateScheduleState(
             preferences = app.koyura.domain.updates.LibraryUpdateSchedulePreferences(
                 interval = app.koyura.domain.updates.LibraryUpdateInterval.HOURS_6,
@@ -197,7 +200,7 @@ class UpdatesMoreUiTest {
         setContent {
             ReaderTheme {
                 UpdatesScreen(
-                    session = session,
+                    holder = holder,
                     onOpenWork = { _, _, _ -> },
                     scheduleState = schedule,
                 )
@@ -212,10 +215,10 @@ class UpdatesMoreUiTest {
 
     @Test
     fun scheduleButtonDisabledWithoutState() = runComposeUiTest {
-        val session = UpdatesSession(FakeUpdatesRepository(FakeUpdatesRepository.sampleEntries()))
+        val holder = UpdatesStoreHolder(UpdatesStoreFactory().create(FakeUpdatesRepository(FakeUpdatesRepository.sampleEntries())))
         setContent {
             ReaderTheme {
-                UpdatesScreen(session = session, onOpenWork = { _, _, _ -> })
+                UpdatesScreen(holder = holder, onOpenWork = { _, _, _ -> })
             }
         }
         waitForIdle()

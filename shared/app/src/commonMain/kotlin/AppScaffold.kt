@@ -36,6 +36,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.movableContentOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -72,7 +73,8 @@ import app.koyura.features.more.rememberMoreSession
 import app.koyura.features.statistics.StatisticsScreen
 import app.koyura.features.statistics.rememberStatisticsSession
 import app.koyura.features.updates.UpdatesScreen
-import app.koyura.features.updates.rememberUpdatesSession
+import app.koyura.features.updates.UpdatesStoreHolder
+import app.koyura.features.updates.rememberUpdatesStoreHolder
 import app.koyura.app.browse.ExtensionDetailsScreen
 import app.koyura.app.browse.globalsearch.GlobalSearchScreen
 import app.koyura.app.browse.globalsearch.GlobalSearchService
@@ -164,7 +166,6 @@ internal fun AppScaffold(
     val activeBrowseSession = browseSession ?: rememberBrowseSession(browseService)
     val activeReaderSession = readerSession ?: rememberReaderSession(readerService)
     val activeHistorySession = historySession ?: rememberHistorySession(historyService, browseService)
-    val activeUpdatesSession = rememberUpdatesSession()
     val statisticsSession = rememberStatisticsSession()
     val activeMoreSession = moreSession ?: rememberMoreSession()
     val productionSettings = LocalProductionSettings.current
@@ -174,9 +175,16 @@ internal fun AppScaffold(
 
     // 阶段 0：外壳自宿主隔离 Koin（单宿主无全局污染测试直挂 AppScaffold 即有 Koin；
     // 会话无关的模块聚合见 di.AppKoin，会话经 parameters 注入避免可空全局单例）。
-    // 注意内容区是 movableContentOf捕获 stable 对象才安全，koinApp 永不重建可直接捕获。
+    // 注意内容区是 movableContentOf（参数不变时跳过重组），Koin 宿主在外层祖先不怕跳过。
     val koinApp = remember { koinApplication { modules(appKoinModules()) } }
     DisposableEffect(koinApp) { onDispose { koinApp.close() } }
+
+    // 单宿主覆盖整个外壳：徽章读取与三层内容的 koinViewModel 都在此域下解析
+    // （koinViewModel 必须处于 Koin 宿主子树内，顶层直挂会回退全局而崩溃）。
+    KoinIsolatedContext(koinApp) {
+    // 更新 Store 持有者：徽章与更新页共用同一实例（随组合持有按宿主域化）。
+    val activeUpdatesHolder = rememberUpdatesStoreHolder()
+    val updatesUiState by activeUpdatesHolder.uiState.collectAsState()
 
     // G1：5 个 tab 的重复点击快捷入口（Komikku 各 Tab onReselect 对齐）。
     // Library 经 filterSignal 打开筛选 Sheet（页内状态，不进栈）；其余推已有路由键。
@@ -272,9 +280,7 @@ internal fun AppScaffold(
     val saveableStateHolder = rememberSaveableStateHolder()
     val appContent = remember(activeMoreSession, settingsSession) {
         movableContentOf<AppNavigationState, SaveableStateHolder, BrowseSession> { state, holder, browse ->
-            // Koin 隔离作用域盖住 tab 内容（含 Library ViewModel 的 koinViewModel 解析）。
-            KoinIsolatedContext(koinApp) {
-                CompositionLocalProvider(LocalReaderService provides readerService) {
+            CompositionLocalProvider(LocalReaderService provides readerService) {
                 ProvideUiContentColor(UiTheme.colorScheme.onSurface) {
                     Column(Modifier.fillMaxSize()) {
                         if (!state.isReaderOpen) {
@@ -291,7 +297,7 @@ internal fun AppScaffold(
                             activeReaderSession,
                             activeHistorySession,
                             librarySession,
-                            activeUpdatesSession,
+                            activeUpdatesHolder,
                             activeMoreSession,
                             statisticsSession,
                             settingsSession,
@@ -302,7 +308,6 @@ internal fun AppScaffold(
                 }
             }
         }
-    }
     }
 
     // The reader is fullscreen: it draws behind the system bars with its own controls and
@@ -329,7 +334,7 @@ internal fun AppScaffold(
                 onTabClick = navigation::select,
                 modifier = Modifier.fillMaxHeight().testTag(NavigationRailTestTag),
                 browseBadgeCount = activeBrowseSession.state.updateCount,
-                updatesBadgeCount = activeUpdatesSession.unreadCount,
+                updatesBadgeCount = updatesUiState.unreadCount,
             )
             Box(
                 modifier = Modifier
@@ -363,9 +368,10 @@ internal fun AppScaffold(
                 onTabClick = navigation::select,
                 modifier = Modifier.testTag(NavigationBarTestTag),
                 browseBadgeCount = activeBrowseSession.state.updateCount,
-                updatesBadgeCount = activeUpdatesSession.unreadCount,
+                updatesBadgeCount = updatesUiState.unreadCount,
             )
         }
+    }
     }
 }
 
@@ -418,7 +424,7 @@ private fun AppNavigationContent(
     readerSession: ReaderSession,
     historySession: app.koyura.app.history.HistorySession,
     librarySession: LibrarySession,
-    updatesSession: app.koyura.features.updates.UpdatesSession,
+    updatesHolder: app.koyura.features.updates.UpdatesStoreHolder,
     moreSession: app.koyura.features.more.MoreSession,
     statisticsSession: app.koyura.features.statistics.StatisticsSession,
     settingsSession: SettingsSession,
@@ -434,7 +440,7 @@ private fun AppNavigationContent(
         readerSession,
         historySession,
         librarySession,
-        updatesSession,
+        updatesHolder,
         moreSession,
         statisticsSession,
         settingsSession,
@@ -493,7 +499,7 @@ private fun AppNavigationContent(
                 } else if (route.tab == NavTab.Updates) {
                     ProvideCoverPipeline(service = LocalBrowseService.current) {
                         UpdatesScreen(
-                            session = updatesSession,
+                            holder = updatesHolder,
                             onOpenWork = { sourceKey, workId, title ->
                                 navigation.push(SourceDetailRoute(sourceKey, workId, title))
                             },
