@@ -27,6 +27,7 @@ import app.koyura.features.more.MoreRootTestTag
 import app.koyura.features.updates.UpdatesRootTestTag
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class AppShellUiTest {
     private val selectedTab = SemanticsMatcher.expectValue(SemanticsProperties.Selected, true) and
@@ -82,12 +83,13 @@ class AppShellUiTest {
         val navigation = createAppNavigationState(onTabReselect = { events += it })
 
         navigation.push(DetailRoute(NavTab.Library, 1))
-        assertEquals(2, navigation.stackOf(NavTab.Library).size)
+        assertEquals(1, navigation.sharedStack.size)
 
-        // G1：重复点击不再 popToRoot，只跑动作，子页栈原样保留。
+        // G1：重复点击不再 popToRoot，只跑动作，共享栈原样保留。
         navigation.select(NavTab.Library)
 
-        assertEquals(2, navigation.stackOf(NavTab.Library).size)
+        assertEquals(1, navigation.sharedStack.size)
+        assertEquals(listOf(TabRootRoute(NavTab.Library)), navigation.stackOf(NavTab.Library).toList())
         assertEquals(listOf(NavTab.Library), events)
         assertEquals(NavTab.Library, navigation.selectedTab)
     }
@@ -104,11 +106,13 @@ class AppShellUiTest {
         onNodeWithTag(LibraryRootTag).assertIsDisplayed()
         navigation.push(DetailRoute(NavTab.Library, 1))
         onNodeWithTag("detail-title").assertIsDisplayed()
-        assertEquals(2, navigation.stackOf(NavTab.Library).size)
+        // G2：二级页进跨 tab 共享栈，tab 栈只剩根。
+        assertEquals(listOf(TabRootRoute(NavTab.Library)), navigation.stackOf(NavTab.Library).toList())
+        assertEquals(1, navigation.sharedStack.size)
 
         navigation.handleBack()
         onNodeWithTag(LibraryRootTag).assertIsDisplayed()
-        assertEquals(1, navigation.stackOf(NavTab.Library).size)
+        assertTrue(navigation.sharedStack.isEmpty())
     }
 
     @Test
@@ -160,9 +164,10 @@ class AppShellUiTest {
         useRail = true
         onNodeWithTag(NavigationRailTestTag).assertIsDisplayed()
         onNodeWithTag("detail-title").assertIsDisplayed()
+        // G2：共享栈跨布局切换保留，tab 栈只剩根。
         assertEquals(
-            listOf(TabRootRoute(NavTab.Browse), DetailRoute(NavTab.Browse, 7)),
-            navigation.stackOf(NavTab.Browse).toList(),
+            listOf(DetailRoute(NavTab.Browse, 7)),
+            navigation.sharedStack.toList(),
         )
     }
 

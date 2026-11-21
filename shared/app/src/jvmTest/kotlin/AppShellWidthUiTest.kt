@@ -139,6 +139,8 @@ class AppShellWidthUiTest {
         onNodeWithTag(NavigationRailTestTag).assertIsDisplayed()
         onNodeWithTag("detail-title").assertIsDisplayed()
         assertEquals(NavTab.Browse, navigation.selectedTab)
-        assertEquals(2, navigation.stackOf(NavTab.Browse).size)
+        // G2：详情在跨 tab 共享栈，tab 栈只剩根。
+        assertEquals(1, navigation.sharedStack.size)
+        assertEquals(1, navigation.stackOf(NavTab.Browse).size)
     }
 }

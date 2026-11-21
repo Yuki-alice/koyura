@@ -12,6 +12,13 @@ class AppNavigationStateTest {
         onReselect: (NavTab) -> Unit = {},
     ) = createAppNavigationState(initialTab = initialTab, onTabReselect = onReselect)
 
+    private fun readerRoute(workId: String = "w1") = ComicReaderRoute(
+        sourceKey = "src",
+        workId = workId,
+        chapterId = "c1",
+        title = workId,
+    )
+
     @Test
     fun startsOnLibraryWithRootOfEveryTab() {
         val nav = state()
@@ -22,6 +29,9 @@ class AppNavigationStateTest {
             assertEquals(1, stack.size)
             assertEquals(TabRootRoute(tab), stack.first())
         }
+        assertTrue(nav.sharedStack.isEmpty())
+        assertTrue(nav.readerStack.isEmpty())
+        assertEquals(TabRootRoute(NavTab.Library), nav.topKey)
     }
 
     @Test
@@ -48,18 +58,19 @@ class AppNavigationStateTest {
     }
 
     @Test
-    fun reselectKeepsChildStackAndRunsAction() {
+    fun reselectKeepsSharedStackAndRunsAction() {
         val events = mutableListOf<NavTab>()
         val nav = state(NavTab.Library) { events += it }
 
         nav.push(DetailRoute(NavTab.Library, 0))
         nav.select(NavTab.Library)
 
-        // G1：重复点击不再 popToRoot，只跑动作，栈原样保留。
+        // G1：重复点击不再 popToRoot，只跑动作，共享栈原样保留。
         assertEquals(
-            listOf(TabRootRoute(NavTab.Library), DetailRoute(NavTab.Library, 0)),
-            nav.stackOf(NavTab.Library).toList(),
+            listOf(DetailRoute(NavTab.Library, 0)),
+            nav.sharedStack.toList(),
         )
+        assertEquals(listOf(TabRootRoute(NavTab.Library)), nav.stackOf(NavTab.Library).toList())
         assertEquals(listOf(NavTab.Library), events)
         assertEquals(NavTab.Library, nav.selectedTab)
     }
@@ -93,41 +104,74 @@ class AppNavigationStateTest {
         )
         nav.select(NavTab.Updates)
 
-        // 动作 push 进栈：证明 reselect 不再先 pop，调用方可直接推快捷入口。
+        // 动作 push 进共享栈（不再先 pop），tab 栈只剩根。
         assertEquals(
-            listOf(TabRootRoute(NavTab.Updates), DetailRoute(NavTab.Updates, 7)),
-            nav.stackOf(NavTab.Updates).toList(),
+            listOf(DetailRoute(NavTab.Updates, 7)),
+            nav.sharedStack.toList(),
         )
+        assertEquals(listOf(TabRootRoute(NavTab.Updates)), nav.stackOf(NavTab.Updates).toList())
     }
 
     @Test
-    fun eachTabKeepsItsOwnStackAcrossSwitches() {
+    fun sharedPagesSurviveTabSwitches() {
         val nav = state()
 
         nav.push(DetailRoute(NavTab.Library, 0))
-        nav.select(NavTab.Browse)
-        nav.push(DetailRoute(NavTab.Browse, 1))
+        nav.select(NavTab.History)
+        nav.push(DetailRoute(NavTab.History, 1))
         nav.select(NavTab.Library)
 
+        // G2：二级页在跨 tab 共享栈，切换 tab 不丢失、不错位。
         assertEquals(
-            listOf(TabRootRoute(NavTab.Library), DetailRoute(NavTab.Library, 0)),
-            nav.stackOf(NavTab.Library).toList(),
+            listOf(DetailRoute(NavTab.Library, 0), DetailRoute(NavTab.History, 1)),
+            nav.sharedStack.toList(),
         )
-        assertEquals(
-            listOf(TabRootRoute(NavTab.Browse), DetailRoute(NavTab.Browse, 1)),
-            nav.stackOf(NavTab.Browse).toList(),
-        )
+        assertEquals(listOf(TabRootRoute(NavTab.Library)), nav.stackOf(NavTab.Library).toList())
+        assertEquals(listOf(TabRootRoute(NavTab.History)), nav.stackOf(NavTab.History).toList())
         assertEquals(1, nav.stackOf(NavTab.Updates).size)
     }
 
     @Test
-    fun backPopsCurrentTabChildFirst() {
+    fun readerPushOpensIndependentLayerWithClearTop() {
+        val nav = state()
+
+        nav.push(SourceDetailRoute("src", "w1"))
+        nav.push(readerRoute("w1"))
+
+        assertEquals(listOf(readerRoute("w1")), nav.readerStack.toList())
+        assertTrue(nav.isReaderOpen)
+        assertEquals(readerRoute("w1"), nav.topKey)
+
+        // 同层再开阅读器替换当前页（CLEAR_TOP），不叠加。
+        nav.push(readerRoute("w2"))
+        assertEquals(listOf(readerRoute("w2")), nav.readerStack.toList())
+        // 下层共享页不受影响。
+        assertEquals(listOf(SourceDetailRoute("src", "w1")), nav.sharedStack.toList())
+    }
+
+    @Test
+    fun backPopsSharedPageFirst() {
         val nav = state(NavTab.History)
         nav.push(DetailRoute(NavTab.History, 0))
 
         assertEquals(BackOutcome.PoppedChild, nav.handleBack())
         assertEquals(NavTab.History, nav.selectedTab)
+        assertTrue(nav.sharedStack.isEmpty())
         assertEquals(listOf(TabRootRoute(NavTab.History)), nav.stackOf(NavTab.History).toList())
+    }
+
+    @Test
+    fun backFromReaderClosesReaderBeforeShared() {
+        val nav = state()
+        nav.push(SourceDetailRoute("src", "w1"))
+        nav.push(readerRoute())
+
+        assertEquals(BackOutcome.PoppedChild, nav.handleBack())
+        assertFalse(nav.isReaderOpen)
+        assertEquals(SourceDetailRoute("src", "w1"), nav.topKey)
+
+        assertEquals(BackOutcome.PoppedChild, nav.handleBack())
+        assertEquals(TabRootRoute(NavTab.Library), nav.topKey)
     }
 
     @Test
@@ -135,6 +179,19 @@ class AppNavigationStateTest {
         val nav = state(NavTab.More)
 
         assertTrue(nav.returnsToLibraryOnBack())
+        assertEquals(BackOutcome.ReturnedToLibrary, nav.handleBack())
+        assertEquals(NavTab.Library, nav.selectedTab)
+    }
+
+    @Test
+    fun backOnSharedPageDoesNotReturnToLibrary() {
+        val nav = state(NavTab.More)
+        nav.push(SettingsRoute)
+
+        assertFalse(nav.returnsToLibraryOnBack())
+        assertTrue(nav.canHandleBack())
+        assertEquals(BackOutcome.PoppedChild, nav.handleBack())
+        // 共享页弹完才回书架。
         assertEquals(BackOutcome.ReturnedToLibrary, nav.handleBack())
         assertEquals(NavTab.Library, nav.selectedTab)
     }
@@ -149,12 +206,23 @@ class AppNavigationStateTest {
     }
 
     @Test
-    fun backOnChildOfOtherTabDoesNotChangeSelectedTab() {
+    fun backOnSharedChildDoesNotChangeSelectedTab() {
         val nav = state(NavTab.Updates)
         nav.push(DetailRoute(NavTab.Updates, 0))
 
         assertTrue(nav.canHandleBack())
         assertEquals(BackOutcome.PoppedChild, nav.handleBack())
         assertEquals(NavTab.Updates, nav.selectedTab)
+    }
+
+    @Test
+    fun topKeyPrefersReaderOverSharedOverTab() {
+        val nav = state()
+
+        assertEquals(TabRootRoute(NavTab.Library), nav.topKey)
+        nav.push(GlobalSearchRoute)
+        assertEquals(GlobalSearchRoute, nav.topKey)
+        nav.push(readerRoute())
+        assertEquals(readerRoute(), nav.topKey)
     }
 }

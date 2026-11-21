@@ -108,7 +108,7 @@ class BrowseJourneyTest {
         onNodeWithTag(extensionActionTag("store:1::com.example.installed", "open")).performClick()
         onNodeWithTag(ExtensionDetailsTestTag).assertIsDisplayed()
 
-        // Leave for another tab and come back: the detail page is still on the Browse stack.
+        // Leave for another tab and come back: the detail page stays in the shared stack.
         navigation.select(NavTab.Updates)
         navigation.select(NavTab.Browse)
         onNodeWithTag(ExtensionDetailsTestTag).assertIsDisplayed()
@@ -117,7 +117,9 @@ class BrowseJourneyTest {
         width = 720.dp
         onNodeWithTag(NavigationRailTestTag).assertIsDisplayed()
         onNodeWithTag(ExtensionDetailsTestTag).assertIsDisplayed()
-        assertEquals(2, navigation.stackOf(NavTab.Browse).size)
+        // G2：详情在跨 tab 共享栈，Browse tab 栈只剩根。
+        assertEquals(1, navigation.sharedStack.size)
+        assertEquals(1, navigation.stackOf(NavTab.Browse).size)
 
         // Back returns to the filtered list with the query intact.
         navigation.handleBack()
