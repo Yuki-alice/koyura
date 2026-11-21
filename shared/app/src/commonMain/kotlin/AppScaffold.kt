@@ -63,7 +63,7 @@ import app.koyura.app.browse.LocalBrowseService
 import app.koyura.app.browse.BrowseSession
 import app.koyura.app.browse.ProvideCoverPipeline
 import app.koyura.features.downloads.DownloadsScreen
-import app.koyura.features.downloads.rememberDownloadsSession
+import app.koyura.features.downloads.rememberDownloadsStoreHolder
 import app.koyura.categories.CategoriesScreen
 import app.koyura.features.more.MoreScreen
 import app.koyura.features.onboarding.OnboardingScreen
@@ -169,7 +169,6 @@ internal fun AppScaffold(
     val activeMoreSession = moreSession ?: rememberMoreSession()
     val productionSettings = LocalProductionSettings.current
     val indexingState = rememberUpdatedState(indexing)
-    val activeDownloadsSession = rememberDownloadsSession()
     val settingsSession = LocalAppSettingsSession.current ?: rememberSettingsSession()
     val librarySession = rememberLibrarySession()
 
@@ -294,7 +293,6 @@ internal fun AppScaffold(
                             librarySession,
                             activeUpdatesSession,
                             activeMoreSession,
-                            activeDownloadsSession,
                             statisticsSession,
                             settingsSession,
                             browseService,
@@ -422,12 +420,14 @@ private fun AppNavigationContent(
     librarySession: LibrarySession,
     updatesSession: app.koyura.features.updates.UpdatesSession,
     moreSession: app.koyura.features.more.MoreSession,
-    downloadsSession: app.koyura.features.downloads.DownloadsSession,
     statisticsSession: app.koyura.features.statistics.StatisticsSession,
     settingsSession: SettingsSession,
     browseService: BrowseService?,
     libraryFilterSignal: androidx.compose.runtime.State<Int>,
 ) {
+    // 下载 Store 持有者：必须在 Koin 宿主子树内创建（koinViewModel 需 CompositionLocal 中的 Koin），
+    // 与 LibraryTabContent 的 viewModel 一样随组合持有、按宿主 ViewModelStore 域化。
+    val downloadsHolder = rememberDownloadsStoreHolder()
     val entryProvider = remember(
         navigation,
         browseSession,
@@ -436,7 +436,6 @@ private fun AppNavigationContent(
         librarySession,
         updatesSession,
         moreSession,
-        downloadsSession,
         statisticsSession,
         settingsSession,
         browseService,
@@ -530,7 +529,7 @@ private fun AppNavigationContent(
             }
             entry<DownloadQueueRoute> {
                 DownloadsScreen(
-                    session = downloadsSession,
+                    holder = downloadsHolder,
                     onBack = { navigation.popCurrentChild() },
                 )
             }

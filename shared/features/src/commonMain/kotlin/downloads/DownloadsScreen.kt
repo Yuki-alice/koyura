@@ -13,7 +13,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -48,7 +49,6 @@ import app.koyura.features.resources.downloads_status_failed
 import app.koyura.features.resources.downloads_status_paused
 import app.koyura.features.resources.downloads_status_queued
 import app.koyura.features.resources.downloads_title
-import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 
 const val DownloadsRootTestTag = "downloads-root"
@@ -68,19 +68,19 @@ fun downloadCancelTag(id: String) = "downloads-cancel-$id"
  * 下载队列页（白皮书 07 §7.12，子页形态：返回 + 标题）。
  *
  * 行结构：漫画名 + 章节名 + 线性进度条（上方 8dp）+ 右侧状态动作；
- * 右下暂停/恢复 FAB 只在非空时出现。数据侧只有 Fake 仓储，状态迁移
- * 对齐 `ChapterDownloadStore`。
+ * 右下暂停/恢复 FAB 只在非空时出现。状态机由 [DownloadsStore] 承载
+ * （与旧 `DownloadsSession` 同语义）；渲染读不可变 [DownloadsState]。
  */
 @Composable
 fun DownloadsScreen(
-    session: DownloadsSession,
+    holder: DownloadsStoreHolder,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val scope = rememberCoroutineScope()
+    val uiState by holder.uiState.collectAsState()
 
     LaunchedEffect(Unit) {
-        session.refresh()
+        holder.store.accept(DownloadsIntent.Refresh)
     }
 
     Column(modifier = modifier.fillMaxSize().testTag(DownloadsRootTestTag)) {
@@ -97,25 +97,25 @@ fun DownloadsScreen(
                 ActionIconButton(
                     icon = ActionIcon.Delete,
                     label = stringResource(Res.string.downloads_cancel_all),
-                    onClick = { scope.launch { session.clear() } },
-                    enabled = session.entries.isNotEmpty(),
+                    onClick = { holder.store.accept(DownloadsIntent.Clear) },
+                    enabled = uiState.entries.isNotEmpty(),
                     modifier = Modifier.testTag(DownloadsCancelAllTag),
                 )
             },
         )
 
-        when (val state = session.loadState) {
+        when (val state = uiState.loadState) {
             DownloadQueueLoadState.Loading -> LoadingScreen()
             is DownloadQueueLoadState.Failed -> ErrorScreen(
                 message = stringResource(Res.string.downloads_load_failed, state.message),
                 modifier = Modifier.testTag(DownloadsErrorTag),
             ) {
-                AppTextButton(onClick = { scope.launch { session.refresh() } }) {
+                AppTextButton(onClick = { holder.store.accept(DownloadsIntent.Refresh) }) {
                     AppText(stringResource(Res.string.downloads_retry_load))
                 }
             }
             DownloadQueueLoadState.Ready -> {
-                session.actionError?.let { message ->
+                uiState.actionError?.let { message ->
                     AppText(
                         text = message,
                         color = UiTheme.colorScheme.error,
@@ -128,7 +128,7 @@ fun DownloadsScreen(
                             .testTag("downloads-action-error"),
                     )
                 }
-                if (session.entries.isEmpty()) {
+                if (uiState.entries.isEmpty()) {
                     DownloadsEmptyState()
                 } else {
                     Box(modifier = Modifier.fillMaxSize()) {
@@ -136,13 +136,13 @@ fun DownloadsScreen(
                             modifier = Modifier.fillMaxSize().testTag(DownloadsListTag),
                             contentPadding = PaddingValues(vertical = DesignTokens.Spacing.Small),
                         ) {
-                            items(session.entries, key = { it.id }) { task ->
+                            items(uiState.entries, key = { it.id }) { task ->
                                 DownloadRow(
                                     task = task,
-                                    onPause = { scope.launch { session.pause(task.id) } },
-                                    onResume = { scope.launch { session.resume(task.id) } },
-                                    onRetry = { scope.launch { session.retry(task.id) } },
-                                    onCancel = { scope.launch { session.cancel(task.id) } },
+                                    onPause = { holder.store.accept(DownloadsIntent.Pause(task.id)) },
+                                    onResume = { holder.store.accept(DownloadsIntent.Resume(task.id)) },
+                                    onRetry = { holder.store.accept(DownloadsIntent.Retry(task.id)) },
+                                    onCancel = { holder.store.accept(DownloadsIntent.Cancel(task.id)) },
                                 )
                             }
                         }
@@ -151,20 +151,20 @@ fun DownloadsScreen(
                             text = {
                                 AppText(
                                     stringResource(
-                                        if (session.running) Res.string.downloads_pause_all
+                                        if (uiState.running) Res.string.downloads_pause_all
                                         else Res.string.downloads_resume_all,
                                     ),
                                 )
                             },
                             icon = {
                                 DecorativeActionIcon(
-                icon = if (session.running) ActionIcon.Pause else ActionIcon.Play,
+                icon = if (uiState.running) ActionIcon.Pause else ActionIcon.Play,
                                 )
                             },
                             onClick = {
-                                scope.launch {
-                                    if (session.running) session.pauseAll() else session.resumeAll()
-                                }
+                                holder.store.accept(
+                                    if (uiState.running) DownloadsIntent.PauseAll else DownloadsIntent.ResumeAll,
+                                )
                             },
                             modifier = Modifier
                                 .align(Alignment.BottomEnd)
