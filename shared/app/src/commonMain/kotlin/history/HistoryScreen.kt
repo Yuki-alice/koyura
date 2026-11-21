@@ -511,19 +511,26 @@ private fun HistoryRow(
                 .toString().take(5)
         }
     }
+    // 行本身只包「封面 + 文字」：行尾若再塞多个可点按钮，合并语义会被拆开，
+    // 行的文本与锚点都会从合并树里消失（既有测试与读屏都依赖行文本）。
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .combinedClickable(
-                // 选择态下点击即切换勾选；平时点击打开作品、长按进入多选（照书架）。
-                onClick = { if (selecting) onToggleSelect() else onOpen() },
-                onLongClick = { if (!selecting) onToggleSelect() },
-            )
-            .testTag(historyRowTag(entry.sourceKey, entry.workId))
-            .heightIn(min = DesignTokens.Sizes.HistoryItemHeight)
             .padding(horizontal = DesignTokens.Spacing.Medium),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        Row(
+            modifier = Modifier
+                .weight(1f)
+                .heightIn(min = DesignTokens.Sizes.HistoryItemHeight)
+                .combinedClickable(
+                    // 选择态下点击即切换勾选；平时点击打开作品、长按进入多选（照书架）。
+                    onClick = { if (selecting) onToggleSelect() else onOpen() },
+                    onLongClick = { if (!selecting) onToggleSelect() },
+                )
+                .testTag(historyRowTag(entry.sourceKey, entry.workId)),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
         if (selecting) {
             AppCheckbox(checked = selected, onCheckedChange = { onToggleSelect() })
         }
@@ -569,7 +576,6 @@ private fun HistoryRow(
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.ExtraSmall),
-                modifier = Modifier.testTag(historyRowDetailTag(entry.sourceKey, entry.workId)),
             ) {
                 if (hasUnread) {
                     Box(
@@ -589,8 +595,11 @@ private fun HistoryRow(
                     ),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    // 二级行锚点挂在文本上：挂在容器 Row 上时未合并树里没有 Text 属性。
+                    modifier = Modifier.testTag(historyRowDetailTag(entry.sourceKey, entry.workId)),
                 )
             }
+        }
         }
         // 选择态只留勾选框：行级动作隐藏，避免与批量动作抢同一个点击区。
         if (!selecting) {
@@ -606,14 +615,15 @@ private fun HistoryRow(
                 modifier = Modifier.testTag(historyRowActionsTag(entry.sourceKey, entry.workId)),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                if (!favorited) {
-                    ActionIconButton(
-                        icon = ActionIcon.FavoriteBorder,
-                        label = stringResource(Res.string.history_favorite_add),
-                        onClick = onToggleFavorite,
-                        modifier = Modifier.testTag(historyFavoriteTag(entry.sourceKey, entry.workId)),
-                    )
-                }
+                // 收藏图标常驻并按状态换实心/空心（点已收藏即取消），不留「已收藏就无入口」的死角。
+                ActionIconButton(
+                    icon = if (favorited) ActionIcon.Favorite else ActionIcon.FavoriteBorder,
+                    label = stringResource(
+                        if (favorited) Res.string.history_favorite_remove else Res.string.history_favorite_add,
+                    ),
+                    onClick = onToggleFavorite,
+                    modifier = Modifier.testTag(historyFavoriteTag(entry.sourceKey, entry.workId)),
+                )
                 ActionIconButton(
                     icon = ActionIcon.Delete,
                     label = stringResource(Res.string.history_delete),

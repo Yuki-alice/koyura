@@ -11,6 +11,7 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.printToLog
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
@@ -322,8 +323,14 @@ class VeneraLibraryHistoryPersistenceTest {
                     }
                     runBlocking { owned.refresh() }
                     assertTrue(owned.favoriteKeys.contains(SourceKey to WorkId), "heart must return after re-favorite")
-                    onNodeWithTag(historyRowActionsTag(SourceKey, WorkId)).performClick()
-                    onNodeWithTag(historyFavoriteTag(SourceKey, WorkId)).performClick()
+                    // 行尾动作已常驻（收藏/删除直接在行上），不再需要先展开动作区；
+                    // refresh 后需要等重组把收藏按钮画出来。
+                    waitUntil(timeoutMillis = 10_000) {
+                        onAllNodesWithTag(historyFavoriteTag(SourceKey, WorkId), useUnmergedTree = true)
+                            .fetchSemanticsNodes().isNotEmpty()
+                    }
+                    onNodeWithTag(historyFavoriteTag(SourceKey, WorkId), useUnmergedTree = true)
+                        .performScrollTo().performClick()
                     waitUntil(timeoutMillis = 10_000) { !owned.favoriteKeys.contains(SourceKey to WorkId) }
                     assertTrue(
                         runBlocking { session.library.listEntries() }.isEmpty(),
@@ -371,8 +378,8 @@ class VeneraLibraryHistoryPersistenceTest {
                         }
                     }
                     awaitHistoryRow()
-                    onNodeWithTag(historyRowActionsTag(SourceKey, WorkId)).performClick()
-                    onNodeWithTag(historyDeleteTag(SourceKey, WorkId)).performClick()
+                    // 行尾动作已常驻（收藏/删除直接在行上），不再需要先展开动作区。
+                    onNodeWithTag(historyDeleteTag(SourceKey, WorkId), useUnmergedTree = true).performClick()
                     waitUntil(timeoutMillis = 10_000) {
                         onAllNodesWithTag(historyRowTag(SourceKey, WorkId))
                             .fetchSemanticsNodes().isEmpty()
