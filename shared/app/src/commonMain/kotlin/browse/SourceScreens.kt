@@ -110,6 +110,7 @@ import app.koyura.app.resources.source_search_button
 import app.koyura.app.resources.source_search_empty
 import app.koyura.app.resources.source_search_error
 import app.koyura.app.resources.source_search_hint
+import app.koyura.app.resources.source_search_more
 import app.koyura.app.resources.source_search_no_results
 import app.koyura.app.resources.source_search_results
 import app.koyura.designsystem.Cover
@@ -162,6 +163,7 @@ internal const val SourceSearchTestTag = "source-search"
 internal const val SourceSearchQueryTag = "source-search-query"
 internal const val SourceSearchSubmitTag = "source-search-submit"
 internal const val SourceSearchResultsTag = "source-search-results"
+internal const val SourceSearchMoreTag = "source-search-more"
 
 internal fun sourceResultTag(workId: String) = "source-result-$workId"
 
@@ -184,6 +186,7 @@ fun SourceSearchScreen(
     var submittedQuery by rememberSaveable(sourceKey) { mutableStateOf<String?>(null) }
     var resultsJson by rememberSaveable(sourceKey) { mutableStateOf("") }
     var maxPage by rememberSaveable(sourceKey) { mutableStateOf(1) }
+    var currentPage by rememberSaveable(sourceKey) { mutableStateOf(1) }
     var loading by remember(sourceKey) { mutableStateOf(false) }
     var error by remember(sourceKey) { mutableStateOf<String?>(null) }
     val results: List<WorkSummary> = remember(resultsJson) {
@@ -208,7 +211,37 @@ fun SourceSearchScreen(
                 val page = session.searchWorks(sourceKey, needle)
                 resultsJson = kotlinx.serialization.json.Json.encodeToString(page.works)
                 maxPage = page.maxPage
+                currentPage = 1
                 submittedQuery = needle
+            } catch (cancelled: kotlin.coroutines.cancellation.CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                error = failure.message ?: "Search failed"
+            } finally {
+                loading = false
+            }
+        }
+    }
+
+    // 后续页追加到已加载结果尾部（`search.loadNext` 语义由源回调实现，
+    // 无分页源返回 maxPage = 1，按钮不出现）。
+    fun loadMore() {
+        val needle = submittedQuery ?: return
+        if (loading || currentPage >= maxPage) return
+        loading = true
+        error = null
+        scope.launch {
+            try {
+                val next = currentPage + 1
+                val page = session.searchWorks(sourceKey, needle, next)
+                val merged = try {
+                    kotlinx.serialization.json.Json.decodeFromString<List<WorkSummary>>(resultsJson)
+                } catch (_: Exception) {
+                    emptyList()
+                } + page.works
+                resultsJson = kotlinx.serialization.json.Json.encodeToString(merged)
+                maxPage = page.maxPage
+                currentPage = next
             } catch (cancelled: kotlin.coroutines.cancellation.CancellationException) {
                 throw cancelled
             } catch (failure: Exception) {
@@ -363,6 +396,23 @@ fun SourceSearchScreen(
                                 }
                             }
                             AppDivider()
+                        }
+                        if (currentPage < maxPage && !loading) {
+                            item(key = "search-load-more") {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = DesignTokens.Spacing.Medium),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    AppTextButton(
+                                        onClick = { loadMore() },
+                                        modifier = Modifier.testTag(SourceSearchMoreTag),
+                                    ) {
+                                        AppText(stringResource(Res.string.source_search_more, currentPage + 1, maxPage))
+                                    }
+                                }
+                            }
                         }
                     }
                 }

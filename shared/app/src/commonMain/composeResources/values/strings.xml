@@ -126,6 +126,7 @@
     <string name="source_search_button">Search</string>
     <string name="source_search_empty">Enter a keyword and start a search.</string>
     <string name="source_search_no_results">No works matched this search.</string>
+    <string name="source_search_more">More (%1$d / %2$d)</string>
     <string name="source_search_results">%1$d result(s), %2$d page(s)</string>
     <string name="source_search_error">Search failed: %1$s</string>
     <string name="source_detail_title">Work details</string>

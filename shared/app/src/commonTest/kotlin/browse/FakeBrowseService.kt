@@ -145,6 +145,7 @@ class FakeBrowseService(
 
     override suspend fun searchWorks(sourceKey: String, query: String, page: Int): WorkSearchPage {
         enter("search:$sourceKey:$query:$page")
+        searchPaged[query]?.getOrNull(page - 1)?.let { return it }
         return searchPages[query] ?: WorkSearchPage(emptyList(), 1)
     }
 
@@ -167,6 +168,9 @@ class FakeBrowseService(
 
     /** Canned search pages keyed by query, so UI tests can drive search without a runtime. */
     var searchPages: Map<String, WorkSearchPage> = emptyMap()
+
+    /** 按页返回的搜索结果（下标为 page - 1），用于分页回归；为空时回退到 [searchPages]。 */
+    var searchPaged: Map<String, List<WorkSearchPage>> = emptyMap()
 
     /** Canned work details keyed by work id. */
     var workDetails: Map<String, WorkDetail> = emptyMap()

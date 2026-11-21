@@ -125,6 +125,7 @@
     <string name="source_search_button">搜索</string>
     <string name="source_search_empty">输入关键词后开始搜索。</string>
     <string name="source_search_no_results">没有匹配的作品。</string>
+    <string name="source_search_more">更多（%1$d / %2$d）</string>
     <string name="source_search_results">%1$d 个结果，共 %2$d 页</string>
     <string name="source_search_error">搜索失败：%1$s</string>
     <string name="source_detail_title">作品详情</string>
