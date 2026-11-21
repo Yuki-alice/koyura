@@ -608,9 +608,9 @@ fun ReaderChromeState.clampedPage(index: Int): Int =
 @Composable
 private fun PageIndicatorLabel(label: String, modifier: Modifier = Modifier) {
     val base = UiTheme.typography.bodyMedium.copy(
-        fontSize = 12.sp,
+        fontSize = DesignTokens.Type.PageIndicatorFontSize,
         fontWeight = FontWeight.Bold,
-        letterSpacing = 1.sp,
+        letterSpacing = DesignTokens.Type.PageIndicatorLetterSpacing,
     )
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         AppText(

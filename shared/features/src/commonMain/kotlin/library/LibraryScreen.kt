@@ -744,7 +744,8 @@ private fun LibraryGridContent(
         columns = GridCells.Adaptive(DesignTokens.Breakpoints.AdaptiveGridMinItemDp.dp),
         state = gridState,
         modifier = Modifier.fillMaxSize().testTag(LibraryGridTag),
-        contentPadding = PaddingValues(DesignTokens.Spacing.Small),
+        // 左右 16dp：360dp 下两列正好 162dp（白皮书实测）。
+        contentPadding = PaddingValues(DesignTokens.Spacing.Medium),
         verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.ExtraSmall),
         horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.ExtraSmall),
     ) {

@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 /**
  * Komikku 白皮书设计令牌（whitepaper 02 + `assets/design-tokens.json`）。
@@ -110,12 +111,14 @@ object DesignTokens {
         const val TabletMinSmallestWidthDp = 720
         const val TabletAutomaticPortraitDp = 700
         const val TabletAutomaticLandscapeDp = 600
-        const val AdaptiveGridMinItemDp = 128
+        // 书架自适应列宽下限：120dp 让 360dp 落到 2 列（卡宽 162dp）、1280dp 落到 10 列（≈120dp）。
+        const val AdaptiveGridMinItemDp = 120
         val TwoPaneFirstMax: Dp = 450.dp
         val SheetMaxWidth: Dp = 460.dp
         val DialogMinWidth: Dp = 280.dp
         val DialogMaxWidth: Dp = 560.dp
-        val SettingsMasterWidth = 320.dp
+        // 设置平板左栏固定 450dp（白皮书 07 §7.14）。
+        val SettingsMasterWidth = 450.dp
         val CatalogResultsMaxHeight = 320.dp
         val UpdatePolicyMaxHeight = 420.dp
         val DetailCoverMinWidth = 100.dp
@@ -125,6 +128,12 @@ object DesignTokens {
     // Sizes — whitepaper 02 §2.7 高度/尺寸 / tokens.json `sizes` (Code).
     // 底栏 80dp 见 NavigationBar.kt:43；导航轨见 NavigationRail.kt:47；设置项见 PreferenceItem.kt；
     // 章节项内边距见白皮书 02 表格；历史/列表/徽标/滚动条/阅读器滑块/底部菜单见 tokens.json。
+    // 字号 — 白皮书 07 §7.13 阅读器页码：12sp Bold + 1sp 字距。
+    object Type {
+        val PageIndicatorFontSize = 12.sp
+        val PageIndicatorLetterSpacing = 1.sp
+    }
+
     object Sizes {
         val MinimumTouchTarget = 48.dp
         val DetailActionIcon = 20.dp

@@ -27,6 +27,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.IntOffset
@@ -140,7 +141,7 @@ private fun SheetCard(
     }
 
     Surface(
-        modifier = modifier,
+        modifier = modifier.testTag(ReaderSheetCardTag),
         shape = shape,
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
     ) {
@@ -158,6 +159,9 @@ private val AutoTabletMinWidth = 600.dp
 
 // 弹层垂直内边距 16dp（白皮书 06 §6.7 / 03 §3.7）。
 private val SheetVerticalPadding = DesignTokens.Spacing.Medium
+
+/** 弹层卡片锚点：尺寸采样用（手机满宽、平板 ≤460dp）。 */
+const val ReaderSheetCardTag = "reader-sheet-card"
 
 /** Presents an adaptive sheet in its own focus scope so Back dismisses the sheet first. */
 @Composable
