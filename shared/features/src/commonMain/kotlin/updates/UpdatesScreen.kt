@@ -360,12 +360,12 @@ private fun UpdateScheduleDialog(
     }
 }
 
-/** 调度毫秒 → 设备时区「yyyy-MM-dd HH:mm」（分钟精度，不编造秒）。 */
+/** 调度毫秒 → 设备时区「yyyy-MM-dd HH:mm」（分钟精度，不编造秒；手写补零以兼容 Native）。 */
 internal fun formatScheduleMillis(millis: Long): String = try {
     val dateTime = Instant.fromEpochMilliseconds(millis).toLocalDateTime(TimeZone.currentSystemDefault())
-    "%04d-%02d-%02d %02d:%02d".format(
-        dateTime.year, dateTime.monthNumber, dateTime.dayOfMonth, dateTime.hour, dateTime.minute,
-    )
+    fun Int.twoDigits(): String = toString().padStart(2, '0')
+    "${dateTime.year}-${dateTime.monthNumber.twoDigits()}-${dateTime.dayOfMonth.twoDigits()} " +
+        "${dateTime.hour.twoDigits()}:${dateTime.minute.twoDigits()}"
 } catch (_: Exception) {
     millis.toString()
 }
