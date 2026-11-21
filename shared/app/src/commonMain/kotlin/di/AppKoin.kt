@@ -1,7 +1,12 @@
 package app.koyura.app.di
 
+import app.koyura.features.downloads.DownloadQueueRepository
+import app.koyura.features.downloads.DownloadsStoreFactory
+import app.koyura.features.downloads.DownloadsStoreHolder
 import app.koyura.features.library.LibrarySession
 import app.koyura.features.library.LibraryViewModel
+import com.arkivanov.mvikotlin.core.store.StoreFactory
+import com.arkivanov.mvikotlin.main.store.DefaultStoreFactory
 import org.koin.core.module.Module
 import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
@@ -38,9 +43,24 @@ val libraryViewModelModule: Module = module {
     }
 }
 
-/** 应用 Koin 模块聚合：平台模块 + 通用 + 各 feature ViewModel。 */
+/** 应用 Koin 模块聚合：平台模块 + 通用 + 各 feature ViewModel/Store。 */
 fun appKoinModules(): List<Module> = listOf(
     platformModule,
     commonAppModule,
     libraryViewModelModule,
+    downloadsStoreModule,
 )
+
+/**
+ * 下载 Store 模块（阶段 1）。
+ *
+ * 单例 [StoreFactory] 供各 Store 共用；[DownloadsStoreFactory] 单例；
+ * Holder 按参数给仓储（会话绑定不在 Koin 里持有可空全局单例与 Library 一致）。
+ */
+val downloadsStoreModule: Module = module {
+    single<StoreFactory> { DefaultStoreFactory() }
+    single { DownloadsStoreFactory(get()) }
+    viewModel { params ->
+        DownloadsStoreHolder(get<DownloadsStoreFactory>().create(params.get<DownloadQueueRepository>()))
+    }
+}
