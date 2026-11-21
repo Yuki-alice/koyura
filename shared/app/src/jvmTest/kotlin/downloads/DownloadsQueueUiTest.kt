@@ -13,16 +13,16 @@ import app.koyura.features.downloads.DownloadsEmptyTag
 import app.koyura.features.downloads.DownloadsListTag
 import app.koyura.features.downloads.DownloadsRootTestTag
 import app.koyura.features.downloads.DownloadsScreen
-import app.koyura.features.downloads.DownloadsSession
+import app.koyura.features.downloads.DownloadsStoreFactory
+import app.koyura.features.downloads.DownloadsStoreHolder
 import app.koyura.features.downloads.FakeDownloadRepository
+import app.koyura.features.downloads.FakeDownloadStatus
 import app.koyura.features.downloads.downloadCancelTag
 import app.koyura.features.downloads.downloadPauseTag
 import app.koyura.features.downloads.downloadRetryTag
 import app.koyura.features.downloads.downloadRowTag
 import app.koyura.features.more.moreRowTag
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertTrue
 
 /**
  * 下载队列首轮 UI 回归：空态、分组行、暂停/重试/取消动作。
@@ -30,10 +30,10 @@ import kotlin.test.assertTrue
 class DownloadsQueueUiTest {
     @Test
     fun emptyQueueMatchesWhitepaperEmptyState() = runComposeUiTest {
-        val session = DownloadsSession(FakeDownloadRepository())
+        val holder = DownloadsStoreHolder(DownloadsStoreFactory().create(FakeDownloadRepository()))
         setContent {
             ReaderTheme {
-                DownloadsScreen(session = session, onBack = {})
+                DownloadsScreen(holder = holder, onBack = {})
             }
         }
         waitForIdle()
@@ -44,10 +44,12 @@ class DownloadsQueueUiTest {
 
     @Test
     fun rowsExposeStatusActionsAndMutateQueue() = runComposeUiTest {
-        val session = DownloadsSession(FakeDownloadRepository(FakeDownloadRepository.sampleEntries()))
+        val holder = DownloadsStoreHolder(
+            DownloadsStoreFactory().create(FakeDownloadRepository(FakeDownloadRepository.sampleEntries())),
+        )
         setContent {
             ReaderTheme {
-                DownloadsScreen(session = session, onBack = {})
+                DownloadsScreen(holder = holder, onBack = {})
             }
         }
         waitForIdle()
@@ -59,18 +61,21 @@ class DownloadsQueueUiTest {
 
         // 暂停下载中的任务，暂停态出现恢复与取消。
         onNodeWithTag(downloadPauseTag("job-1")).performClick()
-        waitForIdle()
-        assertTrue(session.entries.first { it.id == "job-1" }.status.name == "PAUSED")
+        waitUntil(timeoutMillis = 10_000) {
+            holder.store.state.entries.first { it.id == "job-1" }.status == FakeDownloadStatus.PAUSED
+        }
 
         // 取消暂停中的任务，任务移出队列。
         onNodeWithTag(downloadCancelTag("job-1")).performClick()
-        waitForIdle()
-        assertTrue(session.entries.none { it.id == "job-1" })
+        waitUntil(timeoutMillis = 10_000) {
+            holder.store.state.entries.none { it.id == "job-1" }
+        }
 
         // 重试失败的任务回到排队。
         onNodeWithTag(downloadRetryTag("job-3")).performClick()
-        waitForIdle()
-        assertEquals("QUEUED", session.entries.first { it.id == "job-3" }.status.name)
+        waitUntil(timeoutMillis = 10_000) {
+            holder.store.state.entries.first { it.id == "job-3" }.status == FakeDownloadStatus.QUEUED
+        }
     }
 
     @Test
