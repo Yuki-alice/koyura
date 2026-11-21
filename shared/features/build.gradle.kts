@@ -42,6 +42,11 @@ kotlin {
             implementation(libs.kotlinx.datetime)
             implementation(libs.coil.compose)
             implementation(libs.zoomimage.compose)
+            implementation(libs.lifecycle.viewmodel)
+            implementation(libs.lifecycle.viewmodel.compose)
+            implementation(libs.koin.core.viewmodel)
+            implementation(libs.koin.compose)
+            implementation(libs.koin.compose.viewmodel)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
