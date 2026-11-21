@@ -98,7 +98,7 @@ class AppNavigationState internal constructor(
      * CLEAR_TOP semantics; every other page goes to the cross-tab shared stack.
      * Tab stacks keep only their roots.
      */
-    fun push(route: AppRoute) {
+    fun push(route: AppKey) {
         if (route is ComicReaderRoute) openReader(route) else sharedStack.add(route)
     }
 
@@ -177,7 +177,7 @@ fun createAppNavigationState(
 /**
  * Remembers the shell state across recomposition and configuration changes.
  *
- * Every stack is restored through [rememberNavBackStack] using the serializable [AppRoute] keys, and
+ * Every stack is restored through [rememberNavBackStack] using the serializable [AppKey] keys, and
  * the selected tab is persisted separately.
  */
 @Composable
