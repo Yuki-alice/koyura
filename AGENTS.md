@@ -4,7 +4,7 @@ Kotlin Multiplatform + Compose Multiplatform 漫画阅读器：视觉与功能�
 
 ## 构建与验收基线
 
-- 验收按 `docs/verification.md` 执行：受影响模块快速回归、交付前全量 JVM 门、界面改动按需与白皮书实机截图（`docs/design-whitepaper`，第二版含勘误表与 `tools/` 复算脚本）人工核对、行为存疑以 `reference/komikku` 源码为准、阅读行为沿用夹具测试；不设阶段门禁，不建证据归档。
+- 验收按 `docs/verification.md` 执行：受影响模块快速回归、交付前全量 JVM 门、界面改动按需与白皮书实机截图（`docs/design-whitepaper`仅截图可信，文字描述存在幻觉不作为依据）人工核对、行为一律以 `reference/komikku` 源码+实机为准；不设阶段门禁，不建证据归档。
 - 交付前测试不绿不算完成。
 - 改动 `:shared:source-runtime`、`:shared:network` 会话桥或宿主回调后，必跑 Venera 原版脚本回归（SHA-256 + 全回调链）。
 - 代码标识符与文件名按功能命名，不含产品名（Komikku/Koyura）；`app.koyura` 基包与安装标识除外，注释引用来源不受限。
@@ -17,10 +17,11 @@ Kotlin Multiplatform + Compose Multiplatform 漫画阅读器：视觉与功能�
 
 ## 选型状态（以 docs/technology-stack.md 为准，勿凭通用 skill 想当然）
 
-- **已定排期、时机未到**（第一轮阅读器对齐验收后统一迁移，勿提前引入）：Koin、MVIKotlin、androidx ViewModel（`lifecycle-viewmodel-navigation3`）、Multiplatform Settings、Kermit、Turbine。
+- **重构即用（方案 B 已拍板）**：Koin、MVIKotlin、androidx ViewModel（`lifecycle-viewmodel-navigation3`）——按 `docs/application-architecture-mvvm-clean-udf.md` §6 阶段 0/1 接入；mvikotlin `keepers` 仍禁用。
+- **已定排期、时机未到**：Multiplatform Settings、Kermit、Turbine（随架构收尾窗口接入）。
 - **阅读器轮次即用**：ZoomImage（缩放/长图）、Coil 3（封面与列表图片）。
 - **未选型勿引入**：Voyager、Decompose、Room、Retrofit、Paging 3、Firebase/Sentry 系；mvikotlin `keepers` 模块已废弃，禁用。
-- 当前 DI 为手动构造器注入 + `CompositionLocal`（装配在 `ExtensionApp`/`AppScaffold`）；页面状态为 session/state holder + 不可变 `UiState`。
+- 当前 DI 正由手动构造器注入 + `CompositionLocal`（装配在 `ExtensionApp`/`AppScaffold`）向 Koin 迁移；页面状态正由 session/state holder + 不可变 `UiState` 向 ViewModel / MVIKotlin Store 迁移。白皮书仅实机截图可信，文字描述不作为重构依据，行为以 `reference/komikku` 源码+实机为准。
 
 ## 工艺技能路由（入口在 ~/.zcode/skills/，嵌套经路由按需读）
 
