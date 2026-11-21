@@ -28,7 +28,7 @@ JAVA_HOME="$HOME/devtools/jdk-21" ./gradlew \
   -PveneraReferenceDir="$PWD/reference/Venera-Next"
 ```
 
-2026-11-19 实测基线：499 用例全绿（domain 11 / features 69 / data 105 / source-runtime 48 / app 266）。此数字只用于察觉测试意外丢失，不另设达标线。
+2026-11-21 实测基线：722 用例全绿（domain 13 / features 107 / data 136 / source-runtime 65 / app 401）。此数字只用于察觉测试意外丢失，不另设达标线。
 
 ## 三端构建（触及入口或平台代码时）
 
