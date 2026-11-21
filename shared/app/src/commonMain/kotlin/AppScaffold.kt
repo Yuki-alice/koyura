@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.movableContentOf
@@ -40,7 +41,10 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import app.koyura.app.di.appKoinModules
 import app.koyura.app.library.LocalProductionSettings
+import org.koin.compose.KoinIsolatedContext
+import org.koin.dsl.koinApplication
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.saveable.SaveableStateHolder
@@ -169,6 +173,12 @@ internal fun AppScaffold(
     val settingsSession = LocalAppSettingsSession.current ?: rememberSettingsSession()
     val librarySession = rememberLibrarySession()
 
+    // 阶段 0：外壳自宿主隔离 Koin（单宿主无全局污染测试直挂 AppScaffold 即有 Koin；
+    // 会话无关的模块聚合见 di.AppKoin，会话经 parameters 注入避免可空全局单例）。
+    // 注意内容区是 movableContentOf捕获 stable 对象才安全，koinApp 永不重建可直接捕获。
+    val koinApp = remember { koinApplication { modules(appKoinModules()) } }
+    DisposableEffect(koinApp) { onDispose { koinApp.close() } }
+
     // G1：5 个 tab 的重复点击快捷入口（Komikku 各 Tab onReselect 对齐）。
     // Library 经 filterSignal 打开筛选 Sheet（页内状态，不进栈）；其余推已有路由键。
     // 注意内容区是 movableContentOf（参数不变时跳过重组），所以信号必须用稳定的
@@ -263,7 +273,9 @@ internal fun AppScaffold(
     val saveableStateHolder = rememberSaveableStateHolder()
     val appContent = remember(activeMoreSession, settingsSession) {
         movableContentOf<AppNavigationState, SaveableStateHolder, BrowseSession> { state, holder, browse ->
-            CompositionLocalProvider(LocalReaderService provides readerService) {
+            // Koin 隔离作用域盖住 tab 内容（含 Library ViewModel 的 koinViewModel 解析）。
+            KoinIsolatedContext(koinApp) {
+                CompositionLocalProvider(LocalReaderService provides readerService) {
                 ProvideUiContentColor(UiTheme.colorScheme.onSurface) {
                     Column(Modifier.fillMaxSize()) {
                         if (!state.isReaderOpen) {
@@ -292,6 +304,7 @@ internal fun AppScaffold(
                 }
             }
         }
+    }
     }
 
     // The reader is fullscreen: it draws behind the system bars with its own controls and

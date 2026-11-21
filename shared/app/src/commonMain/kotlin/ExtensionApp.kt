@@ -39,8 +39,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.emptyFlow
 import app.koyura.app.updates.ProductionUpdatePolicyRepository
-import app.koyura.app.di.appKoinModules
-import org.koin.compose.KoinApplication
 import app.koyura.app.resources.Res
 import app.koyura.app.resources.extension_startup_failed
 import app.koyura.app.resources.extension_startup_loading
@@ -195,7 +193,6 @@ internal fun ExtensionApp(
         val history = remember(session) { VeneraHistoryService(session.history, session.library) }
         val downloads = remember(session) { ProductionDownloadQueueRepository(session.downloadQueue) }
         val statistics = remember(session) { ProductionStatisticsRepository(session.statistics) }
-        val koinModules = remember(session) { appKoinModules() }
         CompositionLocalProvider(
             LocalProductionSources provides sources,
             LocalProductionSettings provides settings,
@@ -203,8 +200,8 @@ internal fun ExtensionApp(
             LocalDownloadQueueRepository provides downloads,
             LocalStatisticsRepository provides statistics,
         ) {
-            KoinApplication(application = { modules(koinModules) }) {
-                App(
+            // Koin 改由 AppScaffold 自宿主隔离实例（测试直挂外壳同样有 Koin），此处不再另起全局。
+            App(
                     browseService = browse,
                     readerService = reader,
                     historyService = history,
@@ -217,7 +214,6 @@ internal fun ExtensionApp(
                     sourceUiHost = uiHost,
                     enableOnboardingAutoEnter = enableOnboardingAutoEnter,
                 )
-            }
         }
     } else {
         ReaderTheme {
