@@ -4,6 +4,8 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import app.koyura.features.downloads.FakeDownloadRepository
 import androidx.compose.ui.test.assertWidthIsAtLeast
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -274,7 +276,7 @@ class LibraryScreenTest {
         node(LibrarySelectionBarTag).assertIsDisplayed()
         node(LibrarySelectionCountTag).assertIsDisplayed()
         node(LibraryBottomMenuTag).assertIsDisplayed()
-        // 迁移与下载只留 disabled 入口。
+        // 迁移恒置灰；无下载仓储时下载同样置灰（下面的用例覆盖接通态）。
         node(LibraryBottomMigrateTag).assertIsNotEnabled()
         node(LibraryBottomDownloadTag).assertIsNotEnabled()
         // 全选→移除→确认→落盘。
@@ -285,6 +287,31 @@ class LibraryScreenTest {
         node(LibraryRemoveConfirmTag).performClick()
         waitUntil { session.snapshot.entries.isEmpty() }
         node(LibraryEmptyTag).assertIsDisplayed()
+    }
+
+    @Test
+    fun batchDownloadEnqueuesUnreadChaptersAndClearsSelection() = runComposeUiTest {
+        val downloads = FakeDownloadRepository()
+        val session = LibrarySession(triStateFixture(), downloads)
+        setContent {
+            ReaderTheme {
+                LibraryScreen(
+                    session = session,
+                    decodeCover = realDecode,
+                    onOpenWork = { _, _, _ -> },
+                    onContinue = {},
+                )
+            }
+        }
+        waitUntil { session.snapshot.entries.isNotEmpty() }
+        // w1 共 10 章、3 章未读（c8..c10）；w2 已全部读完。
+        node(libraryCardTag("srcA", "w1")).performTouchInput { longClick() }
+        waitUntil { session.selection.isNotEmpty() }
+        node(LibraryBottomDownloadTag).assertIsEnabled()
+        node(LibraryBottomDownloadTag).performClick()
+        waitUntil { session.selection.isEmpty() }
+        val jobs = kotlinx.coroutines.runBlocking { downloads.downloadJobs("srcA", "w1") }
+        assertEquals(setOf("c8", "c9", "c10"), jobs.keys)
     }
 
     @Test

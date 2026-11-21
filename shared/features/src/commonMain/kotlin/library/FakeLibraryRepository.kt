@@ -133,6 +133,23 @@ class FakeLibraryRepository(
         return emptyMap()
     }
 
+    // 批量下载选章用：按 `totalChapters` 生成 `c1..cN`（c1 最旧），
+    // 末尾 `unreadCount` 个为未读（与生产「新章在后」语义一致）。
+    override suspend fun listChapters(key: LibraryEntryKey): List<LibraryChapterEntry> {
+        enter("listChapters", key.workId)
+        val entry = entries.firstOrNull { it.key == key } ?: return emptyList()
+        val total = entry.totalChapters.coerceAtLeast(0)
+        if (total == 0) return emptyList()
+        val unread = entry.unreadCount.coerceIn(0, total.toLong()).toInt()
+        return (1..total).map { index ->
+            LibraryChapterEntry(
+                chapterId = "c$index",
+                title = "Chapter $index",
+                isRead = index <= total - unread,
+            )
+        }
+    }
+
     override suspend fun markDetailChapters(
         key: LibraryEntryKey,
         chapterIds: Set<String>,

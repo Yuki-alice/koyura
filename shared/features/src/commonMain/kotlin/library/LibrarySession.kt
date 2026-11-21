@@ -9,6 +9,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.runtime.staticCompositionLocalOf
+import app.koyura.features.downloads.DownloadQueueRepository
+import app.koyura.features.downloads.LocalDownloadQueueRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
@@ -56,6 +58,7 @@ enum class LibraryBackOutcome {
  */
 class LibrarySession(
     private val repository: LibraryRepository?,
+    val downloads: DownloadQueueRepository? = null,
 ) {
     var loadState: LibraryLoadState by mutableStateOf(LibraryLoadState.Loading)
         private set
@@ -326,6 +329,41 @@ class LibrarySession(
     suspend fun markSelectedAsRead(read: Boolean): Boolean =
         mutateSelected { repo, keys -> repo.markAsRead(keys, read) }
 
+    /**
+     * 底部批量：下载所选（只收未读章节）。
+     *
+     * 无下载仓储（测试/预览）返回 false 由调用方置灰；所选无可下章节记
+     * `actionError` 并保留选择态，其余失败按作跳过、成功后清空选择。
+     */
+    suspend fun downloadSelected(): Boolean {
+        val current = repository ?: return fail("Library is not connected")
+        val queue = downloads ?: return fail("Downloads are not connected")
+        val keys = selection.toSet()
+        if (keys.isEmpty()) return true
+        return try {
+            var enqueued = 0
+            for (key in keys) {
+                val unread = current.listChapters(key).filter { !it.isRead }.map { it.chapterId }
+                if (unread.isEmpty()) continue
+                queue.enqueueChapters(key.sourceKey, key.workId, unread)
+                enqueued++
+            }
+            if (enqueued == 0) {
+                fail("No new chapters to download")
+                false
+            } else {
+                selection = emptySet()
+                actionError = null
+                true
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            fail(failure.userMessage())
+            false
+        }
+    }
+
     /** 详情章列表的已读映射（生产仓储读同一 `library_chapter` 表）。 */
     suspend fun chapterReadStates(key: LibraryEntryKey): Map<String, Boolean> {
         val current = repository ?: return emptyMap()
@@ -523,4 +561,5 @@ val LocalLibraryRepository = staticCompositionLocalOf<LibraryRepository?> { null
 @Composable
 fun rememberLibrarySession(
     repository: LibraryRepository? = LocalLibraryRepository.current,
-): LibrarySession = remember(repository) { LibrarySession(repository) }
+    downloads: DownloadQueueRepository? = LocalDownloadQueueRepository.current,
+): LibrarySession = remember(repository, downloads) { LibrarySession(repository, downloads) }

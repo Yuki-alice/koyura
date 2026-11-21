@@ -1,5 +1,6 @@
 package app.koyura.features.library
 
+import app.koyura.features.downloads.FakeDownloadRepository
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -340,6 +341,56 @@ class LibrarySessionTest {
     fun migrationEntryStaysDisabled() = runTest {
         val (_, fake) = sessionOf()
         assertFalse(fake.migrationSupported)
+    }
+
+    @Test
+    fun downloadSelectedEnqueuesOnlyUnreadChapters() = runTest {
+        val fake = FakeLibraryRepository(
+            entries = listOf(
+                LibraryEntry(sourceKey = "srcA", workId = "w1", title = "连载", totalChapters = 10, unreadCount = 3),
+                LibraryEntry(sourceKey = "srcB", workId = "w2", title = "完结", totalChapters = 2, unreadCount = 0),
+            ),
+        )
+        val downloads = FakeDownloadRepository()
+        val session = LibrarySession(fake, downloads)
+        session.refresh()
+        session.toggleSelect(LibraryEntryKey("srcA", LibraryKind.COMIC, "w1"))
+        session.toggleSelect(LibraryEntryKey("srcB", LibraryKind.COMIC, "w2"))
+        assertTrue(session.downloadSelected())
+        // 成功后清空选择；w1 只收未读 c8..c10，已读不收；w2 全读完跳过。
+        assertTrue(session.selection.isEmpty())
+        assertEquals(setOf("c8", "c9", "c10"), downloads.downloadJobs("srcA", "w1").keys)
+        assertTrue(downloads.downloadJobs("srcB", "w2").isEmpty())
+    }
+
+    @Test
+    fun downloadSelectedWithoutDownloadsReportsError() = runTest {
+        val fake = FakeLibraryRepository(
+            entries = listOf(
+                LibraryEntry(sourceKey = "srcA", workId = "w1", title = "连载", totalChapters = 3, unreadCount = 1),
+            ),
+        )
+        val session = LibrarySession(fake)
+        session.refresh()
+        session.toggleSelect(LibraryEntryKey("srcA", LibraryKind.COMIC, "w1"))
+        assertFalse(session.downloadSelected())
+        assertEquals("Downloads are not connected", session.actionError)
+    }
+
+    @Test
+    fun downloadSelectedWithNothingNewKeepsSelection() = runTest {
+        val fake = FakeLibraryRepository(
+            entries = listOf(
+                LibraryEntry(sourceKey = "srcB", workId = "w2", title = "完结", totalChapters = 2, unreadCount = 0),
+            ),
+        )
+        val session = LibrarySession(fake, FakeDownloadRepository())
+        session.refresh()
+        val key = LibraryEntryKey("srcB", LibraryKind.COMIC, "w2")
+        session.toggleSelect(key)
+        assertFalse(session.downloadSelected())
+        assertEquals("No new chapters to download", session.actionError)
+        assertEquals(setOf(key), session.selection)
     }
 
     @Test

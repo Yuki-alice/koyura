@@ -47,6 +47,13 @@ interface LibraryRepository {
     suspend fun chapterReadStates(key: LibraryEntryKey): Map<String, Boolean> = emptyMap()
 
     /**
+     * 一作的章节目录（`sortIndex` 升序）；未收藏或未同步目录时为空。
+     *
+     * 批量下载的选章数据源（只收未读）；详情目录仍走浏览服务实时解析。
+     */
+    suspend fun listChapters(key: LibraryEntryKey): List<LibraryChapterEntry> = emptyList()
+
+    /**
      * 详情批量标已读/未读（子集）：只改 [chapterIds] 的 `is_read`，
      * 空集表示该作全部章节；页键/页码/历史隐藏标记原样保留。
      */

@@ -1308,12 +1308,11 @@ private fun LibraryBottomMenu(
                 onClick = { scope.launch { session.markSelectedAsRead(false) } },
                 modifier = Modifier.testTag(LibraryBottomMarkUnreadTag),
             )
-            // 离线下载在后续轮次（更新与离线轨）提供，本轮只留 disabled 入口。
             ActionIconButton(
                 icon = ActionIcon.Download,
                 label = stringResource(Res.string.library_action_download),
-                onClick = {},
-                enabled = false,
+                onClick = { scope.launch { session.downloadSelected() } },
+                enabled = session.selection.isNotEmpty() && session.downloads != null,
                 modifier = Modifier.testTag(LibraryBottomDownloadTag),
             )
             // 跨源迁移合并入口本轮只留 disabled 入口，不实现。

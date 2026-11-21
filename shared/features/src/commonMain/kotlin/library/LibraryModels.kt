@@ -87,6 +87,13 @@ data class LibraryEntry(
         get() = true
 }
 
+/** 书架一作的章节行（批量下载选章用；`chapterId = ""` 即无分章行）。 */
+data class LibraryChapterEntry(
+    val chapterId: String,
+    val title: String = "",
+    val isRead: Boolean = false,
+)
+
 /** 书架分类。`id` 自增，`order` 决定页签顺序，`isHidden` 为隐藏分类。 */
 data class LibraryCategory(
     val id: Long,

@@ -10,6 +10,7 @@ import app.koyura.domain.library.LibraryQuery as DomainLibraryQuery
 import app.koyura.domain.library.LibraryRepository as DomainLibraryRepository
 import app.koyura.domain.library.WorkKind as DomainWorkKind
 import app.koyura.features.library.LibraryCategory
+import app.koyura.features.library.LibraryChapterEntry
 import app.koyura.features.library.LibraryDisplayMode
 import app.koyura.features.library.LibraryEntry
 import app.koyura.features.library.LibraryEntryKey
@@ -151,6 +152,18 @@ class ProductionLibraryRepository(
             throw cancelled
         } catch (_: Exception) {
             emptyMap()
+        }
+    }
+
+    override suspend fun listChapters(key: LibraryEntryKey): List<LibraryChapterEntry> = runRepo {
+        try {
+            store.listChapters(key.sourceKey, key.kind.toDomain(), key.workId)
+                .sortedBy { it.sortIndex }
+                .map { LibraryChapterEntry(it.chapterId, it.title, it.isRead) }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            emptyList()
         }
     }
 
