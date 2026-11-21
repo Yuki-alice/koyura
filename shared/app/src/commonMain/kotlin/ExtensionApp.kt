@@ -39,6 +39,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.emptyFlow
 import app.koyura.app.updates.ProductionUpdatePolicyRepository
+import app.koyura.app.di.appKoinModules
+import org.koin.compose.KoinApplication
 import app.koyura.app.resources.Res
 import app.koyura.app.resources.extension_startup_failed
 import app.koyura.app.resources.extension_startup_loading
@@ -193,6 +195,7 @@ internal fun ExtensionApp(
         val history = remember(session) { VeneraHistoryService(session.history, session.library) }
         val downloads = remember(session) { ProductionDownloadQueueRepository(session.downloadQueue) }
         val statistics = remember(session) { ProductionStatisticsRepository(session.statistics) }
+        val koinModules = remember(session) { appKoinModules() }
         CompositionLocalProvider(
             LocalProductionSources provides sources,
             LocalProductionSettings provides settings,
@@ -200,19 +203,21 @@ internal fun ExtensionApp(
             LocalDownloadQueueRepository provides downloads,
             LocalStatisticsRepository provides statistics,
         ) {
-            App(
-                browseService = browse,
-                readerService = reader,
-                historyService = history,
-                readerPreferences = settings,
-                libraryRepository = library,
-                updatesRepository = updates,
-                updatePolicyRepository = updatePolicy,
-                accountRepository = accounts,
-                searchSourceFilter = { sources.discovery.searchSourceKeys() },
-                sourceUiHost = uiHost,
-                enableOnboardingAutoEnter = enableOnboardingAutoEnter,
-            )
+            KoinApplication(application = { modules(koinModules) }) {
+                App(
+                    browseService = browse,
+                    readerService = reader,
+                    historyService = history,
+                    readerPreferences = settings,
+                    libraryRepository = library,
+                    updatesRepository = updates,
+                    updatePolicyRepository = updatePolicy,
+                    accountRepository = accounts,
+                    searchSourceFilter = { sources.discovery.searchSourceKeys() },
+                    sourceUiHost = uiHost,
+                    enableOnboardingAutoEnter = enableOnboardingAutoEnter,
+                )
+            }
         }
     } else {
         ReaderTheme {
