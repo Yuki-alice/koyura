@@ -152,6 +152,8 @@ object DesignTokens {
         val BrandLogo = 64.dp
         val BrandHeaderPadding = 56.dp
         val BrowseIcon = 40.dp
+        // 搜索框固定高 50dp、全圆（白皮书 07 §7.6 源浏览搜索框）。
+        val SearchFieldHeight = 50.dp
         val SelectionMarker = 40.dp
         val SearchCoverWidth = 48.dp
         val SearchCoverHeight = 72.dp

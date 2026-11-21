@@ -1,5 +1,6 @@
 package app.koyura.designsystem
 
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -21,7 +22,7 @@ fun SearchField(
     TextField(
         value = value,
         onValueChange = onValueChange,
-        modifier = modifier,
+        modifier = modifier.height(DesignTokens.Sizes.SearchFieldHeight),
         singleLine = true,
         placeholder = { Text(placeholder) },
         leadingIcon = { ActionIcon(ActionIcon.Search, null) },

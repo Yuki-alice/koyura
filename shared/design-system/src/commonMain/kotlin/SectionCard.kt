@@ -10,7 +10,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 
 /**
  * 分组卡片容器（白皮书 07 §7.10 统计页）：`surfaceContainer` 底色、[DesignTokens.Radius.Large]
@@ -22,12 +22,14 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun SectionCard(
     modifier: Modifier = Modifier,
+    // 统计页用 28dp（白皮书 07 §7.10）；其他页面沿用 16dp。
+    cornerRadius: Dp = DesignTokens.Radius.Large,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(DesignTokens.Radius.Large))
+            .clip(RoundedCornerShape(cornerRadius))
             .background(MaterialTheme.colorScheme.surfaceContainer)
             .padding(
                 horizontal = DesignTokens.Spacing.Medium,

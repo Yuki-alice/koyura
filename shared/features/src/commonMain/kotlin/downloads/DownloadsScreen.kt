@@ -182,7 +182,7 @@ fun DownloadsScreen(
 @Composable
 private fun DownloadsEmptyState() {
     EmptyScreen(
-        emoji = "(˘･_･˘)",
+        emoji = "(︶︿︶)",
         message = stringResource(Res.string.downloads_empty),
         modifier = Modifier.testTag(DownloadsEmptyTag),
     )

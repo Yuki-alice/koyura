@@ -420,7 +420,7 @@ private fun SourceRow(
                     style = UiTheme.typography.bodyMedium,
                 )
                 AppText(
-                    text = listOf(source.language, source.versionName)
+                    text = listOf(sourceLanguageLabel(source.language), source.versionName)
                         .filter { it.isNotEmpty() }
                         .joinToString(" · "),
                     maxLines = 1,
@@ -437,6 +437,28 @@ private fun SourceRow(
             .heightIn(min = DesignTokens.Sizes.ListItemHeight)
             .testTag(rowTestTag),
     )
+}
+
+/**
+ * 语言显示名：原版副标题为「国旗 + 语言」，但 [SourceInfo] 没有国家字段，
+ * 这里只如实给出语言母语名（zh→中文、en→English…），不按语言猜国家旗。
+ */
+private fun sourceLanguageLabel(code: String): String = when (code.lowercase().substringBefore('-')) {
+    "" -> ""
+    "zh" -> "中文"
+    "en" -> "English"
+    "ja" -> "日本語"
+    "ko" -> "한국어"
+    "es" -> "Español"
+    "fr" -> "Français"
+    "de" -> "Deutsch"
+    "pt" -> "Português"
+    "ru" -> "Русский"
+    "id" -> "Indonesia"
+    "th" -> "ไทย"
+    "vi" -> "Tiếng Việt"
+    "ar" -> "العربية"
+    else -> code
 }
 
 @Composable
@@ -520,7 +542,7 @@ private fun ExtensionRow(
                     AppText(
                         text = listOfNotNull(
                             extension.versionName.takeIf { it.isNotEmpty() },
-                            extension.language.takeIf { it.isNotEmpty() },
+                            extension.language.takeIf { it.isNotEmpty() }?.let(::sourceLanguageLabel),
                             "@${extension.storeName}".takeIf { extension.storeName.isNotEmpty() },
                             extension.availableVersionName
                                 ?.takeIf { extension.hasUpdate }
