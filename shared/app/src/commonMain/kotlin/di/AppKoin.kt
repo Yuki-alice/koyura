@@ -5,6 +5,9 @@ import app.koyura.features.downloads.DownloadsStoreFactory
 import app.koyura.features.downloads.DownloadsStoreHolder
 import app.koyura.features.library.LibrarySession
 import app.koyura.features.library.LibraryViewModel
+import app.koyura.domain.reader.ReaderService
+import app.koyura.features.reader.comic.ReaderStoreFactory
+import app.koyura.features.reader.comic.ReaderStoreHolder
 import app.koyura.features.updates.UpdatesRepository
 import app.koyura.features.updates.UpdatesStoreFactory
 import app.koyura.features.updates.UpdatesStoreHolder
@@ -53,6 +56,7 @@ fun appKoinModules(): List<Module> = listOf(
     libraryViewModelModule,
     downloadsStoreModule,
     updatesStoreModule,
+    readerStoreModule,
 )
 
 /**
@@ -79,5 +83,18 @@ val updatesStoreModule: Module = module {
     single { UpdatesStoreFactory(get()) }
     viewModel { params ->
         UpdatesStoreHolder(get<UpdatesStoreFactory>().create(params.get<UpdatesRepository>()))
+    }
+}
+
+/**
+ * 阅读器 Store 模块（阶段 1 第三棒最复杂的状态机）。
+ *
+ * `StoreFactory` 单例复用；Holder 按仓储参数创建。仓储为可空时
+ * （无服务装配）Store 保持初始态所有意图空转与 Session 的 null-service 语义一致。
+ */
+val readerStoreModule: Module = module {
+    single { ReaderStoreFactory(get()) }
+    viewModel { params ->
+        ReaderStoreHolder(get<ReaderStoreFactory>().create(params.getOrNull<ReaderService>()))
     }
 }
