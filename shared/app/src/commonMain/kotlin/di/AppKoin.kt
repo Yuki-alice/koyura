@@ -5,6 +5,9 @@ import app.koyura.features.downloads.DownloadsStoreFactory
 import app.koyura.features.downloads.DownloadsStoreHolder
 import app.koyura.features.library.LibrarySession
 import app.koyura.features.library.LibraryViewModel
+import app.koyura.features.updates.UpdatesRepository
+import app.koyura.features.updates.UpdatesStoreFactory
+import app.koyura.features.updates.UpdatesStoreHolder
 import com.arkivanov.mvikotlin.core.store.StoreFactory
 import com.arkivanov.mvikotlin.main.store.DefaultStoreFactory
 import org.koin.core.module.Module
@@ -49,6 +52,7 @@ fun appKoinModules(): List<Module> = listOf(
     commonAppModule,
     libraryViewModelModule,
     downloadsStoreModule,
+    updatesStoreModule,
 )
 
 /**
@@ -62,5 +66,18 @@ val downloadsStoreModule: Module = module {
     single { DownloadsStoreFactory(get()) }
     viewModel { params ->
         DownloadsStoreHolder(get<DownloadsStoreFactory>().create(params.get<DownloadQueueRepository>()))
+    }
+}
+
+/**
+ * 更新 Store 模块（阶段 1 第二棒与 downloads 同构）。
+ *
+ * [StoreFactory] 单例复用；[UpdatesStoreFactory] 单例；
+ * Holder 按仓储参数创建（会话绑定不在 Koin 里持有可空全局单例）。
+ */
+val updatesStoreModule: Module = module {
+    single { UpdatesStoreFactory(get()) }
+    viewModel { params ->
+        UpdatesStoreHolder(get<UpdatesStoreFactory>().create(params.get<UpdatesRepository>()))
     }
 }
