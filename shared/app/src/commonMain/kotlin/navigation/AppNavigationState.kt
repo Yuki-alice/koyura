@@ -38,20 +38,40 @@ enum class BackOutcome {
  * This mirrors Komikku `HomeScreen` reselect (`LibraryTab`/`UpdatesTab`/`HistoryTab`/
  * `BrowseTab`/`MoreTab` `onReselect`); the previous "pop to root as scroll-to-top" behavior
  * is intentionally removed.
+ *
+ * Three-layer stacks (Komikku global-Navigator parity):
+ * - 5 tab root stacks keep each tab's root (and any tab-local placeholder);
+ * - [sharedStack] holds every second-level page (details, source lists, global search,
+ *   settings, downloads, categories, statistics, utilities, onboarding) and is shared
+ *   across tabs: opening a detail from Library keeps it visible after switching tabs;
+ * - [readerStack] is the reader's independent fullscreen layer with CLEAR_TOP semantics
+ *   (mirrors `ReaderActivity.FLAG_ACTIVITY_CLEAR_TOP`).
  */
 class AppNavigationState internal constructor(
     private val stacks: Map<NavTab, NavBackStack<NavKey>>,
     private val selectedTabState: MutableState<NavTab>,
     var reselectActions: Map<NavTab, () -> Unit> = emptyMap(),
+    val sharedStack: NavBackStack<NavKey> = NavBackStack(),
+    val readerStack: NavBackStack<NavKey> = NavBackStack(),
 ) {
     val selectedTab: NavTab
         get() = selectedTabState.value
 
-    /** Back stack of the visible tab. */
+    /** Back stack of the visible tab (roots only once二级页 move to [sharedStack]). */
     val currentStack: NavBackStack<NavKey>
         get() = stacks.getValue(selectedTab)
 
     fun stackOf(tab: NavTab): NavBackStack<NavKey> = stacks.getValue(tab)
+
+    /** Topmost visible key: reader fullscreen first, then shared pages, then the tab root. */
+    val topKey: NavKey?
+        get() = readerStack.lastOrNull() ?: sharedStack.lastOrNull() ?: currentStack.lastOrNull()
+
+    val isReaderOpen: Boolean
+        get() = readerStack.isNotEmpty()
+
+    val isSharedOpen: Boolean
+        get() = sharedStack.isNotEmpty()
 
     /**
      * Selects [tab]. Tapping the already selected destination runs its reselect action
@@ -73,26 +93,63 @@ class AppNavigationState internal constructor(
         }
     }
 
+    /**
+     * Pushes a destination: the reader opens its independent fullscreen layer with
+     * CLEAR_TOP semantics; every other page goes to the cross-tab shared stack.
+     * Tab stacks keep only their roots.
+     */
     fun push(route: AppRoute) {
-        currentStack.add(route)
+        if (route is ComicReaderRoute) openReader(route) else sharedStack.add(route)
     }
 
-    /** Pops one child page of the visible tab. Returns false when the tab is already at its root. */
+    /**
+     * Opens the reader, replacing any current reader page (CLEAR_TOP).
+     * Returning exits to the page underneath (shared or tab root).
+     */
+    fun openReader(route: ComicReaderRoute) {
+        readerStack.clear()
+        readerStack.add(route)
+    }
+
+    /** Closes the reader layer. Returns false when the reader is not open. */
+    fun closeReader(): Boolean {
+        if (readerStack.isEmpty()) return false
+        readerStack.clear()
+        return true
+    }
+
+    /** Pops one shared page. Returns false when the shared stack is empty. */
+    fun popShared(): Boolean {
+        if (sharedStack.isEmpty()) return false
+        sharedStack.removeAt(sharedStack.lastIndex)
+        return true
+    }
+
+    /**
+     * Pops one visible child page: reader first, then shared, then the current tab.
+     * Returns false when the visible tab is already at its root.
+     */
     fun popCurrentChild(): Boolean {
+        if (closeReader()) return true
+        if (popShared()) return true
         if (currentStack.size <= 1) return false
         currentStack.removeAt(currentStack.lastIndex)
         return true
     }
 
     /** True while the shell itself can handle back without leaving the app. */
-    fun canHandleBack(): Boolean = currentStack.size > 1 || selectedTab != NavTab.Library
+    fun canHandleBack(): Boolean =
+        readerStack.isNotEmpty() || sharedStack.isNotEmpty() ||
+            currentStack.size > 1 || selectedTab != NavTab.Library
 
     /** True when back would leave the current tab for the Library tab. */
-    fun returnsToLibraryOnBack(): Boolean = currentStack.size <= 1 && selectedTab != NavTab.Library
+    fun returnsToLibraryOnBack(): Boolean =
+        readerStack.isEmpty() && sharedStack.isEmpty() &&
+            currentStack.size <= 1 && selectedTab != NavTab.Library
 
     /**
-     * Applies the back rules: child pages pop first, other tabs return to Library, and the Library
-     * root is left to the platform.
+     * Applies the back rules: reader first, then shared pages, then tab children,
+     * then other tabs return to Library, and the Library root is left to the platform.
      */
     fun handleBack(): BackOutcome {
         if (popCurrentChild()) return BackOutcome.PoppedChild
@@ -113,6 +170,8 @@ fun createAppNavigationState(
     stacks = NavTab.entries.associateWith { tab -> NavBackStack<NavKey>(TabRootRoute(tab)) },
     selectedTabState = mutableStateOf(initialTab),
     reselectActions = reselectActions,
+    sharedStack = NavBackStack(),
+    readerStack = NavBackStack(),
 )
 
 /**
@@ -135,8 +194,19 @@ fun rememberAppNavigationState(
     val historyStack = rememberNavBackStack(configuration, TabRootRoute(NavTab.History))
     val browseStack = rememberNavBackStack(configuration, TabRootRoute(NavTab.Browse))
     val moreStack = rememberNavBackStack(configuration, TabRootRoute(NavTab.More))
+    val sharedStack = rememberNavBackStack(configuration)
+    val readerStack = rememberNavBackStack(configuration)
 
-    return remember(libraryStack, updatesStack, historyStack, browseStack, moreStack, selectedTab) {
+    return remember(
+        libraryStack,
+        updatesStack,
+        historyStack,
+        browseStack,
+        moreStack,
+        sharedStack,
+        readerStack,
+        selectedTab,
+    ) {
         AppNavigationState(
             stacks = mapOf(
                 NavTab.Library to libraryStack,
@@ -147,6 +217,8 @@ fun rememberAppNavigationState(
             ),
             selectedTabState = selectedTab,
             reselectActions = reselectActions ?: NavTab.entries.associateWith { tab -> { reselect(tab) } },
+            sharedStack = sharedStack,
+            readerStack = readerStack,
         )
     }
 }

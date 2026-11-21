@@ -16,7 +16,6 @@ import app.koyura.app.browse.LocalBrowseService
 import app.koyura.app.browse.globalsearch.LocalSearchSourceFilter
 import app.koyura.app.history.HistoryService
 import app.koyura.app.history.LocalHistoryService
-import app.koyura.app.navigation.ComicReaderRoute
 import app.koyura.app.navigation.DownloadQueueRoute
 import app.koyura.app.navigation.TabletUiMode
 import app.koyura.app.navigation.rememberAppNavigationState
@@ -130,7 +129,7 @@ internal fun AppShell(
         LaunchedEffect(navigation, duration, lifecycle) {
             try {
                 combine(
-                    snapshotFlow { navigation.currentStack.lastOrNull() is ComicReaderRoute },
+                    snapshotFlow { navigation.isReaderOpen },
                     lifecycle.currentStateFlow,
                 ) { visible, state -> visible to state.isAtLeast(Lifecycle.State.RESUMED) }
                     .collect { (visible, resumed) -> duration.setVisibility(visible, resumed) }
@@ -139,7 +138,7 @@ internal fun AppShell(
             }
         }
     }
-    CompositionLocalProvider(LocalDownloadQueueVisible provides (navigation.currentStack.lastOrNull() is DownloadQueueRoute)) {
+    CompositionLocalProvider(LocalDownloadQueueVisible provides (navigation.topKey is DownloadQueueRoute)) {
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
             AppScaffold(
                 navigation = navigation,

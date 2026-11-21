@@ -32,7 +32,12 @@ fun LibraryTabContent(
     filterRequest: Int = 0,
 ) {
     val scope = rememberCoroutineScope()
-    LaunchedEffect(navigation.currentStack.size) {
+    // 共享层/阅读器层返回后重读快照：tab 栈只剩根，深度变化走共享/阅读器栈。
+    LaunchedEffect(
+        navigation.currentStack.size,
+        navigation.sharedStack.size,
+        navigation.readerStack.size,
+    ) {
         if (navigation.selectedTab == NavTab.Library) {
             session.refresh()
         }

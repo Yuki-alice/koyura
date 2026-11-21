@@ -266,7 +266,7 @@ internal fun AppScaffold(
             CompositionLocalProvider(LocalReaderService provides readerService) {
                 ProvideUiContentColor(UiTheme.colorScheme.onSurface) {
                     Column(Modifier.fillMaxSize()) {
-                        if (state.currentStack.lastOrNull() !is ComicReaderRoute) {
+                        if (!state.isReaderOpen) {
                             AppStatusBanners(
                                 indexing = indexingState.value,
                                 downloadedOnly = activeMoreSession.downloadedOnly,
@@ -297,10 +297,10 @@ internal fun AppScaffold(
     // The reader is fullscreen: it draws behind the system bars with its own controls and
     // hides the tab bar/rail while a chapter is open. Library multi-select hides them the same
     // way (Komikku parity: selection mode owns the chrome).
-    val isReaderOpen = navigation.currentStack.lastOrNull() is ComicReaderRoute
+    val isReaderOpen = navigation.isReaderOpen
     ReaderSystemBars(hidden = isReaderOpen)
     // 引导页是一次性流程：与阅读器一样占满全屏，不显示底栏 / 导航轨。
-    val isOnboardingOpen = navigation.currentStack.lastOrNull() is OnboardingRoute
+    val isOnboardingOpen = navigation.topKey is OnboardingRoute
     val hideChrome = isOnboardingOpen ||
         (navigation.selectedTab == NavTab.Library && librarySession.selection.isNotEmpty()) ||
         (navigation.selectedTab == NavTab.History && activeHistorySession.selection.isNotEmpty())
@@ -376,13 +376,15 @@ private fun BackToLibraryHandler(
         navigation.handleBack()
     }
     // 书架根上返回键先清选择态/搜索，不直接交平台；与“回书架”分支互斥。
-    val consumeLibrary = navigation.selectedTab == NavTab.Library &&
+    // 共享层/阅读器层打开时不抢返回键，交给各 NavDisplay 逐层 pop。
+    val layersClear = navigation.sharedStack.isEmpty() && !navigation.isReaderOpen
+    val consumeLibrary = layersClear && navigation.selectedTab == NavTab.Library &&
         navigation.currentStack.size <= 1 && librarySession?.wantsBack == true
     BackHandler(enabled = consumeLibrary) {
         librarySession?.consumeBack()
     }
     // 历史页多选：返回键先清选择态，不直接交平台（与书架同序）。
-    val consumeHistory = navigation.selectedTab == NavTab.History &&
+    val consumeHistory = layersClear && navigation.selectedTab == NavTab.History &&
         navigation.currentStack.size <= 1 && historySession?.wantsBack == true
     BackHandler(enabled = consumeHistory) {
         historySession?.clearSelection()
@@ -505,7 +507,7 @@ private fun AppNavigationContent(
                     TabRootScreen(
                         tab = route.tab,
                         onOpenDetail = {
-                            navigation.push(DetailRoute(tab = route.tab, id = navigation.currentStack.size))
+                            navigation.push(DetailRoute(tab = route.tab, id = navigation.sharedStack.size))
                         },
                     )
                 }
@@ -613,6 +615,8 @@ private fun AppNavigationContent(
                         onOpenWork = { workId, title ->
                             navigation.push(SourceDetailRoute(route.sourceKey, workId, title))
                         },
+                        // G2：搜索页在共享栈顶时必须有返回出口（切 tab 不再关掉它）。
+                        onBack = { navigation.popCurrentChild() },
                     )
                 }
             }
@@ -668,7 +672,9 @@ private fun AppNavigationContent(
         }
     }
 
-    saveableStateHolder.SaveableStateProvider(navigation.selectedTab.name) {        AnimatedContent(
+    // tab 内容与两层叠加共用一格：Box 重叠（Column 会把后来的 fillMaxSize 孩子压到零高度）。
+    Box(modifier = Modifier.fillMaxSize()) {
+        saveableStateHolder.SaveableStateProvider(navigation.selectedTab.name) {        AnimatedContent(
             targetState = navigation.selectedTab,
             transitionSpec = {
                 val half = DesignTokens.Motion.TabFadeThroughMs / 2
@@ -679,6 +685,34 @@ private fun AppNavigationContent(
         ) { tab ->
             NavDisplay(
                 backStack = navigation.stackOf(tab),
+                onBack = { navigation.handleBack() },
+                modifier = Modifier.fillMaxSize(),
+                transitionSpec = { childPageTransition(forward = true) },
+                popTransitionSpec = { childPageTransition(forward = false) },
+                predictivePopTransitionSpec = { childPageTransition(forward = false) },
+                entryProvider = entryProvider,
+            )
+        }
+        }
+
+        // 共享层：跨 tab 二级页（详情/源内列表/全局搜索/设置/下载队列/分类/统计/工具/引导），
+        // 从书架打开后切到其他 tab 依然保留（Komikku 全局 Navigator 对齐）。覆盖 tab 内容。
+        if (navigation.isSharedOpen) {
+            NavDisplay(
+                backStack = navigation.sharedStack,
+                onBack = { navigation.handleBack() },
+                modifier = Modifier.fillMaxSize(),
+                transitionSpec = { childPageTransition(forward = true) },
+                popTransitionSpec = { childPageTransition(forward = false) },
+                predictivePopTransitionSpec = { childPageTransition(forward = false) },
+                entryProvider = entryProvider,
+            )
+        }
+
+        // 阅读器层：独立全屏栈（CLEAR_TOP，对齐 ReaderActivity），覆盖一切。
+        if (navigation.isReaderOpen) {
+            NavDisplay(
+                backStack = navigation.readerStack,
                 onBack = { navigation.handleBack() },
                 modifier = Modifier.fillMaxSize(),
                 transitionSpec = { childPageTransition(forward = true) },
