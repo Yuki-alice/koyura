@@ -11,6 +11,7 @@ import app.koyura.app.navigation.SourceDetailRoute
 import app.koyura.designsystem.navigation.NavTab
 import app.koyura.features.library.LibraryScreen
 import app.koyura.features.library.LibrarySession
+import app.koyura.features.library.rememberLibraryViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
@@ -32,6 +33,9 @@ fun LibraryTabContent(
     filterRequest: Int = 0,
 ) {
     val scope = rememberCoroutineScope()
+    // 阶段 0 样板：ViewModel 由 Koin 按 NavKey 域化持有，包入装配层同一份 session；
+    // 屏内渲染读 viewModel.uiState，Koin 上下文由外壳自宿主（测试直挂屏走无 VM 路径）。
+    val viewModel = rememberLibraryViewModel(session)
     // 共享层/阅读器层返回后重读快照：tab 栈只剩根，深度变化走共享/阅读器栈。
     LaunchedEffect(
         navigation.currentStack.size,
@@ -44,6 +48,7 @@ fun LibraryTabContent(
     }
     LibraryScreen(
         session = session,
+        viewModel = viewModel,
         decodeCover = { bytes -> AppCoverDecoder.decode(bytes) },
         onOpenWork = { sourceKey, workId, title ->
             navigation.push(SourceDetailRoute(sourceKey, workId, title))

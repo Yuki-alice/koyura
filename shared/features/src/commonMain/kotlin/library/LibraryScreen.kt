@@ -44,6 +44,7 @@ import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -218,8 +219,17 @@ fun LibraryScreen(
     modifier: Modifier = Modifier,
     /** 外壳重复点击书架 tab 时递增：打开筛选 Sheet（G1 reselect，不进导航栈）。 */
     filterRequest: Int = 0,
+    /**
+     * 生产由外壳经 Koin 按 NavKey 域化传入；测试/预览传 null 则走
+     * [LibrarySession.asUiStateFlow] 同一快照零 Koin 可跑。
+     * 渲染一律读 [uiState]；落盘/封面等操作仍走同一份 session。
+     */
+    viewModel: LibraryViewModel? = null,
 ) {
     val scope = rememberCoroutineScope()
+    val uiState by remember(viewModel, session) {
+        viewModel?.uiState ?: session.asUiStateFlow(scope)
+    }.collectAsState()
     var sheet by remember { mutableStateOf<LibrarySheet?>(null) }
     LaunchedEffect(filterRequest) {
         if (filterRequest > 0) sheet = LibrarySheet.FILTER
@@ -255,7 +265,7 @@ fun LibraryScreen(
 
     Box(modifier = modifier.fillMaxSize()) {
     Column(modifier = Modifier.fillMaxSize().testTag(LibraryRootTag)) {
-        if (session.selection.isNotEmpty()) {
+        if (uiState.selection.isNotEmpty()) {
             LibrarySelectionToolbar(session = session)
         } else {
             LibraryToolbar(
@@ -270,7 +280,7 @@ fun LibraryScreen(
             )
         }
         LibraryCategoryTabs(session = session)
-        session.actionError?.let { message ->
+        uiState.actionError?.let { message ->
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = DesignTokens.Spacing.Medium, vertical = DesignTokens.Spacing.ExtraSmall)
                     .testTag(LibraryActionErrorTag),
@@ -289,7 +299,7 @@ fun LibraryScreen(
             }
         }
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-            when (val load = session.loadState) {
+            when (val load = uiState.loadState) {
                 LibraryLoadState.Loading -> LoadingScreen(Modifier.testTag(LibraryLoadingTag))
                 is LibraryLoadState.Failed -> ErrorScreen(
                     message = stringResource(Res.string.library_load_failed, load.message),
@@ -317,7 +327,7 @@ fun LibraryScreen(
                 }
             }
         }
-        if (session.selection.isNotEmpty()) {
+        if (uiState.selection.isNotEmpty()) {
             LibraryBottomMenu(
                 session = session,
                 onChangeCategories = { sheet = LibrarySheet.PICKER },
@@ -356,6 +366,8 @@ private fun LibraryToolbar(
     onRandomOpen: (LibraryEntry) -> Unit,
     onGlobalSearch: (() -> Unit)?,
 ) {
+    // 渲染读同一份 UiState 快照（与屏根收集的 uiState 同源，帧内一致）。
+    val uiState = session.captureUiState()
     var overflow by remember { mutableStateOf(false) }
     Column(modifier = Modifier.fillMaxWidth()) {
         ReaderTopAppBar(
@@ -370,10 +382,10 @@ private fun LibraryToolbar(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false).testTag(LibraryTitleTag),
                     )
-                    if (session.snapshot.prefs.showWorkCount) {
+                    if (uiState.snapshot.prefs.showWorkCount) {
                         // 书架标题旁的计数胶囊：14sp、onBackground 8%/12%（白皮书 06 §6.11）。
                         CountPill(
-                            count = session.countForTab(null).toString(),
+                            count = (uiState.counts[null] ?: 0).toString(),
                             fontSizeSp = 14f,
                             modifier = Modifier.testTag(LibraryCountTag),
                         )
@@ -423,12 +435,12 @@ private fun LibraryToolbar(
         }
         if (searching) {
             AppTextField(
-                value = session.query,
+                value = uiState.query,
                 onValueChange = { session.updateQuery(it) },
                 placeholder = { AppText(stringResource(Res.string.library_search_hint)) },
                 singleLine = true,
                 trailingIcon = {
-                    if (session.query.isNotEmpty()) {
+                    if (uiState.query.isNotEmpty()) {
                         ActionIconButton(
                             icon = ActionIcon.Close,
                             label = stringResource(Res.string.library_search_clear),
@@ -454,6 +466,7 @@ private fun LibraryOverflowDialog(
     onRandomOpen: (LibraryEntry) -> Unit,
     onGlobalSearch: (() -> Unit)?,
 ) {
+    val uiState = session.captureUiState()
     val scope = rememberCoroutineScope()
     AppAlertDialog(
         onDismissRequest = onDismiss,
@@ -482,7 +495,7 @@ private fun LibraryOverflowDialog(
                     label = stringResource(Res.string.library_random_open),
                     tag = LibraryMenuRandomTag,
                     onClick = {
-                        session.visibleEntries.randomOrNull()?.let(onRandomOpen)
+                        uiState.visibleEntries.randomOrNull()?.let(onRandomOpen)
                     },
                 )
                 LibraryOverflowRow(
@@ -541,10 +554,11 @@ private fun LibraryOverflowRow(
 
 @Composable
 private fun LibrarySelectionToolbar(session: LibrarySession) {
+    val uiState = session.captureUiState()
     ReaderTopAppBar(
         title = {
             AppText(
-                text = session.selection.size.toString(),
+                text = uiState.selection.size.toString(),
                 modifier = Modifier.testTag(LibrarySelectionCountTag),
             )
         },
@@ -580,8 +594,9 @@ private fun LibrarySelectionToolbar(session: LibrarySession) {
 
 @Composable
 private fun LibraryCategoryTabs(session: LibrarySession) {
-    val tabs = session.tabs
-    if (tabs.size <= 1 && session.snapshot.categories.isEmpty()) return
+    val uiState = session.captureUiState()
+    val tabs = uiState.tabs
+    if (tabs.size <= 1 && uiState.snapshot.categories.isEmpty()) return
     val selected = tabs.indexOfFirst { it?.id == session.activeCategoryId }.takeIf { it >= 0 } ?: 0
     AppScrollableTabBar(
         selectedTabIndex = selected,
@@ -590,7 +605,7 @@ private fun LibraryCategoryTabs(session: LibrarySession) {
     ) {
         tabs.forEachIndexed { index, category ->
             // 同一可见范围：页签计数按隐藏开关过滤，仅归属隐藏的在“全部”中不计。
-            val count = session.countForTab(category?.id)
+            val count = uiState.counts[category?.id] ?: 0
             AppTab(
                 selected = index == selected,
                 onClick = { session.selectCategory(category?.id) },
@@ -605,7 +620,7 @@ private fun LibraryCategoryTabs(session: LibrarySession) {
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
-                        if (session.snapshot.prefs.showWorkCount) {
+                        if (uiState.snapshot.prefs.showWorkCount) {
                             ReaderPill(text = count.toString(), countStyle = true)
                         }
                     }
@@ -629,7 +644,8 @@ private fun LibraryContent(
     onGlobalSearch: (() -> Unit)?,
     onGuide: (() -> Unit)?,
 ) {
-    if (session.snapshot.entries.isEmpty()) {
+    val uiState = session.captureUiState()
+    if (uiState.snapshot.entries.isEmpty()) {
         LibraryEmptyState(
             onOpenBrowse = onOpenBrowse,
             onGlobalSearch = onGlobalSearch,
@@ -637,7 +653,7 @@ private fun LibraryContent(
         )
         return
     }
-    if (session.visibleEntries.isEmpty()) {
+    if (uiState.visibleEntries.isEmpty()) {
         Column(
             modifier = Modifier.fillMaxSize().padding(DesignTokens.Spacing.Large).testTag(LibraryNoResultsTag),
             verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Regular),
@@ -666,7 +682,7 @@ private fun LibraryContent(
         }
         return
     }
-    when (session.snapshot.prefs.displayMode) {
+    when (uiState.snapshot.prefs.displayMode) {
         LibraryDisplayMode.LIST -> LibraryListContent(
             session = session,
             decodeCover = decodeCover,
@@ -738,9 +754,10 @@ private fun LibraryGridContent(
     onOpenWork: (sourceKey: String, workId: String, title: String) -> Unit,
     onContinue: (entry: LibraryEntry) -> Unit,
 ) {
-    val mode = session.snapshot.prefs.displayMode
+    val uiState = session.captureUiState()
+    val mode = uiState.snapshot.prefs.displayMode
     val gridState = rememberLazyGridState()
-    val sections = session.visibleSections
+    val sections = uiState.visibleSections
     val flat = remember(sections) { sections.flatMap { it.entries } }
     LibraryGridPrefetch(state = gridState, entries = flat, session = session)
     // 自适应列（白皮书 07:56，Code: LazyLibraryGrid.kt:22 自适应档 128dp，
@@ -819,8 +836,9 @@ private fun LibraryListContent(
     onOpenWork: (sourceKey: String, workId: String, title: String) -> Unit,
     onContinue: (entry: LibraryEntry) -> Unit,
 ) {
+    val uiState = session.captureUiState()
     val listState = rememberLazyListState()
-    val sections = session.visibleSections
+    val sections = uiState.visibleSections
     val flat = remember(sections) { sections.flatMap { it.entries } }
     // 同网格：滚动位置只在 effect 内订阅，不直接读进 composition。
     LaunchedEffect(listState, flat) {
@@ -868,12 +886,13 @@ private fun LibraryPanoramaContent(
     onOpenWork: (sourceKey: String, workId: String, title: String) -> Unit,
     onContinue: (entry: LibraryEntry) -> Unit,
 ) {
+    val uiState = session.captureUiState()
     LazyColumn(
         modifier = Modifier.fillMaxSize().testTag(LibraryPanoramaTag),
         contentPadding = PaddingValues(DesignTokens.Spacing.Regular),
         verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Regular),
     ) {
-        session.visibleSections.forEach { section ->
+        uiState.visibleSections.forEach { section ->
             if (section.title.isNotEmpty()) {
                 stickyHeader(key = "group-${section.title}") {
                     Box(modifier = Modifier.testTag(libraryGroupHeaderTag(section.title))) {
@@ -905,7 +924,9 @@ private fun LibraryCardModifier(
 ): Modifier = Modifier
     .combinedClickable(
         onClick = {
-            if (session.selection.isNotEmpty()) {
+            // 卡片点选读同一份 UiState（选择态非空走多选，否则打开）。
+            val uiState = session.captureUiState()
+            if (uiState.selection.isNotEmpty()) {
                 session.toggleSelect(entry.key)
             } else {
                 onOpenWork(entry.sourceKey, entry.workId, entry.displayTitle)
@@ -924,6 +945,7 @@ private fun LibraryCoverImage(
 ) {
     // 书架封面走全仓唯一 A 轨管线：加载器委托会话单次取图（失败抛错转 null 回退占位），
     // 解码器沿用调用方注入的平台实现；内存缓存沿用默认按源隔离实例。
+    val uiState = session.captureUiState()
     val loader = remember(session, entry.sourceKey, entry.coverUrl) {
         CoverImageLoader { _, _ ->
             session.coverBytes(entry)
@@ -936,7 +958,7 @@ private fun LibraryCoverImage(
         LocalCoverImageLoader provides loader,
         LocalCoverDecoder provides decoder,
     ) {
-        val selected = entry.key in session.selection
+        val selected = entry.key in uiState.selection
         val outline = if (selected) {
             Modifier.border(DesignTokens.Sizes.SelectionOutline, UiTheme.colorScheme.secondary, RoundedCornerShape(CoverCornerRadius))
         } else {
@@ -963,7 +985,8 @@ private fun BoxScope.LibraryCoverBadges(
     session: LibrarySession,
     onContinue: (entry: LibraryEntry) -> Unit,
 ) {
-    val prefs = session.snapshot.prefs
+    val uiState = session.captureUiState()
+    val prefs = uiState.snapshot.prefs
     Column(
         modifier = Modifier.align(Alignment.TopStart).padding(DesignTokens.Spacing.ExtraSmall),
         verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.ExtraSmall),
@@ -1018,7 +1041,7 @@ private fun BoxScope.LibraryCoverBadges(
             )
         }
     }
-    if (session.selection.contains(entry.key)) {
+    if (uiState.selection.contains(entry.key)) {
         Box(
             modifier = Modifier.align(Alignment.Center)
                 .size(DesignTokens.Sizes.SelectionMarker)
@@ -1158,7 +1181,9 @@ private fun LibraryListRow(
                 decodeCover = decodeCover,
                 modifier = Modifier.size(DesignTokens.Sizes.LibraryListCoverSize),
             )
-            if (session.selection.contains(entry.key)) {
+            // 行选中态读同一份 UiState。
+            val uiState = session.captureUiState()
+            if (uiState.selection.contains(entry.key)) {
                 // 多选态：secondary 16–22% 行叠加（白皮书 02 §2.7 / 08 §8.2），亮暗按 surface 明度区分。
                 val selectedOverlay = if (UiTheme.colorScheme.surface.luminance() < 0.5f) {
                     DesignTokens.Alpha.SelectedBackgroundDark
@@ -1211,7 +1236,9 @@ private fun LibraryListRow(
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        if (session.snapshot.prefs.showContinueButton && entry.canContinue) {
+        // 继续按钮显隐读同一份 UiState。
+        val uiState = session.captureUiState()
+        if (uiState.snapshot.prefs.showContinueButton && entry.canContinue) {
             LibraryContinueButton(entry, onContinue)
         }
     }
@@ -1285,6 +1312,7 @@ private fun LibraryBottomMenu(
     onChangeCategories: () -> Unit,
     onRemove: () -> Unit,
 ) {
+    val uiState = session.captureUiState()
     val scope = rememberCoroutineScope()
     AppSurface(
         tonalElevation = DesignTokens.Elevation.AppBarScrolled,
@@ -1317,7 +1345,7 @@ private fun LibraryBottomMenu(
                 icon = ActionIcon.Download,
                 label = stringResource(Res.string.library_action_download),
                 onClick = { scope.launch { session.downloadSelected() } },
-                enabled = session.selection.isNotEmpty() && session.downloads != null,
+                enabled = uiState.selection.isNotEmpty() && uiState.hasDownloads,
                 modifier = Modifier.testTag(LibraryBottomDownloadTag),
             )
             // 跨源迁移合并入口本轮只留 disabled 入口，不实现。
@@ -1351,14 +1379,15 @@ private fun LibrarySheetHost(
     onOpenSheet: (LibrarySheet) -> Unit,
     onRemoved: (List<LibraryEntry>, Map<LibraryEntryKey, Set<Long>>) -> Unit = { _, _ -> },
 ) {
+    val uiState = session.captureUiState()
     val scope = rememberCoroutineScope()
     when (sheet) {
         LibrarySheet.REMOVE -> LibraryRemoveDialog(
-            count = session.selection.size,
+            count = uiState.selection.size,
             onConfirm = {
                 // 先抓快照再删：撤销要恢复分类归属，删除后快照里就没有了。
-                val removed = session.snapshot.entries.filter { it.key in session.selection }
-                val links = removed.associate { it.key to session.snapshot.categoriesOf(it.key) }
+                val removed = uiState.snapshot.entries.filter { it.key in uiState.selection }
+                val links = removed.associate { it.key to uiState.snapshot.categoriesOf(it.key) }
                 scope.launch {
                     if (session.removeSelected()) {
                         onDismiss()

@@ -1,7 +1,6 @@
 package app.koyura.app.di
 
-import app.koyura.features.downloads.DownloadQueueRepository
-import app.koyura.features.library.LibraryRepository
+import app.koyura.features.library.LibrarySession
 import app.koyura.features.library.LibraryViewModel
 import org.koin.core.module.Module
 import org.koin.core.module.dsl.viewModel
@@ -29,16 +28,13 @@ val commonAppModule: Module = module {
 /**
  * Library 样板模块（阶段 0）。
  *
- * ViewModel 由 Koin 创建、生命周期跟随 NavKey/宿主，
- * 仓储仍来自 CompositionLocal，经 parameters 传入：
- * `koinViewModel(parameters = { parametersOf(repo, downloads) })`。
+ * ViewModel 由 Koin 创建、生命周期跟随 NavKey 域化的 ViewModelStore；
+ * 包入的 [LibrarySession] 由调用方（装配层持有的同一实例）经 parameters 传入，
+ * 不在 Koin 里持有可空全局单例避免分叉。
  */
 val libraryViewModelModule: Module = module {
     viewModel { params ->
-        LibraryViewModel(
-            repository = params.getOrNull<LibraryRepository>(),
-            downloads = params.getOrNull<DownloadQueueRepository>(),
-        )
+        LibraryViewModel(session = params.get<LibrarySession>())
     }
 }
 
