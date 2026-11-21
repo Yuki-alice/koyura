@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
@@ -80,7 +81,7 @@ fun readerPageRetryTag(pageKey: String) = "reader-page-retry-$pageKey"
 
 @Composable
 fun ComicReaderScreen(
-    session: ReaderSession,
+    holder: ReaderStoreHolder,
     sourceKey: String,
     workId: String,
     chapterId: String?,
@@ -93,6 +94,7 @@ fun ComicReaderScreen(
     fallbackBackground: ReaderBackground = ReaderBackground.AUTOMATIC,
     installBackHandler: @Composable (() -> Unit) -> Unit = {},
 ) {
+    val uiState by holder.uiState.collectAsState()
     val scope = rememberCoroutineScope()
     val chapterPicker = remember(chapterIds, chapterTitles) {
         chapterIds.mapIndexed { index, id ->
@@ -102,15 +104,15 @@ fun ComicReaderScreen(
     var activeChapterId by rememberSaveable(sourceKey, workId, chapterId) { mutableStateOf(chapterId) }
     var menuVisible by rememberSaveable(sourceKey, workId, chapterId) { mutableStateOf(true) }
     var dialog by remember(sourceKey, workId, chapterId) { mutableStateOf(ReaderChromeDialog.None) }
-    var jump by remember(session, sourceKey, workId, chapterId) { mutableStateOf<ComicViewerJump?>(null) }
-    var requestId by remember(session) { mutableLongStateOf(0L) }
+    var jump by remember(holder, sourceKey, workId, chapterId) { mutableStateOf<ComicViewerJump?>(null) }
+    var requestId by remember(holder) { mutableLongStateOf(0L) }
     var attempt by remember { mutableIntStateOf(0) }
-    var chapterOpened by remember(session, sourceKey, workId, activeChapterId, attempt) { mutableStateOf(false) }
+    var chapterOpened by remember(holder, sourceKey, workId, activeChapterId, attempt) { mutableStateOf(false) }
     var settings by remember(preferences, sourceKey, workId) { mutableStateOf<ReaderPreferencesSnapshot?>(null) }
     var settingsFailed by remember(preferences, sourceKey, workId) { mutableStateOf(false) }
     var openingFailed by remember(preferences, sourceKey, workId, attempt) { mutableStateOf<String?>(null) }
-    var changingRoute by remember(session, sourceKey, workId, chapterId) { mutableStateOf(false) }
-    var progressFailed by remember(session, sourceKey, workId, chapterId) { mutableStateOf(false) }
+    var changingRoute by remember(holder, sourceKey, workId, chapterId) { mutableStateOf(false) }
+    var progressFailed by remember(holder, sourceKey, workId, chapterId) { mutableStateOf(false) }
     // 点击区走偏好链（全局 + 覆盖合并），默认 DEFAULT 即既有三分区行为。
     val settingWrites = remember(preferences, sourceKey, workId) { Mutex() }
 
@@ -129,8 +131,10 @@ fun ComicReaderScreen(
         }
     }
 
-    LaunchedEffect(session, sourceKey, workId, activeChapterId, attempt) {
-        session.open(sourceKey, workId, activeChapterId, chapterIds, title, chapterTitles)
+    LaunchedEffect(holder, sourceKey, workId, activeChapterId, attempt) {
+        holder.store.accept(
+            ReaderIntent.Open(sourceKey, workId, activeChapterId, chapterIds, title, chapterTitles),
+        )
         chapterOpened = true
     }
 
@@ -171,19 +175,12 @@ fun ComicReaderScreen(
     fun afterSavingPage(proceed: () -> Unit) {
         if (changingRoute) return
         changingRoute = true
-        scope.launch {
-            try {
-                session.saveCurrent()
-                progressFailed = false
-                proceed()
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (_: Exception) {
-                progressFailed = true
-            } finally {
-                changingRoute = false
-            }
-        }
+        // Store 接受即入队（失败留在 Store 内下次落盘重试，不抛异常）；
+        // changingRoute 仍用于防连点，下一帧即复位。
+        holder.store.accept(ReaderIntent.SaveCurrent)
+        progressFailed = false
+        proceed()
+        changingRoute = false
     }
 
     fun goBack() = afterSavingPage(onBack)
@@ -212,7 +209,7 @@ fun ComicReaderScreen(
             .testTag(ReaderRootTestTag),
     ) {
         val currentSettings = settings
-        val state = if (chapterOpened) session.content else ReaderContentState.Loading
+        val state = if (chapterOpened) uiState.content else ReaderContentState.Loading
         val loadError = openingFailed ?: (state as? ReaderContentState.Failed)?.message
         when {
             loadError != null -> Column(
@@ -228,13 +225,13 @@ fun ComicReaderScreen(
             }
             currentSettings != null && state is ReaderContentState.Ready -> {
                 val content = state.content
-                val previous = session.previousChapterId(content.chapterId)
-                val next = session.nextChapterId(content.chapterId)
+                val previous = uiState.previousChapterId(content.chapterId)
+                val next = uiState.nextChapterId(content.chapterId)
                 val chrome = ReaderChromeState(
                     workTitle = title.ifEmpty { content.title },
                     chapterId = content.chapterId,
                     chapters = chapterPicker,
-                    pageIndex = session.currentPage,
+                    pageIndex = uiState.currentPage,
                     pageCount = content.pageKeys.size,
                     menuVisible = menuVisible,
                     hasPrevChapter = previous != null,
@@ -246,9 +243,9 @@ fun ComicReaderScreen(
                 if (content.pageKeys.isEmpty()) {
                     AppText(stringResource(Res.string.reader_empty_pages), Modifier.align(Alignment.Center))
                 } else {
-                    key(session.contentSeq) {
+                    key(uiState.contentSeq) {
                         ComicViewer(
-                            session = session,
+                            holder = holder,
                             content = content,
                             options = chrome.effective.viewerOptions(),
                             jump = jump,
@@ -270,7 +267,7 @@ fun ComicReaderScreen(
                             is ReaderChromeAction.OpenChapter -> openChapter(action.chapterId)
                             is ReaderChromeAction.SetDialog -> dialog = action.dialog
                             is ReaderChromeAction.JumpToPage -> {
-                                jump = ComicViewerJump(++requestId, session.contentSeq, action.pageIndex)
+                                jump = ComicViewerJump(++requestId, uiState.contentSeq, action.pageIndex)
                             }
                         is ReaderChromeAction.ChangeGlobalSettings,
                         is ReaderChromeAction.ChangeWorkOverride,

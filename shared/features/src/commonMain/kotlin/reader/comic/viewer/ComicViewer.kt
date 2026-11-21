@@ -29,6 +29,7 @@ import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -64,8 +65,9 @@ import app.koyura.designsystem.components.AppCircularProgress
 import app.koyura.designsystem.components.AppText
 import app.koyura.designsystem.components.UiTheme
 import app.koyura.domain.reader.ChapterContent
+import app.koyura.features.reader.comic.ReaderIntent
 import app.koyura.features.reader.comic.ReaderPageState
-import app.koyura.features.reader.comic.ReaderSession
+import app.koyura.features.reader.comic.ReaderStoreHolder
 import app.koyura.features.reader.comic.decodeToImageBitmap
 import app.koyura.features.resources.Res
 import app.koyura.features.resources.reader_empty_pages
@@ -95,13 +97,13 @@ private const val WEBTOON_HIDE_THRESHOLD_DP = 24
  * Komikku-style shared comic viewer.
  *
  * The host owns chapters: central taps only call [onToggleMenu], boundary over-scroll only
- * reports [onChapterBoundary] (PREVIOUS/NEXT). Position reporting goes through [session]:
- * the visible spread's master page (logical reading order) is marked displayed, settled
+ * reports [onChapterBoundary] (PREVIOUS/NEXT). Position reporting goes through the
+ * holder's Store: the visible spread's master page (logical reading order) is marked displayed, settled
  * spreads are saved by original `pageKey`, so layout/mode/width changes keep the same page.
  */
 @Composable
 fun ComicViewer(
-    session: ReaderSession,
+    holder: ReaderStoreHolder,
     content: ChapterContent,
     options: ComicViewerOptions,
     jump: ComicViewerJump?,
@@ -118,7 +120,7 @@ fun ComicViewer(
         ComicReadingMode.RIGHT_TO_LEFT,
         ComicReadingMode.VERTICAL,
         -> PagerComicViewer(
-            session = session,
+            holder = holder,
             content = content,
             options = options,
             jump = jump,
@@ -130,7 +132,7 @@ fun ComicViewer(
         ComicReadingMode.WEBTOON,
         ComicReadingMode.CONTINUOUS_VERTICAL,
         -> WebtoonComicViewer(
-            session = session,
+            holder = holder,
             content = content,
             options = options,
             jump = jump,
@@ -150,7 +152,7 @@ fun ComicViewer(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun PagerComicViewer(
-    session: ReaderSession,
+    holder: ReaderStoreHolder,
     content: ChapterContent,
     options: ComicViewerOptions,
     jump: ComicViewerJump?,
@@ -158,11 +160,12 @@ private fun PagerComicViewer(
     onChapterBoundary: (ComicChapterBoundary) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val uiState by holder.uiState.collectAsState()
     val scope = rememberCoroutineScope()
     val isRtl = options.mode == ComicReadingMode.RIGHT_TO_LEFT
     val isVertical = options.mode == ComicReadingMode.VERTICAL
-    val hasPrev = session.previousChapterId(content.chapterId) != null
-    val hasNext = session.nextChapterId(content.chapterId) != null
+    val hasPrev = uiState.previousChapterId(content.chapterId) != null
+    val hasNext = uiState.nextChapterId(content.chapterId) != null
 
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val isLandscape = maxWidth > maxHeight
@@ -193,7 +196,7 @@ private fun PagerComicViewer(
             return@BoxWithConstraints
         }
 
-        val startSpread = remember(session.contentSeq, content.chapterId) {
+        val startSpread = remember(uiState.contentSeq, content.chapterId) {
             val anchor = content.startPageIndex.coerceIn(0, content.pageKeys.size - 1)
             val logical = spreadIndexForPage(logicalSpreads, anchor)
             if (isRtl && !isVertical) logicalSpreads.size - 1 - logical else logical
@@ -201,8 +204,8 @@ private fun PagerComicViewer(
         val pagerState = rememberPagerState(
             initialPage = startSpread.coerceIn(0, spreads.size - 1),
         ) { spreads.size }
-        var consumedRequest by remember(session.contentSeq) { mutableStateOf<Long?>(null) }
-        var zoomPulse by remember(session.contentSeq) { mutableStateOf(0L) }
+        var consumedRequest by remember(uiState.contentSeq) { mutableStateOf<Long?>(null) }
+        var zoomPulse by remember(uiState.contentSeq) { mutableStateOf(0L) }
         val focusRequester = remember { FocusRequester() }
 
         fun displayToLogical(displayIndex: Int): Int =
@@ -217,7 +220,8 @@ private fun PagerComicViewer(
          */
         fun reportedPage(displayIndex: Int): Int? {
             val spread = spreads.getOrNull(displayIndex) ?: return null
-            val anchor = session.currentPage
+            // 锚点必须读 Store 最新提交（原 session.currentPage 是活 getter；uiState 是渲染快照会滞后）
+            val anchor = holder.store.state.currentPage
             return if (anchor in spread.pageIndices) anchor else spread.masterPageIndex
         }
 
@@ -242,9 +246,9 @@ private fun PagerComicViewer(
         }
 
         // Jump: same request once, stale chapters ignored.
-        LaunchedEffect(jump, session.contentSeq, spreads) {
+        LaunchedEffect(jump, uiState.contentSeq, spreads) {
             val command = jump ?: return@LaunchedEffect
-            if (command.contentSeq != session.contentSeq) return@LaunchedEffect
+            if (command.contentSeq != holder.store.state.contentSeq) return@LaunchedEffect
             if (command.requestId == consumedRequest) return@LaunchedEffect
             if (command.pageIndex !in content.pageKeys.indices) return@LaunchedEffect
             val logical = spreadIndexForPage(logicalSpreads, command.pageIndex)
@@ -255,14 +259,14 @@ private fun PagerComicViewer(
             // A jump is an explicit position request. Commit the anchor and save even
             // when the target already sits in the visible spread: there is no page
             // change event then, and anchor-preserving reporting would keep page 1.
-            session.markDisplayed(command.pageIndex)
-            session.savePage(command.pageIndex)
+            holder.store.accept(ReaderIntent.MarkDisplayed(command.pageIndex))
+            holder.store.accept(ReaderIntent.SavePage(command.pageIndex))
         }
 
         // Re-anchor on layout/width/mode change: scroll to the spread that still
         // contains the current original page; reporting keeps that page.
         LaunchedEffect(spreads, options.mode) {
-            val current = session.currentPage
+            val current = holder.store.state.currentPage
             if (current !in content.pageKeys.indices) return@LaunchedEffect
             val logical = spreadIndexForPage(logicalSpreads, current)
             val display = if (isRtl && !isVertical) logicalSpreads.size - 1 - logical else logical
@@ -273,13 +277,13 @@ private fun PagerComicViewer(
         LaunchedEffect(pagerState, spreads) {
             snapshotFlow { pagerState.currentPage }.collect { display ->
                 val page = reportedPage(display) ?: return@collect
-                if (page != session.currentPage) session.markDisplayed(page)
+                if (page != holder.store.state.currentPage) holder.store.accept(ReaderIntent.MarkDisplayed(page))
             }
         }
         LaunchedEffect(pagerState, spreads) {
             snapshotFlow { pagerState.settledPage }.distinctUntilChanged().collect { display ->
                 val page = reportedPage(display) ?: return@collect
-                session.savePage(page)
+                holder.store.accept(ReaderIntent.SavePage(page))
             }
         }
         // Demand loading: current spread plus neighbours. Only pages never attempted
@@ -289,14 +293,26 @@ private fun PagerComicViewer(
             snapshotFlow { pagerState.currentPage }.collect { display ->
                 val logical = displayToLogical(display)
                 val pages = logicalSpreads.getOrNull(logical)?.pageIndices ?: return@collect
-                val neighbours = buildSet {
+                // 当前页优先：恢复续读位时首个请求必须是落点页（邻页预取排后，
+                // 与项目既有「恢复后首图即目标页」的验收口径一致）。
+                // 首帧竞态兜底：pager 尚未对齐到续读位时，用章节续读位决定首个请求，
+                // 保证「恢复后首图即目标页」的既有验收口径稳定成立。
+                val anchor = holder.store.state.currentPage
+                val preferred = when {
+                    anchor in pages -> anchor
+                    content.startPageIndex in pages -> content.startPageIndex
+                    else -> null
+                }
+                val ordered = buildList {
+                    if (preferred != null) add(preferred)
                     addAll(pages)
                     logicalSpreads.getOrNull(logical - 1)?.pageIndices?.let(::addAll)
                     logicalSpreads.getOrNull(logical + 1)?.pageIndices?.let(::addAll)
-                }
+                }.distinct()
+                val neighbours = ordered
                 neighbours.forEach { pageIndex ->
-                    if (!session.pages.containsKey(content.pageKeys[pageIndex])) {
-                        session.ensurePage(content.pageKeys[pageIndex])
+                    if (!holder.store.state.pages.containsKey(content.pageKeys[pageIndex])) {
+                        holder.store.accept(ReaderIntent.EnsurePage(content.pageKeys[pageIndex]))
                     }
                 }
             }
@@ -327,13 +343,13 @@ private fun PagerComicViewer(
                     }
                 },
         ) {
-            key(session.contentSeq) {
+            key(uiState.contentSeq) {
                 if (isVertical) {
                     VerticalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { display ->
                         PagerSpread(
                             spread = spreads[display],
                             content = content,
-                            session = session,
+                            holder = holder,
                             options = options,
                             isRtl = false,
                             zoomPulse = zoomPulse,
@@ -345,7 +361,7 @@ private fun PagerComicViewer(
                         PagerSpread(
                             spread = spreads[display],
                             content = content,
-                            session = session,
+                            holder = holder,
                             options = options,
                             isRtl = isRtl,
                             zoomPulse = zoomPulse,
@@ -375,12 +391,13 @@ private fun PagerComicViewer(
 private fun PagerSpread(
     spread: ComicSpread,
     content: ChapterContent,
-    session: ReaderSession,
+    holder: ReaderStoreHolder,
     options: ComicViewerOptions,
     isRtl: Boolean,
     zoomPulse: Long,
     onWideDetected: (Int) -> Unit,
 ) {
+    val uiState by holder.uiState.collectAsState()
     val scope = rememberCoroutineScope()
     val order = spread.displayOrder(isRtl, options.invertDoublePages)
     Row(Modifier.fillMaxSize()) {
@@ -389,10 +406,10 @@ private fun PagerSpread(
                 ZoomableComicPage(
                     index = pageIndex,
                     pageKey = content.pageKeys[pageIndex],
-                    state = session.pages[content.pageKeys[pageIndex]],
+                    state = uiState.pages[content.pageKeys[pageIndex]],
                     options = options,
                     zoomPulse = zoomPulse,
-                    onRetry = { scope.launch { session.retryPage(content.pageKeys[pageIndex]) } },
+                    onRetry = { holder.store.accept(ReaderIntent.RetryPage(content.pageKeys[pageIndex])) },
                     onWideDetected = { onWideDetected(pageIndex) },
                     viewportFill = true,
                 )
@@ -408,7 +425,7 @@ private fun PagerSpread(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun WebtoonComicViewer(
-    session: ReaderSession,
+    holder: ReaderStoreHolder,
     content: ChapterContent,
     options: ComicViewerOptions,
     jump: ComicViewerJump?,
@@ -418,14 +435,15 @@ private fun WebtoonComicViewer(
     menuVisible: Boolean = true,
     onHideMenu: () -> Unit = {},
 ) {
+    val uiState by holder.uiState.collectAsState()
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
     // Komikku: WEBTOON (isContinuous=true) has no inter-page gap; CONTINUOUS_VERTICAL
     // (isContinuous=false) separates pages with a 15dp gap and steps page-by-page on tap.
     val continuous = options.mode == ComicReadingMode.WEBTOON
     val gap = if (continuous) 0.dp else DesignTokens.Sizes.PagedStripGap
-    val hasPrev = session.previousChapterId(content.chapterId) != null
-    val hasNext = session.nextChapterId(content.chapterId) != null
+    val hasPrev = uiState.previousChapterId(content.chapterId) != null
+    val hasNext = uiState.nextChapterId(content.chapterId) != null
     // LazyColumn positions include an optional header spacer (previous-chapter end).
     val headerCount = if (hasPrev) 1 else 0
     if (content.pageKeys.isEmpty()) {
@@ -436,26 +454,26 @@ private fun WebtoonComicViewer(
     }
     // Start (and re-anchor after mode switches) at the currently displayed page so
     // pager -> webtoon and WEBTOON -> CONTINUOUS keep the same original page.
-    val startItem = remember(session.contentSeq, options.mode) {
-        (headerCount + session.currentPage)
+    val startItem = remember(uiState.contentSeq, options.mode) {
+        (headerCount + uiState.currentPage)
             .coerceIn(headerCount, headerCount + content.pageKeys.size - 1)
     }
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = startItem)
-    var consumedRequest by remember(session.contentSeq) { mutableStateOf<Long?>(null) }
+    var consumedRequest by remember(uiState.contentSeq) { mutableStateOf<Long?>(null) }
     // Reset the strip on chapter switches: the list state otherwise survives across
     // chapters and would keep the stale offset. Lands on the restored position.
-    LaunchedEffect(session.contentSeq) {
+    LaunchedEffect(uiState.contentSeq) {
         listState.scrollToItem(startItem)
     }
     // Pending jump target (item index). Item heights grow as images decode and scroll
     // offsets are pixel-based, so the jump re-asserts itself on every visible-range
     // change until the target settles at the top — no clock waits involved.
-    var pendingJumpTarget by remember(session.contentSeq) { mutableStateOf<Int?>(null) }
+    var pendingJumpTarget by remember(uiState.contentSeq) { mutableStateOf<Int?>(null) }
 
     // Jump: same request once, stale chapters ignored.
-    LaunchedEffect(jump, session.contentSeq) {
+    LaunchedEffect(jump, uiState.contentSeq) {
         val command = jump ?: return@LaunchedEffect
-        if (command.contentSeq != session.contentSeq) return@LaunchedEffect
+        if (command.contentSeq != holder.store.state.contentSeq) return@LaunchedEffect
         if (command.requestId == consumedRequest) return@LaunchedEffect
         if (command.pageIndex !in content.pageKeys.indices) return@LaunchedEffect
         consumedRequest = command.requestId
@@ -472,7 +490,7 @@ private fun WebtoonComicViewer(
         val targetPage = (target - headerCount).coerceIn(0, content.pageKeys.size - 1)
         val from = (targetPage - 3).coerceAtLeast(0)
         val until = (targetPage + 3).coerceAtMost(content.pageKeys.size - 1)
-        (from..until).forEach { index -> session.ensurePage(content.pageKeys[index]) }
+        (from..until).forEach { index -> holder.store.accept(ReaderIntent.EnsurePage(content.pageKeys[index])) }
     }
 
     // Re-assert a pending jump until it settles. Item heights grow as images decode
@@ -481,7 +499,7 @@ private fun WebtoonComicViewer(
     // neighbourhood has its final heights. The request clears when the target page
     // is settled and on top. Reachability is guaranteed by the viewport-sized end
     // spacer below: any item can be brought to the top. No clock waits involved.
-    LaunchedEffect(pendingJumpTarget, listState, session.contentSeq) {
+    LaunchedEffect(pendingJumpTarget, listState, uiState.contentSeq) {
         val target = pendingJumpTarget ?: return@LaunchedEffect
         val targetPage = (target - headerCount).coerceIn(0, content.pageKeys.size - 1)
         val windowFrom = (targetPage - 2).coerceAtLeast(0)
@@ -489,7 +507,7 @@ private fun WebtoonComicViewer(
         snapshotFlow {
             val first = listState.firstVisibleItemIndex
             val settled = (windowFrom..windowUntil).all { index ->
-                when (session.pages[content.pageKeys[index]]) {
+                when (holder.store.state.pages[content.pageKeys[index]]) {
                     is ReaderPageState.Ready, is ReaderPageState.Failed -> true
                     else -> false
                 }
@@ -508,7 +526,7 @@ private fun WebtoonComicViewer(
     // it is visible; scrolling never re-shows it (only taps toggle). Programmatic motion is
     // excluded: jumps run while a jump target is pending, the initial settle scroll is absorbed
     // by baselining the first observed position, and fling-free position reports re-baseline.
-    LaunchedEffect(listState, session.contentSeq, menuVisible) {
+    LaunchedEffect(listState, uiState.contentSeq, menuVisible) {
         if (!menuVisible) return@LaunchedEffect
         val thresholdPx = with(density) { WEBTOON_HIDE_THRESHOLD_DP.dp.toPx() }
         var baseIndex = listState.firstVisibleItemIndex
@@ -543,21 +561,21 @@ private fun WebtoonComicViewer(
     LaunchedEffect(listState, content.pageKeys) {
         snapshotFlow { listState.firstVisibleItemIndex }.collect { position ->
             val pageIndex = (position - headerCount).coerceIn(0, content.pageKeys.size - 1)
-            session.markDisplayed(pageIndex)
-            if (!session.pages.containsKey(content.pageKeys[pageIndex])) {
-                session.ensurePage(content.pageKeys[pageIndex])
+            holder.store.accept(ReaderIntent.MarkDisplayed(pageIndex))
+            if (!holder.store.state.pages.containsKey(content.pageKeys[pageIndex])) {
+                holder.store.accept(ReaderIntent.EnsurePage(content.pageKeys[pageIndex]))
             }
             if (pageIndex + 1 < content.pageKeys.size &&
-                !session.pages.containsKey(content.pageKeys[pageIndex + 1])
+                !holder.store.state.pages.containsKey(content.pageKeys[pageIndex + 1])
             ) {
-                session.ensurePage(content.pageKeys[pageIndex + 1])
+                holder.store.accept(ReaderIntent.EnsurePage(content.pageKeys[pageIndex + 1]))
             }
         }
     }
     LaunchedEffect(listState, content.pageKeys) {
         snapshotFlow { listState.firstVisibleItemIndex }.distinctUntilChanged().collect { position ->
             val pageIndex = (position - headerCount).coerceIn(0, content.pageKeys.size - 1)
-            session.savePage(pageIndex)
+            holder.store.accept(ReaderIntent.SavePage(pageIndex))
         }
     }
 
@@ -580,10 +598,10 @@ private fun WebtoonComicViewer(
                 ZoomableComicPage(
                     index = pageIndex,
                     pageKey = pageKey,
-                    state = session.pages[pageKey],
+                    state = uiState.pages[pageKey],
                     options = options,
                     zoomPulse = 0L,
-                    onRetry = { scope.launch { session.retryPage(pageKey) } },
+                    onRetry = { holder.store.accept(ReaderIntent.RetryPage(pageKey)) },
                     onWideDetected = {},
                     // LazyColumn items have unbounded height: fill the width and wrap the
                     // aspect height so the strip actually scrolls (fillMaxSize collapses).

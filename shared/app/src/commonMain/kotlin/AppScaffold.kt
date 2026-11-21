@@ -93,8 +93,8 @@ import app.koyura.app.library.LibraryTabContent
 import app.koyura.domain.reader.ReaderService
 import app.koyura.domain.reader.preferences.ReaderBackground
 import app.koyura.features.reader.comic.ComicReaderScreen
-import app.koyura.features.reader.comic.ReaderSession
-import app.koyura.features.reader.comic.rememberReaderSession
+import app.koyura.features.reader.comic.ReaderStoreHolder
+import app.koyura.features.reader.comic.rememberReaderStoreHolder
 import app.koyura.app.browse.rememberBrowseSession
 import app.koyura.app.navigation.AppNavigationState
 import app.koyura.app.navigation.CategoriesRoute
@@ -151,7 +151,7 @@ internal fun AppScaffold(
     browseService: BrowseService? = LocalBrowseService.current,
     browseSession: BrowseSession? = null,
     readerService: ReaderService? = LocalReaderService.current,
-    readerSession: ReaderSession? = null,
+    readerHolder: ReaderStoreHolder? = null,
     historyService: HistoryService? = LocalHistoryService.current,
     historySession: HistorySession? = null,
     moreSession: MoreSession? = null,
@@ -164,7 +164,6 @@ internal fun AppScaffold(
     enableOnboardingAutoEnter: Boolean = false,
 ) {
     val activeBrowseSession = browseSession ?: rememberBrowseSession(browseService)
-    val activeReaderSession = readerSession ?: rememberReaderSession(readerService)
     val activeHistorySession = historySession ?: rememberHistorySession(historyService, browseService)
     val statisticsSession = rememberStatisticsSession()
     val activeMoreSession = moreSession ?: rememberMoreSession()
@@ -186,6 +185,8 @@ internal fun AppScaffold(
     val activeUpdatesHolder = rememberUpdatesStoreHolder()
     val updatesUiState by activeUpdatesHolder.uiState.collectAsState()
 
+    // 阅读器 Store 持有者：与下载/更新一致随组合持有（Koin 宿主域内创建）。
+    val activeReaderHolder = readerHolder ?: rememberReaderStoreHolder(readerService)
     // G1：5 个 tab 的重复点击快捷入口（Komikku 各 Tab onReselect 对齐）。
     // Library 经 filterSignal 打开筛选 Sheet（页内状态，不进栈）；其余推已有路由键。
     // 注意内容区是 movableContentOf（参数不变时跳过重组），所以信号必须用稳定的
@@ -294,7 +295,7 @@ internal fun AppScaffold(
                             state,
                             holder,
                             browse,
-                            activeReaderSession,
+                            activeReaderHolder,
                             activeHistorySession,
                             librarySession,
                             activeUpdatesHolder,
@@ -421,7 +422,7 @@ private fun AppNavigationContent(
     navigation: AppNavigationState,
     saveableStateHolder: SaveableStateHolder,
     browseSession: BrowseSession,
-    readerSession: ReaderSession,
+    readerHolder: app.koyura.features.reader.comic.ReaderStoreHolder,
     historySession: app.koyura.app.history.HistorySession,
     librarySession: LibrarySession,
     updatesHolder: app.koyura.features.updates.UpdatesStoreHolder,
@@ -437,7 +438,7 @@ private fun AppNavigationContent(
     val entryProvider = remember(
         navigation,
         browseSession,
-        readerSession,
+        readerHolder,
         historySession,
         librarySession,
         updatesHolder,
@@ -664,7 +665,7 @@ private fun AppNavigationContent(
             entry<ComicReaderRoute> { route ->
                 CompositionLocalProvider(LocalBrowseSession provides browseSession) {
                     ComicReaderScreen(
-                        session = readerSession,
+                        holder = readerHolder,
                         preferences = LocalReaderPreferences.current,
                         fallbackBackground = ReaderBackground.BLACK,
                         installBackHandler = { BackHandler(onBack = it) },
