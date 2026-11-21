@@ -15,7 +15,9 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isDisplayed
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.isRoot
@@ -40,6 +42,7 @@ import app.koyura.app.browse.BrowseManageStoresTag
 import app.koyura.app.browse.BrowseSourcesTabTag
 import app.koyura.app.browse.CatalogDialogTag
 import app.koyura.app.browse.CatalogVariantId
+import app.koyura.app.browse.SourceDetailBackTag
 import app.koyura.app.browse.SourceSearchQueryTag
 import app.koyura.app.browse.SourceSearchSubmitTag
 import app.koyura.app.browse.StoresScreenTestTag
@@ -83,6 +86,7 @@ import app.koyura.features.library.libraryPickerRowTag
 import app.koyura.features.library.libraryTabTag
 import app.koyura.features.reader.comic.ReaderBackTag
 import app.koyura.features.reader.comic.ReaderPageIndicatorTag
+import app.koyura.features.reader.comic.ReaderRootTestTag
 import app.koyura.features.reader.comic.ReaderTapNextTag
 import app.koyura.features.reader.comic.chrome.ReaderChromeModeApplyTag
 import app.koyura.features.reader.comic.chrome.ReaderChromeModeTag
@@ -194,6 +198,12 @@ class VeneraLibraryHistoryMutationRestartTest {
 
             awaitTag(DetailFavoriteTag)
             onNodeWithTag(DetailFavoriteTag).performClick()
+
+            // G2：详情在跨 tab 共享栈，切 tab 不会关掉它；先退回再碰底下的书架。
+            onNodeWithTag(SourceDetailBackTag).performClick()
+            awaitTag(SourceSearchQueryTag)
+            onNodeWithTag("source-search-back").performClick()
+            awaitTag("source-row-$SourceKey")
 
             shellTabs()[0].performClick()
             awaitTag(LibraryRootTag)
@@ -554,7 +564,12 @@ class VeneraLibraryHistoryMutationRestartTest {
     private fun ComposeUiTest.awaitThirdPage() {
         awaitPageIndicator("3 / 3")
         awaitTag("reader-page-image-2")
-        onNodeWithText("第二章").assertIsDisplayed()
+        // G2：阅读器是独立叠层，底层详情页仍在组合；裸文本会同时命中两层，按阅读器根限定。
+        val readerTitle = hasTestTag(ReaderRootTestTag) and hasAnyDescendant(hasText("第二章", substring = true))
+        waitUntil(timeoutMillis = 10_000) {
+            onAllNodes(readerTitle).fetchSemanticsNodes().size == 1
+        }
+        onAllNodes(readerTitle)[0].assertIsDisplayed()
     }
 
     private fun ComposeUiTest.assertRtlDoublePageAtThird() {

@@ -8,7 +8,9 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.SemanticsNodeInteractionCollection
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
@@ -35,6 +37,7 @@ import app.koyura.data.extension.ExtensionDb
 import app.koyura.data.session.ExtensionSession
 import app.koyura.data.session.openExtensionSession
 import app.koyura.features.reader.comic.ReaderPageIndicatorTag
+import app.koyura.features.reader.comic.ReaderRootTestTag
 import app.koyura.features.reader.comic.ReaderTapNextTag
 import app.koyura.network.applyReaderDefaults
 import app.koyura.source.runtime.VeneraEnvironment
@@ -188,7 +191,12 @@ class VeneraReaderRestartTest {
     private fun ComposeUiTest.awaitThirdPage() {
         awaitPageIndicator("3 / 3")
         awaitTag("reader-page-image-2")
-        onNodeWithText("第二章").assertIsDisplayed()
+        // G2：阅读器是独立叠层，底层详情页仍在组合；裸文本会同时命中两层，按阅读器根限定。
+        val readerTitle = hasTestTag(ReaderRootTestTag) and hasAnyDescendant(hasText("第二章", substring = true))
+        waitUntil(timeoutMillis = 10_000) {
+            onAllNodes(readerTitle).fetchSemanticsNodes().size == 1
+        }
+        onAllNodes(readerTitle)[0].assertIsDisplayed()
     }
 
     private fun ComposeUiTest.awaitTag(tag: String) {
