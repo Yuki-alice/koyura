@@ -524,7 +524,7 @@ private fun CatalogRow(
             when {
                 running -> AppCircularProgress(
                     modifier = Modifier.size(DesignTokens.Spacing.Large),
-                    strokeWidth = DesignTokens.Sizes.ProgressStroke,
+                    strokeWidth = DesignTokens.Sizes.ProgressBarStroke,
                 )
                 status is OperationStatus.Failed -> AppTextButton(
                     onClick = onInstall,

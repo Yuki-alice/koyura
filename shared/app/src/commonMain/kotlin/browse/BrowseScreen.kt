@@ -66,7 +66,7 @@ import app.koyura.designsystem.components.AppDivider
 import app.koyura.designsystem.components.AppLinearProgress
 import app.koyura.designsystem.components.AppSurface
 import app.koyura.designsystem.components.AppTab
-import app.koyura.designsystem.components.AppTabBar
+import app.koyura.designsystem.components.AppScrollableTabBar
 import app.koyura.designsystem.components.AppText
 import app.koyura.designsystem.components.AppTextButton
 import app.koyura.designsystem.components.ReaderTopAppBar
@@ -104,6 +104,7 @@ fun BrowseScreen(
     onOpenSource: (sourceKey: String, sourceName: String) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier,
     onGlobalSearch: (() -> Unit)? = null,
+    onOpenWork: (sourceKey: String, workId: String, title: String) -> Unit = { _, _, _ -> },
 ) {
     val state = session.state
     val scope = rememberCoroutineScope()
@@ -144,7 +145,11 @@ fun BrowseScreen(
             },
         )
 
-        AppTabBar(selectedTabIndex = state.pane.ordinal) {
+        // 四个 tab 在 360dp 下等分会把 Extensions 折行；改可滚动 tab（原版同样可滚）。
+        AppScrollableTabBar(
+            selectedTabIndex = state.pane.ordinal,
+            edgePadding = DesignTokens.Spacing.Medium,
+        ) {
             AppTab(
                 selected = state.pane == BrowsePane.Sources,
                 onClick = { session.selectPane(BrowsePane.Sources) },
@@ -188,7 +193,7 @@ fun BrowseScreen(
                     },
                     onTogglePin = session::toggleSourcePinned,
                 )
-                BrowsePane.Feed -> FeedPanePlaceholder()
+                BrowsePane.Feed -> FeedPane(onOpenWork = onOpenWork)
                 BrowsePane.Extensions -> ExtensionsPane(
                     session = session,
                     state = state,
@@ -197,7 +202,7 @@ fun BrowseScreen(
                     onManageStores = onManageStores,
                     scope = scope,
                 )
-                BrowsePane.Migrate -> MigratePanePlaceholder()
+                BrowsePane.Migrate -> MigratePane(onOpenSource = onOpenSource)
             }
         }
     }
@@ -419,7 +424,7 @@ private fun SourceRow(
                     style = UiTheme.typography.bodyMedium,
                 )
                 AppText(
-                    text = listOf(source.language, source.versionName)
+                    text = listOf(sourceLanguageLabel(source.language), source.versionName)
                         .filter { it.isNotEmpty() }
                         .joinToString(" · "),
                     maxLines = 1,
@@ -436,6 +441,28 @@ private fun SourceRow(
             .heightIn(min = DesignTokens.Sizes.ListItemHeight)
             .testTag(rowTestTag),
     )
+}
+
+/**
+ * 语言显示名：原版副标题为「国旗 + 语言」，但 [SourceInfo] 没有国家字段，
+ * 这里只如实给出语言母语名（zh→中文、en→English…），不按语言猜国家旗。
+ */
+private fun sourceLanguageLabel(code: String): String = when (code.lowercase().substringBefore('-')) {
+    "" -> ""
+    "zh" -> "中文"
+    "en" -> "English"
+    "ja" -> "日本語"
+    "ko" -> "한국어"
+    "es" -> "Español"
+    "fr" -> "Français"
+    "de" -> "Deutsch"
+    "pt" -> "Português"
+    "ru" -> "Русский"
+    "id" -> "Indonesia"
+    "th" -> "ไทย"
+    "vi" -> "Tiếng Việt"
+    "ar" -> "العربية"
+    else -> code
 }
 
 @Composable
@@ -466,7 +493,7 @@ private fun ExtensionRow(
                     if (status is OperationStatus.Running) {
                         AppCircularProgress(
                             modifier = Modifier.size(DesignTokens.Sizes.BrowseIcon),
-                            strokeWidth = DesignTokens.Sizes.ProgressStroke,
+                            strokeWidth = DesignTokens.Sizes.ProgressBarStroke,
                         )
                     }
                     app.koyura.designsystem.IconPlaceholder(label = extension.name)
@@ -519,7 +546,7 @@ private fun ExtensionRow(
                     AppText(
                         text = listOfNotNull(
                             extension.versionName.takeIf { it.isNotEmpty() },
-                            extension.language.takeIf { it.isNotEmpty() },
+                            extension.language.takeIf { it.isNotEmpty() }?.let(::sourceLanguageLabel),
                             "@${extension.storeName}".takeIf { extension.storeName.isNotEmpty() },
                             extension.availableVersionName
                                 ?.takeIf { extension.hasUpdate }

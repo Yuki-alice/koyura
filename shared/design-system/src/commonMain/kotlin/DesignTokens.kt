@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 /**
  * Komikku 白皮书设计令牌（whitepaper 02 + `assets/design-tokens.json`）。
@@ -90,6 +91,8 @@ object DesignTokens {
     // 设置高亮 3s 见 BasePreferenceWidget.kt:91-96 高亮循环；封面交叉淡入 300ms 见 02 §2.8。
     object Motion {
         const val TabFadeThroughMs = 200
+        // 页面 push/pop 的 shared-axis-X，白皮书 05 §5.1 #2「~300ms（M3 内置）」。
+        const val PageSharedAxisMs = 300
         const val ReaderBarsSlideMs = 200
         const val ReaderBarsFadeMs = 150
         const val SheetMs = 350
@@ -108,12 +111,14 @@ object DesignTokens {
         const val TabletMinSmallestWidthDp = 720
         const val TabletAutomaticPortraitDp = 700
         const val TabletAutomaticLandscapeDp = 600
-        const val AdaptiveGridMinItemDp = 128
+        // 书架自适应列宽下限：120dp 让 360dp 落到 2 列（卡宽 162dp）、1280dp 落到 10 列（≈120dp）。
+        const val AdaptiveGridMinItemDp = 120
         val TwoPaneFirstMax: Dp = 450.dp
         val SheetMaxWidth: Dp = 460.dp
         val DialogMinWidth: Dp = 280.dp
         val DialogMaxWidth: Dp = 560.dp
-        val SettingsMasterWidth = 320.dp
+        // 设置平板左栏固定 450dp（白皮书 07 §7.14）。
+        val SettingsMasterWidth = 450.dp
         val CatalogResultsMaxHeight = 320.dp
         val UpdatePolicyMaxHeight = 420.dp
         val DetailCoverMinWidth = 100.dp
@@ -123,6 +128,12 @@ object DesignTokens {
     // Sizes — whitepaper 02 §2.7 高度/尺寸 / tokens.json `sizes` (Code).
     // 底栏 80dp 见 NavigationBar.kt:43；导航轨见 NavigationRail.kt:47；设置项见 PreferenceItem.kt；
     // 章节项内边距见白皮书 02 表格；历史/列表/徽标/滚动条/阅读器滑块/底部菜单见 tokens.json。
+    // 字号 — 白皮书 07 §7.13 阅读器页码：12sp Bold + 1sp 字距。
+    object Type {
+        val PageIndicatorFontSize = 12.sp
+        val PageIndicatorLetterSpacing = 1.sp
+    }
+
     object Sizes {
         val MinimumTouchTarget = 48.dp
         val DetailActionIcon = 20.dp
@@ -132,24 +143,37 @@ object DesignTokens {
         val SettingsItemMinHeight = 56.dp
         val ChapterItemPadding = PaddingValues(start = 16.dp, top = 12.dp, end = 8.dp, bottom = 12.dp)
         val HistoryItemHeight = 96.dp
-        val HistoryCoverWidth = 63.dp
-        val HistoryCoverHeight = 94.dp
-        val UnreadDot = 6.dp
-        val DownloadProgress = 24.dp
-        val ProgressStroke = 2.dp
+        // 历史行封面按行高推导：96 − 2×8 = 80dp 高，2:3 → 53dp 宽（白皮书 06 §6.8 裁决表）。
+        val HistoryCoverWidth = 53.dp
+        val HistoryCoverHeight = 80.dp
+        // 章节未读点 / 历史未完成点 — 白皮书 09 §9.1：MangaChapterListItem.kt:128、
+        // HistoryItem.kt:178 都是 height(8.dp)。
+        val UnreadDot = 8.dp
+        // 下载指示器直径 — ChapterDownloadIndicator.kt:271 `IndicatorSize = 26.dp`。
+        val DownloadIndicator = 26.dp
+        // 扇形进度的描边 = 直径/2 — ChapterDownloadIndicator.kt:158。
+        val DownloadProgressStroke = 13.dp
+        // 下载箭头 = 直径 − 7dp — ChapterDownloadIndicator.kt:281。
+        val DownloadArrow = 19.dp
+        // 线性进度条描边（M3 LinearProgressIndicator 口径），与扇形描边区分开。
+        val ProgressBarStroke = 2.dp
         val TopBarHeight = 64.dp
         val BrandLogo = 64.dp
         val BrandHeaderPadding = 56.dp
         val BrowseIcon = 40.dp
+        // 搜索框固定高 50dp、全圆（白皮书 07 §7.6 源浏览搜索框）。
+        val SearchFieldHeight = 50.dp
         val SelectionMarker = 40.dp
         val SearchCoverWidth = 48.dp
         val SearchCoverHeight = 72.dp
-        val DetailCoverWidth = 96.dp
-        val DetailCoverHeight = 144.dp
-        val LibraryListCoverWidth = 56.dp
-        val LibraryListCoverHeight = 80.dp
+        // 详情封面宽度上限 — MangaInfoHeader.kt:622 `sizeIn(maxWidth = 100.dp)`，高度按 2:3 推导 150dp。
+        val DetailCoverMaxWidthPhone = 100.dp
+        val DetailCoverHeightPhone = 150.dp
+        // 列表封面：行高 56 − 2×8 = 40dp 的方形（CommonMangaItem.kt:469 `MangaCover.Square`）。
+        val LibraryListCoverSize = 40.dp
         val PanoramaCoverHeight = 160.dp
-        val ThemePreviewCard = 112.dp
+        // 主题预览卡 — AppThemePreferenceWidget.kt:95 `.width(114.dp)`；📐实测 228px ÷ 2 = 114dp。
+        val ThemePreviewCard = 114.dp
         val ThemePreviewSwatch = 40.dp
         val CatalogInputMinHeight = 120.dp
         val ModeCardWidth = 104.dp
@@ -173,5 +197,7 @@ object DesignTokens {
         val ReaderSliderRadius = 24.dp
         val ReaderSliderThumb = 16.dp
         val BottomActionMenuRadius = 16.dp
+        // 手机底部弹层下滑关闭阈值 — AdaptiveSheet.kt `swipeThreshold = 56.dp`（白皮书 06 §6.13）。
+        val SheetDismissThreshold = 56.dp
     }
 }

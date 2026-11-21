@@ -85,7 +85,8 @@ fun ReaderTopAppBar(
                     Text(
                         text = title,
                         color = contentColor.copy(alpha = titleAlpha),
-                        maxLines = 2,
+                        // 标题 22sp 单行（白皮书 06 §6.1）。
+                        maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }

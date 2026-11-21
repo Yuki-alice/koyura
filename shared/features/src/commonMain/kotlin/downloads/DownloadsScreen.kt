@@ -182,7 +182,7 @@ fun DownloadsScreen(
 @Composable
 private fun DownloadsEmptyState() {
     EmptyScreen(
-        emoji = "(˘･_･˘)",
+        emoji = "(︶︿︶)",
         message = stringResource(Res.string.downloads_empty),
         modifier = Modifier.testTag(DownloadsEmptyTag),
     )
@@ -241,8 +241,8 @@ private fun DownloadRow(
                 ) {
                     AppCircularProgress(
                         progress = { progress },
-                        modifier = Modifier.size(DesignTokens.Sizes.DownloadProgress),
-                        strokeWidth = DesignTokens.Sizes.DownloadProgress / 8,
+                        modifier = Modifier.size(DesignTokens.Sizes.DownloadIndicator),
+                        strokeWidth = DesignTokens.Sizes.DownloadProgressStroke,
                         color = progressColor,
                     )
                     AppText(

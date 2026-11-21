@@ -23,6 +23,14 @@ class SettingsSession(
         _uiState = _uiState.copy(selectedSubpage = subpage)
     }
 
+    /**
+     * 仓储侧推送的偏好（如启动时从生产存储 hydrate）：只更新快照，不回写仓储。
+     * 与 [update] 区分，避免「读取 → 立即写回」造成无谓持久化。
+     */
+    fun replace(preferences: SettingsPreferences) {
+        _uiState = _uiState.copy(preferences = preferences)
+    }
+
     /** 整份偏好更新：调用方基于 [uiState] 的 preferences 做 copy，写回后立即生效。 */
     fun update(transform: (SettingsPreferences) -> SettingsPreferences) {
         val next = transform(_uiState.preferences)

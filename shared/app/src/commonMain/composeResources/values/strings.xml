@@ -146,6 +146,12 @@
     <string name="source_detail_clear_selection">Clear</string>
     <string name="source_detail_mark_read">Mark read</string>
     <string name="source_detail_mark_unread">Mark unread</string>
+    <string name="source_detail_chapter_filter">Chapter filter</string>
+    <string name="source_detail_filter_all">All chapters</string>
+    <string name="source_detail_filter_unread">Unread</string>
+    <string name="source_detail_filter_read">Read</string>
+    <string name="source_detail_filter_downloaded">Downloaded</string>
+    <string name="source_detail_filter_not_downloaded">Not downloaded</string>
     <string name="source_detail_download">Download</string>
     <string name="source_detail_download_desc">Download chapter (coming soon)</string>
     <string name="source_detail_read">Read</string>
@@ -197,4 +203,17 @@
     <string name="utility_title">Tools</string>
     <string name="utility_message">This tool is unavailable.</string>
     <string name="utility_back">Back</string>
+    <string name="utility_no_errors">No failed updates.</string>
+    <string name="utility_retry">Retry</string>
+    <string name="utility_storage_format">%1$d entries · %2$d categories</string>
+    <string name="utility_storage_body">Counts come from the same library snapshot the shelf uses; there is no separate cache layer yet.</string>
+    <string name="utility_batch_hint">One per line: sourceKey|workId|title</string>
+    <string name="utility_batch_add_action">Add to library</string>
+    <string name="utility_version">Version</string>
+    <string name="utility_build">Local development build</string>
+    <string name="utility_about_body">A Compose Multiplatform manga reader. Built with Kotlin, Compose, Kotlinx and MaterialKolor.</string>
+    <string name="utility_help_body">Library: long-press to select\nReader: tap the center for chrome\nUpdates: overflow menu for smart policy</string>
+    <string name="browse_migrate_open_source">Open source</string>
+    <string name="global_banner_downloaded_only">Downloaded only</string>
+    <string name="global_banner_incognito">Incognito mode</string>
 </resources>

@@ -18,6 +18,7 @@ import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.isDisplayed
 import androidx.compose.ui.test.longClick
+import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -260,8 +261,9 @@ class VeneraLibraryHistoryMutationRestartTest {
             awaitTag(historyRowTag(SourceKey, OtherWorkId))
             when (action) {
                 ActionDelete -> {
-                    onNodeWithTag(historyRowActionsTag(SourceKey, WorkId)).performClick()
-                    onNodeWithTag(historyDeleteTag(SourceKey, WorkId)).performClick()
+                    // 行尾动作已常驻（收藏/删除直接在行上），不再需要先展开动作区。
+                    onNodeWithTag(historyDeleteTag(SourceKey, WorkId), useUnmergedTree = true)
+                        .performScrollTo().performClick()
                     waitUntil(timeoutMillis = 15_000) {
                         onAllNodesWithTag(historyRowTag(SourceKey, WorkId))
                             .fetchSemanticsNodes().isEmpty()
@@ -572,7 +574,12 @@ class VeneraLibraryHistoryMutationRestartTest {
 
     private fun ComposeUiTest.capture(name: String) {
         val dir = File(System.getProperty("reader.screenshotDir") ?: "build/screenshots").apply { mkdirs() }
-        val pixels = onRoot().captureToImage().toPixelMap()
+        // 装配里可能残留 Dialog 宿主窗口（两个 window root），截图只取面积最大的主窗口。
+        val roots = onAllNodes(isRoot()).fetchSemanticsNodes()
+        val mainIndex = roots.indices.maxByOrNull { i ->
+            roots[i].size.width.toLong() * roots[i].size.height
+        } ?: 0
+        val pixels = onAllNodes(isRoot())[mainIndex].captureToImage().toPixelMap()
         val awt = java.awt.image.BufferedImage(
             pixels.width, pixels.height, java.awt.image.BufferedImage.TYPE_INT_ARGB,
         )

@@ -145,6 +145,12 @@
     <string name="source_detail_clear_selection">清除</string>
     <string name="source_detail_mark_read">标为已读</string>
     <string name="source_detail_mark_unread">标为未读</string>
+    <string name="source_detail_chapter_filter">章节筛选</string>
+    <string name="source_detail_filter_all">全部章节</string>
+    <string name="source_detail_filter_unread">未读</string>
+    <string name="source_detail_filter_read">已读</string>
+    <string name="source_detail_filter_downloaded">已下载</string>
+    <string name="source_detail_filter_not_downloaded">未下载</string>
     <string name="source_detail_download">下载</string>
     <string name="source_detail_download_desc">下载章节（即将上线）</string>
     <string name="source_detail_read">已读</string>
@@ -196,4 +202,17 @@
     <string name="utility_title">工具</string>
     <string name="utility_message">此工具暂不可用。</string>
     <string name="utility_back">返回</string>
+    <string name="utility_no_errors">没有更新失败的作品。</string>
+    <string name="utility_retry">重试</string>
+    <string name="utility_storage_format">%1$d 部作品 · %2$d 个分类</string>
+    <string name="utility_storage_body">计数来自书架同一份快照；当前还没有独立的缓存层。</string>
+    <string name="utility_batch_hint">每行一条：sourceKey|workId|title</string>
+    <string name="utility_batch_add_action">加入书架</string>
+    <string name="utility_version">版本</string>
+    <string name="utility_build">本地开发构建</string>
+    <string name="utility_about_body">Compose Multiplatform 漫画阅读器。使用 Kotlin、Compose、Kotlinx 与 MaterialKolor 构建。</string>
+    <string name="utility_help_body">书架：长按进入多选\n阅读器：点中央呼出工具栏\n更新：溢出菜单调智能策略</string>
+    <string name="browse_migrate_open_source">打开源</string>
+    <string name="global_banner_downloaded_only">仅显示已下载</string>
+    <string name="global_banner_incognito">隐身模式</string>
 </resources>

@@ -74,12 +74,14 @@ data class SettingsPreferences(
     val libraryColumns: Int = 2,
     val showCategories: Boolean = true,
     val sortByTitle: Boolean = false,
+    val defaultCategoryId: String? = null,
     // Reader
     val readerMode: String = "Webtoon",
     val readingDirection: String = "Vertical",
     val cropBorders: Boolean = false,
     val autoScroll: Boolean = false,
     val screenBrightness: Float = 1f,
+    val readerBackground: String = "Follow theme",
     // Downloads
     val downloadDirectory: String = "Default directory",
     val parallelDownloads: Int = 3,
@@ -88,8 +90,11 @@ data class SettingsPreferences(
     // Tracking / Connections / Browse
     val autoUpdateTracking: Boolean = true,
     val syncEnabled: Boolean = false,
+    val syncInterval: String = "Daily",
+    val proxy: String = "Not configured",
     val multiSourceSearch: Boolean = false,
     val showAdultSources: Boolean = false,
+    val defaultLanguage: String = "All",
     // Data & storage / Advanced
     val backupFrequency: String = "Weekly",
     val debugEnabled: Boolean = false,

@@ -67,6 +67,7 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
     onOpenSubpage: ((SettingsSubpage) -> Unit)? = null,
     onBack: (() -> Unit)? = null,
+    onOpenOnboarding: (() -> Unit)? = null,
 ) {
     BoxWithConstraints(
         modifier = modifier
@@ -89,6 +90,7 @@ fun SettingsScreen(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxSize(),
+                    onOpenOnboarding = onOpenOnboarding,
                 )
             }
         } else {
@@ -110,6 +112,7 @@ fun SettingsSubpageScreen(
     subpage: SettingsSubpage,
     modifier: Modifier = Modifier,
     onBack: (() -> Unit)? = null,
+    onOpenOnboarding: (() -> Unit)? = null,
 ) {
     SettingsSubpageContent(
         session = session,
@@ -119,6 +122,7 @@ fun SettingsSubpageScreen(
             .testTag(SettingsSubpageRootTestTag),
         onBack = onBack,
         showBackButton = true,
+        onOpenOnboarding = onOpenOnboarding,
     )
 }
 
@@ -212,6 +216,7 @@ private fun SettingsMasterPane(
 private fun SettingsDetailPane(
     session: SettingsSession,
     modifier: Modifier = Modifier,
+    onOpenOnboarding: (() -> Unit)? = null,
 ) {
     androidx.compose.foundation.layout.Box(
         modifier = modifier
@@ -224,6 +229,7 @@ private fun SettingsDetailPane(
             modifier = Modifier.fillMaxSize(),
             onBack = null,
             showBackButton = false,
+            onOpenOnboarding = onOpenOnboarding,
         )
     }
 }

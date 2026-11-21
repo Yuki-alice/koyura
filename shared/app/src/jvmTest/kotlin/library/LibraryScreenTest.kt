@@ -9,6 +9,7 @@ import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -60,6 +61,7 @@ import app.koyura.features.library.LibraryNoResultsTag
 import app.koyura.features.library.LibraryOverflowTag
 import app.koyura.features.library.LibraryPanoramaTag
 import app.koyura.features.library.LibraryRemoveConfirmTag
+import app.koyura.features.library.LibrarySnackbarTag
 import app.koyura.features.library.LibraryRemoveDialogTag
 import app.koyura.features.library.LibraryRetryTag
 import app.koyura.features.library.LibraryRootTag
@@ -282,6 +284,39 @@ class LibraryScreenTest {
         node(LibraryRemoveConfirmTag).performClick()
         waitUntil { session.snapshot.entries.isEmpty() }
         node(LibraryEmptyTag).assertIsDisplayed()
+    }
+
+    @Test
+    fun removingWorkOffersUndoAndRestoresEntry() = runComposeUiTest {
+        val session = LibrarySession(triStateFixture())
+        setContent {
+            ReaderTheme {
+                LibraryScreen(
+                    session = session,
+                    decodeCover = realDecode,
+                    onOpenWork = { _, _, _ -> },
+                    onContinue = {},
+                )
+            }
+        }
+        waitUntil { session.snapshot.entries.isNotEmpty() }
+        node(libraryCardTag("srcA", "w1")).performTouchInput { longClick() }
+        waitUntil { session.selection.isNotEmpty() }
+        node(LibraryBottomRemoveTag).performClick()
+        node(LibraryRemoveConfirmTag).performClick()
+        waitUntil { session.snapshot.entries.size == 2 }
+        // T3.1：移出书架给 Short Snackbar + 撤销。
+        node(LibrarySnackbarTag).assertIsDisplayed()
+        // 测试进程 locale 为 en，Snackbar 文案取默认 values。
+        onNodeWithText("Removed 1 work(s)").assertIsDisplayed()
+        onNodeWithText("Undo").performClick()
+        waitUntil { session.snapshot.entries.size == 3 }
+        node(libraryCardTag("srcA", "w1")).assertIsDisplayed()
+        // 分类归属随条目一起回填。
+        assertEquals(
+            setOf(1L),
+            session.snapshot.categoriesOf(LibraryEntryKey("srcA", LibraryKind.COMIC, "w1")),
+        )
     }
 
     @Test

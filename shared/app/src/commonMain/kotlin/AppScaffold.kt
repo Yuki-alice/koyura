@@ -1,5 +1,7 @@
 package app.koyura.app
 
+import app.koyura.app.resources.global_banner_downloaded_only
+import app.koyura.app.resources.global_banner_incognito
 import app.koyura.app.resources.utility_about
 import app.koyura.app.resources.utility_batch_add
 import app.koyura.app.resources.utility_data_storage
@@ -15,6 +17,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,6 +39,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.SaveableStateHolder
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.ui.platform.testTag
@@ -50,6 +55,7 @@ import app.koyura.features.downloads.DownloadsScreen
 import app.koyura.features.downloads.rememberDownloadsSession
 import app.koyura.categories.CategoriesScreen
 import app.koyura.features.more.MoreScreen
+import app.koyura.features.onboarding.OnboardingScreen
 import app.koyura.features.more.MoreSession
 import app.koyura.features.more.rememberMoreSession
 import app.koyura.features.statistics.StatisticsScreen
@@ -86,6 +92,7 @@ import app.koyura.app.navigation.GlobalSearchRoute
 import app.koyura.app.navigation.ComicReaderRoute
 import app.koyura.app.navigation.SourceDetailRoute
 import app.koyura.app.navigation.StatisticsRoute
+import app.koyura.app.navigation.OnboardingRoute
 import app.koyura.app.navigation.SettingsRoute
 import app.koyura.app.navigation.SettingsSubpageRoute
 import app.koyura.app.navigation.UtilityPageRoute
@@ -96,7 +103,9 @@ import app.koyura.app.ui.DetailScreen
 import app.koyura.app.ui.TabRootScreen
 import app.koyura.app.ui.UtilityPageScreen
 import app.koyura.designsystem.DesignTokens
+import app.koyura.designsystem.components.BannerKind
 import app.koyura.designsystem.components.ProvideUiContentColor
+import app.koyura.designsystem.components.StatusBanner
 import app.koyura.designsystem.components.UiTheme
 import app.koyura.designsystem.navigation.NavTab
 import app.koyura.designsystem.navigation.ReaderNavigationBar
@@ -187,7 +196,10 @@ internal fun AppScaffold(
     // way (Komikku parity: selection mode owns the chrome).
     val isReaderOpen = navigation.currentStack.lastOrNull() is ComicReaderRoute
     ReaderSystemBars(hidden = isReaderOpen)
-    val hideChrome = (navigation.selectedTab == NavTab.Library && librarySession.selection.isNotEmpty()) ||
+    // 引导页是一次性流程：与阅读器一样占满全屏，不显示底栏 / 导航轨。
+    val isOnboardingOpen = navigation.currentStack.lastOrNull() is OnboardingRoute
+    val hideChrome = isOnboardingOpen ||
+        (navigation.selectedTab == NavTab.Library && librarySession.selection.isNotEmpty()) ||
         (navigation.selectedTab == NavTab.History && activeHistorySession.selection.isNotEmpty())
     if (isReaderOpen || hideChrome) {
         Box(modifier = Modifier.fillMaxSize()) {
@@ -226,6 +238,11 @@ internal fun AppScaffold(
                     .windowInsetsPadding(contentInsets),
             ) {
                 appContent(navigation, saveableStateHolder, activeBrowseSession)
+                GlobalModeBanner(
+                    downloadedOnly = activeMoreSession.downloadedOnly,
+                    incognito = activeMoreSession.incognito,
+                    modifier = Modifier.align(Alignment.TopCenter),
+                )
             }
             ReaderNavigationBar(
                 selectedTab = navigation.selectedTab,
@@ -317,6 +334,9 @@ private fun AppNavigationContent(
                                 navigation.push(SourceSearchRoute(sourceKey))
                             },
                             onGlobalSearch = { navigation.push(GlobalSearchRoute) },
+                            onOpenWork = { sourceKey, workId, title ->
+                                navigation.push(SourceDetailRoute(sourceKey, workId, title))
+                            },
                         )
                     }
                 } else if (route.tab == NavTab.Library) {
@@ -421,6 +441,12 @@ private fun AppNavigationContent(
                     onBack = { navigation.popCurrentChild() },
                 )
             }
+            entry<OnboardingRoute> {
+                OnboardingScreen(
+                    onComplete = { navigation.popCurrentChild() },
+                    onSkip = { navigation.popCurrentChild() },
+                )
+            }
             entry<SettingsRoute> {
                 SettingsScreen(
                     session = settingsSession,
@@ -428,6 +454,7 @@ private fun AppNavigationContent(
                         navigation.push(SettingsSubpageRoute(subpage.name))
                     },
                     onBack = { navigation.handleBack() },
+                    onOpenOnboarding = { navigation.push(OnboardingRoute) },
                 )
             }
             entry<SettingsSubpageRoute> { route ->
@@ -436,13 +463,14 @@ private fun AppNavigationContent(
                 SettingsSubpageScreen(
                     session = settingsSession,
                     subpage = subpage,
+                    onOpenOnboarding = { navigation.push(OnboardingRoute) },
                     onBack = { navigation.popCurrentChild() },
                 )
             }
             entry<UtilityPageRoute> { route ->
                 UtilityPageScreen(
+                    key = route.key,
                     title = utilityPageTitle(route.key),
-                    message = stringResource(Res.string.utility_message),
                     onBack = { navigation.popCurrentChild() },
                 )
             }
@@ -544,11 +572,25 @@ private fun AppNavigationContent(
     }
 }
 
+/**
+ * 页面 push/pop 转场：shared-axis-X（位移 1/3 宽 + 分阶段淡入淡出），300ms。
+ *
+ * CMP 的 material3 没有 `materialFadeThrough*` / `materialSharedAxisX*`（只有 MotionScheme 令牌），
+ * 这里按 M3 同名转场的参数手写：退场元素先淡出（1/3 时长），进场元素延后淡入，位移取视口 1/3。
+ * 白皮书 05 §5.1 #2。
+ */
 private fun childPageTransition(forward: Boolean): androidx.compose.animation.ContentTransform {
     val direction = if (forward) 1 else -1
-    val duration = DesignTokens.Motion.TabFadeThroughMs
-    return (slideInHorizontally(tween(duration)) { direction * it / 6 } + fadeIn(tween(duration))) togetherWith
-        (slideOutHorizontally(tween(duration)) { -direction * it / 6 } + fadeOut(tween(duration)))
+    val total = DesignTokens.Motion.PageSharedAxisMs
+    val outMs = total / 3
+    val slide = tween<androidx.compose.ui.unit.IntOffset>(total, easing = FastOutSlowInEasing)
+    return (
+        slideInHorizontally(slide) { direction * it / 3 } +
+            fadeIn(tween(total - outMs, delayMillis = outMs))
+        ) togetherWith (
+        slideOutHorizontally(tween(total, easing = LinearOutSlowInEasing)) { -direction * it / 3 } +
+            fadeOut(tween(outMs))
+        )
 }
 
 /** More 页工具占位的标题；key 与 `MoreScreen` 的导航行 key 一致。 */
@@ -561,3 +603,33 @@ private fun utilityPageTitle(key: String): String = stringResource(when (key) {
     "help" -> Res.string.utility_help
     else -> Res.string.utility_title
 })
+
+/**
+ * 全局模式横幅（白皮书 06 §6.16 / T3.3）：Downloaded only 与 Incognito 互斥，只显一个。
+ *
+ * 以 overlay 贴在内容顶部而不是插进 Column：插进布局会改变每个页面的可用高度，
+ * 让既有截图/尺寸断言全部偏移；overlay 只在开启模式时出现，且不参与页面测量。
+ * 状态栏 inset 由外层 `contentInsets` 负责，这里不再叠加，避免多任务时重复计算。
+ */
+@Composable
+private fun GlobalModeBanner(
+    downloadedOnly: Boolean,
+    incognito: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    when {
+        incognito -> StatusBanner(
+            kind = BannerKind.INCOGNITO,
+            text = stringResource(Res.string.global_banner_incognito),
+            modifier = modifier.testTag(GlobalBannerTag),
+        )
+
+        downloadedOnly -> StatusBanner(
+            kind = BannerKind.DOWNLOADED_ONLY,
+            text = stringResource(Res.string.global_banner_downloaded_only),
+            modifier = modifier.testTag(GlobalBannerTag),
+        )
+    }
+}
+
+const val GlobalBannerTag = "global-mode-banner"

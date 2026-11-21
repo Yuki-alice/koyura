@@ -4,6 +4,7 @@ import app.koyura.designsystem.ActionIcon
 import app.koyura.designsystem.DecorativeActionIcon
 import app.koyura.designsystem.ActionIconButton
 import app.koyura.designsystem.components.ModalReaderSheet
+import app.koyura.designsystem.components.CountPill
 import app.koyura.designsystem.components.ReaderPill
 import app.koyura.designsystem.components.ReaderTopAppBar
 
@@ -36,6 +37,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -106,6 +111,8 @@ import app.koyura.features.resources.library_menu_refresh
 import app.koyura.features.resources.library_more
 import app.koyura.features.resources.library_no_results
 import app.koyura.features.resources.library_random_open
+import app.koyura.features.resources.library_removed_count
+import app.koyura.features.resources.library_restore_failed
 import app.koyura.features.resources.library_retry
 import app.koyura.features.resources.library_search_clear
 import app.koyura.features.resources.library_search_hint
@@ -114,6 +121,7 @@ import app.koyura.features.resources.library_sort
 import app.koyura.features.resources.library_start
 import app.koyura.features.resources.library_tab_all
 import app.koyura.features.resources.library_title
+import app.koyura.features.resources.library_undo
 import app.koyura.features.resources.library_unread_chapters
 import app.koyura.features.resources.library_works_count
 
@@ -125,6 +133,7 @@ import org.jetbrains.compose.resources.stringResource
 
 const val LibraryRootTag = "library-root"
 const val LibraryTitleTag = "library-title"
+const val LibrarySnackbarTag = "library-snackbar"
 const val LibraryCountTag = "library-count"
 const val LibrarySearchTag = "library-search-query"
 const val LibrarySearchToggleTag = "library-search-toggle"
@@ -211,12 +220,36 @@ fun LibraryScreen(
     val scope = rememberCoroutineScope()
     var sheet by remember { mutableStateOf<LibrarySheet?>(null) }
     var searching by remember { mutableStateOf(false) }
+    // 移除书架给 Short Snackbar + 撤销（白皮书 08 §2 / T3.1）；标记已读与分类修改不给撤销。
+    val snackbar = remember { SnackbarHostState() }
+    var removedSnapshot by remember {
+        mutableStateOf<Pair<List<LibraryEntry>, Map<LibraryEntryKey, Set<Long>>>>(emptyList<LibraryEntry>() to emptyMap())
+    }
 
     LaunchedEffect(Unit) {
         session.refresh()
     }
 
-    Column(modifier = modifier.fillMaxSize().testTag(LibraryRootTag)) {
+    // 移出书架给 Short Snackbar + 撤销（白皮书 08 §2 / T3.1）；标记已读、改分类不给撤销。
+    val removedMessage = stringResource(Res.string.library_removed_count, removedSnapshot.first.size)
+    val undoLabel = stringResource(Res.string.library_undo)
+    val restoreFailed = stringResource(Res.string.library_restore_failed)
+    LaunchedEffect(removedSnapshot) {
+        val (entries, links) = removedSnapshot
+        if (entries.isEmpty()) return@LaunchedEffect
+        val result = snackbar.showSnackbar(
+            message = removedMessage,
+            actionLabel = undoLabel,
+            duration = SnackbarDuration.Short,
+        )
+        if (result == SnackbarResult.ActionPerformed && !session.restore(entries, links)) {
+            snackbar.showSnackbar(message = restoreFailed)
+        }
+        removedSnapshot = emptyList<LibraryEntry>() to emptyMap()
+    }
+
+    Box(modifier = modifier.fillMaxSize()) {
+    Column(modifier = Modifier.fillMaxSize().testTag(LibraryRootTag)) {
         if (session.selection.isNotEmpty()) {
             LibrarySelectionToolbar(session = session)
         } else {
@@ -286,16 +319,24 @@ fun LibraryScreen(
                 onRemove = { sheet = LibrarySheet.REMOVE },
             )
         }
-    }
+        }
 
-    val current = sheet
-    if (current != null) {
-        LibrarySheetHost(
-            sheet = current,
-            session = session,
-            onDismiss = { sheet = null },
-            onOpenSheet = { sheet = it },
+        // 撤销条压在底部菜单之上：选中态下不弹，避免与批量操作条抢同一位置。
+        SnackbarHost(
+            hostState = snackbar,
+            modifier = Modifier.align(Alignment.BottomCenter).testTag(LibrarySnackbarTag),
         )
+
+        val current = sheet
+        if (current != null) {
+            LibrarySheetHost(
+                sheet = current,
+                session = session,
+                onDismiss = { sheet = null },
+                onOpenSheet = { sheet = it },
+                onRemoved = { entries, links -> removedSnapshot = entries to links },
+            )
+        }
     }
 }
 
@@ -325,15 +366,12 @@ private fun LibraryToolbar(
                         modifier = Modifier.weight(1f, fill = false).testTag(LibraryTitleTag),
                     )
                     if (session.snapshot.prefs.showWorkCount) {
-                        AppSurface(shape = UiTheme.shapes.small, tonalElevation = DesignTokens.Elevation.Raised) {
-                            AppText(
-                                // 同一可见范围：隐藏关闭时仅归属隐藏分类的作品不计入总数。
-                                text = session.countForTab(null).toString(),
-                                style = UiTheme.typography.labelMedium,
-                                modifier = Modifier.padding(horizontal = DesignTokens.Spacing.Small, vertical = DesignTokens.Spacing.ExtraSmall)
-                                    .testTag(LibraryCountTag),
-                            )
-                        }
+                        // 书架标题旁的计数胶囊：14sp、onBackground 8%/12%（白皮书 06 §6.11）。
+                        CountPill(
+                            count = session.countForTab(null).toString(),
+                            fontSizeSp = 14f,
+                            modifier = Modifier.testTag(LibraryCountTag),
+                        )
                     }
                 }
             },
@@ -706,7 +744,8 @@ private fun LibraryGridContent(
         columns = GridCells.Adaptive(DesignTokens.Breakpoints.AdaptiveGridMinItemDp.dp),
         state = gridState,
         modifier = Modifier.fillMaxSize().testTag(LibraryGridTag),
-        contentPadding = PaddingValues(DesignTokens.Spacing.Small),
+        // 左右 16dp：360dp 下两列正好 162dp（白皮书实测）。
+        contentPadding = PaddingValues(DesignTokens.Spacing.Medium),
         verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.ExtraSmall),
         horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.ExtraSmall),
     ) {
@@ -1112,7 +1151,7 @@ private fun LibraryListRow(
                 entry = entry,
                 session = session,
                 decodeCover = decodeCover,
-                modifier = Modifier.size(width = DesignTokens.Sizes.LibraryListCoverWidth, height = DesignTokens.Sizes.LibraryListCoverHeight),
+                modifier = Modifier.size(DesignTokens.Sizes.LibraryListCoverSize),
             )
             if (session.selection.contains(entry.key)) {
                 // 多选态：secondary 16–22% 行叠加（白皮书 02 §2.7 / 08 §8.2），亮暗按 surface 明度区分。
@@ -1122,7 +1161,7 @@ private fun LibraryListRow(
                     DesignTokens.Alpha.SelectedBackgroundLight
                 }
                 Box(
-                    modifier = Modifier.size(width = DesignTokens.Sizes.LibraryListCoverWidth, height = DesignTokens.Sizes.LibraryListCoverHeight)
+                    modifier = Modifier.size(DesignTokens.Sizes.LibraryListCoverSize)
                         .background(UiTheme.colorScheme.secondary.copy(alpha = selectedOverlay)),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -1306,14 +1345,21 @@ private fun LibrarySheetHost(
     session: LibrarySession,
     onDismiss: () -> Unit,
     onOpenSheet: (LibrarySheet) -> Unit,
+    onRemoved: (List<LibraryEntry>, Map<LibraryEntryKey, Set<Long>>) -> Unit = { _, _ -> },
 ) {
     val scope = rememberCoroutineScope()
     when (sheet) {
         LibrarySheet.REMOVE -> LibraryRemoveDialog(
             count = session.selection.size,
             onConfirm = {
+                // 先抓快照再删：撤销要恢复分类归属，删除后快照里就没有了。
+                val removed = session.snapshot.entries.filter { it.key in session.selection }
+                val links = removed.associate { it.key to session.snapshot.categoriesOf(it.key) }
                 scope.launch {
-                    if (session.removeSelected()) onDismiss()
+                    if (session.removeSelected()) {
+                        onDismiss()
+                        onRemoved(removed, links)
+                    }
                 }
             },
             onDismiss = onDismiss,

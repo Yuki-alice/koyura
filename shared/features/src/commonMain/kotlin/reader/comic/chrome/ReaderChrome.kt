@@ -33,11 +33,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.window.Dialog
 import app.koyura.designsystem.ActionIcon
@@ -131,7 +134,14 @@ fun ReaderChrome(
         DesignTokens.Alpha.ReaderBarLight
     }
 
-    val barColor = UiTheme.surfaceAtElevation(DesignTokens.Elevation.AppBarScrolled)
+    // 半透明 chrome：桌面/亮色 95%，暗色 90%（白皮书 06 §6.18、ReaderAppBars.kt:106）。
+    val barColor = UiTheme.surfaceAtElevation(DesignTokens.Elevation.AppBarScrolled).copy(
+        alpha = if (UiTheme.colorScheme.surface.luminance() < 0.5f) {
+            DesignTokens.Alpha.ReaderBarDark
+        } else {
+            DesignTokens.Alpha.ReaderBarLight
+        },
+    )
         .copy(alpha = readerBarAlpha)
 
     LaunchedEffect(state.dialog) {
@@ -215,9 +225,8 @@ fun ReaderChrome(
                     )
                 }
             }
-            AppText(
-                text = pageLabel(state.pageIndex, state.pageCount),
-                style = UiTheme.typography.bodyMedium,
+            PageIndicatorLabel(
+                label = pageLabel(state.pageIndex, state.pageCount),
                 modifier = Modifier
                     .testTag(ReaderPageIndicatorTag)
                     .focusRequester(indicatorFocus)
@@ -589,3 +598,28 @@ private fun PageJumpDialog(
 /** Small helper so tests and hosts share the chapter-boundary math. */
 fun ReaderChromeState.clampedPage(index: Int): Int =
     index.coerceIn(0, (pageCount - 1).coerceAtLeast(0))
+
+/**
+ * 阅读器页码：12sp Bold + 1sp 字距，底层 4px `#2D2D2D` 描边、上层 `primary` 填充
+ * （白皮书 06 §6.18 / README 结论 5）。
+ *
+ * 描边让浅色漫画页上的页码也保持可读；用两层 Text 而不是 `shadow`，因为阴影会有方向性偏移。
+ */
+@Composable
+private fun PageIndicatorLabel(label: String, modifier: Modifier = Modifier) {
+    val base = UiTheme.typography.bodyMedium.copy(
+        fontSize = DesignTokens.Type.PageIndicatorFontSize,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = DesignTokens.Type.PageIndicatorLetterSpacing,
+    )
+    Box(modifier = modifier, contentAlignment = Alignment.Center) {
+        AppText(
+            text = label,
+            style = base.copy(
+                color = Color(0xFF2D2D2D),
+                drawStyle = Stroke(width = 4f),
+            ),
+        )
+        AppText(text = label, style = base.copy(color = UiTheme.colorScheme.primary))
+    }
+}

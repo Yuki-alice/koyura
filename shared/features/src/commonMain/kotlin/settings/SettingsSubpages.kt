@@ -11,13 +11,37 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import app.koyura.features.resources.Res
 import app.koyura.features.resources.settings_1_0_0_settings_preview
 import app.koyura.features.resources.settings_all
 import app.koyura.features.resources.settings_app
 import app.koyura.features.resources.settings_auto_download_new_chapters
 import app.koyura.features.resources.settings_auto_scroll
+import app.koyura.features.resources.settings_weekly
+import app.koyura.features.resources.settings_hourly
+import app.koyura.features.resources.settings_chinese
+import app.koyura.features.resources.settings_japanese
+import app.koyura.features.resources.settings_gray
+import app.koyura.features.resources.settings_white
+import app.koyura.features.resources.settings_http
+import app.koyura.features.resources.settings_socks5
+import app.koyura.features.resources.settings_storage_usage_format
+import app.koyura.features.resources.settings_licenses_body
+import app.koyura.features.resources.settings_help_body
+import app.koyura.features.resources.settings_picker_unavailable
+import app.koyura.features.resources.settings_cache_cleared
+import app.koyura.features.resources.settings_cache_noop
+import app.koyura.features.resources.settings_backup_unavailable
+import app.koyura.features.resources.settings_off
+import app.koyura.features.resources.settings_monthly
+import app.koyura.features.resources.settings_english
 import app.koyura.features.resources.settings_back
+import app.koyura.features.resources.settings_show_onboarding
 import app.koyura.features.resources.settings_background_color
 import app.koyura.features.resources.settings_backup
 import app.koyura.features.resources.settings_backup_frequency
@@ -29,6 +53,7 @@ import app.koyura.features.resources.settings_clear_cache
 import app.koyura.features.resources.settings_crop_borders
 import app.koyura.features.resources.settings_daily
 import app.koyura.features.resources.settings_debug
+import app.koyura.features.resources.settings_dark
 import app.koyura.features.resources.settings_default_category
 import app.koyura.features.resources.settings_default_language
 import app.koyura.features.resources.settings_display
@@ -40,6 +65,7 @@ import app.koyura.features.resources.settings_follow_theme
 import app.koyura.features.resources.settings_global_update
 import app.koyura.features.resources.settings_help
 import app.koyura.features.resources.settings_library_columns
+import app.koyura.features.resources.settings_light
 import app.koyura.features.resources.settings_licenses
 import app.koyura.features.resources.settings_limit_updates_by_network_and_schedule
 import app.koyura.features.resources.settings_links
@@ -100,6 +126,7 @@ internal fun SettingsSubpageContent(
     modifier: Modifier = Modifier,
     onBack: (() -> Unit)? = null,
     showBackButton: Boolean = false,
+    onOpenOnboarding: (() -> Unit)? = null,
 ) {
     Column(modifier = modifier.fillMaxSize()) {
         Row(
@@ -135,7 +162,7 @@ internal fun SettingsSubpageContent(
                 SettingsSubpage.BROWSE -> BrowseSettingsScreen(session)
                 SettingsSubpage.DATA_STORAGE -> DataStorageSettingsScreen(session)
                 SettingsSubpage.ADVANCED -> AdvancedSettingsScreen(session)
-                SettingsSubpage.ABOUT -> AboutSettingsScreen()
+                SettingsSubpage.ABOUT -> AboutSettingsScreen(onOpenOnboarding = onOpenOnboarding)
             }
         }
     }
@@ -147,6 +174,14 @@ internal fun LibrarySettingsScreen(
     modifier: Modifier = Modifier,
 ) {
     val prefs = session.uiState.preferences
+    var showCategoryDialog by remember { mutableStateOf(false) }
+    var categoryOptions by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
+    val libraryRepository = app.koyura.features.library.LocalLibraryRepository.current
+    LaunchedEffect(libraryRepository) {
+        categoryOptions = runCatching {
+            libraryRepository?.load()?.orderedCategories?.map { it.name to it.id.toString() }.orEmpty()
+        }.getOrElse { emptyList() }
+    }
     SettingsSubpageScroll(modifier) {
         SettingsSectionHeader(stringResource(Res.string.settings_categories))
         SettingsSwitchRow(
@@ -157,10 +192,23 @@ internal fun LibrarySettingsScreen(
         )
         SettingsChoiceRow(
             title = stringResource(Res.string.settings_default_category),
-            currentValue = stringResource(Res.string.settings_all),
+            currentValue = categoryOptions.firstOrNull { it.second == prefs.defaultCategoryId }?.first
+                ?: stringResource(Res.string.settings_all),
             enabled = prefs.showCategories,
-            onClick = {},
+            onClick = { showCategoryDialog = true },
         )
+        if (showCategoryDialog) {
+            SettingsChoiceDialog(
+                title = stringResource(Res.string.settings_default_category),
+                options = listOf(stringResource(Res.string.settings_all) to "") + categoryOptions,
+                selectedValue = prefs.defaultCategoryId.orEmpty(),
+                onSelect = { value ->
+                    session.update { it.copy(defaultCategoryId = value.ifEmpty { null }) }
+                    showCategoryDialog = false
+                },
+                onDismiss = { showCategoryDialog = false },
+            )
+        }
 
         SettingsSectionHeader(stringResource(Res.string.settings_updates))
         SettingsSwitchRow(
@@ -199,6 +247,7 @@ internal fun ReaderSettingsScreen(
     modifier: Modifier = Modifier,
 ) {
     val prefs = session.uiState.preferences
+    var showBackgroundDialog by remember { mutableStateOf(false) }
     val readerModes = listOf("Webtoon", "Continuous", "Single")
     val directions = listOf("Vertical", "Left to right", "Right to left")
     SettingsSubpageScroll(modifier) {
@@ -241,9 +290,27 @@ internal fun ReaderSettingsScreen(
         )
         SettingsChoiceRow(
             title = stringResource(Res.string.settings_background_color),
-            currentValue = stringResource(Res.string.settings_follow_theme),
-            onClick = {},
+            currentValue = settingOptionLabel(prefs.readerBackground),
+            onClick = { showBackgroundDialog = true },
         )
+        if (showBackgroundDialog) {
+            val backgrounds = listOf(
+                stringResource(Res.string.settings_follow_theme) to "Follow theme",
+                stringResource(Res.string.settings_light) to "White",
+                stringResource(Res.string.settings_gray) to "Gray",
+                stringResource(Res.string.settings_dark) to "Black",
+            )
+            SettingsChoiceDialog(
+                title = stringResource(Res.string.settings_background_color),
+                options = backgrounds,
+                selectedValue = prefs.readerBackground,
+                onSelect = { value ->
+                    session.update { it.copy(readerBackground = value) }
+                    showBackgroundDialog = false
+                },
+                onDismiss = { showBackgroundDialog = false },
+            )
+        }
     }
 }
 
@@ -253,14 +320,22 @@ internal fun DownloadsSettingsScreen(
     modifier: Modifier = Modifier,
 ) {
     val prefs = session.uiState.preferences
+    var showDirectoryDialog by remember { mutableStateOf(false) }
     SettingsSubpageScroll(modifier) {
         SettingsSectionHeader(stringResource(Res.string.settings_storage))
         SettingsChoiceRow(
             title = stringResource(Res.string.settings_download_directory),
             subtitle = stringResource(Res.string.settings_where_downloaded_chapters_are_stored),
             currentValue = settingOptionLabel(prefs.downloadDirectory),
-            onClick = {},
+            onClick = { showDirectoryDialog = true },
         )
+        if (showDirectoryDialog) {
+            SettingsMessageDialog(
+                title = stringResource(Res.string.settings_download_directory),
+                message = stringResource(Res.string.settings_picker_unavailable),
+                onDismiss = { showDirectoryDialog = false },
+            )
+        }
 
         SettingsSectionHeader(stringResource(Res.string.settings_queue))
         SettingsSliderRow(
@@ -290,14 +365,22 @@ internal fun TrackingSettingsScreen(
     modifier: Modifier = Modifier,
 ) {
     val prefs = session.uiState.preferences
+    var showTrackingDialog by remember { mutableStateOf(false) }
     SettingsSubpageScroll(modifier) {
         SettingsSectionHeader(stringResource(Res.string.settings_services))
         SettingsEmptyState(stringResource(Res.string.settings_no_tracking_services_connected_sign_in_to_sync_reading))
         SettingsChoiceRow(
             title = stringResource(Res.string.settings_tracking_service),
             currentValue = stringResource(Res.string.settings_not_connected),
-            onClick = {},
+            onClick = { showTrackingDialog = true },
         )
+        if (showTrackingDialog) {
+            SettingsMessageDialog(
+                title = stringResource(Res.string.settings_tracking_service),
+                message = stringResource(Res.string.settings_no_tracking_services_connected_sign_in_to_sync_reading),
+                onDismiss = { showTrackingDialog = false },
+            )
+        }
 
         SettingsSectionHeader(stringResource(Res.string.settings_sync))
         SettingsSwitchRow(
@@ -315,6 +398,7 @@ internal fun ConnectionsSettingsScreen(
     modifier: Modifier = Modifier,
 ) {
     val prefs = session.uiState.preferences
+    var showIntervalDialog by remember { mutableStateOf(false) }
     SettingsSubpageScroll(modifier) {
         SettingsSectionHeader(stringResource(Res.string.settings_remote))
         SettingsEmptyState(stringResource(Res.string.settings_no_remote_services_configured_yet_connect_a_service_to))
@@ -325,10 +409,28 @@ internal fun ConnectionsSettingsScreen(
         )
         SettingsChoiceRow(
             title = stringResource(Res.string.settings_sync_interval),
-            currentValue = stringResource(Res.string.settings_daily),
+            currentValue = settingOptionLabel(prefs.syncInterval),
             enabled = prefs.syncEnabled,
-            onClick = {},
+            onClick = { showIntervalDialog = true },
         )
+        if (showIntervalDialog) {
+            SettingsChoiceDialog(
+                title = stringResource(Res.string.settings_sync_interval),
+                options = listOf(
+                    stringResource(Res.string.settings_off) to "Off",
+                    stringResource(Res.string.settings_hourly) to "Hourly",
+                    stringResource(Res.string.settings_daily) to "Daily",
+                    stringResource(Res.string.settings_weekly) to "Weekly",
+                    stringResource(Res.string.settings_monthly) to "Monthly",
+                ),
+                selectedValue = prefs.syncInterval,
+                onSelect = { value ->
+                    session.update { it.copy(syncInterval = value) }
+                    showIntervalDialog = false
+                },
+                onDismiss = { showIntervalDialog = false },
+            )
+        }
     }
 }
 
@@ -338,6 +440,7 @@ internal fun BrowseSettingsScreen(
     modifier: Modifier = Modifier,
 ) {
     val prefs = session.uiState.preferences
+    var showLanguageDialog by remember { mutableStateOf(false) }
     SettingsSubpageScroll(modifier) {
         SettingsSectionHeader(stringResource(Res.string.settings_search))
         SettingsSwitchRow(
@@ -348,9 +451,26 @@ internal fun BrowseSettingsScreen(
         )
         SettingsChoiceRow(
             title = stringResource(Res.string.settings_default_language),
-            currentValue = stringResource(Res.string.settings_all),
-            onClick = {},
+            currentValue = settingOptionLabel(prefs.defaultLanguage),
+            onClick = { showLanguageDialog = true },
         )
+        if (showLanguageDialog) {
+            SettingsChoiceDialog(
+                title = stringResource(Res.string.settings_default_language),
+                options = listOf(
+                    stringResource(Res.string.settings_all) to "All",
+                    stringResource(Res.string.settings_chinese) to "Chinese",
+                    stringResource(Res.string.settings_english) to "English",
+                    stringResource(Res.string.settings_japanese) to "Japanese",
+                ),
+                selectedValue = prefs.defaultLanguage,
+                onSelect = { value ->
+                    session.update { it.copy(defaultLanguage = value) }
+                    showLanguageDialog = false
+                },
+                onDismiss = { showLanguageDialog = false },
+            )
+        }
         SettingsSwitchRow(
             title = stringResource(Res.string.settings_show_adult_sources),
             checked = prefs.showAdultSources,
@@ -366,6 +486,19 @@ internal fun DataStorageSettingsScreen(
 ) {
     val prefs = session.uiState.preferences
     val frequencies = listOf("Off", "Daily", "Weekly", "Monthly")
+    val libraryRepository = app.koyura.features.library.LocalLibraryRepository.current
+    var showRestoreDialog by remember { mutableStateOf(false) }
+    // 点一次「存储用量」就重新读一次快照；文本在 Composable 上下文里格式化（协程内不能调 stringResource）。
+    var usageRefresh by remember { mutableStateOf(0) }
+    val storageSnapshot by androidx.compose.runtime.produceState<app.koyura.features.library.LibrarySnapshot?>(
+        initialValue = null,
+        libraryRepository,
+        usageRefresh,
+    ) {
+        value = runCatching { libraryRepository?.load() }.getOrNull()
+    }
+    var showClearDialog by remember { mutableStateOf(false) }
+    var showClearResult by remember { mutableStateOf(false) }
     SettingsSubpageScroll(modifier) {
         SettingsSectionHeader(stringResource(Res.string.settings_backup))
         SettingsChoiceRow(
@@ -379,22 +512,52 @@ internal fun DataStorageSettingsScreen(
         SettingsChoiceRow(
             title = stringResource(Res.string.settings_restore_backup),
             currentValue = stringResource(Res.string.settings_choose_file),
-            onClick = {},
+            onClick = { showRestoreDialog = true },
         )
+        if (showRestoreDialog) {
+            SettingsMessageDialog(
+                title = stringResource(Res.string.settings_restore_backup),
+                message = stringResource(Res.string.settings_backup_unavailable),
+                onDismiss = { showRestoreDialog = false },
+            )
+        }
 
         SettingsSectionHeader(stringResource(Res.string.settings_storage))
         SettingsChoiceRow(
             title = stringResource(Res.string.settings_storage_usage),
             subtitle = stringResource(Res.string.settings_tap_to_recalculate_cache_size),
-            currentValue = stringResource(Res.string.settings_not_calculated),
-            onClick = {},
+            currentValue = storageSnapshot?.let {
+                stringResource(
+                    Res.string.settings_storage_usage_format,
+                    it.entries.size,
+                    it.categories.size,
+                )
+            } ?: stringResource(Res.string.settings_not_calculated),
+            onClick = { usageRefresh++ },
         )
         SettingsRow(
             title = stringResource(Res.string.settings_clear_cache),
             subtitle = stringResource(Res.string.settings_removes_downloaded_images_and_temporary_files),
             danger = true,
-            onClick = {},
+            onClick = { showClearDialog = true },
         )
+        if (showClearDialog) {
+            SettingsMessageDialog(
+                title = stringResource(Res.string.settings_clear_cache),
+                message = stringResource(Res.string.settings_cache_noop),
+                onDismiss = {
+                    showClearDialog = false
+                    showClearResult = true
+                },
+            )
+        }
+        if (showClearResult) {
+            SettingsMessageDialog(
+                title = stringResource(Res.string.settings_clear_cache),
+                message = stringResource(Res.string.settings_cache_cleared),
+                onDismiss = { showClearResult = false },
+            )
+        }
     }
 }
 
@@ -404,6 +567,7 @@ internal fun AdvancedSettingsScreen(
     modifier: Modifier = Modifier,
 ) {
     val prefs = session.uiState.preferences
+    var showProxyDialog by remember { mutableStateOf(false) }
     val logLevels = listOf("Normal", "Verbose", "Off")
     val channels = listOf("Stable", "Beta")
     SettingsSubpageScroll(modifier) {
@@ -433,16 +597,35 @@ internal fun AdvancedSettingsScreen(
         )
         SettingsChoiceRow(
             title = stringResource(Res.string.settings_proxy),
-            currentValue = stringResource(Res.string.settings_not_configured),
-            onClick = {},
+            currentValue = settingOptionLabel(prefs.proxy),
+            onClick = { showProxyDialog = true },
         )
+        if (showProxyDialog) {
+            SettingsChoiceDialog(
+                title = stringResource(Res.string.settings_proxy),
+                options = listOf(
+                    stringResource(Res.string.settings_not_configured) to "Not configured",
+                    stringResource(Res.string.settings_http) to "HTTP",
+                    stringResource(Res.string.settings_socks5) to "SOCKS5",
+                ),
+                selectedValue = prefs.proxy,
+                onSelect = { value ->
+                    session.update { it.copy(proxy = value) }
+                    showProxyDialog = false
+                },
+                onDismiss = { showProxyDialog = false },
+            )
+        }
     }
 }
 
 @Composable
 internal fun AboutSettingsScreen(
     modifier: Modifier = Modifier,
+    onOpenOnboarding: (() -> Unit)? = null,
 ) {
+    var showLicenses by remember { mutableStateOf(false) }
+    var showHelp by remember { mutableStateOf(false) }
     SettingsSubpageScroll(modifier) {
         SettingsSectionHeader(stringResource(Res.string.settings_app))
         SettingsRow(
@@ -455,8 +638,34 @@ internal fun AboutSettingsScreen(
         )
 
         SettingsSectionHeader(stringResource(Res.string.settings_links))
-        SettingsRow(title = stringResource(Res.string.settings_licenses), onClick = {})
-        SettingsRow(title = stringResource(Res.string.settings_help), onClick = {})
+        SettingsRow(
+            title = stringResource(Res.string.settings_licenses),
+            onClick = { showLicenses = true },
+        )
+        SettingsRow(
+            title = stringResource(Res.string.settings_help),
+            onClick = { showHelp = true },
+        )
+        if (onOpenOnboarding != null) {
+            SettingsRow(
+                title = stringResource(Res.string.settings_show_onboarding),
+                onClick = onOpenOnboarding,
+            )
+        }
+        if (showLicenses) {
+            SettingsMessageDialog(
+                title = stringResource(Res.string.settings_licenses),
+                message = stringResource(Res.string.settings_licenses_body),
+                onDismiss = { showLicenses = false },
+            )
+        }
+        if (showHelp) {
+            SettingsMessageDialog(
+                title = stringResource(Res.string.settings_help),
+                message = stringResource(Res.string.settings_help_body),
+                onDismiss = { showHelp = false },
+            )
+        }
     }
 }
 

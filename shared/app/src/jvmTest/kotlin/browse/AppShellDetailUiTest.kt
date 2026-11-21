@@ -97,7 +97,8 @@ class AppShellDetailUiTest {
         onNodeWithTag("detail-meta").assertIsDisplayed()
         // 目录行：富二级行 + 下载位（禁用）+ 无阅读器时无开始键。
         onNodeWithTag("source-detail-chapter-ep_2").assertIsDisplayed()
-        onNodeWithTag("detail-chapter-download-ep_2").assertIsDisplayed()
+        // 下载位是 40dp 纯绘制状态层，被行内可点击语义合并，只能查未合并树。
+        onNodeWithTag("detail-chapter-download-ep_2", useUnmergedTree = true).assertIsDisplayed()
         onNodeWithTag("reading-start").assertDoesNotExist()
 
         // 收藏为本地视觉态，点击不崩且保持显示。

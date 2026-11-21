@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -165,7 +166,8 @@ private fun StatisticsContent(snapshot: StatisticsSnapshot) {
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(
-                horizontal = DesignTokens.Spacing.Medium,
+                // 组标题横 32dp（白皮书 07 §7.10 统计页）。
+                horizontal = DesignTokens.Spacing.ExtraLarge,
                 vertical = DesignTokens.Spacing.Small,
             )
             .testTag(StatisticsContentTag),
@@ -281,10 +283,10 @@ private fun StatisticsSection(
     ) {
         AppText(
             text = title,
-            style = UiTheme.typography.titleMedium,
+            style = UiTheme.typography.titleSmall,
             color = UiTheme.colorScheme.onSurface,
         )
-        SectionCard {
+        SectionCard(cornerRadius = DesignTokens.Radius.ExtraLarge) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small),
@@ -324,7 +326,8 @@ private fun MetricColumn(
         )
         AppText(
             text = metric.label,
-            style = UiTheme.typography.bodyMedium,
+            // 标签 11sp（白皮书 07 §7.10）。
+            style = UiTheme.typography.labelSmall,
             color = UiTheme.colorScheme.onSurfaceVariant.copy(
                 alpha = DesignTokens.Alpha.Secondary,
             ),
@@ -334,6 +337,7 @@ private fun MetricColumn(
             DecorativeActionIcon(
                 icon = icon,
                 tint = UiTheme.colorScheme.primary,
+                modifier = Modifier.size(DesignTokens.Sizes.DetailActionIcon),
             )
         }
     }

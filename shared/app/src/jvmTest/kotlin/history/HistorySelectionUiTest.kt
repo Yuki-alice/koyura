@@ -22,6 +22,8 @@ import app.koyura.app.history.historyRowTag
 import app.koyura.designsystem.ReaderTheme
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlinx.coroutines.test.runTest
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
@@ -76,6 +78,20 @@ class HistorySelectionUiTest {
         onNodeWithTag(historyRowTag("example_source", "b")).assertDoesNotExist()
         assertEquals(2, service.deletedKeys.size)
         assertTrue(shell.selection.isEmpty())
+    }
+
+    @Test
+    fun backConsumesSelectionBeforeLeavingPage() = runTest {
+        val (shell, _) = session(historyEntry(workId = "a"))
+        shell.refresh()
+        assertFalse(shell.wantsBack)
+        shell.toggleSelect(shell.entries.first())
+        assertTrue(shell.wantsBack)
+        assertEquals(HistoryBackOutcome.ClearedSelection, shell.consumeBack())
+        assertTrue(shell.selection.isEmpty())
+        // 清空后再按返回才交回导航。
+        assertFalse(shell.wantsBack)
+        assertEquals(HistoryBackOutcome.NotConsumed, shell.consumeBack())
     }
 
     @Test

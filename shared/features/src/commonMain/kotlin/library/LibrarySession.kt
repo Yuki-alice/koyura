@@ -255,6 +255,51 @@ class LibrarySession(
         repo.removeFromLibrary(keys)
     }.also { if (it) clearSelection() }
 
+    /**
+     * 撤销移除：按原快照把条目连同分类归属写回（Snackbar 的「撤销」）。
+     *
+     * 只回填**展示快照**字段；阅读进度/已读状态属于进度表，删除书架不删进度，
+     * 因此重新收藏后由仓储联查自然恢复。
+     */
+    suspend fun restore(
+        entries: List<LibraryEntry>,
+        categories: Map<LibraryEntryKey, Set<Long>>,
+    ): Boolean {
+        val current = repository ?: return fail("Library is not connected")
+        if (entries.isEmpty()) return true
+        return try {
+            var next = snapshot
+            for (entry in entries) {
+                next = current.addToLibrary(
+                    NewLibraryEntry(
+                        sourceKey = entry.sourceKey,
+                        kind = entry.kind,
+                        workId = entry.workId,
+                        title = entry.title,
+                        coverUrl = entry.coverUrl,
+                        sourceName = entry.sourceName,
+                        language = entry.language,
+                        isLocal = entry.isLocal,
+                        isNsfw = entry.isNsfw,
+                        status = entry.status,
+                        totalChapters = entry.totalChapters,
+                    ),
+                )
+                val ids = categories[entry.key].orEmpty()
+                if (ids.isNotEmpty()) next = current.setEntryCategories(entry.key, ids)
+            }
+            snapshot = next
+            normalizeAfterSnapshotChange()
+            actionError = null
+            true
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            fail(failure.userMessage())
+            false
+        }
+    }
+
     /** 底部批量：改所选分类（一作多类）。 */
     suspend fun setCategoriesForSelected(categoryIds: Set<Long>): Boolean {
         val current = repository ?: return fail("Library is not connected")

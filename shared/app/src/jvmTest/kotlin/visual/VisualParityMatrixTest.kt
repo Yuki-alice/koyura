@@ -32,7 +32,9 @@ import app.koyura.app.navigation.ComicReaderRoute
 import app.koyura.app.navigation.DownloadQueueRoute
 import app.koyura.app.navigation.GlobalSearchRoute
 import app.koyura.app.navigation.SettingsRoute
+import app.koyura.app.navigation.OnboardingRoute
 import app.koyura.app.navigation.SourceDetailRoute
+import app.koyura.app.navigation.UtilityPageRoute
 import app.koyura.app.navigation.StatisticsRoute
 import app.koyura.app.navigation.createAppNavigationState
 import app.koyura.app.reader.pngBytes
@@ -62,7 +64,7 @@ import kotlinx.coroutines.runBlocking
 import org.jetbrains.skia.EncodedImageFormat
 
 /**
- * P0-3 视觉对齐矩阵：15 页 × 窄(360×800)/宽(1280×800) × 浅/深 = 60 张确定性 PNG。
+ * P0-3 视觉对齐矩阵：18 页 × 窄(360×800)/宽(1280×800) × 浅/深 = 72 张确定性 PNG。
  *
  * 输出目录取 `reader.screenshotDir`（默认 `build/visual-parity`），文件名规则见
  * [VisualMatrixCatalog]：`visual-<slug>-<narrow|wide>-<light|dark>.png`。
@@ -97,9 +99,14 @@ class VisualParityMatrixTest {
         dark: Boolean,
         content: @Composable () -> Unit,
         reader: Boolean = false,
+        fullBleed: Boolean = false,
     ) {
         val palette = if (dark) ThemePalette.dark() else ThemePalette.light()
-        val chrome = if (width < railWidthThreshold) ChromeExpectation.BottomBar else ChromeExpectation.Rail
+        val chrome = when {
+            fullBleed -> ChromeExpectation.None
+            width < railWidthThreshold -> ChromeExpectation.BottomBar
+            else -> ChromeExpectation.Rail
+        }
         // Compose Desktop 会触碰 AWT 资源，必须在 EDT 上渲染与断言。
         lateinit var scene: ImageComposeScene
         SwingUtilities.invokeAndWait {
@@ -143,6 +150,7 @@ class VisualParityMatrixTest {
     private fun matrix(
         slug: String,
         contentFactory: (width: Int) -> @Composable () -> Unit,
+        fullBleed: Boolean = false,
     ) {
         // 保证生成文件名与白皮书对照目录一一对应，避免报告里出现孤儿键。
         check(VisualMatrixCatalog.pages.any { it.slug == slug }) { "slug $slug 不在 VisualMatrixCatalog 中" }
@@ -155,6 +163,7 @@ class VisualParityMatrixTest {
                     dark = dark,
                     content = contentFactory(width),
                     reader = slug == "reader",
+                    fullBleed = fullBleed,
                 )
             }
         }
@@ -197,13 +206,17 @@ class VisualParityMatrixTest {
         }
     }
 
-    // ---- 1. 引导 Onboarding（未实现占位） ----
+    // ---- 1. 引导 Onboarding（真实路由） ----
     @Test
-    fun onboardingPlaceholderMatrix() = matrix("onboarding-placeholder", { width ->
+    fun onboardingMatrix() = matrix("onboarding", { width ->
         val navigation = createAppNavigationState()
         navigation.select(NavTab.More)
-        placeholderContent(navigation, width >= railWidthThreshold, "引导 Onboarding")
-    })
+        navigation.push(OnboardingRoute)
+        val content: @Composable () -> Unit = {
+            AppScaffold(navigation = navigation, useRail = width >= railWidthThreshold)
+        }
+        content
+    }, fullBleed = true)
 
     // ---- 2. 书架 Library ----
     @Test
@@ -385,20 +398,91 @@ class VisualParityMatrixTest {
         content
     })
 
-    // ---- 13. 更新错误 Update errors（未实现占位） ----
+    // ---- 13. 更新错误 Update errors（真实工具页） ----
     @Test
-    fun updateErrorsPlaceholderMatrix() = matrix("update-errors-placeholder", { width ->
+    fun updateErrorsMatrix() = matrix("update-errors", { width ->
         val navigation = createAppNavigationState()
         navigation.select(NavTab.Updates)
-        placeholderContent(navigation, width >= railWidthThreshold, "更新错误 Update errors")
+        navigation.push(UtilityPageRoute("update-errors"))
+        val content: @Composable () -> Unit = {
+            AppScaffold(navigation = navigation, useRail = width >= railWidthThreshold)
+        }
+        content
     })
 
-    // ---- 14. 关于 / 新功能 About（未实现占位） ----
+    // ---- 14. 关于 / 新功能 About（真实工具页） ----
     @Test
-    fun aboutPlaceholderMatrix() = matrix("about-placeholder", { width ->
+    fun aboutMatrix() = matrix("about", { width ->
         val navigation = createAppNavigationState()
         navigation.select(NavTab.More)
-        placeholderContent(navigation, width >= railWidthThreshold, "关于 / 新功能 About")
+        navigation.push(UtilityPageRoute("about"))
+        val content: @Composable () -> Unit = {
+            AppScaffold(navigation = navigation, useRail = width >= railWidthThreshold)
+        }
+        content
+    })
+
+    // ---- 16. 浏览 Feed（真实更新流） ----
+    @Test
+    fun browseFeedMatrix() = matrix("browse-feed", { width ->
+        val service = demoBrowseService()
+        val updates = FakeUpdatesRepository(FakeUpdatesRepository.sampleEntries())
+        val navigation = createAppNavigationState()
+        navigation.select(NavTab.Browse)
+        val session = browseReadySession(service, app.koyura.app.browse.BrowsePane.Feed)
+        val content: @Composable () -> Unit = {
+            CompositionLocalProvider(
+                LocalBrowseService provides service,
+                LocalUpdatesRepository provides updates,
+            ) {
+                AppScaffold(
+                    navigation = navigation,
+                    useRail = width >= railWidthThreshold,
+                    browseService = service,
+                    browseSession = session,
+                )
+            }
+        }
+        content
+    })
+
+    // ---- 17. 浏览 迁移（列出书架条目所在源） ----
+    @Test
+    fun browseMigrateMatrix() = matrix("browse-migrate", { width ->
+        val service = demoBrowseService()
+        val library = demoLibraryRepository()
+        val navigation = createAppNavigationState()
+        navigation.select(NavTab.Browse)
+        val session = browseReadySession(service, app.koyura.app.browse.BrowsePane.Migrate)
+        val content: @Composable () -> Unit = {
+            CompositionLocalProvider(
+                LocalBrowseService provides service,
+                LocalLibraryRepository provides library,
+            ) {
+                AppScaffold(
+                    navigation = navigation,
+                    useRail = width >= railWidthThreshold,
+                    browseService = service,
+                    browseSession = session,
+                )
+            }
+        }
+        content
+    })
+
+    // ---- 18. 工具页 存储用量 ----
+    @Test
+    fun utilityDataStorageMatrix() = matrix("utility-data-storage", { width ->
+        val library = demoLibraryRepository()
+        val navigation = createAppNavigationState()
+        navigation.select(NavTab.More)
+        navigation.push(UtilityPageRoute("data-storage"))
+        val content: @Composable () -> Unit = {
+            CompositionLocalProvider(LocalLibraryRepository provides library) {
+                AppScaffold(navigation = navigation, useRail = width >= railWidthThreshold)
+            }
+        }
+        content
     })
 
     // ---- 15. 次级工具页 Secondary tools（真实 GlobalSearchRoute） ----
