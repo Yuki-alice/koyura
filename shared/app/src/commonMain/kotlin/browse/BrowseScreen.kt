@@ -66,7 +66,7 @@ import app.koyura.designsystem.components.AppDivider
 import app.koyura.designsystem.components.AppLinearProgress
 import app.koyura.designsystem.components.AppSurface
 import app.koyura.designsystem.components.AppTab
-import app.koyura.designsystem.components.AppTabBar
+import app.koyura.designsystem.components.AppScrollableTabBar
 import app.koyura.designsystem.components.AppText
 import app.koyura.designsystem.components.AppTextButton
 import app.koyura.designsystem.components.ReaderTopAppBar
@@ -145,7 +145,11 @@ fun BrowseScreen(
             },
         )
 
-        AppTabBar(selectedTabIndex = state.pane.ordinal) {
+        // 四个 tab 在 360dp 下等分会把 Extensions 折行；改可滚动 tab（原版同样可滚）。
+        AppScrollableTabBar(
+            selectedTabIndex = state.pane.ordinal,
+            edgePadding = DesignTokens.Spacing.Medium,
+        ) {
             AppTab(
                 selected = state.pane == BrowsePane.Sources,
                 onClick = { session.selectPane(BrowsePane.Sources) },
