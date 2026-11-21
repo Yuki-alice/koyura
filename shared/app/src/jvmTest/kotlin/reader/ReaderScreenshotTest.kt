@@ -18,7 +18,8 @@ import app.koyura.designsystem.ReaderTheme
 import app.koyura.designsystem.navigation.NavTab
 import app.koyura.domain.reader.ChapterContent
 import app.koyura.features.reader.comic.FakeReaderService
-import app.koyura.features.reader.comic.ReaderSession
+import app.koyura.features.reader.comic.ReaderStoreFactory
+import app.koyura.features.reader.comic.ReaderStoreHolder
 import java.io.File
 import javax.swing.SwingUtilities
 import kotlin.test.Test
@@ -32,7 +33,7 @@ import org.jetbrains.skia.EncodedImageFormat
 class ReaderScreenshotTest {
     private val outputDir = File(System.getProperty("reader.screenshotDir") ?: "build/screenshots").apply { mkdirs() }
 
-    private fun sceneServices(): Triple<FakeBrowseService, FakeReaderService, ReaderSession> {
+    private fun sceneServices(): Triple<FakeBrowseService, FakeReaderService, ReaderStoreHolder> {
         val browse = FakeBrowseService()
         val reader = FakeReaderService(
             chapters = mutableMapOf(
@@ -49,7 +50,7 @@ class ReaderScreenshotTest {
                 "shot2" to pngBytes(0xB5462B),
             ),
         )
-        return Triple(browse, reader, ReaderSession(reader))
+        return Triple(browse, reader, ReaderStoreHolder(ReaderStoreFactory().create(reader)))
     }
 
     private fun render(name: String, widthDp: Int, heightDp: Int, content: @androidx.compose.runtime.Composable () -> Unit) {
@@ -80,7 +81,7 @@ class ReaderScreenshotTest {
 
     @Test
     fun captureNarrowReader() {
-        val (browse, reader, session) = sceneServices()
+        val (browse, reader, holder) = sceneServices()
         val navigation = createAppNavigationState(initialTab = NavTab.Browse)
         navigation.push(
             ComicReaderRoute(
@@ -100,7 +101,7 @@ class ReaderScreenshotTest {
                     browseService = browse,
                     browseSession = BrowseSession(browse),
                     readerService = reader,
-                    readerSession = session,
+                    readerHolder = holder,
                 )
             }
         }
@@ -108,7 +109,7 @@ class ReaderScreenshotTest {
 
     @Test
     fun captureWideReader() {
-        val (browse, reader, session) = sceneServices()
+        val (browse, reader, holder) = sceneServices()
         val navigation = createAppNavigationState(initialTab = NavTab.Browse)
         navigation.push(
             ComicReaderRoute(
@@ -128,7 +129,7 @@ class ReaderScreenshotTest {
                     browseService = browse,
                     browseSession = BrowseSession(browse),
                     readerService = reader,
-                    readerSession = session,
+                    readerHolder = holder,
                 )
             }
         }

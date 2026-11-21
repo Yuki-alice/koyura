@@ -35,7 +35,8 @@ import app.koyura.features.library.LibraryPrefs
 import app.koyura.features.library.LocalLibraryRepository
 import app.koyura.features.library.defaultLibraryCategories
 import app.koyura.features.reader.comic.FakeReaderService
-import app.koyura.features.reader.comic.ReaderSession
+import app.koyura.features.reader.comic.ReaderStoreFactory
+import app.koyura.features.reader.comic.ReaderStoreHolder
 import java.io.File
 import javax.swing.SwingUtilities
 import kotlin.test.Test
@@ -161,7 +162,7 @@ class V005BaselineCanvasesTest {
         return session
     }
 
-    private fun readerTriple(): Triple<FakeBrowseService, FakeReaderService, ReaderSession> {
+    private fun readerTriple(): Triple<FakeBrowseService, FakeReaderService, ReaderStoreHolder> {
         val browse = FakeBrowseService()
         val reader = FakeReaderService(
             chapters = mutableMapOf(
@@ -178,7 +179,7 @@ class V005BaselineCanvasesTest {
                 "shot2" to pngBytes(0xB5462B),
             ),
         )
-        return Triple(browse, reader, ReaderSession(reader))
+        return Triple(browse, reader, ReaderStoreHolder(ReaderStoreFactory().create(reader)))
     }
 
     private fun canvases(): List<Triple<String, Int, Boolean>> = listOf(
@@ -266,7 +267,7 @@ class V005BaselineCanvasesTest {
     fun readerBaseline() {
         for ((widthName, width, useRail) in canvases()) {
             for ((theme, dark) in listOf("light" to false, "dark" to true)) {
-                val (browse, reader, session) = readerTriple()
+                val (browse, reader, holder) = readerTriple()
                 val navigation = createAppNavigationState(initialTab = NavTab.Browse)
                 navigation.push(
                     ComicReaderRoute(
@@ -287,7 +288,7 @@ class V005BaselineCanvasesTest {
                             browseService = browse,
                             browseSession = browseSession,
                             readerService = reader,
-                            readerSession = session,
+                            readerHolder = holder,
                         )
                     }
                 }

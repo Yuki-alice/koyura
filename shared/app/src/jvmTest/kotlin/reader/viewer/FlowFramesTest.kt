@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -29,7 +30,8 @@ import androidx.compose.ui.unit.dp
 import app.koyura.designsystem.ReaderTheme
 import app.koyura.designsystem.components.AppText
 import app.koyura.features.reader.comic.ReaderContentState
-import app.koyura.features.reader.comic.ReaderSession
+import app.koyura.features.reader.comic.ReaderIntent
+import app.koyura.features.reader.comic.ReaderStoreHolder
 import app.koyura.features.reader.comic.viewer.ComicChapterBoundary
 import app.koyura.features.reader.comic.viewer.ComicPagerLayout
 import app.koyura.features.reader.comic.viewer.ComicReadingMode
@@ -54,23 +56,24 @@ class FlowFramesTest {
 
     @Composable
     private fun FlowLab(
-        session: ReaderSession,
+        holder: ReaderStoreHolder,
         chapterId: String?,
         options: ComicViewerOptions,
         jump: ComicViewerJump?,
         onBoundary: (ComicChapterBoundary) -> Unit,
     ) {
-        val content = (session.content as? ReaderContentState.Ready)?.content
+        val uiState by holder.uiState.collectAsState()
+        val content = (uiState.content as? ReaderContentState.Ready)?.content
         Column(Modifier.fillMaxSize()) {
             AppText(
                 text = if (content == null) "0 / 0"
-                else "${options.mode.id} ${session.currentPage + 1} / ${content.pageKeys.size}",
+                else "${options.mode.id} ${uiState.currentPage + 1} / ${content.pageKeys.size}",
                 modifier = Modifier.testTag("reader-viewer-flow-label"),
             )
             if (content != null) {
                 Box(Modifier.weight(1f)) {
                     ComicViewer(
-                        session = session,
+                        holder = holder,
                         content = content,
                         options = options,
                         jump = jump,
@@ -118,14 +121,14 @@ class FlowFramesTest {
     @Test
     fun recordRtlFlow() = runComposeUiTest {
         val service = ViewerFixture.service()
-        val session = ViewerFixture.session(service)
+        val holder = ViewerFixture.holder(service)
         val options = ComicViewerOptions(mode = ComicReadingMode.RIGHT_TO_LEFT)
         setContent {
             ReaderTheme {
                 LaunchedEffect(Unit) {
-                    session.open(ViewerFixture.SOURCE, ViewerFixture.WORK, ViewerFixture.CHAPTER_2, ViewerFixture.chapterIds)
+                    holder.store.accept(ReaderIntent.Open(ViewerFixture.SOURCE, ViewerFixture.WORK, ViewerFixture.CHAPTER_2, ViewerFixture.chapterIds))
                 }
-                FlowLab(session, ViewerFixture.CHAPTER_2, options, null) {}
+                FlowLab(holder, ViewerFixture.CHAPTER_2, options, null) {}
             }
         }
 
@@ -146,24 +149,25 @@ class FlowFramesTest {
     @Test
     fun recordChapterFlow() = runComposeUiTest {
         val service = ViewerFixture.service()
-        val session = ViewerFixture.session(service)
+        val holder = ViewerFixture.holder(service)
         var chapter by mutableStateOf(ViewerFixture.CHAPTER_1)
         val options = ComicViewerOptions(mode = ComicReadingMode.WEBTOON)
         setContent {
             ReaderTheme {
                 LaunchedEffect(chapter) {
-                    session.open(ViewerFixture.SOURCE, ViewerFixture.WORK, chapter, ViewerFixture.chapterIds)
+                    holder.store.accept(ReaderIntent.Open(ViewerFixture.SOURCE, ViewerFixture.WORK, chapter, ViewerFixture.chapterIds))
                 }
-                val content = (session.content as? ReaderContentState.Ready)?.content
+                val flowUiState by holder.uiState.collectAsState()
+                val content = (flowUiState.content as? ReaderContentState.Ready)?.content
                 Column(Modifier.fillMaxSize()) {
                     AppText(
                         text = if (content == null) "0 / 0"
-                        else "${session.currentPage + 1} / ${content.pageKeys.size}",
+                        else "${flowUiState.currentPage + 1} / ${content.pageKeys.size}",
                         modifier = Modifier.testTag("reader-viewer-flow-label"),
                     )
                     if (content != null) {
                         ComicViewer(
-                            session = session,
+                            holder = holder,
                             content = content,
                             options = options,
                             jump = null,
@@ -205,14 +209,14 @@ class FlowFramesTest {
     @Test
     fun recordModeSwitchFlow() = runComposeUiTest {
         val service = ViewerFixture.service()
-        val session = ViewerFixture.session(service)
+        val holder = ViewerFixture.holder(service)
         var options by mutableStateOf(ComicViewerOptions(mode = ComicReadingMode.LEFT_TO_RIGHT))
         setContent {
             ReaderTheme {
                 LaunchedEffect(Unit) {
-                    session.open(ViewerFixture.SOURCE, ViewerFixture.WORK, ViewerFixture.CHAPTER_2, ViewerFixture.chapterIds)
+                    holder.store.accept(ReaderIntent.Open(ViewerFixture.SOURCE, ViewerFixture.WORK, ViewerFixture.CHAPTER_2, ViewerFixture.chapterIds))
                 }
-                FlowLab(session, ViewerFixture.CHAPTER_2, options, null) {}
+                FlowLab(holder, ViewerFixture.CHAPTER_2, options, null) {}
             }
         }
 
@@ -235,7 +239,7 @@ class FlowFramesTest {
     @Test
     fun recordResizeAnchoringFlow() = runComposeUiTest {
         val service = ViewerFixture.service()
-        val session = ViewerFixture.session(service)
+        val holder = ViewerFixture.holder(service)
         var widthDp by mutableStateOf(420)
         val options = ComicViewerOptions(
             mode = ComicReadingMode.LEFT_TO_RIGHT,
@@ -245,19 +249,20 @@ class FlowFramesTest {
         setContent {
             ReaderTheme {
                 LaunchedEffect(Unit) {
-                    session.open(ViewerFixture.SOURCE, ViewerFixture.WORK, ViewerFixture.CHAPTER_1, ViewerFixture.chapterIds)
+                    holder.store.accept(ReaderIntent.Open(ViewerFixture.SOURCE, ViewerFixture.WORK, ViewerFixture.CHAPTER_1, ViewerFixture.chapterIds))
                 }
-                val content = (session.content as? ReaderContentState.Ready)?.content
+                val flowUiState2 by holder.uiState.collectAsState()
+                val content = (flowUiState2.content as? ReaderContentState.Ready)?.content
                 Column(Modifier.fillMaxSize()) {
                     AppText(
                         text = if (content == null) "0 / 0"
-                        else "AUTOMATIC ${session.currentPage + 1} / ${content.pageKeys.size}",
+                        else "AUTOMATIC ${flowUiState2.currentPage + 1} / ${content.pageKeys.size}",
                         modifier = Modifier.testTag("reader-viewer-flow-label"),
                     )
                     if (content != null) {
                         Box(Modifier.size(widthDp.dp, 780.dp)) {
                             ComicViewer(
-                                session = session,
+                                holder = holder,
                                 content = content,
                                 options = options,
                                 jump = null,

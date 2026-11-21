@@ -54,7 +54,8 @@ import app.koyura.features.library.LibraryKind
 import app.koyura.features.library.LocalLibraryRepository
 import app.koyura.features.library.defaultLibraryCategories
 import app.koyura.features.reader.comic.FakeReaderService
-import app.koyura.features.reader.comic.ReaderSession
+import app.koyura.features.reader.comic.ReaderStoreFactory
+import app.koyura.features.reader.comic.ReaderStoreHolder
 import app.koyura.features.updates.FakeUpdatesRepository
 import app.koyura.features.updates.LocalUpdatesRepository
 import java.io.File
@@ -276,7 +277,7 @@ class VisualParityMatrixTest {
     // ---- 5. 阅读器 Reader（全屏；断言仍检查对应区域的非空内容） ----
     @Test
     fun readerMatrix() = matrix("reader", { width ->
-        val (browse, reader, readerSession) = readerTriple()
+        val (browse, reader, readerHolder) = readerTriple()
         val navigation = createAppNavigationState()
         navigation.select(NavTab.Browse)
         navigation.push(
@@ -297,7 +298,7 @@ class VisualParityMatrixTest {
                 browseService = browse,
                 browseSession = browseSession,
                 readerService = reader,
-                readerSession = readerSession,
+                readerHolder = readerHolder,
             )
         }
         content
@@ -606,7 +607,7 @@ class VisualParityMatrixTest {
         return session
     }
 
-    private fun readerTriple(): Triple<FakeBrowseService, FakeReaderService, ReaderSession> {
+    private fun readerTriple(): Triple<FakeBrowseService, FakeReaderService, ReaderStoreHolder> {
         val browse = FakeBrowseService()
         val reader = FakeReaderService(
             chapters = mutableMapOf(
@@ -623,7 +624,7 @@ class VisualParityMatrixTest {
                 "shot2" to pngBytes(0xB5462B),
             ),
         )
-        return Triple(browse, reader, ReaderSession(reader))
+        return Triple(browse, reader, ReaderStoreHolder(ReaderStoreFactory().create(reader)))
     }
 
     private companion object {

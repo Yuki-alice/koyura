@@ -3,6 +3,8 @@ package app.koyura.app.reader.viewer
 import app.koyura.domain.reader.ChapterContent
 import app.koyura.features.reader.comic.FakeReaderService
 import app.koyura.features.reader.comic.ReaderSession
+import app.koyura.features.reader.comic.ReaderStoreFactory
+import app.koyura.features.reader.comic.ReaderStoreHolder
 
 /**
  * Fixed two-chapter fixture for B-viewer acceptance.
@@ -62,6 +64,10 @@ object ViewerFixture {
     }
 
     fun session(service: FakeReaderService): ReaderSession = ReaderSession(service)
+
+    /** MVI 迁移后的构造器：同一 Fake 仓储进 Store持有者（与 session 同行为）。 */
+    fun holder(service: FakeReaderService): ReaderStoreHolder =
+        ReaderStoreHolder(ReaderStoreFactory().create(service))
 
     const val CROP_CHAPTER = "crop_ch"
     val cropChapterIds = listOf(CROP_CHAPTER)

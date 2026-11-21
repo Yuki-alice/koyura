@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -33,7 +34,8 @@ import app.koyura.designsystem.components.AppText
 import app.koyura.domain.reader.ChapterContent
 import app.koyura.features.reader.comic.FakeReaderService
 import app.koyura.features.reader.comic.ReaderContentState
-import app.koyura.features.reader.comic.ReaderSession
+import app.koyura.features.reader.comic.ReaderIntent
+import app.koyura.features.reader.comic.ReaderStoreHolder
 import app.koyura.features.reader.comic.decodeToImageBitmap
 import app.koyura.features.reader.comic.viewer.ComicChapterBoundary
 import app.koyura.features.reader.comic.viewer.ComicPagerLayout
@@ -54,27 +56,28 @@ private const val CounterTag = "reader-viewer-counter"
 
 @Composable
 private fun ViewerLab(
-    session: ReaderSession,
+    holder: ReaderStoreHolder,
     chapterId: String?,
     options: ComicViewerOptions,
     jump: ComicViewerJump?,
     onBoundary: (ComicChapterBoundary) -> String?,
     menuToggles: MutableList<Int>,
 ) {
-    LaunchedEffect(session.contentSeq, chapterId) {
+    val uiState by holder.uiState.collectAsState()
+    LaunchedEffect(uiState.contentSeq, chapterId) {
         // Opened by the test before composition in most cases; kept here for recompositions.
     }
-    val content = (session.content as? ReaderContentState.Ready)?.content
+    val content = (uiState.content as? ReaderContentState.Ready)?.content
     Column(Modifier.fillMaxSize()) {
         AppText(
             text = if (content == null) "0 / 0"
-            else "${session.currentPage + 1} / ${content.pageKeys.size}",
+            else "${uiState.currentPage + 1} / ${content.pageKeys.size}",
             modifier = Modifier.testTag(CounterTag),
         )
         if (content != null) {
             Box(Modifier.weight(1f)) {
                 ComicViewer(
-                    session = session,
+                    holder = holder,
                     content = content,
                     options = options,
                     jump = jump,
@@ -185,16 +188,16 @@ class ComicViewerTest {
     @Test
     fun ltrTapAdvancesAndCenterTogglesMenu() = runComposeUiTest {
         val service = ViewerFixture.service()
-        val session = ViewerFixture.session(service)
+        val holder = ViewerFixture.holder(service)
         var options by mutableStateOf(ComicViewerOptions(mode = ComicReadingMode.LEFT_TO_RIGHT))
         val menus = mutableListOf<Int>()
         var chapter by mutableStateOf(ViewerFixture.CHAPTER_2)
         setContent {
             ReaderTheme {
                 LaunchedEffect(chapter) {
-                    session.open(ViewerFixture.SOURCE, ViewerFixture.WORK, chapter, ViewerFixture.chapterIds)
+                    holder.store.accept(ReaderIntent.Open(ViewerFixture.SOURCE, ViewerFixture.WORK, chapter, ViewerFixture.chapterIds))
                 }
-                ViewerLab(session, chapter, options, null, { null }, menus)
+                ViewerLab(holder, chapter, options, null, { null }, menus)
             }
         }
 
@@ -223,14 +226,14 @@ class ComicViewerTest {
     @Test
     fun rtlTapAndKeysAreMirrored() = runComposeUiTest {
         val service = ViewerFixture.service()
-        val session = ViewerFixture.session(service)
+        val holder = ViewerFixture.holder(service)
         val options = ComicViewerOptions(mode = ComicReadingMode.RIGHT_TO_LEFT)
         setContent {
             ReaderTheme {
                 LaunchedEffect(Unit) {
-                    session.open(ViewerFixture.SOURCE, ViewerFixture.WORK, ViewerFixture.CHAPTER_2, ViewerFixture.chapterIds)
+                    holder.store.accept(ReaderIntent.Open(ViewerFixture.SOURCE, ViewerFixture.WORK, ViewerFixture.CHAPTER_2, ViewerFixture.chapterIds))
                 }
-                ViewerLab(session, ViewerFixture.CHAPTER_2, options, null, { null }, mutableListOf())
+                ViewerLab(holder, ViewerFixture.CHAPTER_2, options, null, { null }, mutableListOf())
             }
         }
 
@@ -254,14 +257,14 @@ class ComicViewerTest {
     @Test
     fun verticalPagerTurnsTopDown() = runComposeUiTest {
         val service = ViewerFixture.service()
-        val session = ViewerFixture.session(service)
+        val holder = ViewerFixture.holder(service)
         val options = ComicViewerOptions(mode = ComicReadingMode.VERTICAL)
         setContent {
             ReaderTheme {
                 LaunchedEffect(Unit) {
-                    session.open(ViewerFixture.SOURCE, ViewerFixture.WORK, ViewerFixture.CHAPTER_1, ViewerFixture.chapterIds)
+                    holder.store.accept(ReaderIntent.Open(ViewerFixture.SOURCE, ViewerFixture.WORK, ViewerFixture.CHAPTER_1, ViewerFixture.chapterIds))
                 }
-                ViewerLab(session, ViewerFixture.CHAPTER_1, options, null, { null }, mutableListOf())
+                ViewerLab(holder, ViewerFixture.CHAPTER_1, options, null, { null }, mutableListOf())
             }
         }
 
@@ -277,25 +280,26 @@ class ComicViewerTest {
     @Test
     fun webtoonBoundaryReportsNextAndHostSwitches() = runComposeUiTest {
         val service = ViewerFixture.service()
-        val session = ViewerFixture.session(service)
+        val holder = ViewerFixture.holder(service)
         var chapter by mutableStateOf(ViewerFixture.CHAPTER_1)
         val options = ComicViewerOptions(mode = ComicReadingMode.WEBTOON)
         val seen = mutableListOf<ComicChapterBoundary>()
         setContent {
             ReaderTheme {
                 LaunchedEffect(chapter) {
-                    session.open(ViewerFixture.SOURCE, ViewerFixture.WORK, chapter, ViewerFixture.chapterIds)
+                    holder.store.accept(ReaderIntent.Open(ViewerFixture.SOURCE, ViewerFixture.WORK, chapter, ViewerFixture.chapterIds))
                 }
-                val content = (session.content as? ReaderContentState.Ready)?.content
+                val uiState by holder.uiState.collectAsState()
+                val content = (uiState.content as? ReaderContentState.Ready)?.content
                 Column(Modifier.fillMaxSize()) {
                     AppText(
                         text = if (content == null) "0 / 0"
-                        else "${session.currentPage + 1} / ${content.pageKeys.size}",
+                        else "${uiState.currentPage + 1} / ${content.pageKeys.size}",
                         modifier = Modifier.testTag(CounterTag),
                     )
                     if (content != null) {
                         ComicViewer(
-                            session = session,
+                            holder = holder,
                             content = content,
                             options = options,
                             jump = null,
@@ -333,7 +337,7 @@ class ComicViewerTest {
     @Test
     fun doublePagesPairAndInvertKeepsMaster() = runComposeUiTest {
         val service = ViewerFixture.service()
-        val session = ViewerFixture.session(service)
+        val holder = ViewerFixture.holder(service)
         var options by mutableStateOf(
             ComicViewerOptions(
                 mode = ComicReadingMode.LEFT_TO_RIGHT,
@@ -344,9 +348,9 @@ class ComicViewerTest {
         setContent {
             ReaderTheme {
                 LaunchedEffect(Unit) {
-                    session.open(ViewerFixture.SOURCE, ViewerFixture.WORK, ViewerFixture.CHAPTER_1, ViewerFixture.chapterIds)
+                    holder.store.accept(ReaderIntent.Open(ViewerFixture.SOURCE, ViewerFixture.WORK, ViewerFixture.CHAPTER_1, ViewerFixture.chapterIds))
                 }
-                ViewerLab(session, ViewerFixture.CHAPTER_1, options, null, { null }, mutableListOf())
+                ViewerLab(holder, ViewerFixture.CHAPTER_1, options, null, { null }, mutableListOf())
             }
         }
 
@@ -366,7 +370,7 @@ class ComicViewerTest {
     @Test
     fun wideSpreadSplitsAndReanchors() = runComposeUiTest {
         val service = ViewerFixture.service()
-        val session = ViewerFixture.session(service)
+        val holder = ViewerFixture.holder(service)
         var jump by mutableStateOf<ComicViewerJump?>(null)
         val options = ComicViewerOptions(
             mode = ComicReadingMode.LEFT_TO_RIGHT,
@@ -375,20 +379,20 @@ class ComicViewerTest {
         setContent {
             ReaderTheme {
                 LaunchedEffect(Unit) {
-                    session.open(ViewerFixture.SOURCE, ViewerFixture.WORK, ViewerFixture.CHAPTER_2, ViewerFixture.chapterIds)
+                    holder.store.accept(ReaderIntent.Open(ViewerFixture.SOURCE, ViewerFixture.WORK, ViewerFixture.CHAPTER_2, ViewerFixture.chapterIds))
                 }
-                ViewerLab(session, ViewerFixture.CHAPTER_2, options, jump, { null }, mutableListOf())
+                ViewerLab(holder, ViewerFixture.CHAPTER_2, options, jump, { null }, mutableListOf())
             }
         }
 
         awaitCounter("1 / 7")
         // Jump onto the wide page: the visible spread decodes it, the spread
         // splits, and the viewer re-anchors on the same master page.
-        jump = ComicViewerJump(requestId = 21L, contentSeq = session.contentSeq, pageIndex = 1)
+        jump = ComicViewerJump(requestId = 21L, contentSeq = holder.store.state.contentSeq, pageIndex = 1)
         awaitCounter("2 / 7")
         // Jump past it: with q1 isolated, [q2, q3] pair up and q2 is the master.
         // (Pre-split pairing would report q3 instead.)
-        jump = ComicViewerJump(requestId = 22L, contentSeq = session.contentSeq, pageIndex = 3)
+        jump = ComicViewerJump(requestId = 22L, contentSeq = holder.store.state.contentSeq, pageIndex = 3)
         // A jump commits the requested page as the anchor, so the counter shows q3.
         awaitCounter("4 / 7")
         onNodeWithTag(comicPageImageTag(2)).assertIsDisplayed()
@@ -398,20 +402,20 @@ class ComicViewerTest {
     @Test
     fun jumpConsumesOnceAndIgnoresStaleChapter() = runComposeUiTest {
         val service = ViewerFixture.service()
-        val session = ViewerFixture.session(service)
+        val holder = ViewerFixture.holder(service)
         var jump by mutableStateOf<ComicViewerJump?>(null)
         val options = ComicViewerOptions(mode = ComicReadingMode.LEFT_TO_RIGHT)
         setContent {
             ReaderTheme {
                 LaunchedEffect(Unit) {
-                    session.open(ViewerFixture.SOURCE, ViewerFixture.WORK, ViewerFixture.CHAPTER_2, ViewerFixture.chapterIds)
+                    holder.store.accept(ReaderIntent.Open(ViewerFixture.SOURCE, ViewerFixture.WORK, ViewerFixture.CHAPTER_2, ViewerFixture.chapterIds))
                 }
-                ViewerLab(session, ViewerFixture.CHAPTER_2, options, jump, { null }, mutableListOf())
+                ViewerLab(holder, ViewerFixture.CHAPTER_2, options, jump, { null }, mutableListOf())
             }
         }
 
         awaitCounter("1 / 7")
-        val seq = session.contentSeq
+        val seq = holder.store.state.contentSeq
         jump = ComicViewerJump(requestId = 7L, contentSeq = seq, pageIndex = 4)
         awaitCounter("5 / 7")
 
@@ -423,13 +427,13 @@ class ComicViewerTest {
 
         // Stale chapter command ignored after switching chapters.
         val staleSeq = seq
-        // Switch host chapter directly through the session.
+        // Switch host chapter directly through the store.
         setContent {
             ReaderTheme {
                 LaunchedEffect(Unit) {
-                    session.open(ViewerFixture.SOURCE, ViewerFixture.WORK, ViewerFixture.CHAPTER_1, ViewerFixture.chapterIds)
+                    holder.store.accept(ReaderIntent.Open(ViewerFixture.SOURCE, ViewerFixture.WORK, ViewerFixture.CHAPTER_1, ViewerFixture.chapterIds))
                 }
-                ViewerLab(session, ViewerFixture.CHAPTER_1, options, jump, { null }, mutableListOf())
+                ViewerLab(holder, ViewerFixture.CHAPTER_1, options, jump, { null }, mutableListOf())
             }
         }
         awaitCounter("1 / 3")
@@ -442,7 +446,7 @@ class ComicViewerTest {
     @Test
     fun jumpWithinVisibleDoubleUpdatesAnchor() = runComposeUiTest {
         val service = ViewerFixture.service()
-        val session = ViewerFixture.session(service)
+        val holder = ViewerFixture.holder(service)
         var jump by mutableStateOf<ComicViewerJump?>(null)
         var options by mutableStateOf(
             ComicViewerOptions(
@@ -454,9 +458,9 @@ class ComicViewerTest {
         setContent {
             ReaderTheme {
                 LaunchedEffect(Unit) {
-                    session.open(ViewerFixture.SOURCE, ViewerFixture.WORK, ViewerFixture.CHAPTER_1, ViewerFixture.chapterIds)
+                    holder.store.accept(ReaderIntent.Open(ViewerFixture.SOURCE, ViewerFixture.WORK, ViewerFixture.CHAPTER_1, ViewerFixture.chapterIds))
                 }
-                ViewerLab(session, ViewerFixture.CHAPTER_1, options, jump, { null }, mutableListOf())
+                ViewerLab(holder, ViewerFixture.CHAPTER_1, options, jump, { null }, mutableListOf())
             }
         }
 
@@ -464,7 +468,7 @@ class ComicViewerTest {
         awaitCounter("1 / 3")
         settledTap("reader-tap-next")
         awaitCounter("2 / 3")
-        val seq = session.contentSeq
+        val seq = holder.store.state.contentSeq
         val savesBefore = service.saveCalls.size
 
         // Jump to the second page of the visible spread: both pages are on
@@ -473,9 +477,9 @@ class ComicViewerTest {
         awaitCounter("3 / 3")
         waitForIdle()
         Thread.sleep(400)
-        assertEquals(2, session.currentPage)
-        var content = (session.content as ReaderContentState.Ready).content
-        assertEquals("p2", content.pageKeys[session.currentPage])
+        assertEquals(2, holder.store.state.currentPage)
+        var content = (holder.store.state.content as ReaderContentState.Ready).content
+        assertEquals("p2", content.pageKeys[holder.store.state.currentPage])
         val saves = service.saveCalls.drop(savesBefore)
         assertTrue(saves.isNotEmpty(), "jump inside the spread must save, got $saves")
         assertEquals(2, saves.last().pageIndex)
@@ -483,8 +487,8 @@ class ComicViewerTest {
         // Single page again: the committed anchor survives.
         options = options.copy(pagerLayout = ComicPagerLayout.SINGLE_PAGE)
         awaitCounter("3 / 3")
-        content = (session.content as ReaderContentState.Ready).content
-        assertEquals("p2", content.pageKeys[session.currentPage])
+        content = (holder.store.state.content as ReaderContentState.Ready).content
+        assertEquals("p2", content.pageKeys[holder.store.state.currentPage])
 
         // Same request re-emitted: consumed once, no new save.
         val savesAfterJump = service.saveCalls.size
@@ -499,8 +503,8 @@ class ComicViewerTest {
         awaitCounter("1 / 3")
         jump = ComicViewerJump(requestId = 75L, contentSeq = seq, pageIndex = 2)
         awaitCounter("3 / 3")
-        content = (session.content as ReaderContentState.Ready).content
-        assertEquals("p2", content.pageKeys[session.currentPage])
+        content = (holder.store.state.content as ReaderContentState.Ready).content
+        assertEquals("p2", content.pageKeys[holder.store.state.currentPage])
 
         // Stale chapter command is ignored.
         val staleSeq = seq
@@ -508,9 +512,9 @@ class ComicViewerTest {
         setContent {
             ReaderTheme {
                 LaunchedEffect(Unit) {
-                    session.open(ViewerFixture.SOURCE, ViewerFixture.WORK, ViewerFixture.CHAPTER_2, ViewerFixture.chapterIds)
+                    holder.store.accept(ReaderIntent.Open(ViewerFixture.SOURCE, ViewerFixture.WORK, ViewerFixture.CHAPTER_2, ViewerFixture.chapterIds))
                 }
-                ViewerLab(session, ViewerFixture.CHAPTER_2, options, jump, { null }, mutableListOf())
+                ViewerLab(holder, ViewerFixture.CHAPTER_2, options, jump, { null }, mutableListOf())
             }
         }
         awaitCounter("1 / 7")
@@ -520,28 +524,28 @@ class ComicViewerTest {
         awaitCounter("1 / 7")
 
         // Rebuild from saved progress in double pages: still the third page.
-        val second = ViewerFixture.session(service)
+        val secondHolder = ViewerFixture.holder(service)
         options = options.copy(pagerLayout = ComicPagerLayout.DOUBLE_PAGES)
         setContent {
             ReaderTheme {
                 LaunchedEffect(Unit) {
                     service.savedProgress[ViewerFixture.SOURCE to ViewerFixture.WORK] =
                         app.koyura.domain.reader.ReaderProgress(ViewerFixture.CHAPTER_1, 2)
-                    second.open(ViewerFixture.SOURCE, ViewerFixture.WORK, ViewerFixture.CHAPTER_1, ViewerFixture.chapterIds)
+                    secondHolder.store.accept(ReaderIntent.Open(ViewerFixture.SOURCE, ViewerFixture.WORK, ViewerFixture.CHAPTER_1, ViewerFixture.chapterIds))
                 }
-                ViewerLab(second, ViewerFixture.CHAPTER_1, options, null, { null }, mutableListOf())
+                ViewerLab(secondHolder, ViewerFixture.CHAPTER_1, options, null, { null }, mutableListOf())
             }
         }
         awaitCounter("3 / 3")
-        val content2 = (second.content as ReaderContentState.Ready).content
-        assertEquals("p2", content2.pageKeys[second.currentPage])
+        val content2 = (secondHolder.store.state.content as ReaderContentState.Ready).content
+        assertEquals("p2", content2.pageKeys[secondHolder.store.state.currentPage])
         assertTrue(savesBeforeStale >= 0)
     }
 
     @Test
     fun longStripFitWidthKeepsAspectAndPans() = runComposeUiTest {
         val service = ViewerFixture.service()
-        val session = ViewerFixture.session(service)
+        val holder = ViewerFixture.holder(service)
         var jump by mutableStateOf<ComicViewerJump?>(null)
         var options by mutableStateOf(
             ComicViewerOptions(mode = ComicReadingMode.LEFT_TO_RIGHT, scaleFit = ComicScaleFit.FIT_WIDTH),
@@ -549,13 +553,13 @@ class ComicViewerTest {
         setContent {
             ReaderTheme {
                 LaunchedEffect(Unit) {
-                    session.open(ViewerFixture.SOURCE, ViewerFixture.WORK, ViewerFixture.CHAPTER_2, ViewerFixture.chapterIds)
+                    holder.store.accept(ReaderIntent.Open(ViewerFixture.SOURCE, ViewerFixture.WORK, ViewerFixture.CHAPTER_2, ViewerFixture.chapterIds))
                 }
-                ViewerLab(session, ViewerFixture.CHAPTER_2, options, jump, { null }, mutableListOf())
+                ViewerLab(holder, ViewerFixture.CHAPTER_2, options, jump, { null }, mutableListOf())
             }
         }
 
-        jump = ComicViewerJump(requestId = 81L, contentSeq = session.contentSeq, pageIndex = 3)
+        jump = ComicViewerJump(requestId = 81L, contentSeq = holder.store.state.contentSeq, pageIndex = 3)
         awaitCounter("4 / 7")
         waitForIdle()
 
@@ -599,14 +603,14 @@ class ComicViewerTest {
     @Test
     fun modeSwitchKeepsSameOriginalPage() = runComposeUiTest {
         val service = ViewerFixture.service()
-        val session = ViewerFixture.session(service)
+        val holder = ViewerFixture.holder(service)
         var options by mutableStateOf(ComicViewerOptions(mode = ComicReadingMode.LEFT_TO_RIGHT))
         setContent {
             ReaderTheme {
                 LaunchedEffect(Unit) {
-                    session.open(ViewerFixture.SOURCE, ViewerFixture.WORK, ViewerFixture.CHAPTER_2, ViewerFixture.chapterIds)
+                    holder.store.accept(ReaderIntent.Open(ViewerFixture.SOURCE, ViewerFixture.WORK, ViewerFixture.CHAPTER_2, ViewerFixture.chapterIds))
                 }
-                ViewerLab(session, ViewerFixture.CHAPTER_2, options, null, { null }, mutableListOf())
+                ViewerLab(holder, ViewerFixture.CHAPTER_2, options, null, { null }, mutableListOf())
             }
         }
 
@@ -625,7 +629,7 @@ class ComicViewerTest {
     @Test
     fun automaticDoubleAnchorsOriginalPageOnResize() = runComposeUiTest {
         val service = ViewerFixture.service()
-        val session = ViewerFixture.session(service)
+        val holder = ViewerFixture.holder(service)
         var widthDp by mutableStateOf(420)
         var options by mutableStateOf(
             ComicViewerOptions(
@@ -637,19 +641,20 @@ class ComicViewerTest {
         setContent {
             ReaderTheme {
                 LaunchedEffect(Unit) {
-                    session.open(ViewerFixture.SOURCE, ViewerFixture.WORK, ViewerFixture.CHAPTER_1, ViewerFixture.chapterIds)
+                    holder.store.accept(ReaderIntent.Open(ViewerFixture.SOURCE, ViewerFixture.WORK, ViewerFixture.CHAPTER_1, ViewerFixture.chapterIds))
                 }
-                val content = (session.content as? ReaderContentState.Ready)?.content
+                val uiStateForCounter by holder.uiState.collectAsState()
+                val content = (uiStateForCounter.content as? ReaderContentState.Ready)?.content
                 Column(Modifier.fillMaxSize()) {
                     AppText(
                         text = if (content == null) "0 / 0"
-                        else "${session.currentPage + 1} / ${content.pageKeys.size}",
+                        else "${uiStateForCounter.currentPage + 1} / ${content.pageKeys.size}",
                         modifier = Modifier.testTag(CounterTag),
                     )
                     if (content != null) {
                         Box(Modifier.size(widthDp.dp, 780.dp)) {
                             ComicViewer(
-                                session = session,
+                                holder = holder,
                                 content = content,
                                 options = options,
                                 jump = null,
@@ -682,44 +687,44 @@ class ComicViewerTest {
         awaitCounter("3 / 3")
         waitForIdle()
         Thread.sleep(600)
-        var content = (session.content as? ReaderContentState.Ready)?.content
-        assertEquals("p2", content?.pageKeys?.get(session.currentPage))
+        var content = (holder.store.state.content as? ReaderContentState.Ready)?.content
+        assertEquals("p2", content?.pageKeys?.get(holder.store.state.currentPage))
         assertEquals(onesBefore, service.saveCalls.count { it.pageIndex == 1 })
         assertEquals(2, service.saveCalls.last().pageIndex)
 
         // Narrow again: back to solo spreads, still on the third page.
         widthDp = 420
         awaitCounter("3 / 3")
-        content = (session.content as? ReaderContentState.Ready)?.content
-        assertEquals("p2", content?.pageKeys?.get(session.currentPage))
+        content = (holder.store.state.content as? ReaderContentState.Ready)?.content
+        assertEquals("p2", content?.pageKeys?.get(holder.store.state.currentPage))
 
         // Mode switches keep the anchor too.
         options = options.copy(mode = ComicReadingMode.CONTINUOUS_VERTICAL)
         awaitCounter("3 / 3")
         options = options.copy(mode = ComicReadingMode.LEFT_TO_RIGHT)
         awaitCounter("3 / 3")
-        content = (session.content as? ReaderContentState.Ready)?.content
-        assertEquals("p2", content?.pageKeys?.get(session.currentPage))
+        content = (holder.store.state.content as? ReaderContentState.Ready)?.content
+        assertEquals("p2", content?.pageKeys?.get(holder.store.state.currentPage))
 
         // Rebuild the viewer: the saved position restores the same page key.
-        val second = ViewerFixture.session(service)
+        val secondHolder = ViewerFixture.holder(service)
         setContent {
             ReaderTheme {
                 LaunchedEffect(Unit) {
-                    second.open(ViewerFixture.SOURCE, ViewerFixture.WORK, ViewerFixture.CHAPTER_1, ViewerFixture.chapterIds)
+                    secondHolder.store.accept(ReaderIntent.Open(ViewerFixture.SOURCE, ViewerFixture.WORK, ViewerFixture.CHAPTER_1, ViewerFixture.chapterIds))
                 }
-                ViewerLab(second, ViewerFixture.CHAPTER_1, options, null, { null }, mutableListOf())
+                ViewerLab(secondHolder, ViewerFixture.CHAPTER_1, options, null, { null }, mutableListOf())
             }
         }
         awaitCounter("3 / 3")
-        val content2 = (second.content as ReaderContentState.Ready).content
-        assertEquals("p2", content2.pageKeys[second.currentPage])
+        val content2 = (secondHolder.store.state.content as ReaderContentState.Ready).content
+        assertEquals("p2", content2.pageKeys[secondHolder.store.state.currentPage])
     }
 
     @Test
     fun rtlChapterBoundariesMirrorVisualEdges() = runComposeUiTest {
         val service = ViewerFixture.service()
-        val session = ViewerFixture.session(service)
+        val holder = ViewerFixture.holder(service)
         var chapter by mutableStateOf(ViewerFixture.CHAPTER_2)
         var jump by mutableStateOf<ComicViewerJump?>(null)
         val options = ComicViewerOptions(mode = ComicReadingMode.RIGHT_TO_LEFT)
@@ -727,9 +732,9 @@ class ComicViewerTest {
         setContent {
             ReaderTheme {
                 LaunchedEffect(chapter) {
-                    session.open(ViewerFixture.SOURCE, ViewerFixture.WORK, chapter, ViewerFixture.chapterIds)
+                    holder.store.accept(ReaderIntent.Open(ViewerFixture.SOURCE, ViewerFixture.WORK, chapter, ViewerFixture.chapterIds))
                 }
-                ViewerLab(session, chapter, options, jump, { boundary ->
+                ViewerLab(holder, chapter, options, jump, { boundary ->
                     seen += boundary
                     null
                 }, mutableListOf())
@@ -747,7 +752,7 @@ class ComicViewerTest {
         assertEquals(listOf(ComicChapterBoundary.PREVIOUS, ComicChapterBoundary.PREVIOUS), seen)
 
         // Last page of the last chapter: no NEXT neighbour, stays silent.
-        jump = ComicViewerJump(requestId = 31L, contentSeq = session.contentSeq, pageIndex = 6)
+        jump = ComicViewerJump(requestId = 31L, contentSeq = holder.store.state.contentSeq, pageIndex = 6)
         awaitCounter("7 / 7")
         settledTap("reader-tap-prev")
         waitForIdle()
@@ -757,7 +762,7 @@ class ComicViewerTest {
         // Chapter 1, last page: left tap/key report NEXT (chapter 2 exists).
         chapter = ViewerFixture.CHAPTER_1
         awaitCounter("1 / 3")
-        jump = ComicViewerJump(requestId = 32L, contentSeq = session.contentSeq, pageIndex = 2)
+        jump = ComicViewerJump(requestId = 32L, contentSeq = holder.store.state.contentSeq, pageIndex = 2)
         awaitCounter("3 / 3")
         settledTap("reader-tap-prev")
         assertEquals(
@@ -771,7 +776,7 @@ class ComicViewerTest {
         assertEquals(ComicChapterBoundary.NEXT, seen.last())
 
         // Chapter 1, first page: no PREVIOUS neighbour, stays silent.
-        jump = ComicViewerJump(requestId = 33L, contentSeq = session.contentSeq, pageIndex = 0)
+        jump = ComicViewerJump(requestId = 33L, contentSeq = holder.store.state.contentSeq, pageIndex = 0)
         awaitCounter("1 / 3")
         settledTap("reader-tap-next")
         onNodeWithTag(ComicViewerRootTag).performKeyInput { pressKey(Key.DirectionRight) }
@@ -783,19 +788,21 @@ class ComicViewerTest {
     @Test
     fun cropBordersKeepsPositionAndRetrySemantics() = runComposeUiTest {
         val service = ViewerFixture.cropService()
-        val session = ViewerFixture.session(service)
+        val holder = ViewerFixture.holder(service)
         var options by mutableStateOf(ComicViewerOptions(mode = ComicReadingMode.LEFT_TO_RIGHT))
         setContent {
             ReaderTheme {
                 LaunchedEffect(Unit) {
-                    session.open(
-                        ViewerFixture.SOURCE,
-                        ViewerFixture.WORK,
-                        ViewerFixture.CROP_CHAPTER,
-                        ViewerFixture.cropChapterIds,
+                    holder.store.accept(
+                        ReaderIntent.Open(
+                            ViewerFixture.SOURCE,
+                            ViewerFixture.WORK,
+                            ViewerFixture.CROP_CHAPTER,
+                            ViewerFixture.cropChapterIds,
+                        ),
                     )
                 }
-                ViewerLab(session, ViewerFixture.CROP_CHAPTER, options, null, { null }, mutableListOf())
+                ViewerLab(holder, ViewerFixture.CROP_CHAPTER, options, null, { null }, mutableListOf())
             }
         }
 
@@ -804,8 +811,8 @@ class ComicViewerTest {
         options = options.copy(cropBorders = true)
         awaitCounter("1 / 2")
         onNodeWithTag(comicPageImageTag(0)).assertIsDisplayed()
-        val content = (session.content as ReaderContentState.Ready).content
-        assertEquals("cb0", content.pageKeys[session.currentPage])
+        val content = (holder.store.state.content as ReaderContentState.Ready).content
+        assertEquals("cb0", content.pageKeys[holder.store.state.currentPage])
         settledTap("reader-tap-next")
         awaitCounter("2 / 2")
         options = options.copy(cropBorders = false)
@@ -816,20 +823,20 @@ class ComicViewerTest {
     @Test
     fun failedPageRetriesWithSameKey() = runComposeUiTest {
         val service = ViewerFixture.service()
-        val session = ViewerFixture.session(service)
+        val holder = ViewerFixture.holder(service)
         var jump by mutableStateOf<ComicViewerJump?>(null)
         val options = ComicViewerOptions(mode = ComicReadingMode.WEBTOON)
         setContent {
             ReaderTheme {
                 LaunchedEffect(Unit) {
-                    session.open(ViewerFixture.SOURCE, ViewerFixture.WORK, ViewerFixture.CHAPTER_2, ViewerFixture.chapterIds)
+                    holder.store.accept(ReaderIntent.Open(ViewerFixture.SOURCE, ViewerFixture.WORK, ViewerFixture.CHAPTER_2, ViewerFixture.chapterIds))
                 }
-                ViewerLab(session, ViewerFixture.CHAPTER_2, options, jump, { null }, mutableListOf())
+                ViewerLab(holder, ViewerFixture.CHAPTER_2, options, jump, { null }, mutableListOf())
             }
         }
 
         awaitCounter("1 / 7")
-        jump = ComicViewerJump(requestId = 1L, contentSeq = session.contentSeq, pageIndex = 5)
+        jump = ComicViewerJump(requestId = 1L, contentSeq = holder.store.state.contentSeq, pageIndex = 5)
         awaitCounter("6 / 7")
         // q5 fails on first load: poll until the retry affordance (original page key) shows.
         val shownBy = System.currentTimeMillis() + 10_000
@@ -843,8 +850,8 @@ class ComicViewerTest {
         }
         assertTrue(shown, "retry affordance should appear for q5")
         onNodeWithTag(comicPageRetryTag("q5")).assertIsDisplayed()
-        // Retry through the session (same affordance the pager error row uses).
-        session.retryPage("q5")
+        // Retry through the store (same affordance the pager error row uses).
+        holder.store.accept(ReaderIntent.RetryPage("q5"))
         waitForIdle()
         val deadline = System.currentTimeMillis() + 10_000
         while (onAllNodesWithTag(comicPageRetryTag("q5")).fetchSemanticsNodes().isNotEmpty() &&
@@ -863,14 +870,14 @@ class ComicViewerTest {
     @Test
     fun doubleTapZoomsInsteadOfTurningTwice() = runComposeUiTest {
         val service = ViewerFixture.service()
-        val session = ViewerFixture.session(service)
+        val holder = ViewerFixture.holder(service)
         val options = ComicViewerOptions(mode = ComicReadingMode.LEFT_TO_RIGHT)
         setContent {
             ReaderTheme {
                 LaunchedEffect(Unit) {
-                    session.open(ViewerFixture.SOURCE, ViewerFixture.WORK, ViewerFixture.CHAPTER_2, ViewerFixture.chapterIds)
+                    holder.store.accept(ReaderIntent.Open(ViewerFixture.SOURCE, ViewerFixture.WORK, ViewerFixture.CHAPTER_2, ViewerFixture.chapterIds))
                 }
-                ViewerLab(session, ViewerFixture.CHAPTER_2, options, null, { null }, mutableListOf())
+                ViewerLab(holder, ViewerFixture.CHAPTER_2, options, null, { null }, mutableListOf())
             }
         }
 
@@ -898,33 +905,33 @@ class ComicViewerTest {
     @Test
     fun rebuildKeepsSamePageKeyForChapterTwoPageThree() = runComposeUiTest {
         val service = ViewerFixture.service()
-        val first = ViewerFixture.session(service)
+        val firstHolder = ViewerFixture.holder(service)
         setContent {
             ReaderTheme {
                 LaunchedEffect(Unit) {
                     service.savedProgress[ViewerFixture.SOURCE to ViewerFixture.WORK] =
                         app.koyura.domain.reader.ReaderProgress(ViewerFixture.CHAPTER_2, 2)
-                    first.open(ViewerFixture.SOURCE, ViewerFixture.WORK, ViewerFixture.CHAPTER_2, ViewerFixture.chapterIds)
+                    firstHolder.store.accept(ReaderIntent.Open(ViewerFixture.SOURCE, ViewerFixture.WORK, ViewerFixture.CHAPTER_2, ViewerFixture.chapterIds))
                 }
-                ViewerLab(first, ViewerFixture.CHAPTER_2, ComicViewerOptions(), null, { null }, mutableListOf())
+                ViewerLab(firstHolder, ViewerFixture.CHAPTER_2, ComicViewerOptions(), null, { null }, mutableListOf())
             }
         }
         awaitCounter("3 / 7")
-        val content = (first.content as ReaderContentState.Ready).content
-        assertEquals("q2", content.pageKeys[first.currentPage])
+        val content = (firstHolder.store.state.content as ReaderContentState.Ready).content
+        assertEquals("q2", content.pageKeys[firstHolder.store.state.currentPage])
 
-        // Recreate the viewer (new session, same service): same page key restores.
-        val second = ViewerFixture.session(service)
+        // Recreate the viewer (new store, same service): same page key restores.
+        val secondHolder = ViewerFixture.holder(service)
         setContent {
             ReaderTheme {
                 LaunchedEffect(Unit) {
-                    second.open(ViewerFixture.SOURCE, ViewerFixture.WORK, ViewerFixture.CHAPTER_2, ViewerFixture.chapterIds)
+                    secondHolder.store.accept(ReaderIntent.Open(ViewerFixture.SOURCE, ViewerFixture.WORK, ViewerFixture.CHAPTER_2, ViewerFixture.chapterIds))
                 }
-                ViewerLab(second, ViewerFixture.CHAPTER_2, ComicViewerOptions(), null, { null }, mutableListOf())
+                ViewerLab(secondHolder, ViewerFixture.CHAPTER_2, ComicViewerOptions(), null, { null }, mutableListOf())
             }
         }
         awaitCounter("3 / 7")
-        val content2 = (second.content as ReaderContentState.Ready).content
-        assertEquals("q2", content2.pageKeys[second.currentPage])
+        val content2 = (secondHolder.store.state.content as ReaderContentState.Ready).content
+        assertEquals("q2", content2.pageKeys[secondHolder.store.state.currentPage])
     }
 }

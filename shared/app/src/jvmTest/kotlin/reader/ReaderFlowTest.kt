@@ -31,12 +31,14 @@ import app.koyura.designsystem.navigation.NavTab
 import app.koyura.domain.reader.ChapterContent
 import app.koyura.features.reader.comic.FakeReaderService
 import app.koyura.features.reader.comic.ReaderBackTag
+import app.koyura.features.reader.comic.ReaderIntent
 import app.koyura.features.reader.comic.ReaderNextChapterTag
 import app.koyura.features.reader.comic.ReaderPageIndicatorTag
 import app.koyura.features.reader.comic.ReaderPageState
 import app.koyura.features.reader.comic.ReaderPrevChapterTag
 import app.koyura.features.reader.comic.ReaderRootTestTag
-import app.koyura.features.reader.comic.ReaderSession
+import app.koyura.features.reader.comic.ReaderStoreFactory
+import app.koyura.features.reader.comic.ReaderStoreHolder
 import app.koyura.features.reader.comic.ReaderTapNextTag
 import app.koyura.features.reader.comic.readerPageTag
 import app.koyura.features.reader.comic.viewer.ComicViewerRootTag
@@ -243,7 +245,7 @@ class ReaderFlowTest {
         val browse = demoBrowse()
         val reader = demoReader(mapOf("p0" to 0xFF0000))
         reader.pageFailures["p0"] = 1
-        val readerSession = ReaderSession(reader)
+        val readerHolder = ReaderStoreHolder(ReaderStoreFactory().create(reader))
         val navigation = createAppNavigationState(initialTab = NavTab.Browse)
         navigation.push(SourceDetailRoute("example_source", "demo", "星图"))
         setContent {
@@ -254,14 +256,14 @@ class ReaderFlowTest {
                     browseService = browse,
                     browseSession = BrowseSession(browse),
                     readerService = reader,
-                    readerSession = readerSession,
+                    readerHolder = readerHolder,
                 )
             }
         }
 
         onNodeWithTag(DetailFabTag).performClick()
         onNodeWithTag("reader-page-retry-p0").assertIsDisplayed()
-        readerSession.retryPage("p0")
+        readerHolder.store.accept(ReaderIntent.RetryPage("p0"))
         waitForIdle()
         // The retry reloads through the session; poll until the error row is gone.
         val retryGoneBy = System.currentTimeMillis() + 10000
@@ -275,13 +277,13 @@ class ReaderFlowTest {
         val leftover = onAllNodesWithTag("reader-page-retry-p0").fetchSemanticsNodes()
         val images = onAllNodesWithTag("reader-page-image-0").fetchSemanticsNodes()
         assertTrue(
-            readerSession.pages["p0"] is ReaderPageState.Ready,
-            "pages=" + readerSession.pages,
+            readerHolder.store.state.pages["p0"] is ReaderPageState.Ready,
+            "pages=" + readerHolder.store.state.pages,
         )
         assertTrue(
             leftover.isEmpty(),
             "leftover=" + leftover.size +
-                " images=" + images.size + " pages=" + readerSession.pages,
+                " images=" + images.size + " pages=" + readerHolder.store.state.pages,
         )
         onNodeWithTag(ReaderPageIndicatorTag).assertTextEquals("1 / 5")
     }

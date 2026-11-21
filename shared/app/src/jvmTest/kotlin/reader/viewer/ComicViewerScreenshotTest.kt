@@ -15,7 +15,10 @@ import app.koyura.designsystem.ReaderTheme
 import app.koyura.designsystem.components.AppText
 import app.koyura.features.reader.comic.FakeReaderService
 import app.koyura.features.reader.comic.ReaderContentState
-import app.koyura.features.reader.comic.ReaderSession
+import app.koyura.features.reader.comic.ReaderIntent
+import app.koyura.features.reader.comic.ReaderStore
+import app.koyura.features.reader.comic.ReaderStoreFactory
+import app.koyura.features.reader.comic.ReaderStoreHolder
 import app.koyura.features.reader.comic.viewer.ComicPagerLayout
 import app.koyura.features.reader.comic.viewer.ComicReadingMode
 import app.koyura.features.reader.comic.viewer.ComicScaleFit
@@ -25,8 +28,13 @@ import app.koyura.features.reader.comic.viewer.ComicViewerOptions
 import java.io.File
 import javax.swing.SwingUtilities
 import kotlin.test.Test
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.setMain
 import org.jetbrains.skia.EncodedImageFormat
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
 
 /**
  * Same-data, same-canvas captures of the B-viewer host.
@@ -38,30 +46,40 @@ import org.jetbrains.skia.EncodedImageFormat
  */
 class ComicViewerScreenshotTest {
     private val outputDir = File(System.getProperty("reader.screenshotDir") ?: "build/screenshots").apply { mkdirs() }
+    private val testDispatcher = StandardTestDispatcher()
 
-    private fun openSession(
+    @BeforeTest
+    fun setupMain() {
+        Dispatchers.setMain(testDispatcher)
+    }
+
+    @AfterTest
+    fun resetMain() {
+        Dispatchers.resetMain()
+    }
+
+    private fun openHolder(
         chapterId: String = ViewerFixture.CHAPTER_2,
         service: FakeReaderService = ViewerFixture.service(),
         chapterIds: List<String> = ViewerFixture.chapterIds,
-    ): ReaderSession {
-        val session = ViewerFixture.session(service)
-        runBlocking {
-            session.open(ViewerFixture.SOURCE, ViewerFixture.WORK, chapterId, chapterIds)
-        }
-        return session
+    ): ReaderStoreHolder {
+        val holder = ViewerFixture.holder(service)
+        holder.store.accept(ReaderIntent.Open(ViewerFixture.SOURCE, ViewerFixture.WORK, chapterId, chapterIds))
+        testDispatcher.scheduler.advanceUntilIdle()
+        return holder
     }
 
     private fun render(
         name: String,
         widthDp: Int,
         heightDp: Int,
-        session: ReaderSession,
+        holder: ReaderStoreHolder,
         options: ComicViewerOptions,
         jumpPage: Int? = null,
     ) {
-        val content = (session.content as? ReaderContentState.Ready)?.content
+        val content = (holder.store.state.content as? ReaderContentState.Ready)?.content
             ?: error("chapter not opened for $name")
-        val jump = jumpPage?.let { ComicViewerJump(requestId = 1000L + it, contentSeq = session.contentSeq, pageIndex = it) }
+        val jump = jumpPage?.let { ComicViewerJump(requestId = 1000L + it, contentSeq = holder.store.state.contentSeq, pageIndex = it) }
         SwingUtilities.invokeAndWait {
             val scene = ImageComposeScene(
                 width = widthDp,
@@ -72,12 +90,12 @@ class ComicViewerScreenshotTest {
                     Box(Modifier.fillMaxSize().background(Color.Black)) {
                         Column(Modifier.fillMaxSize()) {
                             AppText(
-                                text = "${options.mode.id} ${options.pagerLayout.id} ${session.currentPage + 1} / ${content.pageKeys.size}",
+                                text = "${options.mode.id} ${options.pagerLayout.id} ${holder.store.state.currentPage + 1} / ${content.pageKeys.size}",
                                 color = Color.White,
                                 modifier = Modifier.testTag("reader-viewer-shot-label"),
                             )
                             ComicViewer(
-                                session = session,
+                                holder = holder,
                                 content = content,
                                 options = options,
                                 jump = jump,
@@ -118,42 +136,42 @@ class ComicViewerScreenshotTest {
 
     @Test
     fun captureLtrNarrow() {
-        val session = openSession()
-        render("viewer-ltr-narrow", 420, 780, session, options(ComicReadingMode.LEFT_TO_RIGHT))
+        val holder = openHolder()
+        render("viewer-ltr-narrow", 420, 780, holder, options(ComicReadingMode.LEFT_TO_RIGHT))
     }
 
     @Test
     fun captureRtlNarrow() {
-        val session = openSession()
-        render("viewer-rtl-narrow", 420, 780, session, options(ComicReadingMode.RIGHT_TO_LEFT))
+        val holder = openHolder()
+        render("viewer-rtl-narrow", 420, 780, holder, options(ComicReadingMode.RIGHT_TO_LEFT))
     }
 
     @Test
     fun captureVerticalNarrow() {
-        val session = openSession()
-        render("viewer-vertical-narrow", 420, 780, session, options(ComicReadingMode.VERTICAL))
+        val holder = openHolder()
+        render("viewer-vertical-narrow", 420, 780, holder, options(ComicReadingMode.VERTICAL))
     }
 
     @Test
     fun captureWebtoonNarrow() {
-        val session = openSession()
-        render("viewer-webtoon-narrow", 420, 780, session, options(ComicReadingMode.WEBTOON))
+        val holder = openHolder()
+        render("viewer-webtoon-narrow", 420, 780, holder, options(ComicReadingMode.WEBTOON))
     }
 
     @Test
     fun captureContinuousNarrow() {
-        val session = openSession()
+        val holder = openHolder()
         render(
-            "viewer-continuous-narrow", 420, 780, session,
+            "viewer-continuous-narrow", 420, 780, holder,
             options(ComicReadingMode.CONTINUOUS_VERTICAL),
         )
     }
 
     @Test
     fun captureDoubleWide() {
-        val session = openSession()
+        val holder = openHolder()
         render(
-            "viewer-double-wide", 1280, 800, session,
+            "viewer-double-wide", 1280, 800, holder,
             options(ComicReadingMode.LEFT_TO_RIGHT, ComicPagerLayout.DOUBLE_PAGES),
             // Pair [q2, q3]: proves adjacent pairing with the cover solo and the
             // wide q1 isolated after decode. Page 3 is the master in both the
@@ -164,9 +182,9 @@ class ComicViewerScreenshotTest {
 
     @Test
     fun captureDoubleWideInverted() {
-        val session = openSession()
+        val holder = openHolder()
         render(
-            "viewer-double-wide-inverted", 1280, 800, session,
+            "viewer-double-wide-inverted", 1280, 800, holder,
             options(ComicReadingMode.RIGHT_TO_LEFT, ComicPagerLayout.DOUBLE_PAGES, invert = true),
             jumpPage = 3,
         )
@@ -174,9 +192,9 @@ class ComicViewerScreenshotTest {
 
     @Test
     fun captureDoubleWideSpread() {
-        val session = openSession()
+        val holder = openHolder()
         render(
-            "viewer-double-wide-spread", 1280, 800, session,
+            "viewer-double-wide-spread", 1280, 800, holder,
             options(ComicReadingMode.LEFT_TO_RIGHT, ComicPagerLayout.DOUBLE_PAGES),
             // The 800x400 landscape q1 is isolated solo once decoded, mirroring
             // Komikku's runtime page-split for wide images.
@@ -186,9 +204,9 @@ class ComicViewerScreenshotTest {
 
     @Test
     fun captureWebtoonLongStrip() {
-        val session = openSession()
+        val holder = openHolder()
         render(
-            "viewer-webtoon-long", 420, 780, session,
+            "viewer-webtoon-long", 420, 780, holder,
             options(ComicReadingMode.WEBTOON),
             jumpPage = 3,
         )
@@ -196,9 +214,9 @@ class ComicViewerScreenshotTest {
 
     @Test
     fun capturePagerLongFitWidth() {
-        val session = openSession()
+        val holder = openHolder()
         render(
-            "viewer-pager-long-fitwidth", 420, 780, session,
+            "viewer-pager-long-fitwidth", 420, 780, holder,
             options(ComicReadingMode.LEFT_TO_RIGHT, fit = ComicScaleFit.FIT_WIDTH),
             jumpPage = 3,
         )
@@ -207,18 +225,18 @@ class ComicViewerScreenshotTest {
     @Test
     fun captureFailedThenRetried() {
         val service = ViewerFixture.service()
-        val session = ViewerFixture.session(service)
-        runBlocking {
-            session.open(ViewerFixture.SOURCE, ViewerFixture.WORK, ViewerFixture.CHAPTER_2, ViewerFixture.chapterIds)
-        }
+        val holder = ViewerFixture.holder(service)
+        holder.store.accept(ReaderIntent.Open(ViewerFixture.SOURCE, ViewerFixture.WORK, ViewerFixture.CHAPTER_2, ViewerFixture.chapterIds))
+        testDispatcher.scheduler.advanceUntilIdle()
         render(
-            "viewer-failed", 420, 780, session,
+            "viewer-failed", 420, 780, holder,
             options(ComicReadingMode.LEFT_TO_RIGHT),
             jumpPage = 5,
         )
-        runBlocking { session.retryPage("q5") }
+        holder.store.accept(ReaderIntent.RetryPage("q5"))
+        testDispatcher.scheduler.advanceUntilIdle()
         render(
-            "viewer-failed-retried", 420, 780, session,
+            "viewer-failed-retried", 420, 780, holder,
             options(ComicReadingMode.LEFT_TO_RIGHT),
             jumpPage = 5,
         )
@@ -228,9 +246,9 @@ class ComicViewerScreenshotTest {
     fun captureJumpWithinDoubleBefore() {
         // Anchor on the first page of [1-2, 1-3]; the jump below targets 1-3.
         val service = ViewerFixture.service()
-        val session = openSession(ViewerFixture.CHAPTER_1, service)
+        val holder = openHolder(ViewerFixture.CHAPTER_1, service)
         render(
-            "viewer-jump-in-double-before", 1000, 760, session,
+            "viewer-jump-in-double-before", 1000, 760, holder,
             ComicViewerOptions(
                 mode = ComicReadingMode.LEFT_TO_RIGHT,
                 pagerLayout = ComicPagerLayout.DOUBLE_PAGES,
@@ -243,11 +261,11 @@ class ComicViewerScreenshotTest {
     @Test
     fun captureJumpWithinDoubleAfter() {
         val service = ViewerFixture.service()
-        val session = openSession(ViewerFixture.CHAPTER_1, service)
+        val holder = openHolder(ViewerFixture.CHAPTER_1, service)
         // First land on the spread, then jump to its second page: both pages are
         // already visible, so only the committed anchor moves (2 -> 3).
         render(
-            "viewer-jump-in-double-after", 1000, 760, session,
+            "viewer-jump-in-double-after", 1000, 760, holder,
             ComicViewerOptions(
                 mode = ComicReadingMode.LEFT_TO_RIGHT,
                 pagerLayout = ComicPagerLayout.DOUBLE_PAGES,
@@ -256,7 +274,7 @@ class ComicViewerScreenshotTest {
             jumpPage = 1,
         )
         render(
-            "viewer-jump-in-double-after", 1000, 760, session,
+            "viewer-jump-in-double-after", 1000, 760, holder,
             ComicViewerOptions(
                 mode = ComicReadingMode.LEFT_TO_RIGHT,
                 pagerLayout = ComicPagerLayout.DOUBLE_PAGES,
@@ -269,9 +287,9 @@ class ComicViewerScreenshotTest {
     @Test
     fun captureCropOff() {
         val service = ViewerFixture.cropService()
-        val session = openSession(ViewerFixture.CROP_CHAPTER, service, ViewerFixture.cropChapterIds)
+        val holder = openHolder(ViewerFixture.CROP_CHAPTER, service, ViewerFixture.cropChapterIds)
         render(
-            "viewer-crop-off", 420, 780, session,
+            "viewer-crop-off", 420, 780, holder,
             ComicViewerOptions(
                 mode = ComicReadingMode.LEFT_TO_RIGHT,
                 pagerLayout = ComicPagerLayout.SINGLE_PAGE,
@@ -284,9 +302,9 @@ class ComicViewerScreenshotTest {
     @Test
     fun captureCropOffBorderless() {
         val service = ViewerFixture.cropService()
-        val session = openSession(ViewerFixture.CROP_CHAPTER, service, ViewerFixture.cropChapterIds)
+        val holder = openHolder(ViewerFixture.CROP_CHAPTER, service, ViewerFixture.cropChapterIds)
         render(
-            "viewer-crop-off-borderless", 420, 780, session,
+            "viewer-crop-off-borderless", 420, 780, holder,
             ComicViewerOptions(
                 mode = ComicReadingMode.LEFT_TO_RIGHT,
                 pagerLayout = ComicPagerLayout.SINGLE_PAGE,
@@ -299,9 +317,9 @@ class ComicViewerScreenshotTest {
     @Test
     fun captureCropOnBorderless() {
         val service = ViewerFixture.cropService()
-        val session = openSession(ViewerFixture.CROP_CHAPTER, service, ViewerFixture.cropChapterIds)
+        val holder = openHolder(ViewerFixture.CROP_CHAPTER, service, ViewerFixture.cropChapterIds)
         render(
-            "viewer-crop-on-borderless", 420, 780, session,
+            "viewer-crop-on-borderless", 420, 780, holder,
             ComicViewerOptions(
                 mode = ComicReadingMode.LEFT_TO_RIGHT,
                 pagerLayout = ComicPagerLayout.SINGLE_PAGE,
@@ -314,9 +332,9 @@ class ComicViewerScreenshotTest {
     @Test
     fun captureCropOn() {
         val service = ViewerFixture.cropService()
-        val session = openSession(ViewerFixture.CROP_CHAPTER, service, ViewerFixture.cropChapterIds)
+        val holder = openHolder(ViewerFixture.CROP_CHAPTER, service, ViewerFixture.cropChapterIds)
         render(
-            "viewer-crop-on", 420, 780, session,
+            "viewer-crop-on", 420, 780, holder,
             ComicViewerOptions(
                 mode = ComicReadingMode.LEFT_TO_RIGHT,
                 pagerLayout = ComicPagerLayout.SINGLE_PAGE,
