@@ -71,6 +71,7 @@ kotlin {
         jvmTest.dependencies {
             implementation(libs.compose.ui.test)
             implementation(libs.compose.ui.test.junit4)
+            implementation(libs.kotlin.reflect)
             implementation(libs.sqldelight.sqlite.driver)
             implementation(libs.ktor.client.mock)
             implementation(libs.okio)
