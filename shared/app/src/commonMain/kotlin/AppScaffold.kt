@@ -196,7 +196,10 @@ internal fun AppScaffold(
     // way (Komikku parity: selection mode owns the chrome).
     val isReaderOpen = navigation.currentStack.lastOrNull() is ComicReaderRoute
     ReaderSystemBars(hidden = isReaderOpen)
-    val hideChrome = (navigation.selectedTab == NavTab.Library && librarySession.selection.isNotEmpty()) ||
+    // 引导页是一次性流程：与阅读器一样占满全屏，不显示底栏 / 导航轨。
+    val isOnboardingOpen = navigation.currentStack.lastOrNull() is OnboardingRoute
+    val hideChrome = isOnboardingOpen ||
+        (navigation.selectedTab == NavTab.Library && librarySession.selection.isNotEmpty()) ||
         (navigation.selectedTab == NavTab.History && activeHistorySession.selection.isNotEmpty())
     if (isReaderOpen || hideChrome) {
         Box(modifier = Modifier.fillMaxSize()) {

@@ -99,9 +99,14 @@ class VisualParityMatrixTest {
         dark: Boolean,
         content: @Composable () -> Unit,
         reader: Boolean = false,
+        fullBleed: Boolean = false,
     ) {
         val palette = if (dark) ThemePalette.dark() else ThemePalette.light()
-        val chrome = if (width < railWidthThreshold) ChromeExpectation.BottomBar else ChromeExpectation.Rail
+        val chrome = when {
+            fullBleed -> ChromeExpectation.None
+            width < railWidthThreshold -> ChromeExpectation.BottomBar
+            else -> ChromeExpectation.Rail
+        }
         // Compose Desktop 会触碰 AWT 资源，必须在 EDT 上渲染与断言。
         lateinit var scene: ImageComposeScene
         SwingUtilities.invokeAndWait {
@@ -145,6 +150,7 @@ class VisualParityMatrixTest {
     private fun matrix(
         slug: String,
         contentFactory: (width: Int) -> @Composable () -> Unit,
+        fullBleed: Boolean = false,
     ) {
         // 保证生成文件名与白皮书对照目录一一对应，避免报告里出现孤儿键。
         check(VisualMatrixCatalog.pages.any { it.slug == slug }) { "slug $slug 不在 VisualMatrixCatalog 中" }
@@ -157,6 +163,7 @@ class VisualParityMatrixTest {
                     dark = dark,
                     content = contentFactory(width),
                     reader = slug == "reader",
+                    fullBleed = fullBleed,
                 )
             }
         }
@@ -209,7 +216,7 @@ class VisualParityMatrixTest {
             AppScaffold(navigation = navigation, useRail = width >= railWidthThreshold)
         }
         content
-    })
+    }, fullBleed = true)
 
     // ---- 2. 书架 Library ----
     @Test

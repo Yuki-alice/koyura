@@ -102,6 +102,9 @@ object GoldenDiffAssertions {
     enum class ChromeExpectation {
         BottomBar,
         Rail,
+
+        /** 全屏页（引导、阅读器）：没有底栏/轨，跳过 chrome 区域内容断言。 */
+        None,
     }
 
     private data class Region(val x0: Int, val y0: Int, val x1: Int, val y1: Int)
@@ -131,7 +134,9 @@ object GoldenDiffAssertions {
             pixels, expectedWidth, expectedHeight, palette, extraAllowedArgb, chrome,
         )
         assertNonBackgroundRatio(pixels, expectedWidth, expectedHeight, palette.backgroundArgb)
-        assertChromeRegionHasContent(pixels, expectedWidth, expectedHeight, palette.backgroundArgb, chrome)
+        if (chrome != ChromeExpectation.None) {
+            assertChromeRegionHasContent(pixels, expectedWidth, expectedHeight, palette.backgroundArgb, chrome)
+        }
     }
 
     /** 图像尺寸必须精确等于画布；尺寸漂移会让后续坐标采样失去意义。 */
@@ -163,9 +168,9 @@ object GoldenDiffAssertions {
         chrome: ChromeExpectation,
     ) {
         val allowed = palette.allowedArgb + palette.backgroundArgb + extraAllowedArgb
-        // 宽屏左侧 100 px 是 rail：它的 tonal elevation 会把容器色与 primary 混合，
-        // 颜色不一定落在原始令牌上；采样点改从 rail 右侧的内容区取，rail 本身由区块断言覆盖。
-        val leftFraction = if (chrome == ChromeExpectation.Rail) 0.12f else 0.01f
+        // 宽屏左侧 100 px 是 rail：它整条高度都由 rail 容器覆盖，取 x=2% 不会碰到正文；
+        // rail 的 tonal 混合色已加入浅/深主题的允许集合。窄屏取 1% 落在底栏之上。
+        val leftFraction = if (chrome == ChromeExpectation.Rail) 0.02f else 0.01f
         val fractions = listOf(
             leftFraction to 0.01f,
             0.99f to 0.01f,
@@ -214,6 +219,7 @@ object GoldenDiffAssertions {
         val region = when (chrome) {
             ChromeExpectation.BottomBar -> Region(0, height - BOTTOM_BAR_HEIGHT_PX, width, height)
             ChromeExpectation.Rail -> Region(0, 0, RAIL_WIDTH_PX.coerceAtMost(width), height)
+            ChromeExpectation.None -> return
         }
         var content = 0
         var total = 0

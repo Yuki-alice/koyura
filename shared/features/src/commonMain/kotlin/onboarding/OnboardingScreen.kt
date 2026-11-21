@@ -98,10 +98,17 @@ fun OnboardingScreen(
         modifier = modifier
             .fillMaxSize()
             .testTag(OnboardingRootTag)
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = DesignTokens.Spacing.Large, vertical = DesignTokens.Spacing.ExtraLarge),
-        horizontalAlignment = Alignment.CenterHorizontally,
+            .padding(horizontal = DesignTokens.Spacing.Large),
     ) {
+        // 内容区滚动、底栏常驻贴底（原版引导页的 Skip/Next 不随内容滚走）。
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(vertical = DesignTokens.Spacing.ExtraLarge),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
         LinearProgressIndicator(
             progress = { (stepIndex + 1f) / steps.size },
             modifier = Modifier
@@ -149,11 +156,14 @@ fun OnboardingScreen(
                 OnboardingStep.GUIDE -> GuideStep()
             }
         }
-        Spacer(Modifier.height(DesignTokens.Spacing.Large))
+        }
         HorizontalDivider(thickness = DesignTokens.Spacing.Hairline)
-        Spacer(Modifier.height(DesignTokens.Spacing.Medium))
         Row(
-            modifier = Modifier.widthIn(max = 560.dp).fillMaxWidth(),
+            modifier = Modifier
+                .align(Alignment.CenterHorizontally)
+                .widthIn(max = 560.dp)
+                .fillMaxWidth()
+                .padding(vertical = DesignTokens.Spacing.Medium),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Small),
         ) {

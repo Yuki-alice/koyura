@@ -4,9 +4,12 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -51,7 +54,8 @@ import app.koyura.designsystem.theme.ThemeMode
 import app.koyura.designsystem.theme.ThemePreset
 
 private val ThemeCardWidth = DesignTokens.Sizes.ThemePreviewCard
-private val ThemeCardHeight = DesignTokens.Sizes.ThemePreviewCard
+// 主题预览卡 9:16（白皮书 07 §7.16 / T2.9）：宽 114dp → 高 ≈202.7dp。
+private val ThemeCardHeight = DesignTokens.Sizes.ThemePreviewCard * (16f / 9f)
 
 /** 外观子页（白皮书 7.9）：主题模式分段 + 19 套主题卡 + AMOLED + 封面取色 + 显示/语言占位。 */
 @Composable
@@ -209,7 +213,7 @@ private fun ThemePresetCard(
     AppCard(
         modifier = modifier
             .width(ThemeCardWidth)
-            .heightIn(min = ThemeCardHeight)
+            .height(ThemeCardHeight)
             .clickable(onClick = onClick),
         containerColor = container,
         border = if (selected) {
@@ -220,12 +224,18 @@ private fun ThemePresetCard(
         shape = RoundedCornerShape(DesignTokens.Radius.Large),
     ) {
         Column(
-            modifier = Modifier.padding(DesignTokens.Spacing.Small),
+            modifier = Modifier.fillMaxSize().padding(DesignTokens.Spacing.Small),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            SettingsPreviewSwatch(
-                color = previewSwatchColor(preset.ordinal),
-                modifier = Modifier.fillMaxWidth(),
+            // 9:16 卡片里色块撑满剩余高度（原 40dp 色块只适合方形预览）。
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .background(
+                        previewSwatchColor(preset.ordinal),
+                        RoundedCornerShape(DesignTokens.Radius.Small),
+                    ),
             )
             AppText(
                 text = preset.label,
