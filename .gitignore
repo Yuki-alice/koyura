@@ -8,3 +8,4 @@ local.properties
 **/xcuserdata/
 *.xcuserstate
 /reference/
+/docs/design-whitepaper/

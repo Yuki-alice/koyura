@@ -2,7 +2,7 @@
 
 2026-11-15 · Greenfield 项目 · [架构设计与项目目录](architecture.md)
 
-项目用 Kotlin Multiplatform 实现业务和 JS 源系统，用 Compose Multiplatform 复刻 Komikku 的界面、交互和可见功能。小说接入与差异化功能安排在漫画主流程稳定之后，顺序经讨论确定。账号、书架、备份格式和内部数据模型独立设计。JS 脚本、宿主 API、源仓库和更新行为以 Venera-Next 为兼容基线。
+项目用 Kotlin Multiplatform 实现业务和 JS 源系统，用 Compose Multiplatform 实现跨平台界面。Komikku 提供功能与交互参考。小说接入与差异化功能安排在漫画主流程稳定之后，顺序经讨论确定。账号、书架、备份格式和内部数据模型独立设计。JS 脚本、宿主 API、源仓库和更新行为以 Venera-Next 为兼容基线。
 
 候选库来自本地 [kmp-awesome `33879a1`](https://github.com/terrakok/kmp-awesome/blob/33879a1b240c15cee9b1b82cd260a77680382021/README.MD#libraries) 的网络、存储、架构、依赖注入、Compose UI、文件、序列化、测试和工具条目。该列表优先收录 Android 与 iOS 库，选型同时以库作者文档、发布物和桌面 ABI 为依据。2026-11-18 复核：`33879a1` 即上游 HEAD，无新增条目。
 
@@ -35,29 +35,29 @@
 | 职责 | 选定方案 | 选型依据 |
 | --- | --- | --- |
 | 界面与资源 | Compose Multiplatform `1.13.0-beta02`、官方 Material 3 `1.13.0-beta02`、Compose Resources | 在共享层实现主题、导航布局、书架、浏览和阅读器。字体、图标和字符串由项目管理。 [官方组件表](https://kotlinlang.org/docs/multiplatform/whats-new-compose-113.html#dependencies) · [Compose Resources](https://kotlinlang.org/docs/multiplatform/compose-multiplatform-resources.html) |
-| 导航与页面状态 | Navigation 3 `1.2.0`、`StateFlow`、Compose state | 自管五栏独立返回栈，使用序列化路由恢复页面。桌面加入 `kotlinx-coroutines-swing` 提供 Main dispatcher。页面状态暂由各页面的 session/state holder 持有（`ReaderSession` 即此模式）；已定在第一轮阅读器对齐验收后统一切换 MVIKotlin + 官方 androidx ViewModel（KMP 版，经 `lifecycle-viewmodel-navigation3` 按 NavKey 域化托管，mvikotlin `keepers` 模块已废弃不引入），Voyager 和 Decompose 不再评估。 [Navigation 3](https://kotlinlang.org/docs/multiplatform/compose-navigation-3.html) · [Navigation 3 发布物](https://repo.maven.apache.org/maven2/org/jetbrains/androidx/navigation3/navigation3-ui/1.2.0/) · [MVIKotlin](https://github.com/arkivanov/MVIKotlin) |
-| 依赖注入 | 手动装配：构造器注入 + `CompositionLocal`（如 `LocalReaderService`） | 在应用装配层（`ExtensionApp`/`AppScaffold`）注册实现与生命周期。仓储、用例和脚本宿主保持显式依赖。Koin 已定采用：与 MVI 切换同窗口（第一轮阅读器对齐验收后）把手动装配平移为 Koin module，类构造器不动，此前保持现状。 [Metro](https://github.com/ZacSweers/metro) · [Koin](https://github.com/InsertKoinIO/koin) |
+| 导航与页面状态 | Navigation 3 `1.2.0`、androidx ViewModel、MVIKotlin、`StateFlow`、Compose state | Tab 根栈、共享子页栈与独立阅读器栈使用可序列化的路由键。书架已接 ViewModel，下载、更新和阅读器已接 MVIKotlin Store，其余页面逐步迁移。按导航条目管理 ViewModel 时采用 `lifecycle-viewmodel-navigation3`，禁用 `keepers`。桌面加入 `kotlinx-coroutines-swing` 提供 Main dispatcher。 [Navigation 3](https://kotlinlang.org/docs/multiplatform/compose-navigation-3.html) · [Navigation 3 发布物](https://repo.maven.apache.org/maven2/org/jetbrains/androidx/navigation3/navigation3-ui/1.2.0/) · [MVIKotlin](https://github.com/arkivanov/MVIKotlin) |
+| 依赖注入 | Koin、构造器注入、`CompositionLocal` | 应用装配层注册实现与生命周期。Koin 已用于书架 ViewModel 以及下载、更新和阅读器 Store 的装配。仓储、用例和脚本宿主继续使用显式依赖。 [Koin](https://github.com/InsertKoinIO/koin) |
 | 并发和数据契约 | Coroutines `1.11.0`、Serialization JSON `1.12.0`、DateTime `0.7.1`（`shared/app` 内硬编码版本，后续收进版本目录） | 复用缓存版本，用 `suspend` 和 `Flow` 表达任务与状态订阅。绝对时间用 `kotlin.time.Instant`，本地时间和时区转换用 datetime。 [Coroutines](https://github.com/Kotlin/kotlinx.coroutines) · [Serialization](https://github.com/Kotlin/kotlinx.serialization) · [DateTime](https://github.com/Kotlin/kotlinx-datetime) |
 | 主数据库 | SQLDelight `2.4.1`、SQLite、`coroutines-extensions` | 复用已缓存的 SQLDelight 插件和驱动版本。用 `.sq` 明确按分类、来源和历史联查的查询与索引，用 `.sqm` 跟踪迁移。普通库按平台使用官方 Android、Native、JVM SQLite 驱动。若引入 FTS5，先核对三类驱动的行为。 [SQLDelight 2.4.1](https://github.com/sqldelight/sqldelight/releases/tag/2.4.1) · [驱动指南](https://sqldelight.github.io/sqldelight/2.3.2/multiplatform_sqlite/) |
-| 偏好与密钥 | 暂未接入：主题和普通设置随界面状态持有 | 偏好已定 Multiplatform Settings（随架构迁移窗口接入）；密钥存储维持平台 `SecretStore` expect/actual 路线，KVault 仅作候选。任务状态、源配置的版本记录和书架状态归数据库。 [Multiplatform Settings](https://github.com/russhwolf/multiplatform-settings) · [KVault](https://github.com/Liftric/KVault) |
+| 偏好与密钥 | 暂未接入 Multiplatform Settings | 偏好已定 Multiplatform Settings，随架构收尾接入。密钥存储维持平台 `SecretStore` expect/actual 路线，KVault 仅作候选。任务状态、源配置的版本记录和书架状态归数据库。 [Multiplatform Settings](https://github.com/russhwolf/multiplatform-settings) · [KVault](https://github.com/Liftric/KVault) |
 | HTTP 与 Cookie | Ktor Client `3.6.1`、Android / 桌面 JVM 用 OkHttp、iOS 用 Darwin | 扩展、资源、追踪和同步共用传输基础设施。源 Cookie 的访问、保存与网页登录交接按 Venera-Next 契约实现。 [Ktor 请求引擎](https://ktor.io/docs/client-engines.html) · [Venera-Next Cookie API](https://github.com/CyrilPeng/Venera-Next/blob/c0c45979d453c2a8740c45f08e95997c90717629/doc/api/js.zh.md#cookie) |
 | 图片 | `PlatformImage` expect/actual：Android 用 `BitmapFactory`，桌面/iOS 用 skia 解码 | 阅读器按页取图后由平台解码，源资源走同一会话边界。阅读器缩放/长图已定 ZoomImage（对标 Komikku 的 SubsamplingScaleImageView：tile 子采样、双击/捏合/滚轮缩放，条漫模式禁手势纯分块渲染；接入 POC 为自定义 `ImageSource` 接自管下载管线与三端 tile 实测）。封面与列表图片已定 Coil 3（Komikku 本体同款）。预读窗口与离线读取策略随阅读器任务补齐。 [ZoomImage](https://github.com/panpf/zoomimage) · [Coil 3](https://github.com/coil-kt/coil) |
 | 文件与压缩 | Okio `3.18.2` | 流式 I/O 与 ZIP 读取走 Okio。文件对话框已定 FileKit；下载队列轮次先对 Ketch 做 POC（重点验证按源 Ktor 会话能否接入其网络层，失败则参考其队列模型自写）；libarchive 适配移到后续任务，目录权限由平台管理。 [FileKit](https://github.com/vinceglb/FileKit) · [Ketch](https://github.com/linroid/Ketch) [Okio 文件系统](https://lysine.dev/okio/file_system/) · [Komikku 本地格式](https://github.com/komikku-app/komikku/blob/290267dd4c99f5b46812240fb0e4bc6b3ee8c562/source-local/src/commonMain/kotlin/tachiyomi/source/local/io/Archive.kt) |
 | 网页解析与小说 | Fleeksoft Ksoup `0.2.6`（`shared/media` 内硬编码版本，该模块独立构建、后续收进版本目录）、Compose 文本排版 | Ksoup 在 EPUB 解析中使用；Venera 宿主侧的 CSS 选择器与 HTML 对象接口随源运行时后续任务接入。小说统一进入结构化正文模型，EPUB 从容器、OPF 与 spine 解析顺序。 [Fleeksoft Ksoup](https://github.com/fleeksoft/ksoup) · [EPUB 3.3](https://www.w3.org/TR/epub-33/) |
 | JS 执行 | QuickJS + `io.github.dokar3:quickjs-kt:1.0.18` | 复用已有构件，实现 Venera 的普通脚本入口、同步和异步宿主桥接、Promise 和二进制数据转换。先以原版脚本和回调实测语义，再核对原生绑定的资源限制与释放行为。 [quickjs-kt](https://github.com/dokar3/quickjs-kt) · [Venera-Next JS API](https://github.com/CyrilPeng/Venera-Next/blob/c0c45979d453c2a8740c45f08e95997c90717629/doc/api/js.zh.md) |
-| 日志与测试 | `kotlin.test`、`kotlinx-coroutines-test`、Compose UI Test、Ktor MockEngine | 覆盖状态序列、源请求契约、UI 操作和失败恢复。截图基线用固定字体、主题、窗口和测试数据。Kermit 日志与 Turbine 序列断言已定排期，随架构迁移窗口引入；跨测试的全局内存缓存可选 cache4k 规范化。 [Compose UI Test](https://kotlinlang.org/docs/multiplatform/compose-test.html) · [Ktor MockEngine](https://ktor.io/docs/client-testing.html) |
+| 日志与测试 | `kotlin.test`、`kotlinx-coroutines-test`、Compose UI Test、Ktor MockEngine | 覆盖状态序列、源请求契约、UI 操作和失败恢复。截图基线用固定字体、主题、窗口和测试数据。Kermit 日志与 Turbine 序列断言随架构收尾接入。跨测试的全局内存缓存可选 cache4k 规范化。 [Compose UI Test](https://kotlinlang.org/docs/multiplatform/compose-test.html) · [Ktor MockEngine](https://ktor.io/docs/client-testing.html) |
 
-## 选型升级排期（2026-11-18）
+## 选型升级排期
 
-按 [kmp-awesome](https://github.com/terrakok/kmp-awesome) 全类目复核确定的升级，接入时机与对齐计划轮次绑定：
+按任务范围接入已选工具。 [kmp-awesome](https://github.com/terrakok/kmp-awesome)
 
 | 轮次 | 槽位 | 选定 | 时机与验收 |
 | --- | --- | --- | --- |
 | 阅读器 | 缩放与长图 | ZoomImage（`zoomimage-compose`） | 双页、缩放对齐项实施时接入；POC：自定义 `ImageSource` 接按源会话、条漫禁手势、三端 tile 性能实测 |
 | 阅读器 | 封面与列表图片 | Coil 3 | 书架网格生产化时接入；阅读器正文继续 `PlatformImage` 按页取图 |
-| 架构迁移（第一轮验收后） | DI | Koin | 手动装配平移为 Koin module，类构造器不动 |
-| 架构迁移（同窗口） | MVI 与 ViewModel | MVIKotlin + androidx lifecycle ViewModel | 经 `lifecycle-viewmodel-navigation3` per-NavKey 域化；退化路径为手写 sealed Intent；禁用 mvikotlin `keepers` |
-| 架构迁移（同窗口） | 偏好/日志/测试 | Multiplatform Settings、Kermit、Turbine | 与迁移同批接入，减少全库扫荡次数 |
+| 架构迁移 | DI | Koin | 逐步替换手动装配，保留显式构造器依赖 |
+| 架构迁移 | MVI 与 ViewModel | MVIKotlin + androidx lifecycle ViewModel | 按页面职责迁移；使用 `lifecycle-viewmodel-navigation3` 管理导航条目作用域，禁用 `keepers` |
+| 架构收尾 | 偏好/日志/测试 | Multiplatform Settings、Kermit、Turbine | 随架构收尾接入 |
 | 更新与离线 | 下载队列 | Ketch（先 POC） | 按源会话集成失败则参考其队列模型自写 |
 | 更新与离线 | 文件与目录 | FileKit、KMP AppDirs | 本地导入与下载目录任务 |
 | 备份与安全 | 加密容器原语 | Cryptography-Kotlin | 备份容器实现时接入；SQLCipher 路线不变 |

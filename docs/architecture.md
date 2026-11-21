@@ -2,7 +2,7 @@
 
 2026-11-15 · [技术栈选型](technology-stack.md)
 
-这是独立的跨平台漫画阅读器项目，验收按[验收基线](verification.md)执行。本文同时记录漫画、离线内容与后续小说的架构设计，小说应用接入安排在漫画对齐之后。Komikku `290267d`（与设计白皮书同版）定义要复刻的界面、交互和用户可见能力。JS 源完整兼容 Venera-Next `c0c4597` 的协议与生命周期，已有脚本和源仓库应能原样导入。书架、账号、内部数据和备份格式从新项目开始，作品换源和批量迁移在新客户端内实现。 [Komikku 功能说明](https://github.com/komikku-app/komikku/blob/290267dd4c99f5b46812240fb0e4bc6b3ee8c562/README.md#features) · [Venera-Next 数据源文档](https://github.com/CyrilPeng/Venera-Next/blob/c0c45979d453c2a8740c45f08e95997c90717629/doc/api/comic_source.zh.md)
+这是独立的跨平台漫画阅读器项目，验收按[验收基线](verification.md)执行。当前优先梳理业务、视图与数据边界。小说应用接入安排在漫画主流程稳定之后。Komikku `290267d` 提供功能与交互参考。JS 源完整兼容 Venera-Next `c0c4597` 的协议与生命周期，已有脚本和源仓库应能原样导入。书架、账号、内部数据和备份格式从新项目开始，作品换源和批量迁移在新客户端内实现。 [Komikku 功能说明](https://github.com/komikku-app/komikku/blob/290267dd4c99f5b46812240fb0e4bc6b3ee8c562/README.md#features) · [Venera-Next 数据源文档](https://github.com/CyrilPeng/Venera-Next/blob/c0c45979d453c2a8740c45f08e95997c90717629/doc/api/comic_source.zh.md)
 
 ## 目录结构
 
@@ -87,13 +87,13 @@ flowchart TD
 ```
 
 - `domain` 定义跨平台的作品、章节、资源、任务与进度模型，以及应用用例和所需的仓储与能力接口。公开接口用 Kotlin 值类型、`suspend`、`Flow` 表达。
-- `features` 依赖 `domain` 和 `design-system`。各页面的 session/state holder 把用户意图交给用例，输出不可变 `UiState`（Lifecycle ViewModel 待后续任务引入，见[技术栈选型](technology-stack.md)）。页面按状态渲染，页面键只携带可序列化的 ID 和必要参数。五个一级页面各自保留返回栈，阅读器沿用从书架、详情和历史进入的操作路径。
+- `features` 依赖 `domain` 和 `design-system`。页面按不可变状态渲染。书架的状态由 ViewModel 持有，下载、更新和阅读器使用 MVIKotlin Store，其他页面逐步迁移。导航由 `app` 持有，包括 Tab 根栈、共享子页栈与独立阅读器栈。路由键使用可序列化的 ID 和必要参数。
 - `data` 实现持久化接口。`source-runtime`、`media`、`integrations` 和 `platform` 分别实现对应领域接口。`network` 向适配器提供 Ktor 之上的请求与会话能力。具体实现由 `app` 装配，后台工作入口也调用同一组用例。
 - 持久偏好进入设置仓储，页面进程恢复只保存导航和轻量界面状态。书架、章节、下载和进度以 SQLite 提交后的状态驱动 UI。HTTP DTO、数据库行和 JS 值在边界处转换。
 
 ## 漫画、小说与离线数据
 
-本节是长期数据模型设计。当前应用工作以漫画和 Komikku 功能对齐为范围。
+本节是长期数据模型设计。当前应用工作聚焦漫画主流程。
 
 `Work` 具有 `COMIC` 或 `NOVEL` 类型，两者共享元数据、目录、收藏、分类、历史、更新和下载任务。远程作品以 `(sourceId, kind, remoteWorkId)` 去重，章节以作品 ID 和源章节 ID 去重。JS 源以 Venera 的稳定 `key` 标识，仓库地址可变化。作品和章节在 SQLite 中使用本项目的内部 ID，发起源请求时使用源自己的定位值。
 
