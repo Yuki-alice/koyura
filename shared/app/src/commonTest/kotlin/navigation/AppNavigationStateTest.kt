@@ -48,6 +48,59 @@ class AppNavigationStateTest {
     }
 
     @Test
+    fun reselectKeepsChildStackAndRunsAction() {
+        val events = mutableListOf<NavTab>()
+        val nav = state(NavTab.Library) { events += it }
+
+        nav.push(DetailRoute(NavTab.Library, 0))
+        nav.select(NavTab.Library)
+
+        // G1：重复点击不再 popToRoot，只跑动作，栈原样保留。
+        assertEquals(
+            listOf(TabRootRoute(NavTab.Library), DetailRoute(NavTab.Library, 0)),
+            nav.stackOf(NavTab.Library).toList(),
+        )
+        assertEquals(listOf(NavTab.Library), events)
+        assertEquals(NavTab.Library, nav.selectedTab)
+    }
+
+    @Test
+    fun reselectActionsArePerTab() {
+        val calls = mutableListOf<String>()
+        val nav = createAppNavigationState(
+            reselectActions = mapOf(
+                NavTab.Library to { calls += "library" },
+                NavTab.Browse to { calls += "browse" },
+            ),
+        )
+
+        nav.select(NavTab.Library)
+        nav.select(NavTab.Browse)
+        nav.select(NavTab.Browse)
+        nav.select(NavTab.Updates)
+
+        // 切 tab 只换栈不跑动作；同 tab 再点才跑各自注册的动作；
+        // Updates 未注册动作，保持无操作不断言崩溃。
+        assertEquals(listOf("library", "browse"), calls)
+        assertEquals(NavTab.Updates, nav.selectedTab)
+    }
+
+    @Test
+    fun reselectActionCanPushWithoutPopping() {
+        val nav = state(NavTab.Updates)
+        nav.reselectActions = mapOf(
+            NavTab.Updates to { nav.push(DetailRoute(NavTab.Updates, 7)) },
+        )
+        nav.select(NavTab.Updates)
+
+        // 动作 push 进栈：证明 reselect 不再先 pop，调用方可直接推快捷入口。
+        assertEquals(
+            listOf(TabRootRoute(NavTab.Updates), DetailRoute(NavTab.Updates, 7)),
+            nav.stackOf(NavTab.Updates).toList(),
+        )
+    }
+
+    @Test
     fun eachTabKeepsItsOwnStackAcrossSwitches() {
         val nav = state()
 

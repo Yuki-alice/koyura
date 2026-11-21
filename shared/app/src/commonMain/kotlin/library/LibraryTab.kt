@@ -28,6 +28,8 @@ fun LibraryTabContent(
     session: LibrarySession,
     browseSession: BrowseSession,
     onGlobalSearch: (() -> Unit)? = null,
+    /** 重复点击书架 tab 时递增：透传给书架屏打开筛选 Sheet（G1 reselect）。 */
+    filterRequest: Int = 0,
 ) {
     val scope = rememberCoroutineScope()
     LaunchedEffect(navigation.currentStack.size) {
@@ -43,6 +45,7 @@ fun LibraryTabContent(
         },
         onOpenBrowse = { navigation.select(NavTab.Browse) },
         onGlobalSearch = onGlobalSearch,
+        filterRequest = filterRequest,
         onContinue = { entry ->
             scope.launch {
                 try {

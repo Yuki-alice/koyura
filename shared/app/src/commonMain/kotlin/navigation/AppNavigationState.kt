@@ -31,11 +31,18 @@ enum class BackOutcome {
  *
  * The shell only renders this state and forwards taps and back requests. Keeping the state free of
  * navigation UI concerns makes the rules below directly testable.
+ *
+ * Reselect (tapping the active tab) runs the per-tab [reselectActions] entry and never touches
+ * the stacks: Library opens its filter sheet (page-local state), Updates pushes the download
+ * queue, History resumes the latest chapter, Browse pushes global search, More pushes settings.
+ * This mirrors Komikku `HomeScreen` reselect (`LibraryTab`/`UpdatesTab`/`HistoryTab`/
+ * `BrowseTab`/`MoreTab` `onReselect`); the previous "pop to root as scroll-to-top" behavior
+ * is intentionally removed.
  */
 class AppNavigationState internal constructor(
     private val stacks: Map<NavTab, NavBackStack<NavKey>>,
     private val selectedTabState: MutableState<NavTab>,
-    private val onTabReselect: (NavTab) -> Unit,
+    var reselectActions: Map<NavTab, () -> Unit> = emptyMap(),
 ) {
     val selectedTab: NavTab
         get() = selectedTabState.value
@@ -47,16 +54,12 @@ class AppNavigationState internal constructor(
     fun stackOf(tab: NavTab): NavBackStack<NavKey> = stacks.getValue(tab)
 
     /**
-     * Selects [tab]. Tapping the already selected destination pops its stack back to the root
-     * and then emits a single reselect event, so callers can distinguish switching from reselect
-     * (scroll to top, refresh) without duplicate routes. Mirrors Komikku `HomeScreen`
-     * reselect (`onReselect`): Library returns to its home, Updates refreshes, other tabs return
-     * to their list top.
+     * Selects [tab]. Tapping the already selected destination runs its reselect action
+     * without touching any stack, so callers can distinguish switching from reselect.
      */
     fun select(tab: NavTab) {
         if (tab == selectedTab) {
-            popToRoot(tab)
-            onTabReselect(tab)
+            reselectActions[tab]?.invoke()
             return
         }
         selectedTabState.value = tab
@@ -105,10 +108,11 @@ class AppNavigationState internal constructor(
 fun createAppNavigationState(
     initialTab: NavTab = NavTab.Library,
     onTabReselect: (NavTab) -> Unit = {},
+    reselectActions: Map<NavTab, () -> Unit> = NavTab.entries.associateWith { tab -> { onTabReselect(tab) } },
 ): AppNavigationState = AppNavigationState(
     stacks = NavTab.entries.associateWith { tab -> NavBackStack<NavKey>(TabRootRoute(tab)) },
     selectedTabState = mutableStateOf(initialTab),
-    onTabReselect = onTabReselect,
+    reselectActions = reselectActions,
 )
 
 /**
@@ -120,6 +124,7 @@ fun createAppNavigationState(
 @Composable
 fun rememberAppNavigationState(
     onTabReselect: (NavTab) -> Unit = {},
+    reselectActions: Map<NavTab, () -> Unit>? = null,
 ): AppNavigationState {
     val reselect by rememberUpdatedState(onTabReselect)
     val selectedTab = rememberSaveable(stateSaver = NavTabSaver) { mutableStateOf(NavTab.Library) }
@@ -141,7 +146,7 @@ fun rememberAppNavigationState(
                 NavTab.More to moreStack,
             ),
             selectedTabState = selectedTab,
-            onTabReselect = { tab -> reselect(tab) },
+            reselectActions = reselectActions ?: NavTab.entries.associateWith { tab -> { reselect(tab) } },
         )
     }
 }

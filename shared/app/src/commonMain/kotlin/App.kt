@@ -116,10 +116,14 @@ fun App(
 @Composable
 internal fun AppShell(
     onTabReselect: (NavTab) -> Unit = {},
+    reselectActions: Map<NavTab, () -> Unit>? = null,
     tabletMode: TabletUiMode = TabletUiMode.AUTOMATIC,
     enableOnboardingAutoEnter: Boolean = false,
 ) {
-    val navigation = rememberAppNavigationState(onTabReselect)
+    val navigation = rememberAppNavigationState(
+        onTabReselect = onTabReselect,
+        reselectActions = reselectActions,
+    )
     val duration = (LocalReaderService.current as? VeneraReaderService)?.duration
     if (duration != null) {
         val lifecycle = LocalLifecycleOwner.current.lifecycle

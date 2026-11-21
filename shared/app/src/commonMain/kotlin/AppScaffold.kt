@@ -36,10 +36,12 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.movableContentOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import app.koyura.app.library.LocalProductionSettings
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.saveable.SaveableStateHolder
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
@@ -167,6 +169,48 @@ internal fun AppScaffold(
     val settingsSession = LocalAppSettingsSession.current ?: rememberSettingsSession()
     val librarySession = rememberLibrarySession()
 
+    // G1：5 个 tab 的重复点击快捷入口（Komikku 各 Tab onReselect 对齐）。
+    // Library 经 filterSignal 打开筛选 Sheet（页内状态，不进栈）；其余推已有路由键。
+    // 注意内容区是 movableContentOf（参数不变时跳过重组），所以信号必须用稳定的
+    // State 对象、内部订阅读值，不能传 Int 快照（传了也流不进去）。
+    // 此处覆盖 navigation 自带的 reselectActions：外壳挂载即生产行为，
+    // 单测如需自定义动作请直接操作 navigation.reselectActions。
+    val libraryFilterSignal = remember { mutableIntStateOf(0) }
+    val reselectScope = rememberCoroutineScope()
+    LaunchedEffect(navigation, activeHistorySession) {
+        navigation.reselectActions = mapOf(
+            NavTab.Library to { libraryFilterSignal.intValue++ },
+            NavTab.Updates to { navigation.push(DownloadQueueRoute) },
+            NavTab.History to {
+                reselectScope.launch {
+                    val entry = activeHistorySession.visibleEntries().firstOrNull() ?: return@launch
+                    try {
+                        val (ids, titles) = activeHistorySession.resolveChapters(entry)
+                        val target = entry.chapterId?.takeIf { it in ids } ?: ids.firstOrNull()
+                        navigation.push(
+                            ComicReaderRoute(
+                                sourceKey = entry.sourceKey,
+                                workId = entry.workId,
+                                chapterId = target,
+                                title = entry.displayTitle,
+                                chapterIds = ids,
+                                chapterTitles = titles,
+                            ),
+                        )
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (failure: Exception) {
+                        activeHistorySession.reportError(
+                            failure.message?.takeIf { it.isNotBlank() } ?: "Cannot continue reading",
+                        )
+                    }
+                }
+            },
+            NavTab.Browse to { navigation.push(GlobalSearchRoute) },
+            NavTab.More to { navigation.push(SettingsRoute) },
+        )
+    }
+
     // 更多开关的持久化与生效：开关本身只改页内态，这里落盘并同步到真实行为。
     LaunchedEffect(productionSettings) {
         val settings = productionSettings ?: return@LaunchedEffect
@@ -242,6 +286,7 @@ internal fun AppScaffold(
                             statisticsSession,
                             settingsSession,
                             browseService,
+                            libraryFilterSignal,
                         )
                     }
                 }
@@ -366,6 +411,7 @@ private fun AppNavigationContent(
     statisticsSession: app.koyura.features.statistics.StatisticsSession,
     settingsSession: SettingsSession,
     browseService: BrowseService?,
+    libraryFilterSignal: androidx.compose.runtime.State<Int>,
 ) {
     val entryProvider = remember(
         navigation,
@@ -379,6 +425,7 @@ private fun AppNavigationContent(
         statisticsSession,
         settingsSession,
         browseService,
+        libraryFilterSignal.value,
     ) {
         entryProvider<NavKey> {
             entry<TabRootRoute> { route ->
@@ -403,6 +450,7 @@ private fun AppNavigationContent(
                         session = librarySession,
                         browseSession = browseSession,
                         onGlobalSearch = { navigation.push(GlobalSearchRoute) },
+                        filterRequest = libraryFilterSignal.value,
                     )
                 } else if (route.tab == NavTab.History) {
                     HistoryScreen(

@@ -216,9 +216,14 @@ fun LibraryScreen(
     onGlobalSearch: (() -> Unit)? = null,
     onGuide: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
+    /** 外壳重复点击书架 tab 时递增：打开筛选 Sheet（G1 reselect，不进导航栈）。 */
+    filterRequest: Int = 0,
 ) {
     val scope = rememberCoroutineScope()
     var sheet by remember { mutableStateOf<LibrarySheet?>(null) }
+    LaunchedEffect(filterRequest) {
+        if (filterRequest > 0) sheet = LibrarySheet.FILTER
+    }
     var searching by remember { mutableStateOf(false) }
     // 移除书架给 Short Snackbar + 撤销（白皮书 08 §2 / T3.1）；标记已读与分类修改不给撤销。
     val snackbar = remember { SnackbarHostState() }

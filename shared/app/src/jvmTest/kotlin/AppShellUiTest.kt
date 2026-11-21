@@ -21,6 +21,7 @@ import app.koyura.app.navigation.createAppNavigationState
 import app.koyura.designsystem.ReaderTheme
 import app.koyura.designsystem.navigation.NavTab
 import app.koyura.features.library.LibraryEmptyTag
+import app.koyura.features.library.LibraryFilterSheetTag
 import app.koyura.features.library.LibraryRootTag
 import app.koyura.features.more.MoreRootTestTag
 import app.koyura.features.updates.UpdatesRootTestTag
@@ -57,9 +58,8 @@ class AppShellUiTest {
     }
 
     @Test
-    fun tappingSelectedTabEmitsReselectWithoutPushing() = runComposeUiTest {
-        val events = mutableListOf<NavTab>()
-        val navigation = createAppNavigationState(onTabReselect = { events += it })
+    fun tappingSelectedLibraryTabOpensFilterSheet() = runComposeUiTest {
+        val navigation = createAppNavigationState()
         setContent {
             ReaderTheme {
                 AppScaffold(navigation = navigation, useRail = false)
@@ -68,27 +68,26 @@ class AppShellUiTest {
 
         // Scope to the bottom bar: the Library page also uses tab semantics for its
         // category row, so a global selected-tab lookup would match twice.
+        // G1：重复点击书架 tab 打开筛选 Sheet（页内状态），不进导航栈。
         val barSelected = selectedTab and hasAnyAncestor(hasTestTag(NavigationBarTestTag))
         onNode(barSelected).performClick()
-        onNode(barSelected).performClick()
 
-        assertEquals(listOf(NavTab.Library, NavTab.Library), events)
+        onNodeWithTag(LibraryFilterSheetTag).assertIsDisplayed()
         assertEquals(1, navigation.stackOf(NavTab.Library).size)
     }
 
     @Test
-    fun reselectingTabPopsItsStackToRoot() {
+    fun reselectKeepsStackAndRunsAction() {
         val events = mutableListOf<NavTab>()
         val navigation = createAppNavigationState(onTabReselect = { events += it })
 
         navigation.push(DetailRoute(NavTab.Library, 1))
         assertEquals(2, navigation.stackOf(NavTab.Library).size)
 
-        // Reselect pops back to the tab root (Komikku 04.1) and still emits the event so the
-        // visible page can scroll to top or refresh.
+        // G1：重复点击不再 popToRoot，只跑动作，子页栈原样保留。
         navigation.select(NavTab.Library)
 
-        assertEquals(1, navigation.stackOf(NavTab.Library).size)
+        assertEquals(2, navigation.stackOf(NavTab.Library).size)
         assertEquals(listOf(NavTab.Library), events)
         assertEquals(NavTab.Library, navigation.selectedTab)
     }
