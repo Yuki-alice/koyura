@@ -17,6 +17,7 @@ import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.v2.runComposeUiTest
 import app.koyura.app.reader.pngBytes
+import java.util.Locale
 import app.koyura.designsystem.CoverImageTag
 import app.koyura.designsystem.CoverPlaceholderTag
 import app.koyura.designsystem.ReaderTheme
@@ -288,6 +289,17 @@ class LibraryScreenTest {
 
     @Test
     fun removingWorkOffersUndoAndRestoresEntry() = runComposeUiTest {
+        // 横幅文案随进程 locale 解析（中文环境取 values-b+zh+CN），断言前固定英文，用完恢复。
+        val previousLocale = Locale.getDefault()
+        Locale.setDefault(Locale.ENGLISH)
+        try {
+            removingWorkOffersUndoAndRestoresEntryBody()
+        } finally {
+            Locale.setDefault(previousLocale)
+        }
+    }
+
+    private fun ComposeUiTest.removingWorkOffersUndoAndRestoresEntryBody() {
         val session = LibrarySession(triStateFixture())
         setContent {
             ReaderTheme {
