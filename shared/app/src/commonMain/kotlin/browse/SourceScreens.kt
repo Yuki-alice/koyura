@@ -131,6 +131,12 @@ import app.koyura.designsystem.components.ModalReaderSheet
 import app.koyura.designsystem.components.ReaderTopAppBar
 import app.koyura.designsystem.components.SettingsItem
 import app.koyura.designsystem.components.TagChip
+import app.koyura.domain.downloads.DownloadJob
+import app.koyura.domain.downloads.DownloadStatus
+import app.koyura.features.downloads.DownloadQueueRepository
+import app.koyura.app.library.LocalProductionDownloads
+import app.koyura.app.sourceui.LocalSourceUiHost
+import app.koyura.app.sourceui.SourceUiHost
 import app.koyura.designsystem.components.ReaderTopAppBarHeight
 import app.koyura.designsystem.components.UiTheme
 import app.koyura.designsystem.rememberCoverBitmap
@@ -384,6 +390,7 @@ fun SourceDetailScreen(
     modifier: Modifier = Modifier,
     readerService: ReaderService? = LocalReaderService.current,
     librarySession: LibrarySession? = null,
+    downloads: DownloadQueueRepository? = LocalProductionDownloads.current,
     onOpenChapter: (chapterId: String?, chapterIds: List<String>, chapterTitles: List<String>) -> Unit = { _, _, _ -> },
 ) {
     val scope = rememberCoroutineScope()
@@ -401,9 +408,50 @@ fun SourceDetailScreen(
     }
     var selectedIds by remember(sourceKey, workId) { mutableStateOf(setOf<String>()) }
     var readStates by remember(sourceKey, workId) { mutableStateOf(mapOf<String, Boolean>()) }
+    // 一作的下载态（chapterId → 任务；无分章键为 null）：行指示器与已下载筛选的唯一数据源。
+    var downloadStates by remember(sourceKey, workId) { mutableStateOf(mapOf<String?, DownloadJob>()) }
+    val uiHost = LocalSourceUiHost.current
     // FAB 吸附侧：优先书架偏好（Komikku `reading_button_position`），拖动后本地覆盖即时生效。
     var fabDragAtStart by rememberSaveable(sourceKey, workId) { mutableStateOf<Boolean?>(null) }
     val fabAtStart = fabDragAtStart ?: library.snapshot.prefs.readButtonAtStart
+
+    fun refreshDownloadStates() {
+        scope.launch {
+            downloadStates = try {
+                downloads?.downloadJobs(sourceKey, workId) ?: emptyMap()
+            } catch (_: Exception) {
+                emptyMap()
+            }
+        }
+    }
+
+    // 行下载按钮的点按语义：无任务则入队，失败则重试，进行中则暂停/恢复，完成则无操作。
+    // 落盘失败记书架页错误行（与目录同步同一通道），不抛错遮挡详情。
+    fun onDownloadChapter(chapterId: String) {
+        val queue = downloads ?: return
+        scope.launch {
+            try {
+                val job = downloadStates[chapterId]
+                when (job?.status) {
+                    null, DownloadStatus.CANCELLED -> queue.enqueue(sourceKey, workId, chapterId)
+                    DownloadStatus.FAILED -> queue.retry(job.id)
+                    DownloadStatus.QUEUED, DownloadStatus.DOWNLOADING -> queue.pause(job.id)
+                    DownloadStatus.PAUSED -> queue.resume(job.id)
+                    DownloadStatus.COMPLETE -> Unit
+                }
+            } catch (cancelled: kotlin.coroutines.cancellation.CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                library.noteError(failure.message?.takeIf { it.isNotBlank() } ?: "Download failed")
+            } finally {
+                downloadStates = try {
+                    queue.downloadJobs(sourceKey, workId)
+                } catch (_: Exception) {
+                    downloadStates
+                }
+            }
+        }
+    }
 
     LaunchedEffect(sourceKey, workId, reloadTick) {
         loading = true
@@ -411,9 +459,14 @@ fun SourceDetailScreen(
         try {
             detail = session.loadWorkDetail(sourceKey, workId)
             progress = readerService?.readProgress(sourceKey, workId)
-            // 真实已读：书架目录同步后读同一状态；未收藏/无目录即空映射，回退到进度章标读。
+            // 真实已读：书架目录同步后读同一状态；未收藏/无目录即空映射回退到进度章标读。
             readStates = try {
                 library.chapterReadStates(libraryKey)
+            } catch (_: Exception) {
+                emptyMap()
+            }
+            downloadStates = try {
+                downloads?.downloadJobs(sourceKey, workId) ?: emptyMap()
             } catch (_: Exception) {
                 emptyMap()
             }
@@ -497,7 +550,9 @@ fun SourceDetailScreen(
                                         detail = loaded,
                                         artwork = artwork,
                                         fallbackTitle = fallbackTitle,
+                                        sourceKey = sourceKey,
                                         sourceName = sourceName.ifBlank { sourceKey },
+                                        uiHost = uiHost,
                                         wide = wide,
                                         inLibrary = inLibrary,
                                         onToggleLibrary = {
@@ -547,6 +602,8 @@ fun SourceDetailScreen(
                                             }
                                         },
                                         onOpen = { chapter -> onOpenChapter(chapter.id, chapterIds, chapterTitles) },
+                                        downloadStates = downloadStates,
+                                        onDownload = { chapter -> onDownloadChapter(chapter.id) },
                                     )
                                 }
                                 val wide = maxWidth >= DetailWideWidthThreshold
@@ -777,6 +834,7 @@ private fun DetailInfoColumn(
     detail: WorkDetail,
     artwork: ImageBitmap?,
     fallbackTitle: String,
+    sourceKey: String,
     sourceName: String,
     wide: Boolean,
     inLibrary: Boolean,
@@ -784,6 +842,7 @@ private fun DetailInfoColumn(
     canContinue: Boolean,
     onContinue: () -> Unit,
     progress: app.koyura.domain.reader.ReaderProgress?,
+    uiHost: SourceUiHost? = null,
 ) {
     var expanded by remember { mutableStateOf(false) }
     val title = detail.title.ifEmpty { fallbackTitle }
@@ -823,7 +882,8 @@ private fun DetailInfoColumn(
     }
     // Four-key action row: library toggle commits to the shared shelf (same snapshot as the
     // Library tab); save failures keep the committed snapshot and surface a page error.
-    // Tracking and WebView stay disabled (tracker/sync/WebView are later tracks, see notes).
+    // Tracking stays disabled (no tracker backend yet); WebView opens the work URL via the
+    // platform opener, disabled when the source gives no URL.
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -855,8 +915,12 @@ private fun DetailInfoColumn(
         DetailAction(
             icon = ActionIcon.Public,
             label = stringResource(Res.string.source_detail_webview),
-            onClick = {},
-            enabled = false,
+            onClick = {
+                detail.url.takeIf { it.isNotBlank() }?.let { url ->
+                    uiHost?.launchUrl(sourceKey, url)
+                }
+            },
+            enabled = detail.url.isNotBlank(),
             highlightAlways = true,
             modifier = Modifier.weight(1f).testTag("detail-webview"),
         )
@@ -963,8 +1027,8 @@ private fun DetailInfoColumn(
  * Chapter-count header, optional multi-select bar, then one row per chapter.
  *
  * Long-press starts selection; while selecting, taps toggle. Batch mark-read writes the
- * production chapter table (`library_chapter.is_read`), download stays disabled
- * (download track is a later round). The row test tag is unchanged.
+ * production chapter table (`library_chapter.is_read`); the trailing indicator
+ * reads [downloadStates] and enqueues via [onDownload]. The row test tag is unchanged.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -979,18 +1043,22 @@ private fun DetailChapterList(
     canMarkRead: Boolean,
     onMarkRead: (Set<String>, Boolean) -> Unit,
     onOpen: (WorkChapter) -> Unit,
+    downloadStates: Map<String?, DownloadJob> = emptyMap(),
+    onDownload: (WorkChapter) -> Unit = {},
 ) {
     var filter by remember { mutableStateOf(ChapterFilter.ALL) }
     var showFilter by remember { mutableStateOf(false) }
+    val downloadedIds = remember(downloadStates) {
+        downloadStates.filterValues { it.status == DownloadStatus.COMPLETE }.keys
+    }
     val visibleChapters = chapters.filter { chapter ->
         val read = readStates[chapter.id] ?: (fallbackReadChapterId == chapter.id)
         when (filter) {
             ChapterFilter.ALL -> true
             ChapterFilter.UNREAD -> !read
             ChapterFilter.READ -> read
-            // 下载轨未接通前，「已下载」「未下载」都只按未下载处理（如实展示，不伪造状态）。
-            ChapterFilter.DOWNLOADED -> false
-            ChapterFilter.NOT_DOWNLOADED -> true
+            ChapterFilter.DOWNLOADED -> chapter.id in downloadedIds
+            ChapterFilter.NOT_DOWNLOADED -> chapter.id !in downloadedIds
         }
     }
     // 章节数头部：16sp + ▤，点击打开筛选弹层（白皮书 07 §7.12；平板图 tablet/37）。
@@ -1084,6 +1152,8 @@ private fun DetailChapterList(
                 if (selectedIds.isNotEmpty()) onToggleSelect(chapter.id) else onOpen(chapter)
             },
             onToggleSelect = { onToggleSelect(chapter.id) },
+            downloadJob = downloadStates[chapter.id],
+            onDownload = { onDownload(chapter) },
         )
         AppDivider()
     }
@@ -1092,7 +1162,7 @@ private fun DetailChapterList(
 /**
  * Komikku MangaChapterListItem: title row with read affordance, a meta secondary line
  * (scanlator/date/page count, falling back to the chapter id), a trailing download entry
- * (disabled until the download track lands) and 16/12/8/12 padding.
+ * (state from the download queue, tap enqueues/retries/pauses) and 16/12/8/12 padding.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -1103,6 +1173,8 @@ private fun MangaChapterRow(
     read: Boolean,
     onClick: () -> Unit,
     onToggleSelect: () -> Unit,
+    downloadJob: DownloadJob? = null,
+    onDownload: () -> Unit = {},
 ) {
     Row(
         modifier = Modifier
@@ -1166,14 +1238,18 @@ private fun MangaChapterRow(
                 modifier = Modifier.padding(horizontal = DesignTokens.Spacing.ExtraSmall),
             )
         }
-        // 状态层 40dp 包住 26dp 指示器（白皮书 06 §6.7「状态层 40dp」）。
+        // 状态层 40dp 包住 26dp 指示器（白皮书 06 §6.7「状态层 40dp」），点按即入队/重试/暂停。
         Box(
             modifier = Modifier
                 .size(DesignTokens.Sizes.SelectionMarker)
                 .testTag("detail-chapter-download-${chapter.id}"),
             contentAlignment = Alignment.Center,
         ) {
-            ChapterDownloadIndicator(state = ChapterDownloadState.NOT_DOWNLOADED)
+            ChapterDownloadIndicator(
+                state = downloadJob.toChapterDownloadState(),
+                progress = downloadJob.progressFraction(),
+                onClick = onDownload,
+            )
         }
     }
 }
@@ -1192,6 +1268,26 @@ private enum class ChapterFilter {
             NOT_DOWNLOADED -> Res.string.source_detail_filter_not_downloaded
         },
     )
+}
+
+/**
+ * 队列任务 → 行指示器形态（无任务/已取消按未下载；暂停按排队箭头展示，可点恢复）。
+ *
+ * 纯函数：指示器像素断言见截图矩阵，状态映射见 `DetailDownloadStateTest`。
+ */
+internal fun DownloadJob?.toChapterDownloadState(): ChapterDownloadState = when (this?.status) {
+    null, DownloadStatus.CANCELLED -> ChapterDownloadState.NOT_DOWNLOADED
+    DownloadStatus.QUEUED, DownloadStatus.PAUSED -> ChapterDownloadState.QUEUE
+    DownloadStatus.DOWNLOADING -> ChapterDownloadState.DOWNLOADING
+    DownloadStatus.FAILED -> ChapterDownloadState.ERROR
+    DownloadStatus.COMPLETE -> ChapterDownloadState.DOWNLOADED
+}
+
+/** 下载进度分数（总数未知时按 0 取指示器底色分支，不伪造环）。 */
+internal fun DownloadJob?.progressFraction(): Float {
+    val total = this?.totalPages
+    if (this == null || total == null || total <= 0) return 0f
+    return (downloadedPages.toFloat() / total).coerceIn(0f, 1f)
 }
 
 private fun chapterSecondaryLine(chapter: WorkChapter): String {

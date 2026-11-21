@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertWidthIsEqualTo
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.performScrollTo
@@ -16,9 +17,14 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
 import app.koyura.app.reader.pngBytes
+import app.koyura.app.sourceui.FakeClipboard
+import app.koyura.app.sourceui.FakeUrlOpener
+import app.koyura.app.sourceui.LocalSourceUiHost
+import app.koyura.app.sourceui.SourceUiHost
 import app.koyura.designsystem.CoverImageTag
 import app.koyura.designsystem.CoverPlaceholderTag
 import app.koyura.designsystem.ReaderTheme
+import app.koyura.features.downloads.FakeDownloadRepository
 import java.awt.image.BufferedImage
 import java.io.File
 import javax.imageio.ImageIO
@@ -86,7 +92,7 @@ class AppShellDetailUiTest {
         onNodeWithTag("source-detail-heading").assertIsDisplayed()
         // 真实封面（非占位）。
         onNodeWithTag(CoverImageTag).assertIsDisplayed()
-        // 四键行：收藏可点，追踪/网页禁用，进度无存档时禁用。
+        // 四键行：收藏可点；追踪无后端保持禁用；网页有 url 时可点（fixture 带 url）；进度无存档时禁用。
         onNodeWithTag("detail-favorite").assertIsDisplayed()
         onNodeWithTag("detail-tracking").assertIsDisplayed()
         onNodeWithTag("detail-progress").assertIsDisplayed()
@@ -104,6 +110,68 @@ class AppShellDetailUiTest {
         // 收藏为本地视觉态，点击不崩且保持显示。
         onNodeWithTag("detail-favorite").performClick()
         onNodeWithTag("detail-favorite").assertIsDisplayed()
+    }
+
+    @Test
+    fun detailDownloadButtonEnqueuesPausesAndResumesChapter() = runComposeUiTest {
+        val service = detailService()
+        val session = BrowseSession(service)
+        val downloads = FakeDownloadRepository()
+        setContent {
+            ReaderTheme {
+                SourceDetailScreen(
+                    session = session,
+                    sourceKey = "src-demo",
+                    workId = "demo",
+                    fallbackTitle = "星图",
+                    onBack = {},
+                    downloads = downloads,
+                )
+            }
+        }
+        waitForIdle()
+
+        fun jobs() = kotlinx.coroutines.runBlocking { downloads.downloadJobs("src-demo", "demo") }
+        val tag = "detail-chapter-download-ep_2"
+        // 首次点按入队，再次点按暂停，第三次点按恢复。
+        onNodeWithTag(tag, useUnmergedTree = true).performClick()
+        waitUntil(timeoutMillis = 5_000) { jobs().containsKey("ep_2") }
+        onNodeWithTag(tag, useUnmergedTree = true).performClick()
+        waitUntil(timeoutMillis = 5_000) {
+            jobs()["ep_2"]?.status == app.koyura.domain.downloads.DownloadStatus.PAUSED
+        }
+        onNodeWithTag(tag, useUnmergedTree = true).performClick()
+        waitUntil(timeoutMillis = 5_000) {
+            jobs()["ep_2"]?.status == app.koyura.domain.downloads.DownloadStatus.QUEUED
+        }
+    }
+
+    @Test
+    fun detailWebviewButtonOpensWorkUrl() = runComposeUiTest {
+        val service = detailService()
+        val session = BrowseSession(service)
+        val opener = FakeUrlOpener()
+        setContent {
+            ReaderTheme {
+                androidx.compose.runtime.CompositionLocalProvider(
+                    LocalSourceUiHost provides SourceUiHost(FakeClipboard(), opener),
+                ) {
+                    SourceDetailScreen(
+                        session = session,
+                        sourceKey = "src-demo",
+                        workId = "demo",
+                        fallbackTitle = "星图",
+                        onBack = {},
+                    )
+                }
+            }
+        }
+        waitForIdle()
+
+        // fixture 详情带 url，网页键可用；点按走平台 opener。
+        onNodeWithTag("detail-webview").assertIsEnabled()
+        onNodeWithTag("detail-webview").performClick()
+        waitUntil(timeoutMillis = 5_000) { opener.opened.contains("https://example.invalid/demo") }
     }
 
     @Test
