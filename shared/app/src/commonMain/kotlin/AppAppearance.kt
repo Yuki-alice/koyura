@@ -11,6 +11,7 @@ import app.koyura.app.library.BridgedSettingsRepository
 import app.koyura.app.library.LocalProductionSettings
 import app.koyura.designsystem.theme.ThemeSelection
 import app.koyura.designsystem.theme.VisualTheme
+import app.koyura.features.settings.LocalSettingsRepository
 import app.koyura.features.settings.SettingsSession
 import app.koyura.features.settings.rememberSettingsSession
 import com.materialkolor.PaletteStyle
@@ -27,7 +28,9 @@ internal fun AppAppearance(content: @Composable () -> Unit) {
     val repository = remember(production, scope) {
         production?.let { BridgedSettingsRepository(it, scope) }
     }
-    val session = rememberSettingsSession(repository)
+    // 显式传 null 会跳过 rememberSettingsSession 的默认值，所以这里自己回落，
+    // 保证预览/测试注入的 LocalSettingsRepository 仍是真实来源。
+    val session = rememberSettingsSession(repository ?: LocalSettingsRepository.current)
     LaunchedEffect(repository, session) {
         repository?.let { session.replace(it.hydrate()) }
     }
